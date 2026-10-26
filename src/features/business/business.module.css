@@ -1,0 +1,479 @@
+/* ── Topp ── */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding-block: var(--space-8) var(--space-9);
+}
+
+.glow {
+  position: absolute;
+  inset: -30% -10% auto 30%;
+  height: 90%;
+  background: radial-gradient(ellipse 50% 60% at 50% 40%, var(--navy-glow), var(--navy-glow-0) 70%);
+  pointer-events: none;
+}
+
+.heroInner {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.heroCopy {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: start;
+}
+
+.heroTitle {
+  font-size: var(--text-display);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+.heroLead {
+  max-width: 40ch;
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  color: var(--color-muted);
+  text-wrap: pretty;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.board {
+  position: relative;
+  aspect-ratio: 5 / 4;
+  border-radius: var(--radius-xl);
+  background-color: var(--color-paper);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+
+.boardItem {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: 40%;
+  rotate: var(--tilt);
+  filter: var(--shadow-badge);
+  transition: rotate var(--duration-slow) var(--ease-out), translate var(--duration-slow) var(--ease-out);
+}
+
+.boardItem:hover {
+  rotate: 0deg;
+  translate: 0 -4px;
+}
+
+/* ── Veckan ── */
+
+.story {
+  padding-block: var(--space-9);
+  border-top: 1px solid var(--color-line);
+  background: var(--color-white);
+}
+
+.storyIntro {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.sectionTitle {
+  max-width: 22ch;
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+
+.scenes {
+  display: grid;
+  gap: var(--space-8);
+  max-width: 980px;
+  margin-top: var(--space-8);
+  padding-inline: var(--container-pad);
+  list-style: none;
+}
+
+.scene {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+.when {
+  position: sticky;
+  top: calc(var(--header-height) + var(--space-5));
+  align-self: start;
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 2px solid var(--color-navy);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.when .mono {
+  padding-top: var(--space-2);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  color: var(--color-navy);
+}
+
+.sceneCopy {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 60ch;
+  font-size: var(--text-lg);
+  line-height: var(--leading-body);
+  color: var(--color-ink-2);
+  text-wrap: pretty;
+}
+
+.sceneTitle {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+}
+
+.quote {
+  grid-column: 1 / -1;
+  margin-top: var(--space-7);
+  padding: var(--space-8) var(--space-6);
+  border-radius: var(--radius-xl);
+  background: var(--color-navy);
+  color: var(--color-white);
+  text-align: center;
+}
+
+.quote p {
+  max-width: 24ch;
+  margin-inline: auto;
+  font-size: var(--text-2xl);
+  font-weight: 500;
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+
+/* ── Hela teamet ── */
+
+.how {
+  padding-block: var(--space-9);
+  border-top: 1px solid var(--color-line);
+  background: var(--color-paper);
+}
+
+.howInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-8);
+  max-width: 1100px;
+}
+
+.howInner .sectionTitle {
+  margin-top: var(--space-3);
+}
+
+.howSteps {
+  display: grid;
+  gap: var(--space-5);
+  margin-top: var(--space-6);
+  padding: 0;
+  list-style: none;
+}
+
+.howSteps li {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.howNumber {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-navy);
+  font-size: var(--text-sm);
+  color: var(--color-white);
+}
+
+.howSteps h3 {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.howSteps p {
+  margin-top: var(--space-1);
+  line-height: var(--leading-body);
+  color: var(--color-muted);
+}
+
+.howNote {
+  margin-top: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.teamPanel {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(160deg, var(--color-white) 0%, var(--color-paper-2) 60%, var(--color-navy-tint) 100%);
+}
+
+.sheet {
+  display: grid;
+  gap: var(--space-1);
+  width: min(100%, 340px);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+  background: var(--color-white);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+}
+
+.sheetArrow {
+  width: 1px;
+  height: 28px;
+  background: var(--color-navy-3);
+  opacity: 0.55;
+}
+
+.teamBadges {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.teamBadges > * {
+  filter: var(--shadow-badge);
+}
+
+.volume {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: var(--space-7);
+  max-width: 1100px;
+  margin-top: var(--space-9);
+  padding-block: var(--space-6);
+  border-top: 1px solid var(--color-line-strong);
+  scroll-margin-top: calc(var(--header-height) + var(--space-5));
+}
+
+.volumeTitle {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: var(--leading-snug);
+  text-wrap: balance;
+}
+
+.volumeBody {
+  margin-top: var(--space-2);
+  color: var(--color-muted);
+}
+
+.volumeTable {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.volumeTable > div {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-navy);
+  color: var(--color-white);
+}
+
+.volumeTable > div[data-base="true"] {
+  background: var(--color-white);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  color: var(--color-ink);
+}
+
+.volumeTable dt {
+  font-size: var(--text-xs);
+  opacity: 0.75;
+}
+
+.volumeTable dd {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+.volumeTable > div[data-base="true"] dd {
+  font-size: var(--text-md);
+  padding-block: 0.2em;
+}
+
+/* ── Arbetsplatser ── */
+
+.workplaces {
+  padding-block: var(--space-9);
+  border-top: 1px solid var(--color-line);
+  background: var(--color-white);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-5);
+  max-width: 1100px;
+  margin-top: var(--space-8);
+  padding-inline: var(--container-pad);
+  list-style: none;
+}
+
+.card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.cardStage {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, var(--color-paper) 0%, var(--color-paper-2) 100%);
+}
+
+.cardBadge {
+  width: 66%;
+  filter: var(--shadow-badge);
+  transition: translate var(--duration-base) var(--ease-out);
+}
+
+.card:hover .cardBadge {
+  translate: 0 -3px;
+}
+
+.card h3 {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.card p {
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  color: var(--color-muted);
+}
+
+/* ── Avslut ── */
+
+.outro {
+  padding-block: var(--space-9);
+  border-top: 1px solid var(--color-line);
+  background: var(--color-paper);
+}
+
+.outroInner {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  text-align: center;
+}
+
+.outroTitle {
+  font-size: var(--text-display);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+}
+
+.outroInner p {
+  max-width: 40ch;
+  font-size: var(--text-lg);
+  color: var(--color-muted);
+}
+
+.outroInner :global(.btn) {
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* ── Mindre skärmar ── */
+
+@media (max-width: 960px) {
+  .heroInner,
+  .howInner,
+  .volume {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+  }
+
+  .board {
+    max-width: 560px;
+    width: 100%;
+    justify-self: center;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .hero,
+  .story,
+  .how,
+  .workplaces,
+  .outro {
+    padding-block: var(--space-8);
+  }
+
+  .scene {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .when {
+    position: static;
+  }
+
+  .quote {
+    margin-top: var(--space-5);
+    padding: var(--space-7) var(--space-5);
+  }
+
+  .volumeTable {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boardItem,
+  .cardBadge {
+    transition: none;
+  }
+}

@@ -6,7 +6,7 @@ const NAV = [
   { href: "/#borja", label: "Namnskyltar" },
   { href: "/#sa-funkar-det", label: "Så funkar det" },
   { href: "/#pins", label: "Pins", soon: true },
-  { href: "/#foretag", label: "För företag" },
+  { href: "/foretag", label: "För företag" },
 ] as const;
 
 export function SiteHeader() {

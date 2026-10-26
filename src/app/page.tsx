@@ -1,3 +1,4 @@
+import { SiteFooter } from "@/components/site-footer";
 import { HowItWorks } from "@/features/home/how-it-works";
 import { INPUT_ANCHOR, SmartInput } from "@/features/home/smart-input";
 import styles from "./page.module.css";
@@ -23,9 +24,7 @@ export default function HomePage() {
         </a>
       </div>
       <HowItWorks />
-      <footer className={styles.footer}>
-        Tillverkas av Skylt &amp; Gravyrteknik · Leverans inom 5 arbetsdagar
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

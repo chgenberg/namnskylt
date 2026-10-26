@@ -70,7 +70,11 @@
     padding-inline: var(--space-4);
   }
 
-  .link:not(:first-child) {
+  .link:not(:first-child, :last-child) {
     display: none;
+  }
+
+  .link {
+    padding-inline: var(--space-2);
   }
 }
