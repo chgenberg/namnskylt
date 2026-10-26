@@ -1,0 +1,25 @@
+---
+description: React/Next-mönster för komponenter, state och 3D
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# React & Next
+
+- **Serverkomponent som standard.** `"use client"` bara i löv som behöver state, effekter eller webbläsar-API.
+- **Pages är tunna**: läs params/searchParams, rendera en feature-komponent.
+- **State i reducer** (`features/<x>/state.ts`) med diskriminerade actions. Reducern är ren — id:n och tid skapas av anroparen och skickas i actionen.
+- **Härled, lagra inte.** Layout, pris och validering räknas med `useMemo` ur dokumentet.
+- **Hydrering:** samma markup på server och första klientrendering. Webbläsarberoende värden sätts i `useEffect` (se `useTextMeasurer`).
+- **3D laddas med `next/dynamic` och `ssr: false`.** Geometri och texturer `dispose()`:as när de byts ut.
+- En komponent per fil, kebab-case-filnamn, namngiven export (default bara där Next/dynamic kräver det).
+- Props-interface heter `<Komponent>Props` och ligger ovanför komponenten.
+- **Tillgänglighet:** riktiga `<button>`/`<label>`, `aria-pressed` för toggles, `role="radio"`+`aria-checked` för val, synligt fokus.
+- Animationer via `motion/react`, ease `[0.22, 1, 0.36, 1]`, 0,2–0,5 s. Respektera `prefers-reduced-motion` (globalt i CSS).
+
+```tsx
+// ❌ ny parallell state för något som går att härleda
+const [price, setPrice] = useState(0);
+// ✅
+const price = priceBadge(doc);
+```

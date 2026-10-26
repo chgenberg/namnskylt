@@ -1,0 +1,35 @@
+---
+description: Kärnstandard för Namnskylt — stack, struktur, kvalitetskrav
+alwaysApply: true
+---
+
+# Namnskylt — projektstandard
+
+Webbshop för graverade namnskyltar (och senare pins). Tillverkning sker hos
+Skylt & Gravyrteknik; ordrar går via `src/lib/supplier/` mot deras API.
+
+## Stack
+Next.js 15 (App Router) · React 19 · TypeScript strict · CSS Modules + `globals.css`
+· three / @react-three/fiber / drei · motion · zod · pnpm 9 · Node 20.
+
+## Struktur
+- `src/engine/` — namnskyltmotorn. Ren TS, ingen React/Next. Se `engine.mdc`.
+- `src/lib/` — server- och integrationskod (`supplier/` = leverantörs-API).
+- `src/features/<feature>/` — en sida/flödes komponenter, state och stil.
+- `src/components/` — delade komponenter; `components/ui/` = primitiver.
+- `src/hooks/` — delade hooks. `src/app/` — bara routes, layout och API-handlers.
+
+## Principer
+- Dokumentet (`BadgeDocument`, mm) är sanningen. 3D, ritning och order härleds ur det — aldrig parallell state.
+- Servern litar aldrig på klienten: validera med `badgeDocumentSchema` i varje API-route.
+- Erbjud bara det leverantören kan tillverka. Nya material/färger använder leverantörens koder.
+- Små, namngivna funktioner framför kommentarer. Konstanter med enhet i namnet (`EDGE_MARGIN_MM`).
+- Inga `any`, inga icke-null-assertions utan att indexet bevisligen finns.
+- UI-text på svenska. Identifierare på engelska. Kommentarer på svenska, bara för begränsningar koden inte visar.
+
+## Kvalitetsgrind innan något lämnas
+```bash
+pnpm typecheck && pnpm lint && pnpm test && pnpm build
+```
+Ny logik i `engine/` eller `lib/` kräver test (`*.test.ts`, `node:test` via tsx).
+Committa eller deploya aldrig utan att användaren ber om det.

@@ -1,0 +1,28 @@
+---
+description: CSS-arkitektur och designspråk (nordiskt — vitt, svart, mörkblått)
+globs: src/**/*.css, src/**/*.tsx
+alwaysApply: false
+---
+
+# Stil & designspråk
+
+## Arkitektur
+- `src/app/globals.css` äger **tokens** (`:root`), bas-reset och delade primitiver (`.btn`, `.chip`, `.field`, `.segmented`, `.range`, `.beam-border`, `.dot-grid`).
+- Allt annat i colokaliserade `*.module.css` bredvid komponenten. Inga nya globala klasser utan att de används på flera ställen.
+- **Bara tokens.** Inga hex/rgb-färger, egna skuggor eller avstånd utanför skalan i moduler — använd `var(--color-*)`, `var(--space-*)`, `var(--radius-*)`, `var(--shadow-*)`, `var(--ease-*)`. Saknas en token: lägg till den i `:root`. Fasta komponentmått (ikon 22px, kontrollhöjd 44px) får vara px.
+- Ingen Tailwind, inga inline-styles — undantag: dynamiska CSS-variabler (`style={{ "--range-fill": … }}`).
+- Klassnamn i camelCase i moduler; tillstånd via `data-*`/`aria-*`-attribut, inte modifierarklasser.
+
+## Designspråk
+- Palett: vitt `--color-white`, papper `--color-paper`, svart `--color-ink`, mörkblått `--color-navy*` som enda accent.
+- Mycket luft, tunna linjer (`--color-line`), mjuka skuggor. En accent per vy.
+- Typografi: Geist för UI, `mono` för mått och siffror. Rubriker `--tracking-tight`.
+- Rörelse ska förklara (vad ändrades, vart tog det vägen) — inte dekorera.
+- Mobil först i tanken: brytpunkter 560 / 900 px; touchytor minst 34 px.
+
+```css
+/* ❌ */
+.card { color: #0b1f3a; padding: 18px; }
+/* ✅ */
+.card { color: var(--color-navy); padding: var(--space-4); }
+```

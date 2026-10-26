@@ -1,0 +1,10 @@
+.preview {
+  width: 100%;
+}
+
+.preview > svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  filter: var(--shadow-badge);
+}

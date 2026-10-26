@@ -1,0 +1,52 @@
+.main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - var(--header-height));
+  overflow: hidden;
+}
+
+/* Svagt mörkblått ljus bakom rutan — enda färgaccenten på sidan. */
+.glow {
+  position: absolute;
+  inset: -20% -10% auto;
+  height: 70%;
+  background: radial-gradient(
+    ellipse 50% 60% at 50% 40%,
+    var(--navy-glow),
+    var(--navy-glow-0) 70%
+  );
+  pointer-events: none;
+}
+
+.hero {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  padding-block: var(--space-8) var(--space-6);
+  text-align: center;
+}
+
+.title {
+  max-width: 18ch;
+  font-size: var(--text-display);
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+}
+
+.titleMuted {
+  display: block;
+  color: var(--color-subtle);
+}
+
+.footer {
+  position: relative;
+  padding: var(--space-5) var(--container-pad);
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
