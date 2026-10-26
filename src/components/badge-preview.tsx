@@ -2,7 +2,7 @@
 
 import { useId, useMemo } from "react";
 import { layoutBadge, renderBadgeSvg, type BadgeDocument } from "@/engine";
-import { useTextMeasurer } from "@/hooks/use-text-measurer";
+import { useFontEngine } from "@/hooks/use-font-engine";
 import styles from "./badge-preview.module.css";
 
 const PLACEHOLDER_TEXTS = ["Ditt namn", "Titel", "Avdelning"];
@@ -26,18 +26,19 @@ function withPlaceholders(doc: BadgeDocument): { doc: BadgeDocument; ids: Set<st
 }
 
 export function BadgePreview({ doc, showDimensions = false, className, label }: BadgePreviewProps) {
-  const measure = useTextMeasurer();
+  const fonts = useFontEngine();
   const idPrefix = useId().replace(/:/g, "");
 
   const markup = useMemo(() => {
     const { doc: drawn, ids } = withPlaceholders(doc);
-    return renderBadgeSvg(drawn, layoutBadge(drawn, measure), {
+    return renderBadgeSvg(drawn, layoutBadge(drawn, fonts), {
       mode: "preview",
+      fonts,
       showDimensions,
       placeholderRowIds: ids,
       idPrefix,
     });
-  }, [doc, measure, showDimensions, idPrefix]);
+  }, [doc, fonts, showDimensions, idPrefix]);
 
   return (
     <div

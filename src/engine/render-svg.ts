@@ -1,22 +1,18 @@
 import { getColor, getFont, getMaterial } from "./catalog";
-import type { BadgeLayout } from "./layout";
+import { engravingPaths } from "./engraving";
+import type { BadgeLayout, FontEngine } from "./layout";
 import type { BadgeDocument, MaterialFinish } from "./types";
 
 /**
  * - `preview`: det kunden ser i ritningsvyn och på startsidan.
- * - `texture-*`: kartor till 3D-vyn. Fyller hela rektangeln — formen klipps
- *   av geometrin, så kanterna får inga halvgenomskinliga pixlar.
  * - `production`: leverantörens filkonvention — röd = skär, svart = gravyr.
  */
-export type RenderMode =
-  | "preview"
-  | "production"
-  | "texture-color"
-  | "texture-bump"
-  | "texture-roughness";
+export type RenderMode = "preview" | "production";
 
 export interface RenderOptions {
   mode: RenderMode;
+  /** Med konturer ritas glyferna som paths — exakt det som graveras. */
+  fonts?: FontEngine;
   /** Sätter `width`/`height` i px. Utelämnad = skalbar SVG. */
   pxPerMm?: number;
   showDimensions?: boolean;
@@ -31,14 +27,6 @@ const PRODUCTION_ENGRAVE = "#000000";
 const PLACEHOLDER_FILL = "#B4B8BF";
 const DIMENSION_INK = "#8A8F98";
 const DIMENSION_PAD_MM = 9;
-
-/** Gråvärden i roughness-kartan: blank yta vs. matt gravyrbotten. */
-const ROUGHNESS_SURFACE: Record<MaterialFinish, string> = {
-  plastic: "#5c5c5c",
-  aluminium: "#6e6e6e",
-  steel: "#5a5a5a",
-};
-const ROUGHNESS_ENGRAVED = "#e6e6e6";
 
 function escapeXml(value: string): string {
   return value
@@ -84,61 +72,57 @@ export function renderBadgeSvg(
   layout: BadgeLayout,
   options: RenderOptions,
 ): string {
-  const { mode, pxPerMm, showDimensions = false, placeholderRowIds, idPrefix = "badge" } = options;
+  const {
+    mode,
+    fonts,
+    pxPerMm,
+    showDimensions = false,
+    placeholderRowIds,
+    idPrefix = "badge",
+  } = options;
   const { widthMm: w, heightMm: h } = layout;
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
-  const font = getFont(doc.font);
-  const isTexture = mode.startsWith("texture");
-  const pad = mode === "preview" && showDimensions ? DIMENSION_PAD_MM : 0;
-
-  const engraveFill =
-    mode === "production"
-      ? PRODUCTION_ENGRAVE
-      : mode === "texture-bump"
-        ? "#000"
-        : mode === "texture-roughness"
-          ? ROUGHNESS_ENGRAVED
-          : color.engraving;
-
-  const surfaceFill =
-    mode === "texture-bump"
-      ? "#fff"
-      : mode === "texture-roughness"
-        ? ROUGHNESS_SURFACE[material.finish]
-        : color.surface;
+  const isPreview = mode === "preview";
+  const pad = isPreview && showDimensions ? DIMENSION_PAD_MM : 0;
+  const engraveFill = isPreview ? color.engraving : PRODUCTION_ENGRAVE;
+  const fillFor = (rowId: string | undefined) =>
+    isPreview && rowId && placeholderRowIds?.has(rowId) ? PLACEHOLDER_FILL : engraveFill;
 
   const gradientId = `${idPrefix}-sheen`;
   const parts: string[] = [];
 
-  if (mode === "preview") {
+  if (isPreview) {
     parts.push(`<defs>${surfaceDefs(material.finish, gradientId)}</defs>`);
-    parts.push(`<path d="${layout.outline}" fill="${surfaceFill}"/>`);
+    parts.push(`<path d="${layout.outline}" fill="${color.surface}"/>`);
     parts.push(`<path d="${layout.outline}" fill="url(#${gradientId})"/>`);
-  } else if (mode === "production") {
+  } else {
     parts.push(
       `<path d="${layout.outline}" fill="none" stroke="${PRODUCTION_CUT}" stroke-width=".1"/>`,
     );
+  }
+
+  const engraving = fonts ? engravingPaths(layout, fonts) : null;
+  if (engraving) {
+    for (const path of engraving) {
+      parts.push(`<path d="${path.d}" fill="${fillFor(path.rowId)}" fill-rule="${path.fillRule}"/>`);
+    }
   } else {
-    parts.push(`<rect width="${num(w)}" height="${num(h)}" fill="${surfaceFill}"/>`);
+    for (const frame of layout.frames) {
+      parts.push(`<path d="${frame.d}" fill="${engraveFill}" fill-rule="evenodd"/>`);
+    }
+    const family = escapeXml(getFont(doc.font).css);
+    for (const row of layout.rows) {
+      parts.push(
+        `<text x="${num(row.xMm)}" y="${num(row.baselineMm)}" text-anchor="${row.anchor}" font-family="${family}" font-size="${num(row.fontSizeMm)}" font-weight="${row.bold ? 700 : 400}" fill="${fillFor(row.id)}">${escapeXml(row.text)}</text>`,
+      );
+    }
   }
 
-  for (const frame of layout.frames) {
+  if (isPreview) {
     parts.push(
-      `<path d="${frame.d}" fill="none" stroke="${engraveFill}" stroke-width="${num(frame.strokeMm)}"/>`,
+      `<path d="${layout.outline}" fill="none" stroke="#0B0B0C" stroke-opacity=".12" stroke-width=".2"/>`,
     );
-  }
-
-  const family = escapeXml(font.css);
-  for (const row of layout.rows) {
-    const isPlaceholder = mode === "preview" && placeholderRowIds?.has(row.id);
-    parts.push(
-      `<text x="${num(row.xMm)}" y="${num(row.baselineMm)}" text-anchor="${row.anchor}" font-family="${family}" font-size="${num(row.fontSizeMm)}" font-weight="${row.bold ? 700 : 400}" fill="${isPlaceholder ? PLACEHOLDER_FILL : engraveFill}">${escapeXml(row.text)}</text>`,
-    );
-  }
-
-  if (mode === "preview") {
-    parts.push(`<path d="${layout.outline}" fill="none" stroke="#0B0B0C" stroke-opacity=".12" stroke-width=".2"/>`);
     if (showDimensions) parts.push(dimensionMarks(w, h));
   }
 
@@ -147,6 +131,5 @@ export function renderBadgeSvg(
   const size = pxPerMm
     ? ` width="${Math.round(viewW * pxPerMm)}" height="${Math.round(viewH * pxPerMm)}"`
     : "";
-  const ratio = isTexture ? ` preserveAspectRatio="none"` : "";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${num(viewW)} ${num(viewH)}"${size}${ratio}>${parts.join("")}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${num(viewW)} ${num(viewH)}"${size}>${parts.join("")}</svg>`;
 }

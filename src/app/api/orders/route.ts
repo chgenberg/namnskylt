@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { approxMeasure, badgeDocumentSchema } from "@/engine";
+import { MAX_ORDER_BADGES, badgeDocumentSchema, layoutBadge, renderBadgeSvg } from "@/engine";
+import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { createSupplierClient } from "@/lib/supplier/client";
 import { toSupplierSignDocument } from "@/lib/supplier/map";
 
@@ -10,7 +11,7 @@ const orderRequestSchema = z.object({
     email: z.email(),
     company: z.string().trim().max(120).optional(),
   }),
-  badges: z.array(badgeDocumentSchema).min(1).max(50),
+  badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
 });
 
 export async function POST(request: Request) {
@@ -25,10 +26,15 @@ export async function POST(request: Request) {
 
   const { customer, badges } = parsed.data;
   try {
+    const fonts = await loadNodeFontEngine();
     const receipt = await createSupplierClient().placeOrder({
       customer,
       lines: badges.map((badge, i) => ({
-        document: toSupplierSignDocument(badge, approxMeasure),
+        document: toSupplierSignDocument(badge, fonts),
+        productionSvg: renderBadgeSvg(badge, layoutBadge(badge, fonts), {
+          mode: "production",
+          fonts,
+        }),
         quantity: badge.quantity,
         reference: `NS-${i + 1}`,
       })),

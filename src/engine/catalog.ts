@@ -81,21 +81,31 @@ export const MATERIALS: readonly BadgeMaterial[] = [
 export interface BadgeFont {
   id: FontId;
   name: string;
+  /** Reservtypsnitt för `<text>` innan fontfilerna laddats. */
   css: string;
+  /**
+   * Fontfiler under `public/fonts`. Liberation Sans är metriskt identisk med
+   * Arial (samma avancebredder), så radbrytning och krympning blir desamma
+   * som i leverantörens Arial — och filerna får distribueras (OFL).
+   */
+  files: { regular: string; bold: string };
 }
 
 /** Gravyrmaskinerna kör Arial-familjen — fler typsnitt går inte att tillverka. */
 export const FONTS: readonly BadgeFont[] = [
-  { id: "arial", name: "Arial", css: "Arial, 'Helvetica Neue', Helvetica, sans-serif" },
+  {
+    id: "arial",
+    name: "Arial",
+    css: "Arial, 'Helvetica Neue', Helvetica, sans-serif",
+    files: { regular: "LiberationSans-Regular.ttf", bold: "LiberationSans-Bold.ttf" },
+  },
   {
     id: "arial-narrow",
     name: "Arial Narrow",
     css: "'Arial Narrow', 'Helvetica Neue Condensed', 'Roboto Condensed', Arial, sans-serif",
+    files: { regular: "LiberationSansNarrow-Regular.ttf", bold: "LiberationSansNarrow-Bold.ttf" },
   },
 ];
-
-/** Versalhöjd / em för Arial-familjen. */
-export const CAP_HEIGHT_RATIO = 0.716;
 
 export interface SizePreset {
   id: string;

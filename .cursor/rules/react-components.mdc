@@ -10,8 +10,8 @@ alwaysApply: false
 - **Pages är tunna**: läs params/searchParams, rendera en feature-komponent.
 - **State i reducer** (`features/<x>/state.ts`) med diskriminerade actions. Reducern är ren — id:n och tid skapas av anroparen och skickas i actionen.
 - **Härled, lagra inte.** Layout, pris och validering räknas med `useMemo` ur dokumentet.
-- **Hydrering:** samma markup på server och första klientrendering. Webbläsarberoende värden sätts i `useEffect` (se `useTextMeasurer`).
-- **3D laddas med `next/dynamic` och `ssr: false`.** Geometri och texturer `dispose()`:as när de byts ut.
+- **Hydrering:** samma markup på server och första klientrendering. Webbläsarberoende värden sätts i `useEffect` (se `useFontEngine`).
+- **3D laddas med `next/dynamic` och `ssr: false`.** Geometri, material och texturer `dispose()`:as när de byts ut. En mesh per material (strålspåraren klarar inte material-arrayer); objekt som inte överlever `dispose()` (t.ex. strålspåraren) skapas i `useEffect`, inte `useMemo` — StrictMode kör cleanup en extra gång.
 - En komponent per fil, kebab-case-filnamn, namngiven export (default bara där Next/dynamic kräver det).
 - Props-interface heter `<Komponent>Props` och ligger ovanför komponenten.
 - **Tillgänglighet:** riktiga `<button>`/`<label>`, `aria-pressed` för toggles, `role="radio"`+`aria-checked` för val, synligt fokus.

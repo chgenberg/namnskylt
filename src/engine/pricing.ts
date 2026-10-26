@@ -39,27 +39,44 @@ export function tierFor(quantity: number): QuantityTier {
   return QUANTITY_TIERS.find((t) => quantity >= t.minQuantity) ?? QUANTITY_TIERS.at(-1)!;
 }
 
-export function priceBadge(doc: BadgeDocument): PriceBreakdown {
-  const quantity = Math.max(1, Math.floor(doc.quantity));
+function quantityOf(doc: BadgeDocument): number {
+  return Math.max(1, Math.floor(doc.quantity));
+}
+
+function listPriceSek(doc: BadgeDocument): number {
   const areaCm2 = (doc.size.widthMm * doc.size.heightMm) / 100;
   const extraArea = Math.max(0, Math.ceil(areaCm2 - BASE_AREA_CM2));
   const extraRows = Math.max(0, engravedRows(doc).length - 1);
-
-  const list =
+  return (
     getMaterial(doc.materialId).basePriceSek +
     extraArea * AREA_PRICE_SEK_PER_CM2 +
     extraRows * EXTRA_ROW_SEK +
     (doc.frame.style === "none" ? 0 : FRAME_SEK) +
-    getMounting(doc.mounting).priceSek;
+    getMounting(doc.mounting).priceSek
+  );
+}
 
+/**
+ * Hela ordern prissätts tillsammans: mängdrabatten gäller orderns totala
+ * antal, så 30 olika namn får samma rabatt som 30 likadana skyltar.
+ * `unitSek` är snittpriset per skylt.
+ */
+export function priceOrder(docs: readonly BadgeDocument[]): PriceBreakdown {
+  const quantity = docs.reduce((sum, doc) => sum + quantityOf(doc), 0);
   const tier = tierFor(quantity);
-  const unitSek = Math.round(list * tier.factor);
-  const totalSek = unitSek * quantity;
+  const totalSek = docs.reduce(
+    (sum, doc) => sum + Math.round(listPriceSek(doc) * tier.factor) * quantityOf(doc),
+    0,
+  );
   return {
-    unitSek,
+    unitSek: quantity > 0 ? Math.round(totalSek / quantity) : 0,
     totalSek,
     totalInclVatSek: Math.round(totalSek * (1 + VAT_RATE)),
     tier,
     quantity,
   };
+}
+
+export function priceBadge(doc: BadgeDocument): PriceBreakdown {
+  return priceOrder([doc]);
 }

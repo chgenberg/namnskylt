@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  approxMeasure,
+  approxFonts,
   badgeDocumentSchema,
   createBadgeDocument,
   layoutBadge,
@@ -29,7 +29,7 @@ describe("parseSmartInput", () => {
 describe("layoutBadge", () => {
   it("centrerar en kort rad utan att krympa den", () => {
     const doc = createBadgeDocument(["Anna"]);
-    const layout = layoutBadge(doc, approxMeasure);
+    const layout = layoutBadge(doc, approxFonts);
     const row = layout.rows[0]!;
     assert.equal(row.xMm, doc.size.widthMm / 2);
     assert.equal(row.capHeightMm, doc.rows[0]!.capHeightMm);
@@ -38,7 +38,7 @@ describe("layoutBadge", () => {
 
   it("krymper en lång rad så den ryms inom säkerhetszonen", () => {
     const doc = createBadgeDocument(["Maximiliana Lindqvist-Östergren"]);
-    const layout = layoutBadge(doc, approxMeasure);
+    const layout = layoutBadge(doc, approxFonts);
     const row = layout.rows[0]!;
     assert.ok(row.widthMm <= doc.size.widthMm - 2 * layout.contentInsetMm + 1e-6);
     assert.equal(layout.issues[0]?.code, "row-shrunk");
@@ -46,31 +46,31 @@ describe("layoutBadge", () => {
 
   it("ger ovalen smalare textyta än en rak skylt", () => {
     const text = ["Anna Lindqvist", "Projektledare", "Avdelningen för kvalitet"];
-    const rect = layoutBadge({ ...createBadgeDocument(text), shape: "rectangle" }, approxMeasure);
-    const oval = layoutBadge({ ...createBadgeDocument(text), shape: "oval" }, approxMeasure);
+    const rect = layoutBadge({ ...createBadgeDocument(text), shape: "rectangle" }, approxFonts);
+    const oval = layoutBadge({ ...createBadgeDocument(text), shape: "oval" }, approxFonts);
     assert.ok(oval.rows[2]!.capHeightMm < rect.rows[2]!.capHeightMm);
   });
 
   it("håller textblocket inom höjden", () => {
     const doc = createBadgeDocument(["A", "B", "C"]);
     doc.rows.forEach((r) => (r.capHeightMm = 12));
-    const layout = layoutBadge(doc, approxMeasure);
+    const layout = layoutBadge(doc, approxFonts);
     assert.ok(layout.rows[0]!.baselineMm - layout.rows[0]!.capHeightMm >= layout.contentInsetMm - 1e-6);
     assert.ok(layout.rows[2]!.baselineMm <= doc.size.heightMm - layout.contentInsetMm + 1e-6);
   });
 
   it("drar in texten innanför ramen", () => {
-    const plain = layoutBadge(createBadgeDocument(["Anna"]), approxMeasure);
+    const plain = layoutBadge(createBadgeDocument(["Anna"]), approxFonts);
     const framed = layoutBadge(
       { ...createBadgeDocument(["Anna"]), frame: { style: "double", insetMm: 1.5, thicknessMm: 0.4 } },
-      approxMeasure,
+      approxFonts,
     );
     assert.equal(framed.frames.length, 2);
     assert.ok(framed.contentInsetMm > plain.contentInsetMm);
   });
 
   it("hoppar över tomma rader", () => {
-    const layout = layoutBadge(createBadgeDocument(["Anna", "  "]), approxMeasure);
+    const layout = layoutBadge(createBadgeDocument(["Anna", "  "]), approxFonts);
     assert.equal(layout.rows.length, 1);
   });
 });
@@ -78,7 +78,7 @@ describe("layoutBadge", () => {
 describe("renderBadgeSvg", () => {
   it("escapar text och använder leverantörens färgkonvention i produktion", () => {
     const doc = createBadgeDocument(["Ö & <Å>"]);
-    const svg = renderBadgeSvg(doc, layoutBadge(doc, approxMeasure), { mode: "production" });
+    const svg = renderBadgeSvg(doc, layoutBadge(doc, approxFonts), { mode: "production" });
     assert.ok(svg.includes("Ö &amp; &lt;Å&gt;"));
     assert.ok(svg.includes('stroke="#FF0000"'));
     assert.ok(svg.includes('fill="#000000"'));

@@ -3,7 +3,8 @@ import Link from "next/link";
 import styles from "./site-header.module.css";
 
 const NAV = [
-  { href: "/skapa", label: "Namnskyltar" },
+  { href: "/#borja", label: "Namnskyltar" },
+  { href: "/#sa-funkar-det", label: "Så funkar det" },
   { href: "/#pins", label: "Pins", soon: true },
   { href: "/#foretag", label: "För företag" },
 ] as const;
@@ -11,7 +12,7 @@ const NAV = [
 export function SiteHeader() {
   return (
     <header className={styles.header}>
-      <div className={`container ${styles.inner}`}>
+      <div className={styles.inner}>
         <Link href="/" className={styles.brand} aria-label="namnskylt.com — till startsidan">
           <Image
             src="/logo-namnskylt.png"

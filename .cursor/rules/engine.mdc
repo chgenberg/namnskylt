@@ -8,8 +8,8 @@ alwaysApply: false
 
 - **Ren TypeScript.** Importera aldrig `react`, `next`, `three`, `@/lib/*` eller DOM-globaler på modulnivå. Relativa importer inom motorn.
 - **Allt i mm**, origo övre vänstra hörnet, y nedåt. Versalhöjd (`capHeightMm`) — inte punkter.
-- **Beroenden injiceras.** Textmätning kommer in som `TextMeasurer`; `approxMeasure` på servern/test, `createCanvasMeasurer` i webbläsaren.
-- **En layout, flera renderare.** `layoutBadge` räknar positionerna; `renderBadgeSvg` ritar dem för preview, 3D-texturer och produktion. Lägg aldrig layoutlogik i en renderare eller komponent.
+- **Typsnittet injiceras** som `FontEngine` (mätning, versalhöjd, glyfkonturer). Riktiga fontfiler via `@/lib/fonts` i webbläsare och server; `approxFonts` i test och innan filerna laddats.
+- **En layout, en gravyr, flera renderare.** `layoutBadge` räknar positionerna, `engravingPaths` ger allt som graveras som fyllda konturer. Samma konturer blir ritning, 3D-fräsning (CSG) och produktionsfil. Lägg aldrig layoutlogik i en renderare eller komponent.
 - **Krymp, kondensera aldrig.** Text som inte ryms får mindre versalhöjd och en `LayoutIssue` — gravyren ska se ut exakt som previewn.
 - **Produktionsfärger är kontrakt:** röd `#FF0000` = skär, svart = gravyr. Ändra inte.
 - **Katalogen speglar leverantören.** `supplierCode` och färg-id:n är Skylt & Gravyrtekniks koder (se `Skyltochgravyr/skyltmotor/packages/catalog`).
@@ -20,5 +20,5 @@ alwaysApply: false
 // ❌ mätning hårdkodad i layouten
 const width = text.length * 0.6 * size;
 // ✅ injicerad
-const width = measure(text, { css: font.css, sizeMm, bold });
+const width = fonts.measure(text, { fontId, bold, sizeMm });
 ```

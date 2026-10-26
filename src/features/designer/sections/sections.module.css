@@ -350,3 +350,83 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ── Fler namn ── */
+
+.batchLead {
+  font-size: var(--text-sm);
+  color: var(--color-ink-2);
+}
+
+.batchField textarea {
+  display: block;
+  width: 100%;
+  min-height: 104px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-white);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  resize: vertical;
+  outline: 0;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.batchField textarea:focus {
+  border-color: var(--color-navy-3);
+  box-shadow: var(--focus-ring);
+}
+
+.hint {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.batchList {
+  display: grid;
+  gap: var(--space-2);
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 0;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.batchItem {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+}
+
+.batchPreview {
+  width: 88px;
+}
+
+.batchMeta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.batchName {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batchNote {
+  font-size: var(--text-xs);
+  color: var(--color-warning);
+}
+
+.batchNote[data-severity="error"] {
+  color: var(--color-danger);
+}

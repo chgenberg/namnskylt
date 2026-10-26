@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type Dispatch, type FormEvent } from "react";
-import { QUANTITY_TIERS, badgeDocumentSchema, priceBadge, type BadgeDocument } from "@/engine";
+import { QUANTITY_TIERS, badgeDocumentSchema, priceOrder, type BadgeDocument } from "@/engine";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
@@ -19,15 +19,18 @@ const sek = new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK",
 
 interface OrderSectionProps {
   doc: BadgeDocument;
+  /** Allt som beställs: `doc` först, sedan skyltarna med samma design. */
+  badges: readonly BadgeDocument[];
   dispatch: Dispatch<DesignerAction>;
 }
 
-export function OrderSection({ doc, dispatch }: OrderSectionProps) {
+export function OrderSection({ doc, badges, dispatch }: OrderSectionProps) {
   const [order, setOrder] = useState<OrderState>({ status: "idle" });
-  const price = priceBadge(doc);
+  const price = priceOrder(badges);
+  const names = badges.length;
   const discount = Math.round((1 - price.tier.factor) * 100);
   const nextTier = [...QUANTITY_TIERS].reverse().find((t) => t.minQuantity > price.quantity);
-  const valid = badgeDocumentSchema.safeParse(doc).success;
+  const valid = badges.every((badge) => badgeDocumentSchema.safeParse(badge).success);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,7 +42,7 @@ export function OrderSection({ doc, dispatch }: OrderSectionProps) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           customer: { name: form.get("name"), email: form.get("email") },
-          badges: [doc],
+          badges,
         }),
       });
       const body = await response.json();
@@ -65,7 +68,7 @@ export function OrderSection({ doc, dispatch }: OrderSectionProps) {
           <input
             type="number"
             inputMode="numeric"
-            aria-label="Antal"
+            aria-label={names > 1 ? "Antal per namn" : "Antal"}
             min={1}
             value={doc.quantity}
             onChange={(e) => dispatch({ type: "quantity", quantity: Number(e.target.value) })}
@@ -92,6 +95,7 @@ export function OrderSection({ doc, dispatch }: OrderSectionProps) {
       <div className={styles.priceRow}>
         <div>
           <p className={styles.priceLabel}>
+            {names > 1 && `${names} namn × ${doc.quantity} = ${price.quantity} st · `}
             {sek.format(price.unitSek)} / st{discount > 0 && <span className={styles.discount}>−{discount}%</span>}
           </p>
           <AnimatePresence mode="popLayout" initial={false}>

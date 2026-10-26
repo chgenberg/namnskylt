@@ -4,7 +4,7 @@ import {
   getMounting,
   layoutBadge,
   type BadgeDocument,
-  type TextMeasurer,
+  type FontEngine,
 } from "@/engine";
 import type { SupplierLayer, SupplierSignDocument } from "./types";
 
@@ -19,9 +19,9 @@ const SUPPLIER_LINE_HEIGHT_RATIO = 1.2;
  */
 export function toSupplierSignDocument(
   doc: BadgeDocument,
-  measure: TextMeasurer,
+  fonts: FontEngine,
 ): SupplierSignDocument {
-  const layout = layoutBadge(doc, measure);
+  const layout = layoutBadge(doc, fonts);
   const font = getFont(doc.font);
   const { widthMm, heightMm } = doc.size;
 

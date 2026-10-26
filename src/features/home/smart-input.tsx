@@ -18,6 +18,8 @@ const TYPE_MS = 55;
 const HOLD_MS = 1600;
 const ROW_LABELS = ["Namn", "Titel", "Rad 3"];
 const MAX_TILT_DEG = 10;
+/** Id på startsidans hero — länkar hit fokuserar rutan. */
+export const INPUT_ANCHOR = "borja";
 
 /** Skriver ut exemplen tecken för tecken i platshållaren när rutan är tom. */
 function useTypewriter(active: boolean): string {
@@ -72,6 +74,20 @@ export function SmartInput() {
   useEffect(() => {
     router.prefetch("/skapa");
   }, [router]);
+
+  // Länkar till #borja (menyn, "Så funkar det") ska lämna markören i rutan.
+  // Next byter hash med pushState, så hashchange kommer inte — lyssna på klicket.
+  useEffect(() => {
+    const focusInput = () => inputRef.current?.focus({ preventScroll: true });
+    const onClick = (event: MouseEvent) => {
+      if (event.target instanceof Element && event.target.closest(`a[href$="#${INPUT_ANCHOR}"]`)) {
+        requestAnimationFrame(focusInput);
+      }
+    };
+    if (window.location.hash === `#${INPUT_ANCHOR}`) focusInput();
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
 
   function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();

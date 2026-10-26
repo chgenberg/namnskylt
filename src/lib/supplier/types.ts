@@ -48,6 +48,11 @@ export interface SupplierOrderLine {
   quantity: number;
   /** Vår referens per rad, återkommer i leverantörens följesedel. */
   reference: string;
+  /**
+   * Färdig produktionsfil i mm med glyferna som konturer (röd = skär,
+   * svart = gravyr) — facit om leverantörens rendering skulle skilja.
+   */
+  productionSvg: string;
 }
 
 export interface SupplierCustomer {

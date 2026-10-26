@@ -19,13 +19,19 @@
   "dependencies": {
     "@react-three/drei": "10",
     "@react-three/fiber": "9",
+    "@resvg/resvg-js": "^2.6.2",
     "geist": "^1.8.2",
     "motion": "^14.6.0",
     "next": "15",
+    "openai": "^7.45.0",
+    "opentype.js": "^2.0.0",
     "react": "19",
     "react-dom": "19",
     "server-only": "^0.0.1",
     "three": "^0.186.1",
+    "three-bvh-csg": "^0.0.18",
+    "three-gpu-pathtracer": "^0.0.27",
+    "three-mesh-bvh": "^0.9.16",
     "zod": "^4.6.7"
   },
   "devDependencies": {

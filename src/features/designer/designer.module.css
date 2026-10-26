@@ -34,13 +34,47 @@
 }
 
 .viewToggle {
-  width: 200px;
+  width: 300px;
 }
 
-.spinToggle {
+.stageActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.stageChip {
   height: 34px;
   background: var(--surface-glass);
   backdrop-filter: blur(10px);
+}
+
+/* Bländare: ring med prick — fotoläge. */
+.photoIcon {
+  position: relative;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+}
+
+.photoIcon::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Strålspårningens förlopp längs scenens underkant. */
+.photoProgress {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 3;
+  height: 2px;
+  background: var(--color-navy-3);
+  transform-origin: left;
+  transform: scaleX(var(--progress, 0));
+  transition: transform var(--duration-base) var(--ease-out);
 }
 
 .spinDot {
@@ -141,6 +175,16 @@
     top: var(--header-height);
     z-index: 5;
     height: 48dvh;
+  }
+
+  .shell[data-view="person"] {
+    grid-template-rows: auto auto;
+  }
+
+  .shell[data-view="person"] .stage {
+    position: relative;
+    height: auto;
+    min-height: 48dvh;
   }
 
   .panel {

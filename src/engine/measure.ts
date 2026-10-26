@@ -1,9 +1,9 @@
-import type { MeasureFont, TextMeasurer } from "./layout";
+import type { FontEngine, MeasureFont } from "./layout";
 
 /**
- * Tabellbaserad bredd för Arial (em per tecken). Används på servern och i
- * test där ingen canvas finns. Webbläsaren använder `createCanvasMeasurer`
- * så att previewn mäter med exakt det typsnitt den ritar med.
+ * Tabellbaserad bredd för Arial (em per tecken). Används i test och som
+ * första bild innan fontfilerna laddats; skarpa mått kommer från
+ * `createFontEngine` i `@/lib/fonts`.
  */
 function arialAdvanceEm(char: string): number {
   if (char === " ") return 0.278;
@@ -17,30 +17,15 @@ function arialAdvanceEm(char: string): number {
 
 const BOLD_FACTOR = 1.07;
 const NARROW_FACTOR = 0.82;
+/** Versalhöjd / em i Liberation Sans (H = 1409 av 2048 enheter). */
+const APPROX_CAP_HEIGHT_RATIO = 0.688;
 
-export const approxMeasure: TextMeasurer = (text: string, font: MeasureFont) => {
-  const em = [...text].reduce((sum, char) => sum + arialAdvanceEm(char), 0);
-  const narrow = font.css.includes("Narrow") ? NARROW_FACTOR : 1;
-  const bold = font.bold ? BOLD_FACTOR : 1;
-  return em * font.sizeMm * narrow * bold;
+export const approxFonts: FontEngine = {
+  capHeightRatio: () => APPROX_CAP_HEIGHT_RATIO,
+  measure(text: string, font: MeasureFont) {
+    const em = [...text].reduce((sum, char) => sum + arialAdvanceEm(char), 0);
+    const narrow = font.fontId === "arial-narrow" ? NARROW_FACTOR : 1;
+    const bold = font.bold ? BOLD_FACTOR : 1;
+    return em * font.sizeMm * narrow * bold;
+  },
 };
-
-/** Mäter i px på 100 px-skala och räknar om till mm. Resultatet cachas per sträng. */
-export function createCanvasMeasurer(): TextMeasurer {
-  if (typeof document === "undefined") return approxMeasure;
-  const context = document.createElement("canvas").getContext("2d");
-  if (!context) return approxMeasure;
-
-  const REFERENCE_PX = 100;
-  const cache = new Map<string, number>();
-  return (text, font) => {
-    const key = `${font.bold ? 1 : 0}|${font.css}|${text}`;
-    let emWidth = cache.get(key);
-    if (emWidth === undefined) {
-      context.font = `${font.bold ? 700 : 400} ${REFERENCE_PX}px ${font.css}`;
-      emWidth = context.measureText(text).width / REFERENCE_PX;
-      cache.set(key, emWidth);
-    }
-    return emWidth * font.sizeMm;
-  };
-}

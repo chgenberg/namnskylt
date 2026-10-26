@@ -1,23 +1,42 @@
-import { CAP_HEIGHT_RATIO, TEXT_LIMITS, getFont } from "./catalog";
+import { TEXT_LIMITS } from "./catalog";
 import { engravedRows } from "./document";
 import { availableHalfWidth, outlinePath } from "./shape";
-import type { BadgeDocument, Mm, TextAlign } from "./types";
+import type { BadgeDocument, FontId, Mm, TextAlign } from "./types";
 
-export interface MeasureFont {
-  css: string;
-  sizeMm: Mm;
+export interface FontFace {
+  fontId: FontId;
   bold: boolean;
 }
 
-/** Textbredd i mm. Injiceras: canvas i webbläsaren, tabell på servern och i test. */
-export type TextMeasurer = (text: string, font: MeasureFont) => Mm;
+export interface MeasureFont extends FontFace {
+  sizeMm: Mm;
+}
+
+/**
+ * Typsnittet som graveras. Injiceras: riktiga fontfiler (opentype) i
+ * webbläsaren och på servern, tabell i test och innan filerna laddats.
+ */
+export interface FontEngine {
+  /** Versalhöjd som andel av em — skiljer mellan typsnitt. */
+  capHeightRatio(face: FontFace): number;
+  /** Avancebredd i mm, inklusive kerning. */
+  measure(text: string, font: MeasureFont): Mm;
+  /**
+   * Glyfkonturer som SVG-path i mm, baslinjen börjar i (xMm, baselineMm).
+   * Saknas när fontfilerna inte är laddade — då ritas `<text>` i stället.
+   */
+  outline?(text: string, font: MeasureFont, xMm: Mm, baselineMm: Mm): string;
+}
 
 export type TextAnchor = "start" | "middle" | "end";
 
 export interface LaidOutRow {
   id: string;
   text: string;
+  /** Ankarpunkt enligt `anchor` — för `<text>`. */
   xMm: Mm;
+  /** Radens vänsterkant — för glyfkonturer. */
+  leftMm: Mm;
   baselineMm: Mm;
   capHeightMm: Mm;
   requestedCapHeightMm: Mm;
@@ -27,9 +46,9 @@ export interface LaidOutRow {
   widthMm: Mm;
 }
 
-export interface FramePath {
+/** Ram som fylld ring: yttre och inre kontur i samma path, fylls med evenodd. */
+export interface FrameRing {
   d: string;
-  strokeMm: Mm;
 }
 
 export type LayoutIssue =
@@ -40,7 +59,8 @@ export interface BadgeLayout {
   widthMm: Mm;
   heightMm: Mm;
   outline: string;
-  frames: FramePath[];
+  fontId: FontId;
+  frames: FrameRing[];
   contentInsetMm: Mm;
   rows: LaidOutRow[];
   issues: LayoutIssue[];
@@ -62,15 +82,19 @@ const ANCHOR_BY_ALIGN: Record<TextAlign, TextAnchor> = {
   right: "end",
 };
 
-function framePaths(doc: BadgeDocument): { frames: FramePath[]; innerEdgeMm: Mm } {
+function ring(doc: BadgeDocument, outerInsetMm: Mm, thicknessMm: Mm): FrameRing {
+  return { d: `${outlinePath(doc, outerInsetMm)}${outlinePath(doc, outerInsetMm + thicknessMm)}` };
+}
+
+function frameRings(doc: BadgeDocument): { frames: FrameRing[]; innerEdgeMm: Mm } {
   const { style, insetMm, thicknessMm: t } = doc.frame;
   if (style === "none") return { frames: [], innerEdgeMm: 0 };
 
-  const outer: FramePath = { d: outlinePath(doc, insetMm + t / 2), strokeMm: t };
+  const outer = ring(doc, insetMm, t);
   if (style === "solid") return { frames: [outer], innerEdgeMm: insetMm + t };
 
   const gap = Math.max(0.6, t * 2);
-  const inner: FramePath = { d: outlinePath(doc, insetMm + t + gap + t / 2), strokeMm: t };
+  const inner = ring(doc, insetMm + t + gap, t);
   return { frames: [outer, inner], innerEdgeMm: insetMm + 2 * t + gap };
 }
 
@@ -97,12 +121,13 @@ function rowTops(caps: readonly Mm[], heightMm: Mm): Mm[] {
  * säkerhetszonen; en rad som inte ryms i bredd krymps — aldrig kondenseras —
  * eftersom gravyren ska se ut exakt som previewn.
  */
-export function layoutBadge(doc: BadgeDocument, measure: TextMeasurer): BadgeLayout {
+export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout {
   const { widthMm, heightMm } = doc.size;
-  const { frames, innerEdgeMm } = framePaths(doc);
+  const { frames, innerEdgeMm } = frameRings(doc);
   const inset = doc.frame.style === "none" ? EDGE_MARGIN_MM : innerEdgeMm + FRAME_TEXT_GAP_MM;
-  const font = getFont(doc.font);
   const rows = engravedRows(doc);
+  const faces = rows.map((r): FontFace => ({ fontId: doc.font, bold: r.bold }));
+  const sizeFor = (i: number, cap: Mm): Mm => cap / fonts.capHeightRatio(faces[i]!);
 
   const requested = rows.map((r) =>
     Math.min(Math.max(r.capHeightMm, TEXT_LIMITS.minCapHeightMm), TEXT_LIMITS.maxCapHeightMm),
@@ -117,7 +142,7 @@ export function layoutBadge(doc: BadgeDocument, measure: TextMeasurer): BadgeLay
   }
 
   const widthAt = (i: number, cap: Mm): Mm =>
-    measure(rows[i]!.text, { css: font.css, sizeMm: cap / CAP_HEIGHT_RATIO, bold: rows[i]!.bold });
+    fonts.measure(rows[i]!.text, { ...faces[i]!, sizeMm: sizeFor(i, cap) });
 
   for (let pass = 0; pass < FIT_PASSES; pass++) {
     const tops = rowTops(caps, heightMm);
@@ -143,18 +168,22 @@ export function layoutBadge(doc: BadgeDocument, measure: TextMeasurer): BadgeLay
     const half = availableHalfWidth(doc, inset, top, top + cap);
     const xMm =
       doc.align === "left" ? widthMm / 2 - half : doc.align === "right" ? widthMm / 2 + half : widthMm / 2;
+    const rowWidth = widthAt(i, cap);
+    const leftMm =
+      doc.align === "left" ? xMm : doc.align === "right" ? xMm - rowWidth : xMm - rowWidth / 2;
 
     return {
       id: row.id,
       text: row.text,
       xMm,
+      leftMm,
       baselineMm: top + cap,
       capHeightMm: cap,
       requestedCapHeightMm: requested[i]!,
-      fontSizeMm: cap / CAP_HEIGHT_RATIO,
+      fontSizeMm: sizeFor(i, cap),
       bold: row.bold,
       anchor: ANCHOR_BY_ALIGN[doc.align],
-      widthMm: widthAt(i, cap),
+      widthMm: rowWidth,
     };
   });
 
@@ -162,6 +191,7 @@ export function layoutBadge(doc: BadgeDocument, measure: TextMeasurer): BadgeLay
     widthMm,
     heightMm,
     outline: outlinePath(doc),
+    fontId: doc.font,
     frames,
     contentInsetMm: inset,
     rows: laidOut,
