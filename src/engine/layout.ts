@@ -51,6 +51,12 @@ export interface FrameRing {
   d: string;
 }
 
+/** Ett ramband: skyltens kontur indragen `insetMm`, `thicknessMm` bred inåt. */
+export interface FrameBand {
+  insetMm: Mm;
+  thicknessMm: Mm;
+}
+
 export type LayoutIssue =
   | { code: "row-shrunk"; rowId: string }
   | { code: "row-too-long"; rowId: string };
@@ -82,20 +88,23 @@ const ANCHOR_BY_ALIGN: Record<TextAlign, TextAnchor> = {
   right: "end",
 };
 
-function ring(doc: BadgeDocument, outerInsetMm: Mm, thicknessMm: Mm): FrameRing {
-  return { d: `${outlinePath(doc, outerInsetMm)}${outlinePath(doc, outerInsetMm + thicknessMm)}` };
+/** Ramarnas band utifrån, som indrag från skyltkanten. */
+export function frameBands(doc: BadgeDocument): FrameBand[] {
+  const { style, insetMm, thicknessMm } = doc.frame;
+  if (style === "none") return [];
+  const outer = { insetMm, thicknessMm };
+  if (style === "solid") return [outer];
+  const gapMm = Math.max(0.6, thicknessMm * 2);
+  return [outer, { insetMm: insetMm + thicknessMm + gapMm, thicknessMm }];
 }
 
 function frameRings(doc: BadgeDocument): { frames: FrameRing[]; innerEdgeMm: Mm } {
-  const { style, insetMm, thicknessMm: t } = doc.frame;
-  if (style === "none") return { frames: [], innerEdgeMm: 0 };
-
-  const outer = ring(doc, insetMm, t);
-  if (style === "solid") return { frames: [outer], innerEdgeMm: insetMm + t };
-
-  const gap = Math.max(0.6, t * 2);
-  const inner = ring(doc, insetMm + t + gap, t);
-  return { frames: [outer, inner], innerEdgeMm: insetMm + 2 * t + gap };
+  const bands = frameBands(doc);
+  const frames = bands.map(({ insetMm, thicknessMm }) => ({
+    d: `${outlinePath(doc, insetMm)}${outlinePath(doc, insetMm + thicknessMm)}`,
+  }));
+  const innermost = bands.at(-1);
+  return { frames, innerEdgeMm: innermost ? innermost.insetMm + innermost.thicknessMm : 0 };
 }
 
 function rowGaps(caps: readonly Mm[]): Mm[] {

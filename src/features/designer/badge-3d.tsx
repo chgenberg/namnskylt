@@ -1,42 +1,69 @@
 "use client";
 
-import { ContactShadows, PresentationControls } from "@react-three/drei";
+import { ContactShadows } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { MathUtils, NeutralToneMapping, type Group } from "three";
 import type { BadgeDocument, FontEngine } from "@/engine";
 import { plateMetrics, UNITS_PER_MM } from "./three/geometry";
 import { useBadgeMaterials } from "./three/materials";
 import { Mounting } from "./three/mounting";
 import { PathTracer, RASTER_ONLY } from "./three/path-tracer";
+import { Recorder, turnAngle, type BadgeRecorder, type RecordingTurn } from "./three/recorder";
 import { StudioEnvironment } from "./three/studio-environment";
+import { RESUME_AFTER_DRAG_MS, settleAfterDrag, useDragRotate } from "./three/use-drag-rotate";
 import { useBadgeGeometry } from "./three/use-badge-geometry";
 
 const SPIN_RADIANS_PER_SECOND = 0.55;
 const FOCUS_HOLD_MS = 2600;
 const FOCUS_DAMPING = 6;
+/** Hur länge autosnurren tar på sig att komma upp i fart efter ett drag. */
+const SPIN_RAMP_MS = 900;
 
 /**
- * Vrider skylten till en sida en stund — t.ex. baksidan när kunden byter
- * fäste. `hero` är fotolägets tre kvarts vinkel där fas och gravyrdjup syns.
+ * Vrider skylten till en sida — t.ex. baksidan när kunden byter fäste, och
+ * sedan tillbaka till framsidan. `hero` är fotolägets tre kvarts vinkel där
+ * fas och gravyrdjup syns. `flip` vänder skylten ett halvt varv.
  */
 export interface SpinFocus {
-  side: "front" | "back" | "hero";
+  side: "front" | "back" | "hero" | "flip";
   key: number;
 }
 
-const FOCUS_ANGLE: Record<SpinFocus["side"], number> = { front: 0, back: Math.PI, hero: -0.42 };
+const FOCUS_ANGLE: Record<Exclude<SpinFocus["side"], "flip">, number> = { front: 0, back: Math.PI, hero: -0.42 };
+
+interface FocusTarget {
+  targetY: number;
+  until: number;
+  /** Vinkel att vrida vidare till när visningen är klar, om skylten inte snurrar. */
+  thenY: number | null;
+}
+
+/** Närmaste vinkel som visar samma sida som `angle`, så att skylten tar kortaste vägen. */
+function nearestTurn(currentY: number, angle: number): number {
+  return angle + Math.round((currentY - angle) / (Math.PI * 2)) * Math.PI * 2;
+}
+
+function focusTarget(side: SpinFocus["side"], currentY: number, now: number): FocusTarget {
+  const until = now + FOCUS_HOLD_MS;
+  if (side === "flip") {
+    return { targetY: Math.round(currentY / Math.PI) * Math.PI + Math.PI, until, thenY: null };
+  }
+  const targetY = nearestTurn(currentY, FOCUS_ANGLE[side]);
+  return { targetY, until, thenY: side === "back" ? targetY + Math.PI : null };
+}
 
 interface BadgeMeshProps {
   doc: BadgeDocument;
   fonts: FontEngine;
   spinning: boolean;
   focus: SpinFocus | null;
+  turnRef: RefObject<RecordingTurn | null>;
   onTarget: (group: Group | null) => void;
   onSceneChange: (version: object) => void;
 }
 
-function BadgeMesh({ doc, fonts, spinning, focus, onTarget, onSceneChange }: BadgeMeshProps) {
+function BadgeMesh({ doc, fonts, spinning, focus, turnRef, onTarget, onSceneChange }: BadgeMeshProps) {
   const spinRef = useRef<Group>(null);
   const geometry = useBadgeGeometry(doc, fonts);
   const materials = useBadgeMaterials(doc);
@@ -51,31 +78,53 @@ function BadgeMesh({ doc, fonts, spinning, focus, onTarget, onSceneChange }: Bad
     onSceneChange({ geometry, materials, mounting: doc.mounting });
   }, [geometry, materials, doc.mounting, onSceneChange]);
 
-  const focusRef = useRef<{ targetY: number; until: number } | null>(null);
+  const focusRef = useRef<FocusTarget | null>(null);
+  const isRecording = useCallback(() => turnRef.current !== null, [turnRef]);
+  const drag = useDragRotate(spinRef, isRecording);
 
   useEffect(() => {
     const group = spinRef.current;
     if (!focus || !group) return;
-    const base = FOCUS_ANGLE[focus.side];
-    const turns = Math.round((group.rotation.y - base) / (Math.PI * 2));
-    focusRef.current = { targetY: base + turns * Math.PI * 2, until: performance.now() + FOCUS_HOLD_MS };
+    focusRef.current = focusTarget(focus.side, group.rotation.y, performance.now());
   }, [focus]);
 
   useFrame((_, delta) => {
     const group = spinRef.current;
     if (!group) return;
 
+    const now = performance.now();
+    const turn = turnRef.current;
+    if (turn) {
+      drag.current.pitch = 0;
+      drag.current.velocityY = 0;
+      group.rotation.x = 0;
+      group.rotation.y = turnAngle(turn, now) ?? turn.startY + Math.PI * 2;
+      return;
+    }
+
+    settleAfterDrag(group, drag.current, delta);
+    if (drag.current.dragging) {
+      focusRef.current = null;
+      return;
+    }
+
     const target = focusRef.current;
-    if (target && performance.now() < target.until) {
+    if (target && now < target.until) {
       group.rotation.y = MathUtils.damp(group.rotation.y, target.targetY, FOCUS_DAMPING, delta);
       return;
     }
-    focusRef.current = null;
+    focusRef.current =
+      target?.thenY != null && !spinning
+        ? { targetY: target.thenY, until: now + FOCUS_HOLD_MS, thenY: null }
+        : null;
+    if (focusRef.current) return;
     if (!spinning) return;
 
+    const sinceRelease = now - drag.current.releasedAt - RESUME_AFTER_DRAG_MS;
+    const ramp = MathUtils.clamp(sinceRelease / SPIN_RAMP_MS, 0, 1);
     // Långsamt förbi framsidan där gravyren syns, snabbare över baksidan.
     const facingBack = (1 - Math.cos(group.rotation.y)) / 2;
-    group.rotation.y += delta * SPIN_RADIANS_PER_SECOND * (0.3 + 1.7 * facingBack);
+    group.rotation.y += ramp * delta * SPIN_RADIANS_PER_SECOND * (0.3 + 1.7 * facingBack);
   });
 
   return (
@@ -100,6 +149,8 @@ interface Badge3DProps {
   photo: boolean;
   photoSamples: number;
   onPhotoProgress: (samples: number) => void;
+  /** Fylls med inspelaren när scenen är redo. */
+  recorderRef: RefObject<BadgeRecorder | null>;
 }
 
 export default function Badge3D({
@@ -110,8 +161,10 @@ export default function Badge3D({
   photo,
   photoSamples,
   onPhotoProgress,
+  recorderRef,
 }: Badge3DProps) {
   const [target, setTarget] = useState<Group | null>(null);
+  const turnRef = useRef<RecordingTurn | null>(null);
   const [sceneVersion, setSceneVersion] = useState<object>({});
   const shadowY = -(doc.size.heightMm * UNITS_PER_MM) / 2 - 0.45;
 
@@ -123,22 +176,15 @@ export default function Badge3D({
     >
       <StudioEnvironment intensity={1.35} />
       <directionalLight position={[2.5, 4, 5]} intensity={1.1} />
-      <PresentationControls
-        global={false}
-        cursor
-        snap
-        polar={[-0.45, 0.45]}
-        azimuth={[-Math.PI, Math.PI]}
-      >
-        <BadgeMesh
-          doc={doc}
-          fonts={fonts}
-          spinning={spinning}
-          focus={focus}
-          onTarget={setTarget}
-          onSceneChange={setSceneVersion}
-        />
-      </PresentationControls>
+      <BadgeMesh
+        doc={doc}
+        fonts={fonts}
+        spinning={spinning}
+        focus={focus}
+        turnRef={turnRef}
+        onTarget={setTarget}
+        onSceneChange={setSceneVersion}
+      />
       <group userData={{ [RASTER_ONLY]: true }}>
         <ContactShadows
           position={[0, shadowY, 0]}
@@ -149,6 +195,7 @@ export default function Badge3D({
           resolution={1024}
         />
       </group>
+      <Recorder apiRef={recorderRef} turnRef={turnRef} target={target} />
       {photo && (
         <PathTracer
           target={target}

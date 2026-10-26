@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { BadgeDocument } from "@/engine";
-import { requestPeople, requestTryOn } from "./api";
+import { requestPerson, requestTryOn } from "./api";
 
 export type Job<T> =
   | { status: "idle" }
@@ -10,7 +10,7 @@ export type Job<T> =
   | { status: "done"; result: T; badgeKey: string }
   | { status: "error"; message: string };
 
-export type VisualizeMode = "people" | "try-on";
+export type VisualizeMode = "person" | "try-on";
 
 export interface CapturedPhoto {
   blob: Blob;
@@ -29,8 +29,8 @@ function errorMessage(error: unknown): string {
 
 /** Genererade bilder per designer-session — överlever byte av vy. */
 export function useVisualize(doc: BadgeDocument) {
-  const [mode, setMode] = useState<VisualizeMode>("people");
-  const [people, setPeople] = useState<Job<string[]>>(IDLE);
+  const [mode, setMode] = useState<VisualizeMode>("person");
+  const [person, setPerson] = useState<Job<string>>(IDLE);
   const [tryOn, setTryOn] = useState<Job<string>>(IDLE);
   const [photo, setPhotoState] = useState<CapturedPhoto | null>(null);
 
@@ -43,14 +43,14 @@ export function useVisualize(doc: BadgeDocument) {
     setTryOn(IDLE);
   }, []);
 
-  const generatePeople = useCallback(async () => {
+  const generatePerson = useCallback(async () => {
     const badge = doc;
-    setPeople({ status: "working", startedAt: Date.now() });
+    setPerson({ status: "working", startedAt: Date.now() });
     try {
-      const result = await requestPeople(badge);
-      setPeople({ status: "done", result, badgeKey: badgeKey(badge) });
+      const result = await requestPerson(badge);
+      setPerson({ status: "done", result, badgeKey: badgeKey(badge) });
     } catch (error) {
-      setPeople({ status: "error", message: errorMessage(error) });
+      setPerson({ status: "error", message: errorMessage(error) });
     }
   }, [doc]);
 
@@ -69,7 +69,7 @@ export function useVisualize(doc: BadgeDocument) {
   const currentKey = badgeKey(doc);
   const isStale = (job: Job<unknown>) => job.status === "done" && job.badgeKey !== currentKey;
 
-  return { mode, setMode, people, tryOn, photo, setPhoto, generatePeople, generateTryOn, isStale };
+  return { mode, setMode, person, tryOn, photo, setPhoto, generatePerson, generateTryOn, isStale };
 }
 
 export type VisualizeState = ReturnType<typeof useVisualize>;

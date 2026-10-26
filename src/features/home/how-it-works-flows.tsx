@@ -135,7 +135,7 @@ function PreviewFlow() {
         <Dot filled>
           <Icon name="camera" />
         </Dot>
-        Ditt foto eller tre personer
+        Ditt foto eller en person
       </Node>
       <Branch count={3} />
       <div className={styles.cols3}>

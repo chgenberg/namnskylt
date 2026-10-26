@@ -4,6 +4,7 @@ import {
   approxFonts,
   badgeDocumentSchema,
   createBadgeDocument,
+  frameBands,
   layoutBadge,
   parseSmartInput,
   priceBadge,
@@ -72,6 +73,28 @@ describe("layoutBadge", () => {
   it("hoppar över tomma rader", () => {
     const layout = layoutBadge(createBadgeDocument(["Anna", "  "]), approxFonts);
     assert.equal(layout.rows.length, 1);
+  });
+});
+
+describe("frameBands", () => {
+  const withFrame = (style: "none" | "solid" | "double") => ({
+    ...createBadgeDocument(["Anna"]),
+    frame: { style, insetMm: 1.5, thicknessMm: 0.4 },
+  });
+
+  it("ger ett band per ring, utifrån och in", () => {
+    assert.deepEqual(frameBands(withFrame("none")), []);
+    assert.deepEqual(frameBands(withFrame("solid")), [{ insetMm: 1.5, thicknessMm: 0.4 }]);
+    const [outer, inner] = frameBands(withFrame("double"));
+    assert.deepEqual(outer, { insetMm: 1.5, thicknessMm: 0.4 });
+    assert.ok(inner && inner.insetMm > outer!.insetMm + outer!.thicknessMm);
+  });
+
+  it("stämmer med ramarna i layouten", () => {
+    for (const style of ["none", "solid", "double"] as const) {
+      const doc = withFrame(style);
+      assert.equal(frameBands(doc).length, layoutBadge(doc, approxFonts).frames.length);
+    }
   });
 });
 

@@ -9,6 +9,7 @@
 .stage {
   position: relative;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr auto;
   background-color: var(--color-paper);
   overflow: hidden;
@@ -75,6 +76,57 @@
   transform-origin: left;
   transform: scaleX(var(--progress, 0));
   transition: transform var(--duration-base) var(--ease-out);
+}
+
+.chipIcon {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.stageChip[data-recording="true"] {
+  color: var(--color-danger);
+  opacity: 1;
+}
+
+.stageChip[data-recording="true"] .chipIcon {
+  animation: rec-pulse 1s var(--ease-in-out) infinite alternate;
+}
+
+@keyframes rec-pulse {
+  to {
+    opacity: 0.35;
+  }
+}
+
+/* Inspelningens förlopp — samma linje som fotoläget, fylls under varvet. */
+.recProgress {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 3;
+  height: 2px;
+  background: var(--color-danger);
+  transform-origin: left;
+  animation: rec-fill var(--duration) linear forwards;
+}
+
+@keyframes rec-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stageChip[data-recording="true"] .chipIcon {
+    animation: none;
+  }
 }
 
 .spinDot {
@@ -175,6 +227,26 @@
     top: var(--header-height);
     z-index: 5;
     height: 48dvh;
+  }
+
+  .stageTop {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4) 0;
+  }
+
+  .viewToggle {
+    width: 100%;
+  }
+
+  .stageActions {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .stageChip {
+    flex: none;
   }
 
   .shell[data-view="person"] {

@@ -7,27 +7,42 @@ import {
   type MaterialFinish,
 } from "@/engine";
 
-/** En person i "Visa på personer". Beskrivningen går rakt in i prompten. */
-export interface Persona {
-  id: string;
-  description: string;
+/** Vad förnamnet på skylten oftast är i Sverige. `unknown` = könsneutralt eller inget namn. */
+export type NameGender = "female" | "male" | "unknown";
+
+/** Åldersgrupp utifrån när förnamnet var vanligt i Sverige, bland personer i arbetsför ålder. */
+export type NameAge = "young" | "middle" | "older" | "unknown";
+
+/** Den som namnet troligen tillhör. */
+export interface Wearer {
+  gender: NameGender;
+  age: NameAge;
 }
 
-export const PEOPLE_PERSONAS: readonly Persona[] = [
-  {
-    id: "woman-30s",
-    description: "a Swedish woman in her mid-thirties with natural ash-blonde hair tied back, light makeup",
-  },
-  {
-    id: "man-50s",
-    description: "a Swedish man in his fifties with short grey hair and a neatly trimmed beard",
-  },
-  {
-    id: "person-20s",
-    description:
-      "a Swedish person in their twenties with dark curly hair and a warm smile, from multicultural Stockholm",
-  },
-];
+export const UNKNOWN_WEARER: Wearer = { gender: "unknown", age: "unknown" };
+
+const SUBJECT: Record<NameGender, string> = {
+  female: "a Swedish woman",
+  male: "a Swedish man",
+  unknown: "a Swedish person (a woman or a man)",
+};
+
+const AGE: Record<NameAge, string> = {
+  young: "aged about 25",
+  middle: "aged about 40",
+  older: "aged about 60, with natural signs of age such as grey hair and fine lines",
+  unknown: "aged about 35",
+};
+
+/** Personen som bär skylten, beskriven så att kön och ålder passar namnet. */
+export function wearerDescription(wearer: Wearer): string {
+  return `${SUBJECT[wearer.gender]} ${AGE[wearer.age]}, with a natural, believable appearance that suits the name on the badge`;
+}
+
+/** Första graverade raden — den som bär namnet om skylten har ett. */
+export function badgeName(doc: BadgeDocument): string | null {
+  return engravedRows(doc)[0]?.text.trim() || null;
+}
 
 const FINISH_DESCRIPTION: Record<MaterialFinish, string> = {
   plastic: "two-layer engraving plastic with a smooth satin surface; the text is engraved through the top layer",
@@ -67,9 +82,9 @@ function roleSetting(doc: BadgeDocument): string {
 }
 
 /** Prompt för en genererad person som bär skylten. */
-export function personaPrompt(doc: BadgeDocument, persona: Persona): string {
+export function personaPrompt(doc: BadgeDocument, wearer: Wearer): string {
   return [
-    `Half-body portrait of ${persona.description}, ${roleSetting(doc)}. Looking naturally towards the camera.`,
+    `Half-body portrait of ${wearerDescription(wearer)}, ${roleSetting(doc)}. Looking naturally towards the camera.`,
     badgeDescription(doc),
     PLACEMENT,
     REALISM,

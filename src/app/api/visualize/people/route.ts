@@ -3,41 +3,37 @@ import { z } from "zod";
 import { badgeDocumentSchema } from "@/engine";
 import { renderBadgePng } from "@/lib/ai/badge-image";
 import { aiUnavailable, generationFailed, takeGenerations, tooManyRequests } from "@/lib/ai/limits";
-import { editImage, openai } from "@/lib/ai/openai";
-import { PEOPLE_PERSONAS, personaPrompt } from "@/lib/ai/prompts";
+import { editImage, guessWearer, openai } from "@/lib/ai/openai";
+import { UNKNOWN_WEARER, badgeName, personaPrompt } from "@/lib/ai/prompts";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
 
 const requestSchema = z.object({ badge: badgeDocumentSchema });
 
-/** Tre genererade svenska personer som bär skylten. */
+/** En genererad svensk person som bär skylten — kön och ålder efter namnet på den. */
 export async function POST(request: Request) {
   const ai = openai();
   if (!ai) return aiUnavailable();
 
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Ogiltig skylt" }, { status: 400 });
-  if (!takeGenerations(request, PEOPLE_PERSONAS.length)) return tooManyRequests();
+  if (!takeGenerations(request, 1)) return tooManyRequests();
 
   const { badge } = parsed.data;
   try {
-    const reference = { data: await renderBadgePng(badge), name: "badge.png", type: "image/png" };
-    const results = await Promise.allSettled(
-      PEOPLE_PERSONAS.map((persona) =>
-        editImage(ai, {
-          prompt: personaPrompt(badge, persona),
-          images: [reference],
-          size: "1024x1536",
-          quality: "medium",
-        }),
-      ),
-    );
-    const images = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
-    if (images.length === 0) {
-      throw results.find((r): r is PromiseRejectedResult => r.status === "rejected")?.reason;
-    }
-    return NextResponse.json({ images });
+    const name = badgeName(badge);
+    const [png, wearer] = await Promise.all([
+      renderBadgePng(badge),
+      name ? guessWearer(ai, name) : Promise.resolve(UNKNOWN_WEARER),
+    ]);
+    const image = await editImage(ai, {
+      prompt: personaPrompt(badge, wearer),
+      images: [{ data: png, name: "badge.png", type: "image/png" }],
+      size: "1024x1536",
+      quality: "medium",
+    });
+    return NextResponse.json({ image });
   } catch (error) {
     return generationFailed(error);
   }

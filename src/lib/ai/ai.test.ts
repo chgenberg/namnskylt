@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createBadgeDocument, parseSmartInput } from "@/engine";
 import { isUsablePhoto, photoRejection, type PhotoCheck } from "./photo-check";
-import { PEOPLE_PERSONAS, personaPrompt, tryOnPrompt } from "./prompts";
+import { UNKNOWN_WEARER, badgeName, personaPrompt, tryOnPrompt, wearerDescription } from "./prompts";
 import { clientKey, createRateLimiter } from "./rate-limit";
 
 const goodPhoto: PhotoCheck = { people: 1, framing: "half_body", chestVisible: true, reason: "" };
@@ -62,12 +62,24 @@ describe("prompter", () => {
   const doc = createBadgeDocument(parseSmartInput("Åsa Öberg, Säljchef"));
 
   it("återger texten bokstav för bokstav och verkliga mått", () => {
-    const prompts = [tryOnPrompt(doc), ...PEOPLE_PERSONAS.map((persona) => personaPrompt(doc, persona))];
+    const prompts = [tryOnPrompt(doc), personaPrompt(doc, UNKNOWN_WEARER)];
     for (const prompt of prompts) {
       assert.match(prompt, /"Åsa Öberg"/);
       assert.match(prompt, /"Säljchef"/);
       assert.ok(prompt.includes(`${doc.size.widthMm} × ${doc.size.heightMm} mm`));
     }
+  });
+
+  it("beskriver en person vars kön och ålder passar namnet", () => {
+    assert.match(wearerDescription({ gender: "female", age: "older" }), /\bwoman\b.*about 60/);
+    assert.match(wearerDescription({ gender: "male", age: "young" }), /\bman\b.*about 25/);
+    assert.match(personaPrompt(doc, { gender: "male", age: "middle" }), /Swedish man aged about 40/);
+    assert.doesNotMatch(wearerDescription(UNKNOWN_WEARER), /\b(woman|man) aged/);
+  });
+
+  it("läser namnet från första graverade raden", () => {
+    assert.equal(badgeName(doc), "Åsa Öberg");
+    assert.equal(badgeName(createBadgeDocument([""])), null);
   });
 
   it("ber om att bevara kundens foto vid provning", () => {

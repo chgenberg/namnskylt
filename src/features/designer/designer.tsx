@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
-import { useCallback, useMemo, useReducer, useState, type CSSProperties } from "react";
+import { useCallback, useMemo, useReducer, useRef, useState, type CSSProperties } from "react";
 import { BadgePreview } from "@/components/badge-preview";
 import { Segmented } from "@/components/ui/segmented";
 import {
@@ -26,6 +26,8 @@ import { MountingSection } from "./sections/mounting-section";
 import { OrderSection } from "./sections/order-section";
 import { TextSection } from "./sections/text-section";
 import type { SpinFocus } from "./badge-3d";
+import type { BadgeRecorder } from "./three/recorder";
+import { videoFileName } from "./video-file";
 import { designerReducer, type DesignerAction } from "./state";
 
 const Badge3D = dynamic(() => import("./badge-3d"), {
@@ -37,6 +39,8 @@ type View = "3d" | "drawing" | "person";
 
 /** Samplingar per pixel innan fotoläget räknas som klart. */
 const PHOTO_SAMPLES = 160;
+/** Ett varv runt skylten i 3D-filmen. */
+const VIDEO_SECONDS = 6;
 
 const VIEW_OPTIONS = [
   { id: "3d", label: "3D" },
@@ -53,11 +57,14 @@ export function Designer({ initialText }: DesignerProps) {
     createBadgeDocument(parseSmartInput(text)),
   );
   const [view, setView] = useState<View>("3d");
-  const [spinning, setSpinning] = useState(true);
+  const [spinning, setSpinning] = useState(false);
   const [focus, setFocus] = useState<SpinFocus | null>(null);
   const [photo, setPhoto] = useState(false);
   const [photoSamples, setPhotoSamples] = useState(0);
   const fonts = useFontEngine();
+  const recorderRef = useRef<BadgeRecorder | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [videoNote, setVideoNote] = useState<string | null>(null);
   const visualize = useVisualize(doc);
   const [batchText, setBatchText] = useState("");
   const batchEntries = useMemo(() => parseBatchInput(batchText, Infinity), [batchText]);
@@ -75,6 +82,27 @@ export function Designer({ initialText }: DesignerProps) {
       setSpinning(false);
       setFocus({ side: "hero", key: performance.now() });
     }
+  };
+
+  const recordVideo = async () => {
+    const recorder = recorderRef.current;
+    if (recording || !recorder) return;
+    setPhoto(false);
+    setVideoNote(null);
+    setRecording(true);
+    const clip = await recorder.recordTurn(VIDEO_SECONDS).catch(() => null);
+    setRecording(false);
+    if (!clip) {
+      setVideoNote("Webbläsaren kan inte spela in video — prova Chrome eller Safari.");
+      return;
+    }
+    const url = URL.createObjectURL(clip.blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = videoFileName(doc, clip.extension);
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setVideoNote("3D-filmen är nedladdad.");
   };
 
   const toggleSpin = () => {
@@ -114,11 +142,38 @@ export function Designer({ initialText }: DesignerProps) {
               <button
                 type="button"
                 className={`chip ${styles.stageChip}`}
+                data-recording={recording}
+                title={`Spela in en ${VIDEO_SECONDS} sekunders 3D-film och ladda ner den`}
+                disabled={recording}
+                onClick={() => void recordVideo()}
+              >
+                <svg className={styles.chipIcon} viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="6" width="13" height="12" rx="2.5" />
+                  <path d="M16 10.5l5-3v9l-5-3z" />
+                </svg>
+                {recording ? "Spelar in…" : "Video"}
+              </button>
+              <button
+                type="button"
+                className={`chip ${styles.stageChip}`}
+                title="Vänd skylten och se andra sidan"
+                onClick={() => setFocus({ side: "flip", key: performance.now() })}
+              >
+                <svg className={styles.chipIcon} viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3" />
+                  <path d="M18 3v4h-4M6 21v-4h4" />
+                </svg>
+                Vänd
+              </button>
+              <button
+                type="button"
+                className={`chip ${styles.stageChip}`}
                 aria-pressed={spinning}
+                title={spinning ? "Stoppa snurrandet" : "Låt skylten snurra"}
                 onClick={toggleSpin}
               >
                 <span className={styles.spinDot} data-on={spinning} aria-hidden="true" />
-                {spinning ? "Snurrar" : "Pausad"}
+                Snurra
               </button>
             </div>
           )}
@@ -142,6 +197,7 @@ export function Designer({ initialText }: DesignerProps) {
                 photo={photo}
                 photoSamples={PHOTO_SAMPLES}
                 onPhotoProgress={setPhotoSamples}
+                recorderRef={recorderRef}
               />
             ) : view === "drawing" ? (
               <div className={styles.drawing}>
@@ -157,7 +213,11 @@ export function Designer({ initialText }: DesignerProps) {
           <p className={`mono ${styles.spec}`}>
             {doc.size.widthMm} × {doc.size.heightMm} mm · {material.name} · {color.name}
           </p>
-          {view === "3d" && photo ? (
+          {view === "3d" && (recording || videoNote) ? (
+            <p className={styles.hint} role="status">
+              {recording ? "Spelar in 3D-film — rör inte skylten" : videoNote}
+            </p>
+          ) : view === "3d" && photo ? (
             <p className={`mono ${styles.hint}`} aria-live="polite">
               {photoSamples >= PHOTO_SAMPLES
                 ? "Strålspårad · klar"
@@ -167,6 +227,13 @@ export function Designer({ initialText }: DesignerProps) {
             view === "3d" && <p className={styles.hint}>Dra för att vrida skylten</p>
           )}
         </footer>
+        {view === "3d" && recording && (
+          <div
+            className={styles.recProgress}
+            style={{ "--duration": `${VIDEO_SECONDS}s` } as CSSProperties}
+            aria-hidden="true"
+          />
+        )}
         {view === "3d" && photo && (
           <div
             className={styles.photoProgress}

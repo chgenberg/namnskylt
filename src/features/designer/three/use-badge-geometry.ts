@@ -6,15 +6,34 @@ import {
   type BadgeDocument,
   type FontEngine,
 } from "@/engine";
-import { buildBadgeGeometry, type BadgeGeometry } from "./geometry";
+import { buildPreviewGeometry, type BadgeGeometry } from "./geometry";
+import { fromArrays, type BadgeArrays } from "./geometry-arrays";
+import { buildExactGeometry } from "./geometry-worker";
 
-/** Väntetid innan CSG körs, så att en dragen slider inte bygger om varje bildruta. */
-const REBUILD_DELAY_MS = 90;
+/** Så många frästa varianter sparas — att byta tillbaka form eller typsnitt går direkt. */
+const EXACT_CACHE_SIZE = 12;
+const exactCache = new Map<string, BadgeArrays>();
+
+function cached(key: string): BadgeArrays | undefined {
+  const arrays = exactCache.get(key);
+  if (arrays) {
+    exactCache.delete(key);
+    exactCache.set(key, arrays);
+  }
+  return arrays;
+}
+
+function remember(key: string, arrays: BadgeArrays) {
+  exactCache.delete(key);
+  exactCache.set(key, arrays);
+  const oldest = exactCache.keys().next();
+  if (exactCache.size > EXACT_CACHE_SIZE && !oldest.done) exactCache.delete(oldest.value);
+}
 
 /**
- * Den graverade skylten. Ombyggnaden är dyr (CSG), så den debouncas och
- * körs bara när något som påverkar geometrin ändrats — färgbyten rör den
- * inte. Föregående geometri visas tills den nya är klar.
+ * Den graverade skylten. Fräsningen (CSG) är dyr och körs i en worker; under
+ * tiden visas en snabb förhandsversion där gravyren ligger som ett tunt skikt
+ * på ytan. Bara det som påverkar geometrin bygger om — färgbyten rör den inte.
  */
 export function useBadgeGeometry(doc: BadgeDocument, fonts: FontEngine): BadgeGeometry | null {
   const thicknessMm = getMaterial(doc.materialId).thicknessMm;
@@ -31,6 +50,7 @@ export function useBadgeGeometry(doc: BadgeDocument, fonts: FontEngine): BadgeGe
         doc.cornerRadiusMm,
         thicknessMm,
         finish,
+        doc.frame,
         engraving?.map((p) => p.d),
       ]),
     };
@@ -40,11 +60,25 @@ export function useBadgeGeometry(doc: BadgeDocument, fonts: FontEngine): BadgeGe
   const { key } = input;
 
   useEffect(() => {
-    const timer = window.setTimeout(
-      () => setGeometry(buildBadgeGeometry(input.doc, input.engraving)),
-      REBUILD_DELAY_MS,
+    const ready = cached(key);
+    if (ready) {
+      setGeometry(fromArrays(ready));
+      return;
+    }
+    setGeometry(buildPreviewGeometry(input.doc, input.engraving));
+
+    let active = true;
+    buildExactGeometry(input.doc, input.engraving).then(
+      (arrays) => {
+        if (!arrays) return;
+        remember(key, arrays);
+        if (active) setGeometry(fromArrays(arrays));
+      },
+      (error: unknown) => console.error("Gravyren kunde inte fräsas", error),
     );
-    return () => window.clearTimeout(timer);
+    return () => {
+      active = false;
+    };
     // Bygg om när nyckeln ändras, inte vid varje nytt dokumentobjekt.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);

@@ -51,7 +51,7 @@ export const HOW_IT_WORKS = {
       ],
       options: [
         { title: "Ditt foto", body: "Ta en bild med kameran eller ladda upp en, halvkropp eller helkropp. Fotot sparas inte." },
-        { title: "Tre personer", body: "Tre svenska personer i en miljö som passar titeln — bra när skylten ska till ett helt team." },
+        { title: "En person", body: "En svensk person vars kön och ålder passar namnet, i en miljö som passar titeln." },
       ],
     },
     {

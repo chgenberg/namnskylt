@@ -6,13 +6,13 @@ async function readResult<T>(response: Response): Promise<T> {
   return body;
 }
 
-export async function requestPeople(badge: BadgeDocument): Promise<string[]> {
+export async function requestPerson(badge: BadgeDocument): Promise<string> {
   const response = await fetch("/api/visualize/people", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ badge }),
   });
-  return (await readResult<{ images: string[] }>(response)).images;
+  return (await readResult<{ image: string }>(response)).image;
 }
 
 export async function requestTryOn(badge: BadgeDocument, photo: Blob): Promise<string> {

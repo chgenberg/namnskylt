@@ -57,12 +57,16 @@
   border: 1px solid var(--color-line-strong);
 }
 
-/* ── Tre personer ── */
+/* ── En person ── */
 
-.gallery {
+.portrait {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
+  justify-items: center;
+}
+
+.portrait > .card {
+  height: clamp(320px, calc(100dvh - 360px), 560px);
+  max-width: 100%;
 }
 
 .card {

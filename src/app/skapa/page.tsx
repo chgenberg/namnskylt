@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
 
 export const metadata: Metadata = {
@@ -10,6 +11,7 @@ interface SkapaPageProps {
 }
 
 export default async function SkapaPage({ searchParams }: SkapaPageProps) {
+  preloadDesignerAssets();
   const { t } = await searchParams;
   const initialText = Array.isArray(t) ? (t[0] ?? "") : (t ?? "");
   return (
