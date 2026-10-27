@@ -150,15 +150,3 @@ ${signature ? `<p class="muted" style="margin:4px 0 0;font-size:13px;color:#8a90
 
   return { subject, preheader, html, text };
 }
-
-/** Det mejlet använder — visas i förhandsvisningen. */
-export const EMAIL_TECHNIQUES = [
-  ["Förhandstext", "Raden som syns efter ämnet i inkorgen, dold i själva mejlet."],
-  ["Personlig bild", "Butiken ritad med deras logga och färger, en bild per återförsäljare."],
-  ["Mörkt läge", "Egna färger för Apple Mail, Gmail och Outlook i mörkt läge."],
-  ["Knapp för Outlook", "VML-knapp i Outlooks färg, vanlig länk överallt annars."],
-  ["Mobilanpassat", "En kolumn som krymper till skärmen; knappen blir fullbredd."],
-  ["Spårning per butik", "UTM-taggar per återförsäljare, plus Resends öppningar och klick."],
-  ["Avregistrering i ett klick", "List-Unsubscribe-header (RFC 8058) som Gmail och Yahoo kräver."],
-  ["Textversion", "Ren text för klienter och filter som inte läser HTML."],
-] as const;

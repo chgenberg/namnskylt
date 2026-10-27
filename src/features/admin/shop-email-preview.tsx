@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EMAIL_TECHNIQUES } from "@/lib/outreach/shop-email";
 import styles from "./admin.module.css";
 
 interface EmailPreview {
@@ -98,17 +97,6 @@ export function ShopEmailPreview({ shops }: { shops: { slug: string; name: strin
                 </li>
               ))}
             </ul>
-            <div className={styles.mailTech}>
-              <p className={styles.formLabel}>Det här använder mejlet</p>
-              <ul>
-                {EMAIL_TECHNIQUES.map(([title, text]) => (
-                  <li key={title}>
-                    <strong>{title}</strong>
-                    <span>{text}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
           </aside>
 
           <section className={styles.mailMain}>
