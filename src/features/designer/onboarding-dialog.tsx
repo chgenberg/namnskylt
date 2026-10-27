@@ -1,21 +1,32 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, type Dispatch } from "react";
 import { BadgePreview } from "@/components/badge-preview";
-import { SHAPES, getColor, getMaterial, isPartnerMade, type BadgeDocument } from "@/engine";
+import { SHAPES, getColor, getMaterial, isPartnerMade, type BadgeDocument, type FontEngine } from "@/engine";
+import type { BadgeRecorder } from "./three/recorder";
 import { ColorPicker, MaterialPicker, ShapePicker } from "./pickers";
 import styles from "./onboarding-dialog.module.css";
 import type { DesignerAction } from "./state";
 
+/** Samma 3D-skylt som i skyltmotorn; ritningen syns medan den laddar. */
+const Badge3D = dynamic(() => import("./badge-3d"), { ssr: false, loading: () => null });
+
+/** Närmare än i skyltmotorn — rutan är låg. */
+const PREVIEW_CAMERA_Z = 3.7;
+const noop = () => {};
+
 interface OnboardingDialogProps {
   doc: BadgeDocument;
+  fonts: FontEngine;
   dispatch: Dispatch<DesignerAction>;
   onClose: () => void;
 }
 
 /** Visas när kunden kommer från startsidan med sin text: välj det viktigaste först. */
-export function OnboardingDialog({ doc, dispatch, onClose }: OnboardingDialogProps) {
+export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const recorderRef = useRef<BadgeRecorder | null>(null);
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
   const shapeName = SHAPES.find((s) => s.id === doc.shape)?.name;
@@ -49,7 +60,24 @@ export function OnboardingDialog({ doc, dispatch, onClose }: OnboardingDialogPro
         </header>
 
         <div className={styles.preview}>
-          <BadgePreview doc={doc} label="Din skylt" className={styles.previewBadge} />
+          <div className={styles.preview3d}>
+            <BadgePreview doc={doc} label="Din skylt" className={styles.previewBadge} />
+            <div className={styles.previewCanvas} aria-hidden="true">
+              <Badge3D
+                doc={doc}
+                fonts={fonts}
+                spinning
+                focus={null}
+                engrave={null}
+                onEngraveDone={noop}
+                photo={false}
+                photoSamples={0}
+                onPhotoProgress={noop}
+                recorderRef={recorderRef}
+                cameraZ={PREVIEW_CAMERA_Z}
+              />
+            </div>
+          </div>
           <p className={styles.previewMeta}>
             {material.name} · {color.name} · {shapeName} · {doc.size.widthMm} × {doc.size.heightMm} mm
           </p>

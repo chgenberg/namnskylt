@@ -28,6 +28,7 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     placedAt: "2026-10-26T10:00:00Z",
     events: [],
     supplierSyncedAt: null,
+    hasBadgeShot: false,
     pricing: null,
     demo: false,
     ...patch,

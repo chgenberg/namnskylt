@@ -5,6 +5,8 @@ import { z } from "zod";
 import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
 import { db, requireDb } from "@/lib/db/client";
 import { isCustomPricing, pricingSchema, priceWithPricing, type Pricing } from "./pricing";
+import { purchaseTermsSchema, type PurchaseTerms } from "./purchase";
+import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
 import {
   isOrderSource,
   isOrderStatus,
@@ -32,6 +34,7 @@ interface OrderRow {
   repeat_of_order_no: string | null;
   placed_at: Date;
   supplier_synced_at: Date | null;
+  has_badge_shot: boolean;
   customer_id: string;
   customer_name: string;
   customer_company: string | null;
@@ -77,6 +80,7 @@ function toOrder(row: OrderRow): StoredOrder {
     placedAt: row.placed_at.toISOString(),
     events,
     supplierSyncedAt: row.supplier_synced_at?.toISOString() ?? null,
+    hasBadgeShot: row.has_badge_shot,
     demo: row.is_demo,
   };
 }
@@ -95,6 +99,7 @@ function selectOrders(sql: Sql) {
   return sql`
     select o.id, o.order_no, o.status, o.badges, o.pricing, o.total_sek, o.total_incl_vat_sek,
            o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo, o.supplier_synced_at,
+           o.badge_shot is not null as has_badge_shot,
            r.order_no as repeat_of_order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email, c.is_demo as customer_demo,
            c.phone as customer_phone, c.org_number as customer_org_number, c.address as customer_address,
@@ -140,6 +145,7 @@ export interface NewOrder {
   placedAt?: string;
   demo?: boolean;
   pricing?: Pricing | null;
+  badgeShot?: string | null;
 }
 
 /** Sparar ordern, kopplar den till kunden (samma e-post = samma kund) och loggar första steget. */
@@ -159,11 +165,12 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
     if (!customer) throw new Error("Kunden kunde inte sparas");
     const [saved] = await tx<{ id: string; order_no: string }[]>`
       insert into orders (customer_id, status, badges, pricing, total_sek, total_incl_vat_sek,
-                          supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo)
+                          supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot)
       values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Json)},
               ${pricing ? tx.json(pricing as unknown as Json) : null},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
-              ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false})
+              ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false},
+              ${order.badgeShot ?? null})
       returning id, order_no`;
     if (!saved) throw new Error("Ordern kunde inte sparas");
     await tx`insert into order_events (order_id, status, note, at) values (${saved.id}, ${order.status}, ${order.note ?? null}, ${placedAt})`;
@@ -187,6 +194,63 @@ export async function updateStatus(
     await tx`insert into order_events (order_id, status, note) values (${order.id}, ${status}, ${note ?? null})`;
     return true;
   });
+}
+
+/**
+ * Tar bort ordern för gott. Kopior och offerter som pekar hit behålls men
+ * tappar länken; tidslinje och korrektur följer med ordern.
+ */
+export async function deleteOrder(orderNo: string): Promise<boolean> {
+  const sql = requireDb();
+  return sql.begin(async (tx) => {
+    const [order] = await tx<{ id: string }[]>`select id from orders where order_no = ${orderNo} for update`;
+    if (!order) return false;
+    await tx`update orders set repeat_of = null where repeat_of = ${order.id}`;
+    await tx`update quotes set order_id = null where order_id = ${order.id}`;
+    await tx`delete from orders where id = ${order.id}`;
+    return true;
+  });
+}
+
+export async function getBadgeShot(orderNo: string): Promise<string | null> {
+  const sql = requireDb();
+  const [row] = await sql<{ badge_shot: string | null }[]>`select badge_shot from orders where order_no = ${orderNo}`;
+  return row?.badge_shot ?? null;
+}
+
+const PURCHASE_TERMS_KEY = "purchase_terms";
+
+/** `null` tills återförsäljaren ställt in sina villkor. */
+export async function getPurchaseTerms(): Promise<PurchaseTerms | null> {
+  const sql = requireDb();
+  const [row] = await sql<{ value: unknown }[]>`select value from settings where key = ${PURCHASE_TERMS_KEY}`;
+  const parsed = purchaseTermsSchema.safeParse(row?.value);
+  return parsed.success ? parsed.data : null;
+}
+
+export async function savePurchaseTerms(terms: PurchaseTerms): Promise<void> {
+  const sql = requireDb();
+  await sql`
+    insert into settings (key, value) values (${PURCHASE_TERMS_KEY}, ${sql.json(terms as unknown as Json)})
+    on conflict (key) do update set value = excluded.value, updated_at = now()`;
+}
+
+const COMPANY_PROFILE_KEY = "company_profile";
+
+/** Återförsäljarens uppgifter; standarduppgifterna tills något sparats eller utan databas. */
+export async function getCompanyProfile(): Promise<CompanyProfile> {
+  if (!databaseConfigured()) return DEFAULT_COMPANY;
+  const sql = requireDb();
+  const [row] = await sql<{ value: unknown }[]>`select value from settings where key = ${COMPANY_PROFILE_KEY}`;
+  const parsed = companyProfileSchema.safeParse(row?.value);
+  return parsed.success ? parsed.data : DEFAULT_COMPANY;
+}
+
+export async function saveCompanyProfile(profile: CompanyProfile): Promise<void> {
+  const sql = requireDb();
+  await sql`
+    insert into settings (key, value) values (${COMPANY_PROFILE_KEY}, ${sql.json(profile as unknown as Json)})
+    on conflict (key) do update set value = excluded.value, updated_at = now()`;
 }
 
 export interface SupplierUpdate {

@@ -13,6 +13,8 @@ const ICON: Record<string, ReactNode> = {
   customers: <path d="M7 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 17c0-3 2.2-5 5-5s5 2 5 5M14 9a2.5 2.5 0 1 0 0-5M15 12c2 .4 3 2.2 3 5" />,
   stats: <path d="M3 17h14M5 14V9M9 14V5M13 14v-3M17 14V7" />,
   export: <path d="M10 3v10M6 9l4 4 4-4M4 17h12" />,
+  purchase: <path d="M3 10.5V3h7.5l6.5 6.5-7.5 7.5zM7 7h.01" />,
+  settings: <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM10 2v2M10 16v2M2 10h2M16 10h2M4.3 4.3l1.4 1.4M14.3 14.3l1.4 1.4M4.3 15.7l1.4-1.4M14.3 5.7l1.4-1.4" />,
 };
 
 const NAV = [
@@ -21,7 +23,9 @@ const NAV = [
   { href: "/admin/offerter", label: "Offerter", icon: "quotes" },
   { href: "/admin/kunder", label: "Kunder", icon: "customers" },
   { href: "/admin/statistik", label: "Statistik", icon: "stats" },
+  { href: "/admin/inkopspriser", label: "Inköpspriser", icon: "purchase" },
   { href: "/admin/export", label: "Export", icon: "export" },
+  { href: "/admin/installningar", label: "Inställningar", icon: "settings" },
 ] as const;
 
 function NavIcon({ name }: { name: string }) {
@@ -39,10 +43,12 @@ interface AdminShellProps {
   pending: number;
   /** Antal demoordrar — visas som en banner över varje sida. */
   demoCount?: number;
+  /** Återförsäljarens namn från inställningarna. */
+  companyName?: string;
   children: ReactNode;
 }
 
-export function AdminShell({ pending, demoCount = 0, children }: AdminShellProps) {
+export function AdminShell({ pending, demoCount = 0, companyName = "namnskylt.com", children }: AdminShellProps) {
   const pathname = usePathname();
   const isCurrent = (href: string) => (href === "/admin" ? pathname === href : pathname.startsWith(href));
 
@@ -56,7 +62,7 @@ export function AdminShell({ pending, demoCount = 0, children }: AdminShellProps
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
           <span className={styles.brandEyebrow}>Återförsäljare</span>
-          <span className={styles.brandName}>namnskylt.com</span>
+          <span className={styles.brandName}>{companyName}</span>
         </div>
         <Link href="/admin/ny-order" className={styles.createButton}>
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

@@ -2,7 +2,8 @@
 
 import { useThree } from "@react-three/fiber";
 import { useEffect, type RefObject } from "react";
-import { Color, type Group } from "three";
+import { Color, type Group, type Object3D } from "three";
+import { RASTER_ONLY } from "./path-tracer";
 
 /** Ett pågående inspelningsvarv; `BadgeMesh` läser det och vrider skylten. */
 export interface RecordingTurn {
@@ -19,7 +20,12 @@ export interface VideoClip {
 export interface BadgeRecorder {
   /** Ett varv runt skylten som videoklipp; `null` om webbläsaren inte kan spela in. */
   recordTurn: (seconds: number) => Promise<VideoClip | null>;
+  /** Stillbild i tre kvarts vinkel med transparent bakgrund, som PNG-data-URL. */
+  still: () => string | null;
 }
+
+/** Fotolägets vinkel — fas och gravyrdjup syns. */
+const STILL_ANGLE = -0.42;
 
 const FPS = 30;
 const VIDEO_BITS_PER_SECOND = 8_000_000;
@@ -59,9 +65,29 @@ interface RecorderProps {
 export function Recorder({ apiRef, turnRef, target }: RecorderProps) {
   const gl = useThree((state) => state.gl);
   const scene = useThree((state) => state.scene);
+  const camera = useThree((state) => state.camera);
 
   useEffect(() => {
     apiRef.current = {
+      still: () => {
+        if (!target) return null;
+        const y = target.rotation.y;
+        target.rotation.y = STILL_ANGLE + Math.round((y - STILL_ANGLE) / (Math.PI * 2)) * Math.PI * 2;
+        // Kontaktskuggan är bred och halvgenomskinlig; bilden får sin skugga där den visas.
+        const hidden: Object3D[] = [];
+        scene.traverse((object) => {
+          if (object.userData[RASTER_ONLY] && object.visible) {
+            object.visible = false;
+            hidden.push(object);
+          }
+        });
+        // Bufferten töms efter varje bildruta — läs den i samma steg som den ritas.
+        gl.render(scene, camera);
+        const png = gl.domElement.toDataURL("image/png");
+        hidden.forEach((object) => (object.visible = true));
+        target.rotation.y = y;
+        return png.startsWith("data:image/png") ? png : null;
+      },
       recordTurn: (seconds) => {
         const canvas = gl.domElement;
         const mime = supportedMime();
@@ -100,7 +126,7 @@ export function Recorder({ apiRef, turnRef, target }: RecorderProps) {
     return () => {
       apiRef.current = null;
     };
-  }, [apiRef, turnRef, gl, scene, target]);
+  }, [apiRef, turnRef, gl, scene, camera, target]);
 
   return null;
 }

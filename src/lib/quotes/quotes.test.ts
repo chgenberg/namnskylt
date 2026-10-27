@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { approxFonts, createBadgeDocument, type BadgeDocument } from "@/engine";
+import { DEFAULT_COMPANY } from "@/lib/company/profile";
 import { quoteHtml } from "./document";
 import { addDays, canCustomerAnswer, canEditQuote, displayStatus, type StoredQuote } from "./model";
 
@@ -9,6 +10,7 @@ const badge: BadgeDocument = { ...createBadgeDocument(["Anna Lind", "Säljare"])
 function quote(patch: Partial<StoredQuote> = {}): StoredQuote {
   return {
     id: "q1",
+    badgeShot: null,
     quoteNo: "OF-1001",
     customer: { id: "c1", name: "Anna Lind", company: "Kafé <Ett>", email: "anna@example.se", phone: "070-123", orgNumber: "556000-0000", address: "Storgatan 1\n111 22 Stockholm", demo: false },
     status: "sent",
@@ -63,5 +65,23 @@ describe("offertdokumentet", () => {
   it("bäddar in skyltarna så att PDF:en inte hämtar något", () => {
     assert.match(html, /<svg/);
     assert.doesNotMatch(html, /src="http/);
+  });
+
+  it("använder återförsäljarens logga, färger, uppgifter och villkor", () => {
+    const branded = quoteHtml(quote(), approxFonts, {
+      ...DEFAULT_COMPANY,
+      name: "Profilhuset <AB>",
+      orgNumber: "556123-4567",
+      logo: "data:image/png;base64,iVBORw0KGgo=",
+      primaryColor: "#7a1f2b",
+      accentColor: "#c08a2e",
+      quoteTerms: "Betalning 30 dagar netto",
+    });
+    assert.match(branded, /<img class="logo" src="data:image\/png;base64,iVBORw0KGgo="/);
+    assert.match(branded, /color:#7a1f2b/);
+    assert.match(branded, /color:#c08a2e/);
+    assert.match(branded, /Profilhuset &lt;AB&gt; · Org\.nr 556123-4567/);
+    assert.match(branded, /Betalning 30 dagar netto/);
+    assert.doesNotMatch(branded, /#0b1f3a/);
   });
 });

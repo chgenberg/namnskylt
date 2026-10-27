@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
+import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
 import { placeOrder } from "@/lib/orders/place-order";
 
 const orderRequestSchema = z.object({
@@ -10,6 +11,7 @@ const orderRequestSchema = z.object({
     company: z.string().trim().max(120).optional(),
   }),
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
+  badgeShot: badgeShotUploadSchema,
 });
 
 export async function POST(request: Request) {
@@ -23,7 +25,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const receipt = await placeOrder({ ...parsed.data, source: "web" });
+    const { badgeShot, ...order } = parsed.data;
+    const receipt = await placeOrder({ ...order, source: "web", badgeShot: await normalizeBadgeShot(badgeShot) });
     return NextResponse.json(receipt, { status: 201 });
   } catch (error) {
     console.error("Ordern kunde inte läggas hos leverantören", error);

@@ -8,6 +8,7 @@ import {
   priceBadge,
   priceOrder,
   removeBatchEntry,
+  replaceBatchEntry,
   withTexts,
 } from "./index";
 
@@ -30,6 +31,11 @@ describe("parseBatchInput", () => {
 
   it("tar bort rätt skylt även när det finns tomma rader emellan", () => {
     assert.equal(removeBatchEntry("Anna\n\nErik, VD\nWilma", 1), "Anna\n\nWilma");
+  });
+
+  it("byter text på rätt skylt och lämnar resten orört", () => {
+    assert.equal(replaceBatchEntry("Anna\n\nErik, VD\nWilma", 1, "Pär, Lager"), "Anna\n\nPär, Lager\nWilma");
+    assert.deepEqual(parseBatchInput(replaceBatchEntry("Anna\nErik", 0, "Bo, VD")), [["Bo", "VD"], ["Erik"]]);
   });
 });
 

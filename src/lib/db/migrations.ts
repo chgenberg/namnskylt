@@ -118,6 +118,23 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       create index orders_supplier_order_no on orders (supplier_order_no);
     `,
   },
+  {
+    id: "005_settings",
+    sql: `
+      create table settings (
+        key text primary key,
+        value jsonb not null,
+        updated_at timestamptz not null default now()
+      );
+    `,
+  },
+  {
+    id: "006_badge_shots",
+    sql: `
+      alter table orders add column badge_shot text;
+      alter table quotes add column badge_shot text;
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

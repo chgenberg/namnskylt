@@ -10,6 +10,7 @@ import styles from "@/features/admin/admin.module.css";
 import { formatDate, formatDay, formatSek } from "@/features/orders/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { badgeCount } from "@/lib/orders/model";
+import { getPurchaseTerms } from "@/lib/orders/repository";
 import { canEditQuote, displayStatus } from "@/lib/quotes/model";
 import { getQuote } from "@/lib/quotes/repository";
 
@@ -24,7 +25,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
   if (!quote) notFound();
   const status = displayStatus(quote);
   const editable = canEditQuote(quote);
-  const origin = await siteOrigin();
+  const [origin, purchase] = await Promise.all([siteOrigin(), getPurchaseTerms()]);
   const link = quote.status === "sent" || status === "expired" ? `${origin}/offert/${quote.token}` : null;
   const name = quote.customer.company ?? quote.customer.name;
 
@@ -66,6 +67,12 @@ export default async function QuotePage({ params }: QuotePageProps) {
                 {quote.badges.length} namn · {badgeCount(quote)} st
               </span>
             </div>
+            {quote.badgeShot && (
+              <div className={styles.shotHero}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- data-URL från skyltmotorn */}
+                <img src={quote.badgeShot} alt="Skylten i 3D" />
+              </div>
+            )}
             <div className={styles.badgeGrid}>
               {quote.badges.map((badge, i) => (
                 <figure key={i} className={styles.badgeTile}>
@@ -86,6 +93,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
               <span className={styles.muted}>{editable ? "Ändra à-pris per skylt eller ge rabatt" : "Låst — offerten är besvarad"}</span>
             </div>
             <PricingEditor
+              purchase={purchase}
               badges={quote.badges}
               pricing={quote.pricing}
               submit={editable ? updateQuotePricingAction.bind(null, quote.quoteNo) : undefined}

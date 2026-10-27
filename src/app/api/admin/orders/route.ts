@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { placeOrder } from "@/lib/orders/place-order";
+import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
 import { databaseConfigured, getCustomer } from "@/lib/orders/repository";
 import { resellerPass } from "@/lib/reseller-auth/session";
 
@@ -11,6 +12,7 @@ export const runtime = "nodejs";
 const requestSchema = z.object({
   customerId: z.uuid(),
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
+  badgeShot: badgeShotUploadSchema,
 });
 
 /** Återförsäljaren lägger en order åt en kund — samma väg till tillverkningen som webbshoppen. */
@@ -31,6 +33,7 @@ export async function POST(request: Request) {
       source: "reseller",
       note: "Lagd av återförsäljaren",
       demo: customer.demo,
+      badgeShot: await normalizeBadgeShot(parsed.data.badgeShot),
     });
     return NextResponse.json(receipt, { status: 201 });
   } catch (error) {

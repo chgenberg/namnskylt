@@ -6,7 +6,8 @@ import { engravedRows, getColor, getMaterial, getMounting, SHAPES } from "@/engi
 import { formatDay, formatSek } from "@/features/orders/format";
 import { QuoteDecision } from "@/features/quote-public/quote-decision";
 import styles from "@/features/quote-public/quote-public.module.css";
-import { databaseConfigured } from "@/lib/orders/repository";
+import { companyFooter, readableOn } from "@/lib/company/profile";
+import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import { displayStatus } from "@/lib/quotes/model";
 import { getQuoteByToken } from "@/lib/quotes/repository";
@@ -25,8 +26,13 @@ interface QuotePublicPageProps {
 export default async function QuotePublicPage({ params }: QuotePublicPageProps) {
   if (!databaseConfigured()) notFound();
   const { token } = await params;
-  const quote = await getQuoteByToken(token);
+  const [quote, company] = await Promise.all([getQuoteByToken(token), getCompanyProfile()]);
   if (!quote || quote.status === "cancelled") notFound();
+  const brand = {
+    "--brand": company.primaryColor,
+    "--brand-on": readableOn(company.primaryColor),
+    "--brand-accent": company.accentColor,
+  } as React.CSSProperties;
   const status = displayStatus(quote);
   const priced = priceWithPricing(quote.badges, quote.pricing);
   const firstName = quote.customer.name.split(" ")[0] ?? quote.customer.name;
@@ -44,9 +50,16 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
             : { title: `Offert till ${quote.customer.company ?? firstName}`, text: `Giltig till och med ${formatDay(quote.validUntil)}.` };
 
   return (
-    <main className={styles.page}>
+    <main className={styles.page} style={brand}>
       <div className={styles.inner}>
-        <Image src="/logo-namnskylt.png" alt="namnskylt.com" width={1024} height={328} className={styles.logo} priority />
+        {company.logo ? (
+          // eslint-disable-next-line @next/next/no-img-element -- data-URL ur inställningarna
+          <img src={company.logo} alt={company.name} className={styles.logo} />
+        ) : company.name === "namnskylt.com" ? (
+          <Image src="/logo-namnskylt.png" alt="namnskylt.com" width={1024} height={328} className={styles.logo} priority />
+        ) : (
+          <p className={styles.brandName}>{company.name}</p>
+        )}
         <header className={styles.head}>
           <p className={styles.eyebrow}>
             Offert · <span className="mono">{quote.quoteNo}</span>
@@ -58,6 +71,12 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
         {quote.message && status === "sent" && <p className={styles.message}>{quote.message}</p>}
 
         <section className={styles.card}>
+          {quote.badgeShot && (
+            <div className={styles.shot}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- data-URL från skyltmotorn */}
+              <img src={quote.badgeShot} alt="Skylten i 3D" />
+            </div>
+          )}
           <div className={styles.meta}>
             <span>
               <strong>{quote.customer.company ?? quote.customer.name}</strong>
@@ -126,7 +145,12 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
         <a href={`/offert/${quote.token}/pdf`} className={styles.pdf}>
           Ladda ner offerten som PDF
         </a>
-        <p className={styles.foot}>Graverat i Sverige av Skylt &amp; Gravyrteknik · namnskylt.com</p>
+        <div className={styles.foot}>
+          {companyFooter(company).map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+          {company.quoteTerms && <p className={styles.terms}>{company.quoteTerms}</p>}
+        </div>
       </div>
     </main>
   );

@@ -5,6 +5,7 @@ import { engravedRows, getColor, getMaterial, getMounting, SHAPES } from "@/engi
 import { staffOrderAction, updateOrderPricingAction } from "@/features/admin/actions";
 import { PricingEditor } from "@/features/admin/pricing-editor";
 import { canViewAdmin } from "@/features/admin/guard";
+import { DeleteOrderButton } from "@/features/admin/delete-order-button";
 import { NewNamesButton } from "@/features/admin/new-names-button";
 import { OrderTimeline } from "@/features/admin/order-timeline";
 import { ProofPanel } from "@/features/admin/proof-panel";
@@ -15,8 +16,8 @@ import styles from "@/features/admin/admin.module.css";
 import { formatDate, formatSek } from "@/features/orders/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { badgeCount, ORDER_SOURCE_LABEL } from "@/lib/orders/model";
-import { getOrder, latestProof } from "@/lib/orders/repository";
-import { refreshFromSupplier, supplierLink, type SupplierLink } from "@/lib/supplier/sync";
+import { getOrder, getPurchaseTerms, latestProof } from "@/lib/orders/repository";
+import { atPrinter, refreshFromSupplier, supplierLink, type SupplierLink } from "@/lib/supplier/sync";
 
 const SYNC_NOTE: Record<SupplierLink, string> = {
   connected: "Följer tryckeriet automatiskt",
@@ -37,7 +38,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
   if (!stored) notFound();
   const order = (await refreshFromSupplier(stored)) ? ((await getOrder(orderNumber)) ?? stored) : stored;
   const link = supplierLink(order);
-  const [proof, origin] = await Promise.all([latestProof(order.orderNo), siteOrigin()]);
+  const [proof, origin, purchase] = await Promise.all([latestProof(order.orderNo), siteOrigin(), getPurchaseTerms()]);
   const template = order.badges[0];
   const customerName = order.customer.company ?? order.customer.name;
 
@@ -68,6 +69,14 @@ export default async function OrderPage({ params }: OrderPageProps) {
               submit={staffOrderAction.bind(null, order.orderNo)}
             />
           )}
+          <DeleteOrderButton
+            orderNo={order.orderNo}
+            customerName={customerName}
+            badgeCount={badgeCount(order)}
+            totalSek={order.totalSek}
+            atPrinter={atPrinter(order)}
+            redirectTo="/admin/ordrar"
+          />
         </div>
       </header>
 
@@ -80,6 +89,12 @@ export default async function OrderPage({ params }: OrderPageProps) {
                 {order.badges.length} namn · {badgeCount(order)} st
               </span>
             </div>
+            {order.hasBadgeShot && (
+              <div className={styles.shotHero}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- privat bild bakom inloggningen */}
+                <img src={`/api/admin/orders/${order.orderNo}/shot`} alt="Skylten i 3D" />
+              </div>
+            )}
             <div className={styles.badgeGrid}>
               {order.badges.map((badge, i) => {
                 const name = engravedRows(badge)[0]?.text.trim() || "Utan namn";
@@ -104,6 +119,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
               <span className={styles.muted}>Ditt pris till kunden — påverkar fakturaunderlaget, inte tillverkningen</span>
             </div>
             <PricingEditor
+              purchase={purchase}
               badges={order.badges}
               pricing={order.pricing}
               submit={order.status === "cancelled" ? undefined : updateOrderPricingAction.bind(null, order.orderNo)}

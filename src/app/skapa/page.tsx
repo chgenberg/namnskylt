@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { engravedRows } from "@/engine";
 import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
-import { databaseConfigured, getCustomer } from "@/lib/orders/repository";
+import { databaseConfigured, getCustomer, getPurchaseTerms } from "@/lib/orders/repository";
 import { isResellerSignedIn } from "@/lib/reseller-auth/session";
 import { genitive } from "@/lib/share/genitive";
 import { decodeShareCode } from "@/lib/share/share-link";
@@ -54,9 +54,14 @@ export async function generateMetadata({ searchParams }: SkapaPageProps): Promis
 /** `?kund=` gäller bara inloggad återförsäljare — annars är det en vanlig besökare. */
 async function resellerContext(customerId: string | undefined, quote: boolean) {
   if (!customerId || !databaseConfigured() || !(await isResellerSignedIn())) return undefined;
-  const customer = await getCustomer(customerId);
+  const [customer, purchase] = await Promise.all([getCustomer(customerId), getPurchaseTerms()]);
   return customer
-    ? { customerId: customer.id, customerName: customer.company ?? customer.name, mode: quote ? ("quote" as const) : ("order" as const) }
+    ? {
+        customerId: customer.id,
+        customerName: customer.company ?? customer.name,
+        mode: quote ? ("quote" as const) : ("order" as const),
+        purchase,
+      }
     : undefined;
 }
 

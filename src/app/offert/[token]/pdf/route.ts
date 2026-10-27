@@ -1,6 +1,6 @@
 import { clientKey, createRateLimiter } from "@/lib/ai/rate-limit";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
-import { databaseConfigured } from "@/lib/orders/repository";
+import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
 import { htmlToPdf } from "@/lib/pdf/html-to-pdf";
 import { quoteHtml } from "@/lib/quotes/document";
 import { getQuoteByToken } from "@/lib/quotes/repository";
@@ -18,7 +18,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   if (!perClient.take(clientKey(request))) return new Response("För många nedladdningar. Försök igen om en stund.", { status: 429 });
 
   try {
-    const pdf = await htmlToPdf(quoteHtml(quote, await loadNodeFontEngine()));
+    const [fonts, company] = await Promise.all([loadNodeFontEngine(), getCompanyProfile()]);
+    const pdf = await htmlToPdf(quoteHtml(quote, fonts, company));
     return new Response(new Uint8Array(pdf), {
       headers: {
         "content-type": "application/pdf",

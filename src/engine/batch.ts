@@ -30,6 +30,15 @@ export function removeBatchEntry(raw: string, index: number): string {
     .join("\n");
 }
 
+/** Byter texten för skylt nummer `index` mot `line` — tomrader och ordning lämnas orörda. */
+export function replaceBatchEntry(raw: string, index: number, line: string): string {
+  let entry = -1;
+  return raw
+    .split(/\r?\n/)
+    .map((current) => (parseBatchLine(current).length > 0 && ++entry === index ? line : current))
+    .join("\n");
+}
+
 /**
  * Samma design med nya texter. Rad i ärver stil (versalhöjd, fetstil) från
  * mallens rad i; rader mallen saknar får standardstil.

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState, type Dispatch, type FormEvent } from "react";
 import { ProgressBanner } from "@/components/ui/progress-banner";
 import { QUANTITY_TIERS, badgeDocumentSchema, isPartnerMade, priceOrder, type BadgeDocument } from "@/engine";
+import { marginOf, purchasePrice } from "@/lib/orders/purchase";
 import type { ResellerOrderContext } from "../reseller";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
@@ -36,9 +37,11 @@ interface OrderSectionProps {
   badges: readonly BadgeDocument[];
   dispatch: Dispatch<DesignerAction>;
   reseller?: ResellerOrderContext;
+  /** Stillbild av 3D-skylten till offerten och ordern; `null` när 3D-vyn inte visas. */
+  captureShot?: () => string | null;
 }
 
-export function OrderSection({ doc, badges, dispatch, reseller }: OrderSectionProps) {
+export function OrderSection({ doc, badges, dispatch, reseller, captureShot }: OrderSectionProps) {
   const [order, setOrder] = useState<OrderState>({ status: "idle" });
   const price = priceOrder(badges);
   const names = badges.length;
@@ -55,7 +58,7 @@ export function OrderSection({ doc, badges, dispatch, reseller }: OrderSectionPr
       const response = await fetch(quote ? "/api/admin/quotes" : "/api/admin/orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ customerId: context.customerId, badges }),
+        body: JSON.stringify({ customerId: context.customerId, badges, badgeShot: captureShot?.() ?? undefined }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "Något gick fel");
@@ -78,6 +81,7 @@ export function OrderSection({ doc, badges, dispatch, reseller }: OrderSectionPr
         body: JSON.stringify({
           customer: { name: form.get("name"), email: form.get("email") },
           badges,
+          badgeShot: captureShot?.() ?? undefined,
         }),
       });
       const body = await response.json();
@@ -165,6 +169,8 @@ export function OrderSection({ doc, badges, dispatch, reseller }: OrderSectionPr
         ) : null}
       </div>
 
+      {reseller && <PurchaseSummary badges={badges} reseller={reseller} saleSek={price.totalSek} />}
+
       {reseller && (
         <button
           type="button"
@@ -234,5 +240,51 @@ export function OrderSection({ doc, badges, dispatch, reseller }: OrderSectionPr
         </p>
       )}
     </section>
+  );
+}
+
+interface PurchaseSummaryProps {
+  badges: readonly BadgeDocument[];
+  reseller: ResellerOrderContext;
+  saleSek: number;
+}
+
+/** Bara för återförsäljaren: vad skyltarna kostar hos tryckeriet och vad som blir kvar vid listpris. */
+function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
+  if (!reseller.purchase) {
+    return (
+      <p className={styles.purchase} data-empty="true">
+        Ditt inköpspris syns här när du ställt in din rabatt hos tryckeriet.{" "}
+        <a href="/admin/inkopspriser" target="_blank" rel="noreferrer">
+          Ställ in inköpspriser ↗
+        </a>
+      </p>
+    );
+  }
+  const purchase = purchasePrice(badges, reseller.purchase);
+  const margin = marginOf(saleSek, purchase.totalSek);
+  const quantity = badges.reduce((sum, badge) => sum + badge.quantity, 0);
+  return (
+    <dl className={styles.purchase} aria-label="Ditt inköp och marginal">
+      <div>
+        <dt>Ditt inköp</dt>
+        <dd>
+          {sek.format(purchase.totalSek)}
+          {quantity > 1 && <span> · {sek.format(Math.round(purchase.totalSek / quantity))} / st</span>}
+        </dd>
+      </div>
+      <div>
+        <dt>Kundpris</dt>
+        <dd>{sek.format(saleSek)}</dd>
+      </div>
+      <div data-tone={margin.sek < 0 ? "bad" : "good"}>
+        <dt>Marginal</dt>
+        <dd>
+          {sek.format(margin.sek)}
+          {margin.percent !== null && <span> · {margin.percent} %</span>}
+        </dd>
+      </div>
+      {reseller.mode === "quote" && <p>Kundpriset kan du ändra på offerten innan den skickas.</p>}
+    </dl>
   );
 }

@@ -11,8 +11,11 @@ import {
   createBadgeDocument,
   getColor,
   getMaterial,
+  batchLine,
   layoutBadge,
   parseBatchInput,
+  removeBatchEntry,
+  replaceBatchEntry,
   parseSmartInput,
   withTexts,
   type BadgeDocument,
@@ -122,6 +125,7 @@ export function Designer({ initialText, initialDoc, reseller }: DesignerProps) {
   );
   const orderBadges = useMemo(() => [doc, ...batch], [doc, batch]);
 
+
   const togglePhoto = () => {
     const next = !photo;
     setPhoto(next);
@@ -183,6 +187,22 @@ export function Designer({ initialText, initialDoc, reseller }: DesignerProps) {
     const side = action.type === "mounting" ? "back" : photo ? "hero" : "front";
     setFocus({ side, key: performance.now() });
   }, [photo]);
+
+  /** Kollegans skylt in i editorn; den som redigerades tar hennes plats i listan. */
+  const openColleague = (index: number) => {
+    const texts = batchEntries[index];
+    if (!texts) return;
+    setBatchText((text) => replaceBatchEntry(text, index, batchLine(doc)));
+    update({ type: "texts", texts });
+  };
+
+  /** Skylten i editorn tas bort — nästa namn i listan tar över. */
+  const removeCurrent = () => {
+    const next = batchEntries[0];
+    if (!next) return;
+    setBatchText((text) => removeBatchEntry(text, 0));
+    update({ type: "texts", texts: next });
+  };
   const layout = useMemo(() => layoutBadge(doc, fonts), [doc, fonts]);
   const moved = Boolean(doc.textOffsetMm || doc.logo?.offsetMm);
   /** Ritningen visar platshållare för tomma rader — loggan ska inte heller hamna över dem. */
@@ -416,16 +436,25 @@ export function Designer({ initialText, initialDoc, reseller }: DesignerProps) {
           <FormatSection doc={doc} dispatch={update} />
           <MountingSection doc={doc} dispatch={update} />
           <BatchSection
+            current={doc}
             badges={batch}
             text={batchText}
             onTextChange={setBatchText}
+            onSelect={openColleague}
+            onRemoveCurrent={removeCurrent}
             overflow={batchEntries.length - batch.length}
             fonts={fonts}
           />
         </div>
-        <OrderSection doc={doc} badges={orderBadges} dispatch={update} reseller={reseller} />
+        <OrderSection
+          doc={doc}
+          badges={orderBadges}
+          dispatch={update}
+          reseller={reseller}
+          captureShot={() => recorderRef.current?.still() ?? null}
+        />
       </aside>
-      {onboarding && <OnboardingDialog doc={doc} dispatch={update} onClose={finishOnboarding} />}
+      {onboarding && <OnboardingDialog doc={doc} fonts={fonts} dispatch={update} onClose={finishOnboarding} />}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
+import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
 import { databaseConfigured, getCustomer } from "@/lib/orders/repository";
 import { createQuote } from "@/lib/quotes/repository";
 import { resellerPass } from "@/lib/reseller-auth/session";
@@ -11,6 +12,7 @@ export const runtime = "nodejs";
 const requestSchema = z.object({
   customerId: z.uuid(),
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
+  badgeShot: badgeShotUploadSchema,
 });
 
 /** Skyltmotorn i offertläge: samma skyltar som en order, men inget skickas till tillverkningen. */
@@ -25,7 +27,12 @@ export async function POST(request: Request) {
   const customer = await getCustomer(parsed.data.customerId);
   if (!customer) return NextResponse.json({ error: "Kunden finns inte" }, { status: 404 });
   try {
-    const { quoteNo } = await createQuote({ customerId: customer.id, badges: parsed.data.badges, demo: customer.demo });
+    const { quoteNo } = await createQuote({
+      customerId: customer.id,
+      badges: parsed.data.badges,
+      demo: customer.demo,
+      badgeShot: await normalizeBadgeShot(parsed.data.badgeShot),
+    });
     return NextResponse.json({ quoteNo }, { status: 201 });
   } catch (error) {
     console.error("Offerten kunde inte skapas", error);

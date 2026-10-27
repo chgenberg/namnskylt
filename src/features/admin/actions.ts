@@ -6,11 +6,17 @@ import { MAX_ORDER_BADGES } from "@/engine";
 import { requireDb } from "@/lib/db/client";
 import { insertDemoData, removeDemoData } from "@/lib/orders/demo-data";
 import { pricingSchema, type Pricing } from "@/lib/orders/pricing";
+import { purchaseTermsSchema, type PurchaseTerms } from "@/lib/orders/purchase";
+import { companyProfileSchema, type CompanyProfile } from "@/lib/company/profile";
 import { placeOrder } from "@/lib/orders/place-order";
 import { repeatBadges, staffBadges } from "@/lib/orders/repeat";
 import {
   createProof,
   deleteDesign,
+  deleteOrder,
+  getBadgeShot,
+  saveCompanyProfile,
+  savePurchaseTerms,
   getCustomer,
   getDesign,
   getOrder,
@@ -50,6 +56,7 @@ export async function repeatOrderAction(orderNo: string): Promise<ActionResult> 
       repeatOf: original.id,
       note: `Beställd igen från ${original.orderNo}`,
       demo: original.demo,
+      badgeShot: original.hasBadgeShot ? await getBadgeShot(original.orderNo) : null,
     });
     return done(placed.orderNumber);
   } catch (error) {
@@ -123,6 +130,38 @@ export async function saveDesignAction(orderNo: string, badgeIndex: number, name
     return done();
   } catch (error) {
     return fail(error, "Mallen kunde inte sparas");
+  }
+}
+
+export async function deleteOrderAction(orderNo: string): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    const ok = await deleteOrder(orderNoSchema.parse(orderNo));
+    return ok ? done() : { ok: false, error: "Ordern finns inte" };
+  } catch (error) {
+    return fail(error, "Ordern kunde inte tas bort");
+  }
+}
+
+export async function savePurchaseTermsAction(terms: PurchaseTerms): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    await savePurchaseTerms(purchaseTermsSchema.parse(terms));
+    return done();
+  } catch (error) {
+    return fail(error, "Inköpspriserna kunde inte sparas");
+  }
+}
+
+export async function saveCompanyProfileAction(profile: CompanyProfile): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    await saveCompanyProfile(companyProfileSchema.parse(profile));
+    revalidatePath("/offert", "layout");
+    return done();
+  } catch (error) {
+    if (error instanceof z.ZodError) return { ok: false, error: error.issues[0]?.message ?? "Ogiltiga uppgifter" };
+    return fail(error, "Uppgifterna kunde inte sparas");
   }
 }
 

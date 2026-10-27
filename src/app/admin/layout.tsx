@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { AdminLogin } from "@/features/admin/admin-login";
 import { AdminShell } from "@/features/admin/admin-shell";
 import { Notice } from "@/features/admin/notice";
-import { databaseConfigured, listOrders } from "@/lib/orders/repository";
+import { databaseConfigured, getCompanyProfile, listOrders } from "@/lib/orders/repository";
 import { isResellerSignedIn, resellerPass } from "@/lib/reseller-auth/session";
 
 export const metadata: Metadata = {
@@ -42,12 +42,12 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       </main>
     );
   }
-  const orders = await listOrders();
+  const [orders, company] = await Promise.all([listOrders(), getCompanyProfile()]);
   const pending = orders.filter((o) => o.status === "received").length;
   const demoCount = orders.filter((o) => o.demo).length;
   return (
     <main>
-      <AdminShell pending={pending} demoCount={demoCount}>
+      <AdminShell pending={pending} demoCount={demoCount} companyName={company.name}>
         {children}
       </AdminShell>
     </main>

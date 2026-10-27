@@ -15,10 +15,13 @@ import {
   type MountingId,
   type Offset,
   type TextAlign,
+  withTexts,
 } from "@/engine";
 
 export type DesignerAction =
   | { type: "row/text"; id: string; text: string }
+  /** Alla rader på en gång, med skyltens stil — när en kollegas skylt öppnas. */
+  | { type: "texts"; texts: string[] }
   | { type: "row/cap"; id: string; capHeightMm: number }
   | { type: "row/bold"; id: string }
   | { type: "row/add"; id: string }
@@ -71,6 +74,11 @@ function mapRow(
 
 export function designerReducer(doc: BadgeDocument, action: DesignerAction): BadgeDocument {
   switch (action.type) {
+    case "texts":
+      return withTexts(
+        doc,
+        action.texts.slice(0, TEXT_LIMITS.maxRows).map((text) => text.slice(0, TEXT_LIMITS.maxChars)),
+      );
     case "row/text":
       return mapRow(doc, action.id, (row) => ({
         ...row,

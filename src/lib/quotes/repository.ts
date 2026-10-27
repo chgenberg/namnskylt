@@ -45,6 +45,7 @@ interface QuoteRow {
   customer_address: string | null;
   customer_demo: boolean;
   events: { status: string; note: string | null; at: string }[] | null;
+  badge_shot: string | null;
 }
 
 function toQuote(row: QuoteRow): StoredQuote {
@@ -55,6 +56,7 @@ function toQuote(row: QuoteRow): StoredQuote {
     .map((e) => ({ status: e.status, note: e.note, at: new Date(e.at).toISOString() }));
   return {
     id: row.id,
+    badgeShot: row.badge_shot,
     quoteNo: row.quote_no,
     customer: {
       id: row.customer_id,
@@ -84,9 +86,10 @@ function toQuote(row: QuoteRow): StoredQuote {
   };
 }
 
-function selectQuotes(sql: Sql) {
+/** Stillbilden är den tunga kolumnen — listan klarar sig utan. */
+function selectQuotes(sql: Sql, withShot = false) {
   return sql`
-    select q.id, q.quote_no, q.status, q.badges, q.pricing, q.total_sek, q.total_incl_vat_sek, q.message,
+    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, q.quote_no, q.status, q.badges, q.pricing, q.total_sek, q.total_incl_vat_sek, q.message,
            to_char(q.valid_until, 'YYYY-MM-DD') as valid_until, q.token, q.decline_reason, q.is_demo,
            q.created_at, q.sent_at, q.decided_at, o.order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email,
@@ -107,14 +110,14 @@ export async function listQuotes(): Promise<StoredQuote[]> {
 
 export async function getQuote(quoteNo: string): Promise<StoredQuote | null> {
   const sql = requireDb();
-  const [row] = await sql<QuoteRow[]>`${selectQuotes(sql)} where q.quote_no = ${quoteNo}`;
+  const [row] = await sql<QuoteRow[]>`${selectQuotes(sql, true)} where q.quote_no = ${quoteNo}`;
   return row ? toQuote(row) : null;
 }
 
 export async function getQuoteByToken(token: string): Promise<StoredQuote | null> {
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) return null;
   const sql = requireDb();
-  const [row] = await sql<QuoteRow[]>`${selectQuotes(sql)} where q.token = ${token}`;
+  const [row] = await sql<QuoteRow[]>`${selectQuotes(sql, true)} where q.token = ${token}`;
   return row ? toQuote(row) : null;
 }
 
@@ -122,6 +125,7 @@ export async function createQuote(input: {
   customerId: string;
   badges: BadgeDocument[];
   demo: boolean;
+  badgeShot?: string | null;
 }): Promise<{ quoteNo: string }> {
   const sql = requireDb();
   const price = priceWithPricing(input.badges);
@@ -129,9 +133,9 @@ export async function createQuote(input: {
   const token = randomBytes(18).toString("base64url");
   return sql.begin(async (tx) => {
     const [row] = await tx<{ id: string; quote_no: string }[]>`
-      insert into quotes (customer_id, badges, total_sek, total_incl_vat_sek, valid_until, token, is_demo)
+      insert into quotes (customer_id, badges, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot)
       values (${input.customerId}, ${tx.json(input.badges as unknown as Json)}, ${price.totalSek},
-              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo})
+              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null})
       returning id, quote_no`;
     if (!row) throw new Error("Offerten kunde inte sparas");
     await tx`insert into quote_events (quote_id, status, note) values (${row.id}, 'draft', 'Offert skapad i skyltmotorn')`;

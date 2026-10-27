@@ -19,6 +19,8 @@ export interface PlaceOrderInput {
   demo?: boolean;
   /** Återförsäljarens priser till kunden — påverkar inte vad tillverkningen får. */
   pricing?: Pricing | null;
+  /** Normaliserad stillbild av 3D-skylten (`normalizeBadgeShot`). */
+  badgeShot?: string | null;
 }
 
 export interface PlaceOrderResult {
@@ -67,6 +69,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         partnerRequestNo: partnerRequest ?? null,
         note: input.note ?? (partnerRequest ? `Partnerförfrågan ${partnerRequest}` : null),
         pricing: input.pricing,
+        badgeShot: input.badgeShot,
       });
       savedOrderNo = saved.orderNo;
     } catch (error) {
@@ -103,6 +106,7 @@ async function placeDemoOrder(input: PlaceOrderInput): Promise<PlaceOrderResult>
     note: input.note ?? "Demoorder — skickas inte till tillverkningen",
     demo: true,
     pricing: input.pricing,
+    badgeShot: input.badgeShot,
   });
   return { orderNumber: saved.orderNo, status: "mock" };
 }

@@ -82,6 +82,8 @@ export interface StoredOrder {
   events: OrderEvent[];
   /** Senast statusen stämdes av mot leverantören. */
   supplierSyncedAt: string | null;
+  /** Det finns en stillbild av 3D-skylten (hämtas separat, den är tung). */
+  hasBadgeShot: boolean;
   /** Demoorder — skickas aldrig till tillverkningen, inte heller om den beställs igen. */
   demo: boolean;
 }

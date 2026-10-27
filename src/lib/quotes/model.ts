@@ -26,6 +26,8 @@ export interface QuoteEvent {
 
 export interface StoredQuote {
   id: string;
+  /** 3D-skylten som stillbild (WebP-data-URL). Läses bara när en enskild offert hämtas. */
+  badgeShot: string | null;
   quoteNo: string;
   customer: Customer;
   status: QuoteStatus;

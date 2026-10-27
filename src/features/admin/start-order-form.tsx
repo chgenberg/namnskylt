@@ -98,6 +98,7 @@ export function StartOrderForm({ customers, preselected, mode: kind = "order" }:
                 role="radio"
                 aria-checked={customerId === c.id}
                 className={styles.customerOption}
+                title={`${c.label} — ${c.detail}`}
                 onClick={() => setCustomerId(c.id)}
               >
                 <strong>{c.label}</strong>

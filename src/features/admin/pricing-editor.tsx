@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { engravedRows, type BadgeDocument } from "@/engine";
 import { formatSek } from "@/features/orders/format";
 import { MAX_DISCOUNT_PERCENT, MAX_UNIT_SEK, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
+import { marginOf, purchasePrice, type PurchaseTerms } from "@/lib/orders/purchase";
 import type { ActionResult } from "./actions";
 import styles from "./admin.module.css";
 
@@ -12,6 +13,8 @@ interface PricingEditorProps {
   pricing: Pricing | null;
   /** Utan `submit` visas priserna bara. */
   submit?: (pricing: Pricing) => Promise<ActionResult>;
+  /** Visar inköp och marginal när villkoren är inställda. */
+  purchase?: PurchaseTerms | null;
 }
 
 function parseSek(text: string): number | null {
@@ -20,7 +23,7 @@ function parseSek(text: string): number | null {
 }
 
 /** À-pris per skylt och rabatt på summan — totalerna räknas live innan de sparas. */
-export function PricingEditor({ badges, pricing, submit }: PricingEditorProps) {
+export function PricingEditor({ badges, pricing, submit, purchase }: PricingEditorProps) {
   const list = useMemo(() => priceWithPricing(badges).lines.map((l) => l.listUnitSek), [badges]);
   const [units, setUnits] = useState<string[]>(() => badges.map((_, i) => String(pricing?.unitOverrides[i] ?? list[i] ?? "")));
   const [discount, setDiscount] = useState(String(pricing?.discountPercent ?? 0));
@@ -36,6 +39,8 @@ export function PricingEditor({ badges, pricing, submit }: PricingEditorProps) {
   };
   const priced = priceWithPricing(badges, draft);
   const saved = priceWithPricing(badges, pricing);
+  const cost = purchase ? purchasePrice(badges, purchase) : null;
+  const margin = cost ? marginOf(priced.totalSek, cost.totalSek) : null;
   const dirty = priced.totalSek !== saved.totalSek || JSON.stringify(draft.unitOverrides) !== JSON.stringify(badges.map((_, i) => pricing?.unitOverrides[i] ?? null));
 
   const save = (next: Pricing) => {
@@ -71,7 +76,16 @@ export function PricingEditor({ badges, pricing, submit }: PricingEditorProps) {
             <div key={i} className={styles.priceRow} role="row">
               <span role="cell" className={styles.rowTitle}>
                 <strong>{name}</strong>
-                {line?.overridden && <span className={styles.muted}>listpris {formatSek(line.listUnitSek)}</span>}
+                {(line?.overridden || cost) && (
+                  <span className={styles.muted}>
+                    {[
+                      line?.overridden ? `listpris ${formatSek(line.listUnitSek)}` : null,
+                      cost ? `inköp ${formatSek(cost.unitSek[i] ?? 0)}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                )}
               </span>
               <span role="cell" className="mono">
                 {badge.quantity} st
@@ -120,6 +134,17 @@ export function PricingEditor({ badges, pricing, submit }: PricingEditorProps) {
           <dd className={styles.summaryTotal}>{formatSek(priced.totalSek)}</dd>
           <dt>Inkl. moms</dt>
           <dd>{formatSek(priced.totalInclVatSek)}</dd>
+          {cost && margin && (
+            <>
+              <dt>Ditt inköp</dt>
+              <dd>{formatSek(cost.totalSek)}</dd>
+              <dt className={margin.sek < 0 ? styles.marginBad : styles.marginGood}>Marginal</dt>
+              <dd className={margin.sek < 0 ? styles.marginBad : styles.marginGood}>
+                {formatSek(margin.sek)}
+                {margin.percent !== null && ` · ${margin.percent} %`}
+              </dd>
+            </>
+          )}
           {priced.totalSek !== priced.listTotalSek && (
             <>
               <dt className={styles.muted}>Listpris</dt>

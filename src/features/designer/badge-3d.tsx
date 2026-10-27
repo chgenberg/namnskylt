@@ -192,6 +192,8 @@ interface Badge3DProps {
   recorderRef: RefObject<BadgeRecorder | null>;
   engrave: number | null;
   onEngraveDone: () => void;
+  /** Kamerans avstånd — närmare i små vyer, så att skylten fyller rutan. */
+  cameraZ?: number;
 }
 
 export default function Badge3D({
@@ -205,6 +207,7 @@ export default function Badge3D({
   photoSamples,
   onPhotoProgress,
   recorderRef,
+  cameraZ = 5.6,
 }: Badge3DProps) {
   const [target, setTarget] = useState<Group | null>(null);
   const turnRef = useRef<RecordingTurn | null>(null);
@@ -214,7 +217,7 @@ export default function Badge3D({
   return (
     <Canvas
       dpr={[1, 2]}
-      camera={{ position: [0, 0, 5.6], fov: 30 }}
+      camera={{ position: [0, 0, cameraZ], fov: 30 }}
       gl={{ antialias: true, alpha: true, toneMapping: NeutralToneMapping }}
       onCreated={({ gl, camera }) => {
         gl.localClippingEnabled = true;
