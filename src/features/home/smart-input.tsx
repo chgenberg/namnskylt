@@ -48,7 +48,8 @@ function useTypewriter(active: boolean): string {
   return text;
 }
 
-export function SmartInput() {
+/** `target` = skyltmotorns adress; demobutikerna har sin egen. */
+export function SmartInput({ target = "/skapa" }: { target?: string }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
@@ -72,8 +73,8 @@ export function SmartInput() {
   });
 
   useEffect(() => {
-    router.prefetch("/skapa");
-  }, [router]);
+    router.prefetch(target);
+  }, [router, target]);
 
   // Länkar till #borja (menyn, "Så funkar det") ska lämna markören i rutan.
   // Next byter hash med pushState, så hashchange kommer inte — lyssna på klicket.
@@ -104,7 +105,7 @@ export function SmartInput() {
     }
     setLeaving(true);
     const query = new URLSearchParams({ t: rows.join("|") });
-    router.push(`/skapa?${query.toString()}`);
+    router.push(`${target}?${query.toString()}`);
   }
 
   return (

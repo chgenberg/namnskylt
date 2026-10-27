@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import { AdminLogin } from "@/features/admin/admin-login";
 import { AdminShell } from "@/features/admin/admin-shell";
 import { Notice } from "@/features/admin/notice";
-import { databaseConfigured, getCompanyProfile, listOrders } from "@/lib/orders/repository";
+import { ShotBackfill } from "@/features/admin/shot-backfill";
+import { databaseConfigured, getCompanyProfile, listOrders, missingBadgeShots } from "@/lib/orders/repository";
 import { isResellerSignedIn, resellerPass } from "@/lib/reseller-auth/session";
 
 export const metadata: Metadata = {
@@ -12,6 +13,9 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+
+/** Gamla ordrar och offerter får sin 3D-bild några i taget, medan panelen används. */
+const MISSING_SHOTS_PER_VIEW = 20;
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   if (!resellerPass.configured()) {
@@ -42,7 +46,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       </main>
     );
   }
-  const [orders, company] = await Promise.all([listOrders(), getCompanyProfile()]);
+  const [orders, company, missing] = await Promise.all([
+    listOrders(),
+    getCompanyProfile(),
+    missingBadgeShots(MISSING_SHOTS_PER_VIEW),
+  ]);
   const pending = orders.filter((o) => o.status === "received").length;
   const demoCount = orders.filter((o) => o.demo).length;
   return (
@@ -50,6 +58,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       <AdminShell pending={pending} demoCount={demoCount} companyName={company.name}>
         {children}
       </AdminShell>
+      <ShotBackfill items={missing} />
     </main>
   );
 }

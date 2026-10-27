@@ -1,5 +1,11 @@
 import type { PurchaseTerms } from "@/lib/orders/purchase";
 
+/** Skyltmotorn i en återförsäljares demobutik — ordern märks med butiken. */
+export interface ShopContext {
+  slug: string;
+  name: string;
+}
+
 /** Designern öppnad av återförsäljaren för att lägga en order eller göra en offert åt en kund. */
 export interface ResellerOrderContext {
   customerId: string;

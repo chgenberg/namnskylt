@@ -26,9 +26,9 @@ function download(blob: Blob, name: string) {
  * filer; annars kopieras länken och bilden laddas ner. Svaret är en svensk
  * statusrad till kunden.
  */
-export async function shareBadge(doc: BadgeDocument): Promise<string> {
+export async function shareBadge(doc: BadgeDocument, basePath = "/skapa"): Promise<string> {
   const [{ code, droppedLogo }, image] = await Promise.all([encodeShareCode(doc), shareImage(doc)]);
-  const url = `${window.location.origin}/skapa?d=${code}`;
+  const url = `${window.location.origin}${basePath}?d=${code}`;
   const name = engravedRows(doc)[0]?.text.trim();
   const title = name ? `Namnskylt — ${name}` : "Min namnskylt";
   const file = new File([image], videoFileName(doc, "png", "delning"), { type: "image/png" });

@@ -33,7 +33,7 @@ export const TIMELINE_STEPS: readonly OrderStatus[] = [
   "delivered",
 ];
 
-export const ORDER_SOURCES = ["web", "reseller", "quote", "repeat", "staff", "template"] as const;
+export const ORDER_SOURCES = ["web", "reseller", "quote", "repeat", "staff", "template", "shop"] as const;
 export type OrderSource = (typeof ORDER_SOURCES)[number];
 
 export const ORDER_SOURCE_LABEL: Record<OrderSource, string> = {
@@ -43,6 +43,7 @@ export const ORDER_SOURCE_LABEL: Record<OrderSource, string> = {
   repeat: "Beställd igen",
   staff: "Ny personal",
   template: "Från mall",
+  shop: "Från butik",
 };
 
 export interface Customer {
@@ -84,6 +85,8 @@ export interface StoredOrder {
   supplierSyncedAt: string | null;
   /** Det finns en stillbild av 3D-skylten (hämtas separat, den är tung). */
   hasBadgeShot: boolean;
+  /** Demobutiken ordern lades i; `null` = vår egen sajt eller panelen. */
+  shopSlug: string | null;
   /** Demoorder — skickas aldrig till tillverkningen, inte heller om den beställs igen. */
   demo: boolean;
 }

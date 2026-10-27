@@ -1,5 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { GATE_COOKIE, isValidGateCookie } from "@/lib/site-gate/token";
+import {
+  GATE_COOKIE,
+  gateEnabled,
+  GATE_MAX_AGE_SECONDS,
+  isValidGateCookie,
+  isValidShopVisitorCookie,
+  SHOP_VISITOR_COOKIE,
+  shopVisitorToken,
+} from "@/lib/site-gate/token";
 
 const PATHNAME_HEADER = "x-pathname";
 
@@ -12,11 +20,22 @@ export async function middleware(request: NextRequest) {
   if (!pathname.startsWith("/api/")) {
     const headers = new Headers(request.headers);
     headers.set(PATHNAME_HEADER, pathname);
-    return NextResponse.next({ request: { headers } });
+    const response = NextResponse.next({ request: { headers } });
+    if (pathname.startsWith("/butik/") && gateEnabled() && !request.cookies.has(SHOP_VISITOR_COOKIE)) {
+      response.cookies.set(SHOP_VISITOR_COOKIE, await shopVisitorToken(), {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: request.nextUrl.protocol === "https:",
+        path: "/api",
+        maxAge: GATE_MAX_AGE_SECONDS,
+      });
+    }
+    return response;
   }
   // Webhooken anropas av leverantörens server, som saknar kakan — den kräver i stället signatur.
   if (pathname === "/api/gate" || pathname === "/api/supplier/webhook") return NextResponse.next();
   if (await isValidGateCookie(request.cookies.get(GATE_COOKIE)?.value)) return NextResponse.next();
+  if (await isValidShopVisitorCookie(request.cookies.get(SHOP_VISITOR_COOKIE)?.value)) return NextResponse.next();
   return NextResponse.json({ error: "Sajten är låst" }, { status: 401 });
 }
 

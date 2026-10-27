@@ -13,6 +13,8 @@ export interface CompanyScrape {
   tagline: string | null;
   logoOptions: string[];
   colors: string[];
+  /** Typsnittsfamiljerna i sidans CSS, vanligast först. */
+  fonts: string[];
   contacts: FoundContacts;
 }
 
@@ -76,6 +78,7 @@ export async function scrapeCompany(rawUrl: string): Promise<CompanyScrape> {
     tagline: brand?.company?.industry || null,
     logoOptions: logos.filter((logo): logo is string => logo !== null),
     colors: (brand?.colors ?? []).filter(isHexColor).map((c) => c.toLowerCase()),
+    fonts: [brand?.font.sourceFamily, ...(brand?.fonts ?? [])].filter((f): f is string => !!f),
     contacts,
   };
 }

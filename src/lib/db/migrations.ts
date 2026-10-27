@@ -135,6 +135,17 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       alter table quotes add column badge_shot text;
     `,
   },
+  {
+    id: "007_shops",
+    sql: `
+      create table shops (
+        slug text primary key,
+        data jsonb not null,
+        created_at timestamptz not null default now()
+      );
+      alter table orders add column shop_slug text references shops(slug) on delete set null;
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

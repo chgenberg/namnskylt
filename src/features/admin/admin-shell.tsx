@@ -14,6 +14,7 @@ const ICON: Record<string, ReactNode> = {
   stats: <path d="M3 17h14M5 14V9M9 14V5M13 14v-3M17 14V7" />,
   export: <path d="M10 3v10M6 9l4 4 4-4M4 17h12" />,
   purchase: <path d="M3 10.5V3h7.5l6.5 6.5-7.5 7.5zM7 7h.01" />,
+  shops: <path d="M3 7.5 4.5 3h11L17 7.5M3 7.5h14M3 7.5c0 1.4 1.1 2.5 2.3 2.5s2.4-1.1 2.4-2.5c0 1.4 1 2.5 2.3 2.5s2.3-1.1 2.3-2.5c0 1.4 1.1 2.5 2.4 2.5S17 8.9 17 7.5M4.5 10v7h11v-7M8 17v-4h4v4" />,
   settings: <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM10 2v2M10 16v2M2 10h2M16 10h2M4.3 4.3l1.4 1.4M14.3 14.3l1.4 1.4M4.3 15.7l1.4-1.4M14.3 5.7l1.4-1.4" />,
 };
 
@@ -23,6 +24,7 @@ const NAV = [
   { href: "/admin/offerter", label: "Offerter", icon: "quotes" },
   { href: "/admin/kunder", label: "Kunder", icon: "customers" },
   { href: "/admin/statistik", label: "Statistik", icon: "stats" },
+  { href: "/admin/butiker", label: "Butiker", icon: "shops" },
   { href: "/admin/inkopspriser", label: "Inköpspriser", icon: "purchase" },
   { href: "/admin/export", label: "Export", icon: "export" },
   { href: "/admin/installningar", label: "Inställningar", icon: "settings" },
@@ -64,15 +66,6 @@ export function AdminShell({ pending, demoCount = 0, companyName = "namnskylt.co
           <span className={styles.brandEyebrow}>Återförsäljare</span>
           <span className={styles.brandName}>{companyName}</span>
         </div>
-        <Link href="/admin/ny-order" className={styles.createButton}>
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <path d="M8 3v10M3 8h10" />
-          </svg>
-          Skapa order
-        </Link>
-        <Link href="/admin/ny-offert" className={styles.createSecondary}>
-          Skapa offert
-        </Link>
         <nav className={styles.nav} aria-label="Adminmeny">
           {NAV.map((item) => (
             <Link

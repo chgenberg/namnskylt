@@ -37,7 +37,7 @@ import type { BadgeRecorder } from "./three/recorder";
 import { shareBadge } from "./share";
 import { videoFileName } from "./video-file";
 import { OnboardingDialog } from "./onboarding-dialog";
-import type { ResellerOrderContext } from "./reseller";
+import type { ResellerOrderContext, ShopContext } from "./reseller";
 import { designerReducer, type DesignerAction } from "./state";
 
 const Badge3D = dynamic(() => import("./badge-3d"), {
@@ -95,9 +95,10 @@ interface DesignerProps {
   initialDoc?: BadgeDocument | null;
   /** Återförsäljaren beställer åt en kund — ordern läggs direkt på kunden. */
   reseller?: ResellerOrderContext;
+  shop?: ShopContext;
 }
 
-export function Designer({ initialText, initialDoc, reseller }: DesignerProps) {
+export function Designer({ initialText, initialDoc, reseller, shop }: DesignerProps) {
   const [doc, dispatch] = useReducer(
     designerReducer,
     initialText,
@@ -170,7 +171,7 @@ export function Designer({ initialText, initialDoc, reseller }: DesignerProps) {
     if (sharing) return;
     setSharing(true);
     setStageNote(null);
-    const note = await shareBadge(doc).catch(() => null);
+    const note = await shareBadge(doc, shop ? `/butik/${shop.slug}/skapa` : undefined).catch(() => null);
     setShareFailed(note === null);
     setSharing(false);
     setStageNote(note === null ? "Det gick inte att dela just nu. Försök igen." : note || null);
@@ -451,6 +452,7 @@ export function Designer({ initialText, initialDoc, reseller }: DesignerProps) {
           badges={orderBadges}
           dispatch={update}
           reseller={reseller}
+          shop={shop}
           captureShot={() => recorderRef.current?.still() ?? null}
         />
       </aside>

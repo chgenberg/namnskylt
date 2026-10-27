@@ -35,6 +35,7 @@ interface OrderRow {
   placed_at: Date;
   supplier_synced_at: Date | null;
   has_badge_shot: boolean;
+  shop_slug: string | null;
   customer_id: string;
   customer_name: string;
   customer_company: string | null;
@@ -81,6 +82,7 @@ function toOrder(row: OrderRow): StoredOrder {
     events,
     supplierSyncedAt: row.supplier_synced_at?.toISOString() ?? null,
     hasBadgeShot: row.has_badge_shot,
+    shopSlug: row.shop_slug,
     demo: row.is_demo,
   };
 }
@@ -99,7 +101,7 @@ function selectOrders(sql: Sql) {
   return sql`
     select o.id, o.order_no, o.status, o.badges, o.pricing, o.total_sek, o.total_incl_vat_sek,
            o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo, o.supplier_synced_at,
-           o.badge_shot is not null as has_badge_shot,
+           o.badge_shot is not null as has_badge_shot, o.shop_slug,
            r.order_no as repeat_of_order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email, c.is_demo as customer_demo,
            c.phone as customer_phone, c.org_number as customer_org_number, c.address as customer_address,
@@ -146,6 +148,7 @@ export interface NewOrder {
   demo?: boolean;
   pricing?: Pricing | null;
   badgeShot?: string | null;
+  shopSlug?: string | null;
 }
 
 /** Sparar ordern, kopplar den till kunden (samma e-post = samma kund) och loggar första steget. */
@@ -165,12 +168,12 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
     if (!customer) throw new Error("Kunden kunde inte sparas");
     const [saved] = await tx<{ id: string; order_no: string }[]>`
       insert into orders (customer_id, status, badges, pricing, total_sek, total_incl_vat_sek,
-                          supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot)
+                          supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug)
       values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Json)},
               ${pricing ? tx.json(pricing as unknown as Json) : null},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
               ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false},
-              ${order.badgeShot ?? null})
+              ${order.badgeShot ?? null}, ${order.shopSlug ?? null})
       returning id, order_no`;
     if (!saved) throw new Error("Ordern kunde inte sparas");
     await tx`insert into order_events (order_id, status, note, at) values (${saved.id}, ${order.status}, ${order.note ?? null}, ${placedAt})`;
@@ -210,6 +213,40 @@ export async function deleteOrder(orderNo: string): Promise<boolean> {
     await tx`delete from orders where id = ${order.id}`;
     return true;
   });
+}
+
+export type ShotKind = "order" | "quote";
+
+export interface MissingShot {
+  kind: ShotKind;
+  id: string;
+  badge: BadgeDocument;
+}
+
+/** Ordrar och offerter från innan stillbilderna fanns — panelen ritar dem i efterhand. */
+export async function missingBadgeShots(limit: number): Promise<MissingShot[]> {
+  const sql = requireDb();
+  const rows = await sql<{ kind: ShotKind; id: string; badge: unknown }[]>`
+    (select 'order' as kind, order_no as id, badges->0 as badge, placed_at as at from orders
+      where badge_shot is null and jsonb_array_length(badges) > 0)
+    union all
+    (select 'quote', quote_no, badges->0, created_at from quotes
+      where badge_shot is null and jsonb_array_length(badges) > 0)
+    order by at desc limit ${limit}`;
+  return rows.flatMap((row) => {
+    const badge = badgeDocumentSchema.safeParse(row.badge);
+    return badge.success ? [{ kind: row.kind, id: row.id, badge: badge.data }] : [];
+  });
+}
+
+/** Sparar bara där bilden saknas — en riktig bild från skyltmotorn skrivs aldrig över. */
+export async function saveMissingBadgeShot(kind: ShotKind, id: string, shot: string): Promise<boolean> {
+  const sql = requireDb();
+  const rows =
+    kind === "order"
+      ? await sql`update orders set badge_shot = ${shot} where order_no = ${id} and badge_shot is null returning 1`
+      : await sql`update quotes set badge_shot = ${shot} where quote_no = ${id} and badge_shot is null returning 1`;
+  return rows.length > 0;
 }
 
 export async function getBadgeShot(orderNo: string): Promise<string | null> {

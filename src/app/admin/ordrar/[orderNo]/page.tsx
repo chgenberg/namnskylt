@@ -157,6 +157,16 @@ export default async function OrderPage({ params }: OrderPageProps) {
               <dd>
                 {formatSek(order.totalSek)} exkl. · {formatSek(order.totalInclVatSek)} inkl. moms
               </dd>
+              {order.shopSlug && (
+                <>
+                  <dt>Butik</dt>
+                  <dd>
+                    <a href={`/butik/${order.shopSlug}`} target="_blank" rel="noreferrer" className={styles.link}>
+                      {order.shopSlug} ↗
+                    </a>
+                  </dd>
+                </>
+              )}
               {order.supplierOrderNo && (
                 <>
                   <dt>Tillverkarens nr</dt>

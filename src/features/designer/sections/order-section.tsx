@@ -5,7 +5,7 @@ import { useState, type Dispatch, type FormEvent } from "react";
 import { ProgressBanner } from "@/components/ui/progress-banner";
 import { QUANTITY_TIERS, badgeDocumentSchema, isPartnerMade, priceOrder, type BadgeDocument } from "@/engine";
 import { marginOf, purchasePrice } from "@/lib/orders/purchase";
-import type { ResellerOrderContext } from "../reseller";
+import type { ResellerOrderContext, ShopContext } from "../reseller";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
@@ -15,6 +15,11 @@ const ORDER_STEPS = [
   [0, "Kontrollerar skyltarna…"],
   [35, "Skapar produktionsfilerna…"],
   [70, "Skickar till Skylt & Gravyrteknik…"],
+] as const;
+const SHOP_STEPS = [
+  [0, "Kontrollerar skyltarna…"],
+  [35, "Skapar produktionsfilerna…"],
+  [70, "Skickar ordern…"],
 ] as const;
 const PARTNER_STEPS = [
   [0, "Kontrollerar skyltarna…"],
@@ -37,11 +42,12 @@ interface OrderSectionProps {
   badges: readonly BadgeDocument[];
   dispatch: Dispatch<DesignerAction>;
   reseller?: ResellerOrderContext;
+  shop?: ShopContext;
   /** Stillbild av 3D-skylten till offerten och ordern; `null` när 3D-vyn inte visas. */
   captureShot?: () => string | null;
 }
 
-export function OrderSection({ doc, badges, dispatch, reseller, captureShot }: OrderSectionProps) {
+export function OrderSection({ doc, badges, dispatch, reseller, shop, captureShot }: OrderSectionProps) {
   const [order, setOrder] = useState<OrderState>({ status: "idle" });
   const price = priceOrder(badges);
   const names = badges.length;
@@ -82,6 +88,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, captureShot }: O
           customer: { name: form.get("name"), email: form.get("email") },
           badges,
           badgeShot: captureShot?.() ?? undefined,
+          shop: shop?.slug,
         }),
       });
       const body = await response.json();
@@ -218,14 +225,15 @@ export function OrderSection({ doc, badges, dispatch, reseller, captureShot }: O
         failed={order.status === "error"}
         title={partnerMade ? "Skickar förfrågan" : "Skickar ordern"}
         expectedMs={ORDER_EXPECTED_MS}
-        steps={partnerMade ? PARTNER_STEPS : ORDER_STEPS}
+        steps={partnerMade ? PARTNER_STEPS : shop ? SHOP_STEPS : ORDER_STEPS}
         doneLabel={partnerMade ? "Förfrågan är skickad" : "Ordern är skickad"}
       />
 
       {order.status === "done" && (
         <motion.div className={styles.receipt} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} role="status">
           <strong>Order {order.orderNumber} mottagen.</strong> Beräknat skickdatum {order.shipDate}.
-          {order.mock && <span className={styles.priceNote}> Testläge — leverantörs-API:t är inte kopplat än.</span>}
+          {shop && ` ${shop.name} hör av sig med orderbekräftelse.`}
+          {order.mock && !shop && <span className={styles.priceNote}> Testläge — leverantörs-API:t är inte kopplat än.</span>}
         </motion.div>
       )}
       {order.status === "requested" && (

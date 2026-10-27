@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 };
 
 /** Kunder öppnar korrektur och offerter via en hemlig länk — den är deras behörighet, inte sajtkoden. */
-const OPEN_PATHS = ["/korrektur/", "/offert/"];
+const OPEN_PATHS = ["/korrektur/", "/offert/", "/butik/"];
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const pathname = (await headers()).get("x-pathname") ?? "";

@@ -21,6 +21,8 @@ export interface PlaceOrderInput {
   pricing?: Pricing | null;
   /** Normaliserad stillbild av 3D-skylten (`normalizeBadgeShot`). */
   badgeShot?: string | null;
+  /** Demobutiken ordern kom från. */
+  shopSlug?: string | null;
 }
 
 export interface PlaceOrderResult {
@@ -70,6 +72,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         note: input.note ?? (partnerRequest ? `Partnerförfrågan ${partnerRequest}` : null),
         pricing: input.pricing,
         badgeShot: input.badgeShot,
+        shopSlug: input.shopSlug,
       });
       savedOrderNo = saved.orderNo;
     } catch (error) {

@@ -3,6 +3,9 @@ import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
 import { placeOrder } from "@/lib/orders/place-order";
+import { databaseConfigured } from "@/lib/orders/repository";
+import { SHOP_SLUG } from "@/lib/shops/model";
+import { getShop } from "@/lib/shops/repository";
 
 const orderRequestSchema = z.object({
   customer: z.object({
@@ -12,6 +15,7 @@ const orderRequestSchema = z.object({
   }),
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
   badgeShot: badgeShotUploadSchema,
+  shop: z.string().regex(SHOP_SLUG).optional(),
 });
 
 export async function POST(request: Request) {
@@ -25,8 +29,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { badgeShot, ...order } = parsed.data;
-    const receipt = await placeOrder({ ...order, source: "web", badgeShot: await normalizeBadgeShot(badgeShot) });
+    const { badgeShot, shop: shopSlug, ...order } = parsed.data;
+    const shop = shopSlug && databaseConfigured() ? await getShop(shopSlug) : null;
+    if (shopSlug && !shop) return NextResponse.json({ error: "Butiken finns inte" }, { status: 404 });
+    const receipt = await placeOrder({
+      ...order,
+      source: shop ? "shop" : "web",
+      shopSlug: shop?.slug ?? null,
+      note: shop ? `Beställd i butiken ${shop.profile.name}` : null,
+      badgeShot: await normalizeBadgeShot(badgeShot),
+    });
     return NextResponse.json(receipt, { status: 201 });
   } catch (error) {
     console.error("Ordern kunde inte läggas hos leverantören", error);

@@ -29,6 +29,7 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     events: [],
     supplierSyncedAt: null,
     hasBadgeShot: false,
+    shopSlug: null,
     pricing: null,
     demo: false,
     ...patch,
