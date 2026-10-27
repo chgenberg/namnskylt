@@ -1,4 +1,5 @@
 import "server-only";
+import { z } from "zod";
 import { DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
 import { scrapeCompany } from "@/lib/company/scrape";
 import { googleFontsHref, pickFontFamily, type Shop } from "./model";
@@ -17,16 +18,17 @@ async function onGoogleFonts(family: string): Promise<boolean> {
 }
 
 /** Butiken ur hemsidan: logga, färger, kontaktuppgifter och typsnitt. */
-export async function buildShop(url: string): Promise<Shop> {
+export async function buildShop(url: string, options: { name?: string } = {}): Promise<Shop> {
   const found = await scrapeCompany(url);
   const [primary, accent] = found.colors;
   const family = pickFontFamily(found.fonts);
   const profile: CompanyProfile = {
     ...DEFAULT_COMPANY,
-    name: found.name ?? found.website,
+    name: options.name?.trim() || found.name || found.website,
     tagline: found.tagline ?? "",
     website: found.website,
-    email: found.contacts.email ?? "",
+    // Skrapade adresser kan ha skräp i sig; en ogiltig får inte stoppa hela butiken.
+    email: z.email().safeParse(found.contacts.email).success ? (found.contacts.email ?? "") : "",
     phone: found.contacts.phone ?? "",
     orgNumber: found.contacts.orgNumber ?? "",
     address: found.contacts.address ?? "",

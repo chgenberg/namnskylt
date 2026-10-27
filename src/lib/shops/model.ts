@@ -44,11 +44,13 @@ const GENERIC_FAMILY =
 const ICON_FAMILY = /icon|awesome|dashicons|eicons|slick|glyph|material symbols|swiper/i;
 
 /** Hemsidans eget typsnitt — inte ikontypsnitt, systemtypsnitt eller CSS-variabler. */
-export function pickFontFamily(families: readonly string[]): string | null {
+export function pickFontFamily(families: readonly unknown[]): string | null {
   for (const raw of families) {
+    if (typeof raw !== "string") continue;
     const family = raw.replace(/["']/g, "").trim();
     if (!family || family.startsWith("var(") || GENERIC_FAMILY.test(family) || ICON_FAMILY.test(family)) continue;
-    if (FONT_FAMILY.test(family)) return family;
+    // Google Fonts skiljer på stora och små bokstäver — "open sans" finns inte, "Open Sans" gör.
+    if (FONT_FAMILY.test(family)) return family === family.toLowerCase() ? family.replace(/\b[a-z]/g, (c) => c.toUpperCase()) : family;
   }
   return null;
 }

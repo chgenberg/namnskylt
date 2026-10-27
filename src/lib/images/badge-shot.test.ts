@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import sharp from "sharp";
-import { badgeShotUploadSchema, decodeBadgeShot, normalizeBadgeShot } from "./badge-shot";
+import { badgeShotUploadSchema, decodeImageDataUrl, normalizeBadgeShot } from "./badge-shot";
 
 async function pngDataUrl(): Promise<string> {
   const plate = await sharp({ create: { width: 400, height: 140, channels: 4, background: { r: 212, g: 160, b: 23, alpha: 1 } } })
@@ -18,7 +18,7 @@ describe("stillbilden av skylten", () => {
   it("beskär bort den tomma ytan och sparar som WebP", async () => {
     const shot = await normalizeBadgeShot(await pngDataUrl());
     assert.ok(shot?.startsWith("data:image/webp;base64,"));
-    const decoded = decodeBadgeShot(shot ?? "");
+    const decoded = decodeImageDataUrl(shot ?? "");
     const meta = await sharp(decoded?.body).metadata();
     assert.equal(meta.width, 448, "400 px skylt + 6 % luft på varje sida");
     assert.ok((meta.height ?? 0) < 250, "den tomma ytan är bortskuren");

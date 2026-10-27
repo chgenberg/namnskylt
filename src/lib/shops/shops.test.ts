@@ -19,6 +19,15 @@ describe("pickFontFamily", () => {
     assert.equal(pickFontFamily(['"Playfair Display"']), "Playfair Display");
   });
 
+  it("ger versaler åt familjer skrivna med gemener", () => {
+    assert.equal(pickFontFamily(["open sans"]), "Open Sans");
+    assert.equal(pickFontFamily(["DM Sans"]), "DM Sans");
+  });
+
+  it("tål familjer som inte är text", () => {
+    assert.equal(pickFontFamily([null, { family: "x" }, "Inter"]), "Inter");
+  });
+
   it("släpper inte igenom tecken som kan bryta CSS", () => {
     assert.equal(pickFontFamily(['Evil"; } body{display:none']), null);
   });

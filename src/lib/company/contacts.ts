@@ -44,11 +44,18 @@ function isCompanyOrgNumber(value: string): boolean {
 const withDash = (value: string) => (value.includes("-") ? value : `${value.slice(0, 6)}-${value.slice(6)}`);
 
 interface LdContacts {
-  email?: string;
-  telephone?: string;
-  vatID?: string;
-  taxID?: string;
+  email?: unknown;
+  telephone?: unknown;
+  vatID?: unknown;
+  taxID?: unknown;
   address?: { streetAddress?: string; postalCode?: string; addressLocality?: string } | string;
+}
+
+/** JSON-LD skrivs för hand — ett fält kan vara text, tal eller en lista. */
+function ldText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  return Array.isArray(value) ? ldText(value[0]) : "";
 }
 
 function ldNodes(html: string): LdContacts[] {
@@ -83,16 +90,16 @@ export function extractContacts(html: string): FoundContacts {
   const text = pageText(html);
 
   const mailto = [...html.matchAll(/href=["']mailto:([^"'?]+)/gi)].map((m) => decodeURIComponent(m[1] ?? ""));
-  const emails = [...ld.map((n) => n.email ?? ""), ...mailto, ...(text.match(EMAIL) ?? [])]
+  const emails = [...ld.map((n) => ldText(n.email).replace(/^mailto:/i, "")), ...mailto, ...(text.match(EMAIL) ?? [])]
     .map((e) => e.trim().toLowerCase())
     .filter((e) => e && !IGNORED_EMAIL.test(e));
 
   const tel = [...html.matchAll(/href=["']tel:([^"']+)/gi)].map((m) => decodeURIComponent(m[1] ?? ""));
-  const phones = [...ld.map((n) => n.telephone ?? ""), ...tel, ...(text.match(PHONE) ?? [])]
+  const phones = [...ld.map((n) => ldText(n.telephone)), ...tel, ...(text.match(PHONE) ?? [])]
     .map(formatPhone)
     .filter((p) => p.replace(/\D/g, "").length >= 8);
 
-  const ldOrg = ld.map((n) => (n.vatID ?? n.taxID ?? "").replace(/^SE|01$/g, "").replace(/\D/g, "")).find(isCompanyOrgNumber);
+  const ldOrg = ld.map((n) => (ldText(n.vatID) || ldText(n.taxID)).replace(/^SE|01$/g, "").replace(/\D/g, "")).find(isCompanyOrgNumber);
   const labelled = text.match(LABELLED_ORG)?.[1];
   const loose = [...text.matchAll(ORG)].map((m) => m[1] ?? "").find(isCompanyOrgNumber);
   const org = [ldOrg, labelled, loose].find((v): v is string => !!v && isCompanyOrgNumber(v));

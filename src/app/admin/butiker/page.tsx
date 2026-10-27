@@ -47,8 +47,8 @@ export default async function ShopsPage() {
               >
                 <div className={styles.shopLogo}>
                   {shop.profile.logo ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- data-URL ur butikens profil
-                    <img src={shop.profile.logo} alt="" />
+                    // eslint-disable-next-line @next/next/no-img-element -- liten logga, ingen optimering behövs
+                    <img src={`/butik/${shop.slug}/logo`} alt="" loading="lazy" decoding="async" />
                   ) : (
                     <strong>{shop.profile.name}</strong>
                   )}

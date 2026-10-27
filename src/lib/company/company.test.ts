@@ -42,6 +42,14 @@ describe("extractContacts", () => {
     assert.equal(extractContacts(`<a href="tel:+46(0)70-3680473">Ring</a>`).phone, "+46 70-3680473");
   });
 
+  it("tål listor och tal i strukturerad data", () => {
+    const ld = { "@type": "Organization", telephone: ["031-12 34 56", "070-111 22 33"], email: ["mailto:a@b.se"], taxID: 5561234567 };
+    const found = extractContacts(`<script type="application/ld+json">${JSON.stringify(ld)}</script>`);
+    assert.equal(found.phone, "031-12 34 56");
+    assert.equal(found.email, "a@b.se");
+    assert.equal(found.orgNumber, "556123-4567");
+  });
+
   it("tar inte personnummer eller bildnamn", () => {
     const found = extractContacts(`<p>Anna 850101-1234</p><img alt="hero@2x.png">`);
     assert.equal(found.orgNumber, null);

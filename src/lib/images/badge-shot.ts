@@ -39,7 +39,7 @@ export async function normalizeBadgeShot(dataUrl: string | undefined | null): Pr
   }
 }
 
-export function decodeBadgeShot(dataUrl: string): { type: string; body: Buffer } | null {
+export function decodeImageDataUrl(dataUrl: string): { type: string; body: Buffer } | null {
   const match = /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(dataUrl);
   return match?.[1] && match[2] ? { type: match[1], body: Buffer.from(match[2], "base64") } : null;
 }
