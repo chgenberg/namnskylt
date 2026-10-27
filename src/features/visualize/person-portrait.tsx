@@ -1,17 +1,18 @@
 "use client";
 
 import { motion } from "motion/react";
-import { GeneratingStatus } from "./generating-status";
+import { ProgressBanner } from "@/components/ui/progress-banner";
 import { MAX_WORKPLACE_CHARS } from "@/lib/ai/prompts";
 import type { VisualizeState } from "./use-visualize";
 import styles from "./visualize.module.css";
 
+const EXPECTED_MS = 35_000;
 const STEPS = [
   [0, "Läser namnet…"],
-  [4, "Castar en person som passar…"],
-  [10, "Fäster skylten på bröstet…"],
-  [20, "Ljussätter och fotograferar…"],
-  [40, "Sista finputsen…"],
+  [8, "Castar en person som passar…"],
+  [22, "Fäster skylten på bröstet…"],
+  [45, "Ljussätter och fotograferar…"],
+  [80, "Sista finputsen…"],
 ] as const;
 
 interface PersonPortraitProps {
@@ -77,7 +78,15 @@ export function PersonPortrait({ state }: PersonPortraitProps) {
         )}
       </div>
 
-      {working && <GeneratingStatus startedAt={person.startedAt} steps={STEPS} />}
+      <ProgressBanner
+        active={working}
+        failed={person.status === "error"}
+        title="Skapar bilden"
+        expectedMs={EXPECTED_MS}
+        steps={STEPS}
+        doneLabel="Klart — här är din skylt på en person"
+        onCancel={state.cancelPerson}
+      />
     </div>
   );
 }

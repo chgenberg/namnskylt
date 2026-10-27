@@ -17,6 +17,7 @@ describe("delningslänk", () => {
   it("packar och packar upp samma skylt", async () => {
     const doc: BadgeDocument = {
       ...createBadgeDocument(["Åsa Öberg", "Säljchef"]),
+      materialId: "plastic-2-layer",
       colorId: "darkblue-white",
       logo: { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "top", heightMm: 8 },
       quantity: 40,

@@ -2,17 +2,29 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type Dispatch, type FormEvent } from "react";
-import { QUANTITY_TIERS, badgeDocumentSchema, priceOrder, type BadgeDocument } from "@/engine";
+import { ProgressBanner } from "@/components/ui/progress-banner";
+import { QUANTITY_TIERS, badgeDocumentSchema, isPartnerMade, priceOrder, type BadgeDocument } from "@/engine";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
 const QUICK_QUANTITIES = [1, 10, 50, 200] as const;
+const ORDER_EXPECTED_MS = 3_000;
+const ORDER_STEPS = [
+  [0, "Kontrollerar skyltarna…"],
+  [35, "Skapar produktionsfilerna…"],
+  [70, "Skickar till Skylt & Gravyrteknik…"],
+] as const;
+const PARTNER_STEPS = [
+  [0, "Kontrollerar skyltarna…"],
+  [50, "Skickar förfrågan…"],
+] as const;
 
 type OrderState =
   | { status: "idle" }
   | { status: "form" }
   | { status: "sending" }
   | { status: "done"; orderNumber: string; shipDate: string; mock: boolean }
+  | { status: "requested"; requestNumber: string }
   | { status: "error"; message: string };
 
 const sek = new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 });
@@ -31,6 +43,7 @@ export function OrderSection({ doc, badges, dispatch }: OrderSectionProps) {
   const discount = Math.round((1 - price.tier.factor) * 100);
   const nextTier = [...QUANTITY_TIERS].reverse().find((t) => t.minQuantity > price.quantity);
   const valid = badges.every((badge) => badgeDocumentSchema.safeParse(badge).success);
+  const partnerMade = isPartnerMade(doc.materialId);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,6 +60,10 @@ export function OrderSection({ doc, badges, dispatch }: OrderSectionProps) {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "Något gick fel");
+      if (body.status === "request") {
+        setOrder({ status: "requested", requestNumber: body.orderNumber });
+        return;
+      }
       setOrder({
         status: "done",
         orderNumber: body.orderNumber,
@@ -151,10 +168,25 @@ export function OrderSection({ doc, badges, dispatch }: OrderSectionProps) {
         )}
       </AnimatePresence>
 
+      <ProgressBanner
+        active={order.status === "sending"}
+        failed={order.status === "error"}
+        title={partnerMade ? "Skickar förfrågan" : "Skickar ordern"}
+        expectedMs={ORDER_EXPECTED_MS}
+        steps={partnerMade ? PARTNER_STEPS : ORDER_STEPS}
+        doneLabel={partnerMade ? "Förfrågan är skickad" : "Ordern är skickad"}
+      />
+
       {order.status === "done" && (
         <motion.div className={styles.receipt} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} role="status">
           <strong>Order {order.orderNumber} mottagen.</strong> Beräknat skickdatum {order.shipDate}.
           {order.mock && <span className={styles.priceNote}> Testläge — leverantörs-API:t är inte kopplat än.</span>}
+        </motion.div>
+      )}
+      {order.status === "requested" && (
+        <motion.div className={styles.receipt} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} role="status">
+          <strong>Förfrågan {order.requestNumber} mottagen.</strong> Vi återkommer via e-post med slutpris och
+          leveranstid.
         </motion.div>
       )}
       {order.status === "error" && (

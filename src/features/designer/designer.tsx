@@ -2,8 +2,9 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
-import { useCallback, useMemo, useReducer, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useMemo, useReducer, useRef, useState } from "react";
 import { withPlaceholders } from "@/components/badge-preview";
+import { ProgressBanner } from "@/components/ui/progress-banner";
 import { Segmented } from "@/components/ui/segmented";
 import {
   MAX_ORDER_BADGES,
@@ -32,11 +33,22 @@ import type { SpinFocus } from "./badge-3d";
 import type { BadgeRecorder } from "./three/recorder";
 import { shareBadge } from "./share";
 import { videoFileName } from "./video-file";
+import { OnboardingDialog } from "./onboarding-dialog";
 import { designerReducer, type DesignerAction } from "./state";
 
 const Badge3D = dynamic(() => import("./badge-3d"), {
   ssr: false,
-  loading: () => <div className={styles.loading} aria-hidden="true" />,
+  loading: () => (
+    <div className={styles.loading}>
+      <ProgressBanner
+        variant="floating"
+        active
+        title="3D-vy"
+        expectedMs={LOAD_3D_EXPECTED_MS}
+        steps={LOAD_3D_STEPS}
+      />
+    </div>
+  ),
 });
 
 type View = "3d" | "drawing" | "person";
@@ -45,6 +57,27 @@ type View = "3d" | "drawing" | "person";
 const PHOTO_SAMPLES = 160;
 /** Ett varv runt skylten i 3D-filmen. */
 const VIDEO_SECONDS = 6;
+const VIDEO_STEPS = [
+  [0, "Spelar in ett varv runt skylten…"],
+  [85, "Sparar filmen…"],
+] as const;
+const SHARE_EXPECTED_MS = 2_500;
+const SHARE_STEPS = [
+  [0, "Ritar delningsbilden…"],
+  [60, "Skapar länken…"],
+] as const;
+/** Ungefärlig tid för fotolägets samplingar på en vanlig laptop. */
+const PHOTO_EXPECTED_MS = 4_000;
+const PHOTO_STEPS = [
+  [0, "Strålspårar ljuset…"],
+  [40, "Mjukar upp skuggorna…"],
+  [80, "Sista samplingarna…"],
+] as const;
+const LOAD_3D_EXPECTED_MS = 2_500;
+const LOAD_3D_STEPS = [
+  [0, "Laddar 3D-motorn…"],
+  [55, "Fräser gravyren…"],
+] as const;
 
 const VIEW_OPTIONS = [
   { id: "3d", label: "3D" },
@@ -65,6 +98,7 @@ export function Designer({ initialText, initialDoc }: DesignerProps) {
     (text) => initialDoc ?? createBadgeDocument(parseSmartInput(text)),
   );
   const [view, setView] = useState<View>("3d");
+  const [onboarding, setOnboarding] = useState(() => !initialDoc && initialText.trim() !== "");
   const [spinning, setSpinning] = useState(false);
   const [focus, setFocus] = useState<SpinFocus | null>(null);
   /** Skylten graveras fram en gång när designern öppnas, och igen på begäran. */
@@ -74,6 +108,7 @@ export function Designer({ initialText, initialDoc }: DesignerProps) {
   const fonts = useFontEngine();
   const recorderRef = useRef<BadgeRecorder | null>(null);
   const [recording, setRecording] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
   const [stageNote, setStageNote] = useState<string | null>(null);
   const visualize = useVisualize(doc);
   const [batchText, setBatchText] = useState("");
@@ -101,6 +136,7 @@ export function Designer({ initialText, initialDoc }: DesignerProps) {
     setStageNote(null);
     setRecording(true);
     const clip = await recorder.recordTurn(VIDEO_SECONDS).catch(() => null);
+    setVideoFailed(!clip);
     setRecording(false);
     if (!clip) {
       setStageNote("Webbläsaren kan inte spela in video — prova Chrome eller Safari.");
@@ -116,15 +152,21 @@ export function Designer({ initialText, initialDoc }: DesignerProps) {
   };
 
   const endEngrave = useCallback(() => setEngrave(null), []);
+  const finishOnboarding = useCallback(() => {
+    setOnboarding(false);
+    setEngrave(performance.now());
+  }, []);
 
   const [sharing, setSharing] = useState(false);
+  const [shareFailed, setShareFailed] = useState(false);
   const share = async () => {
     if (sharing) return;
     setSharing(true);
     setStageNote(null);
-    const note = await shareBadge(doc).catch(() => "Det gick inte att dela just nu. Försök igen.");
+    const note = await shareBadge(doc).catch(() => null);
+    setShareFailed(note === null);
     setSharing(false);
-    setStageNote(note || null);
+    setStageNote(note === null ? "Det gick inte att dela just nu. Försök igen." : note || null);
   };
 
   const toggleSpin = () => {
@@ -279,16 +321,14 @@ export function Designer({ initialText, initialDoc }: DesignerProps) {
           <p className={`mono ${styles.spec}`}>
             {doc.size.widthMm} × {doc.size.heightMm} mm · {material.name} · {color.name}
           </p>
-          {view === "3d" && (recording || stageNote) ? (
+          {view === "3d" && recording ? (
+            <p className={styles.hint}>Rör inte skylten medan filmen spelas in</p>
+          ) : view === "3d" && stageNote ? (
             <p className={styles.hint} role="status">
-              {recording ? "Spelar in 3D-film — rör inte skylten" : stageNote}
+              {stageNote}
             </p>
           ) : view === "3d" && photo ? (
-            <p className={`mono ${styles.hint}`} aria-live="polite">
-              {photoSamples >= PHOTO_SAMPLES
-                ? "Strålspårad · klar"
-                : `Strålspårar · ${Math.round((photoSamples / PHOTO_SAMPLES) * 100)} %`}
-            </p>
+            <p className={styles.hint}>Fotoläge · dra för att vrida, ljuset räknas om</p>
           ) : view === "drawing" ? (
             <p className={styles.hint} data-severity={logoOverlapsText ? "warning" : undefined} role="status">
               {logoOverlapsText
@@ -300,22 +340,48 @@ export function Designer({ initialText, initialDoc }: DesignerProps) {
               Loggan ligger över texten — flytta isär dem under Ritning.
             </p>
           ) : (
-            view === "3d" && <p className={styles.hint}>Dra för att vrida skylten · flytta text och logga under Ritning</p>
+            view === "3d" && (
+              <p className={styles.hint}>
+                Dra för att vrida skylten ·{" "}
+                <button type="button" className={styles.hintLink} onClick={() => setView("drawing")}>
+                  Flytta text och logga
+                </button>
+              </p>
+            )
           )}
         </footer>
-        {view === "3d" && recording && (
-          <div
-            className={styles.recProgress}
-            style={{ "--duration": `${VIDEO_SECONDS}s` } as CSSProperties}
-            aria-hidden="true"
-          />
-        )}
-        {view === "3d" && photo && (
-          <div
-            className={styles.photoProgress}
-            style={{ "--progress": photoSamples / PHOTO_SAMPLES } as CSSProperties}
-            aria-hidden="true"
-          />
+        {view === "3d" && (
+          <>
+            <ProgressBanner
+              variant="floating"
+              active={recording}
+              failed={videoFailed}
+              title="3D-film"
+              timed
+              expectedMs={VIDEO_SECONDS * 1000}
+              steps={VIDEO_STEPS}
+              doneLabel="Filmen är nedladdad"
+            />
+            <ProgressBanner
+              variant="floating"
+              active={sharing}
+              failed={shareFailed}
+              title="Dela skylten"
+              expectedMs={SHARE_EXPECTED_MS}
+              steps={SHARE_STEPS}
+              doneLabel="Klart att dela"
+            />
+            <ProgressBanner
+              variant="floating"
+              active={photo && photoSamples < PHOTO_SAMPLES}
+              failed={!photo}
+              title="Fotoläge"
+              expectedMs={PHOTO_EXPECTED_MS}
+              value={photoSamples / PHOTO_SAMPLES}
+              steps={PHOTO_STEPS}
+              doneLabel="Strålspårad — klar för skärmdump"
+            />
+          </>
         )}
       </section>
 
@@ -325,7 +391,13 @@ export function Designer({ initialText, initialDoc }: DesignerProps) {
             <p className="eyebrow">Skyltmotor</p>
             <h1 className={styles.panelTitle}>Din namnskylt</h1>
           </div>
-          <TextSection doc={doc} layout={layout} dispatch={update} />
+          <TextSection
+            doc={doc}
+            layout={layout}
+            dispatch={update}
+            onPlace={() => setView("drawing")}
+            placing={view === "drawing"}
+          />
           <LogoSection doc={doc} dispatch={update} onWorkplace={visualize.setWorkplace} />
           <MaterialSection doc={doc} dispatch={update} />
           <FormatSection doc={doc} dispatch={update} />
@@ -340,6 +412,7 @@ export function Designer({ initialText, initialDoc }: DesignerProps) {
         </div>
         <OrderSection doc={doc} badges={orderBadges} dispatch={update} />
       </aside>
+      {onboarding && <OnboardingDialog doc={doc} dispatch={update} onClose={finishOnboarding} />}
     </div>
   );
 }

@@ -5,7 +5,8 @@ import { toSupplierSignDocument } from "./map";
 
 describe("toSupplierSignDocument", () => {
   it("använder leverantörens material- och färgkoder", () => {
-    const supplier = toSupplierSignDocument(createBadgeDocument(["Anna"]), approxFonts);
+    const plastic = { ...createBadgeDocument(["Anna"]), materialId: "plastic-2-layer" as const, colorId: "white-black" };
+    const supplier = toSupplierSignDocument(plastic, approxFonts);
     assert.equal(supplier.productType, "sign");
     assert.equal(supplier.material, "gravyrplast-2-lager-0-8mm");
     assert.equal(supplier.color, "white-black");
@@ -52,5 +53,15 @@ describe("toSupplierSignDocument", () => {
     assert.equal(supplier.shape, "oval");
     assert.equal(supplier.cornerRadiusMm, 0);
     assert.equal(supplier.layers[0]!.data.kind, "frame");
+  });
+
+  it("skickar kapseln som rektangel med halva höjden som radie och kantiga former som sig själva", () => {
+    const base = createBadgeDocument(["Anna"]);
+    const stadium = toSupplierSignDocument({ ...base, shape: "stadium" }, approxFonts);
+    assert.equal(stadium.shape, "rectangular");
+    assert.equal(stadium.cornerRadiusMm, 12.5);
+    const hexagon = toSupplierSignDocument({ ...base, shape: "hexagon" }, approxFonts);
+    assert.equal(hexagon.shape, "hexagon");
+    assert.equal(hexagon.cornerRadiusMm, 0);
   });
 });

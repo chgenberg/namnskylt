@@ -98,3 +98,21 @@ export function chooseLogo(modelChoice: number | null, flags: readonly boolean[]
   const index = flags.findIndex((flag) => !flag);
   return index >= 0 ? index : null;
 }
+
+export const MAX_LOGO_OPTIONS = 4;
+
+/**
+ * Kandidaterna kunden kan välja mellan, den valda först. Med modellens svar
+ * bara de den kände igen som företagets loggor; utan, alla som inte liknar flaggor.
+ */
+export function logoOptionOrder(
+  chosen: number | null,
+  alternatives: readonly number[] | null,
+  flags: readonly boolean[],
+  max = MAX_LOGO_OPTIONS,
+): number[] {
+  const inRange = (i: number) => Number.isInteger(i) && i >= 0 && i < flags.length;
+  const rest = alternatives ?? flags.flatMap((flag, i) => (flag ? [] : [i]));
+  const first = chosen !== null && inRange(chosen) ? [chosen] : [];
+  return [...new Set([...first, ...rest.filter(inRange)])].slice(0, max);
+}

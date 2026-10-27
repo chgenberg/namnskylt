@@ -3,17 +3,18 @@
 import { motion } from "motion/react";
 import { useState, type ChangeEvent, type CSSProperties } from "react";
 import { CameraCapture } from "./camera-capture";
-import { GeneratingStatus } from "./generating-status";
+import { ProgressBanner } from "@/components/ui/progress-banner";
 import { fileToUploadJpeg } from "./image-utils";
 import type { VisualizeState } from "./use-visualize";
 import styles from "./visualize.module.css";
 
+const EXPECTED_MS = 45_000;
 const STEPS = [
   [0, "Kontrollerar fotot…"],
-  [5, "Hittar rätt plats på bröstet…"],
-  [15, "Sätter skylten på plats…"],
-  [35, "Matchar ljus och skuggor…"],
-  [60, "Nästan klart…"],
+  [10, "Hittar rätt plats på bröstet…"],
+  [28, "Sätter skylten på plats…"],
+  [55, "Matchar ljus och skuggor…"],
+  [82, "Nästan klart…"],
 ] as const;
 
 const PHOTO_RULES = ["En person i bild", "Halvkropp eller helkropp", "Bröstet syns — där sitter skylten"];
@@ -173,9 +174,16 @@ export function TryOn({ state }: TryOnProps) {
             </p>
           )}
 
-          {working ? (
-            <GeneratingStatus startedAt={tryOn.startedAt} steps={STEPS} />
-          ) : (
+          <ProgressBanner
+            active={working}
+            failed={tryOn.status === "error"}
+            title="Sätter skylten på ditt foto"
+            expectedMs={EXPECTED_MS}
+            steps={STEPS}
+            doneLabel="Klart — dra i reglaget för att jämföra"
+            onCancel={state.cancelTryOn}
+          />
+          {!working && (
             <div className={styles.sources}>
               {result ? (
                 <a className="btn btn--primary" href={result} download="min-namnskylt.jpg">

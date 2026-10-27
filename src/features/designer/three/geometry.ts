@@ -2,12 +2,13 @@ import { Brush, Evaluator, SUBTRACTION } from "three-bvh-csg";
 import { BufferGeometry, ExtrudeGeometry, Float32BufferAttribute, Material, Shape, ShapePath } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import {
-  effectiveCornerRadius,
+  badgeOutline,
   frameBands,
   getMaterial,
   type BadgeDocument,
   type BadgeShape,
   type EngravedPath,
+  type MaterialFinish,
 } from "@/engine";
 
 /** Scenenheter per mm. Fast skala så att storleksbyten syns i 3D. */
@@ -16,10 +17,28 @@ export const UNITS_PER_MM = 0.034;
 const MIN_VISUAL_THICKNESS_MM = 1.6;
 const BEVEL_MM = 0.35;
 /** Segment per båge: ovalen är en enda ellips, rundade hörn är fyra kvartsbågar. */
-const OUTLINE_CURVE_SEGMENTS: Record<BadgeShape, number> = { oval: 128, rounded: 12, rectangle: 1 };
+const OUTLINE_CURVE_SEGMENTS: Record<BadgeShape, number> = {
+  oval: 128,
+  round: 128,
+  rounded: 12,
+  stadium: 24,
+  rectangle: 1,
+  hexagon: 1,
+  octagon: 1,
+};
 const GLYPH_CURVE_SEGMENTS = 6;
-/** Fräsdjup i vyn — överdrivet mot verkligheten (≈0,1 mm) så att ljuset fångar kanten. */
-const ENGRAVE_DEPTH_MM = { plastic: 0.35, aluminium: 0.25, steel: 0.2 } as const;
+/**
+ * Fräsdjup i vyn — överdrivet mot verkligheten (≈0,1 mm) så att ljuset fångar
+ * kanten. Akryl och epoxy är tryckta: bara en hinna, så texten ligger i ytan.
+ */
+const ENGRAVE_DEPTH_MM: Record<MaterialFinish, number> = {
+  plastic: 0.35,
+  aluminium: 0.25,
+  steel: 0.2,
+  brass: 0.25,
+  acrylic: 0.04,
+  epoxy: 0.04,
+};
 /** Fräsen sticker upp över ytan så att subtraktionen aldrig lämnar en hinna. */
 const CUTTER_OVERSHOOT_MM = 0.5;
 
@@ -52,20 +71,28 @@ export function plateMetrics(doc: BadgeDocument): PlateMetrics {
 
 /** Skyltens kontur indragen `insetMm`, centrerad — samma form som `outlinePath`. */
 function outlineShape(doc: BadgeDocument, insetMm = 0): Shape | null {
-  const widthMm = doc.size.widthMm - insetMm * 2;
-  const heightMm = doc.size.heightMm - insetMm * 2;
-  if (widthMm <= 0 || heightMm <= 0) return null;
-  const w = widthMm * UNITS_PER_MM;
-  const h = heightMm * UNITS_PER_MM;
+  const outline = badgeOutline(doc, insetMm);
+  if (!outline) return null;
   const shape = new Shape();
+  const cx = doc.size.widthMm / 2;
+  const cy = doc.size.heightMm / 2;
+  // Scenens y pekar uppåt; dokumentets nedåt.
+  const sx = (xMm: number) => (xMm - cx) * UNITS_PER_MM;
+  const sy = (yMm: number) => (cy - yMm) * UNITS_PER_MM;
 
-  if (doc.shape === "oval") {
-    shape.absellipse(0, 0, w / 2, h / 2, 0, Math.PI * 2, false, 0);
+  if (outline.kind === "ellipse") {
+    shape.absellipse(0, 0, outline.rx * UNITS_PER_MM, outline.ry * UNITS_PER_MM, 0, Math.PI * 2, false, 0);
+    return shape;
+  }
+  if (outline.kind === "polygon") {
+    outline.points.forEach((p, i) => (i === 0 ? shape.moveTo(sx(p.x), sy(p.y)) : shape.lineTo(sx(p.x), sy(p.y))));
+    shape.closePath();
     return shape;
   }
 
-  const rMm = Math.max(0, Math.min(effectiveCornerRadius(doc) - insetMm, widthMm / 2, heightMm / 2));
-  const r = rMm * UNITS_PER_MM;
+  const w = outline.w * UNITS_PER_MM;
+  const h = outline.h * UNITS_PER_MM;
+  const r = outline.r * UNITS_PER_MM;
   const x = -w / 2;
   const y = -h / 2;
   shape.moveTo(x + r, y);

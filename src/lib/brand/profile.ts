@@ -2,7 +2,7 @@ import "server-only";
 import { Resvg } from "@resvg/resvg-js";
 import { readBrand, type BrandReading } from "@/lib/ai/brand-vision";
 import { describeCompany, openai, type CompanyDescription } from "@/lib/ai/openai";
-import { chooseLogo, flagLike, logoPng, previewJpeg } from "./logo-image";
+import { MAX_LOGO_OPTIONS, chooseLogo, flagLike, logoOptionOrder, logoPng, previewJpeg } from "./logo-image";
 import { isFamilyAlias, matchFont, matchRenderedFont, renderedFamilies, type FontMatch } from "./match";
 import { brandColors, fontFamilies, primaryFamily, rankColors } from "./parse-css";
 import { parsePage, type LogoCandidate } from "./parse-html";
@@ -15,6 +15,8 @@ export interface BrandProfile {
   siteName: string;
   /** PNG/JPEG/WebP som data-URL — spåras till gravyr i webbläsaren. */
   logo: string | null;
+  /** Alla loggor kunden kan välja mellan, `logo` först. */
+  logoOptions: string[];
   fonts: string[];
   font: FontMatch;
   colors: string[];
@@ -114,8 +116,15 @@ async function scrapeRendered(rawUrl: string): Promise<BrandProfile | null> {
     readRendered(site, logos),
     Promise.all(logos.map((logo) => flagLike(logo.png).catch(() => true))),
   ]);
-  const chosen = chooseLogo(reading ? reading.logo : null, flags);
-  const logo = chosen === null ? null : logos[chosen];
+  const chosen = chooseLogo(reading ? reading.logo : null, flags);  const logo = chosen === null ? null : logos[chosen];
+  const logoOptions = [
+    ...new Set(
+      logoOptionOrder(chosen, reading ? reading.alternatives : null, flags).flatMap((i) => {
+        const option = logos[i];
+        return option ? [dataUrl(option.png)] : [];
+      }),
+    ),
+  ];
   const { home } = site;
   const families = renderedFamilies(home.fonts, primaryFamily);
   const vision = reading?.brandColor ? [{ color: reading.brandColor, weight: VISION_COLOR_WEIGHT }] : [];
@@ -124,6 +133,7 @@ async function scrapeRendered(rawUrl: string): Promise<BrandProfile | null> {
     url: site.url,
     siteName: reading?.name || home.siteName || home.title.split(/[|–—-]/)[0]?.trim() || site.host,
     logo: logo ? dataUrl(logo.png) : null,
+    logoOptions,
     fonts: families.map((f) => f.family).filter((family) => !isFamilyAlias(family)).slice(0, 4),
     font: matchRenderedFont(home.fonts, primaryFamily) ?? matchFont([]),
     colors: rankColors([...vision, ...home.colors]),
@@ -143,12 +153,11 @@ async function loadLogo(candidate: LogoCandidate): Promise<string | null> {
   return dataUrl(response.body, type);
 }
 
-async function firstLogo(candidates: readonly LogoCandidate[]): Promise<string | null> {
-  for (const candidate of candidates.slice(0, LOGO_ATTEMPTS)) {
-    const logo = await loadLogo(candidate).catch(() => null);
-    if (logo) return logo;
-  }
-  return null;
+async function loadLogos(candidates: readonly LogoCandidate[]): Promise<string[]> {
+  const loaded = await Promise.all(
+    candidates.slice(0, LOGO_ATTEMPTS).map((candidate) => loadLogo(candidate).catch(() => null)),
+  );
+  return [...new Set(loaded.filter((logo) => logo !== null))].slice(0, MAX_LOGO_OPTIONS);
 }
 
 async function stylesheetText(urls: readonly string[]): Promise<string> {
@@ -170,9 +179,9 @@ async function scrapeFetched(rawUrl: string): Promise<BrandProfile> {
   const signals = parsePage(page.body.toString("utf8"), page.url);
   const ai = openai();
 
-  const [externalCss, logo, company] = await Promise.all([
+  const [externalCss, logoOptions, company] = await Promise.all([
     stylesheetText(signals.stylesheets),
-    firstLogo(signals.logos),
+    loadLogos(signals.logos),
     ai
       ? describeCompany(ai, {
           url: page.url,
@@ -188,7 +197,8 @@ async function scrapeFetched(rawUrl: string): Promise<BrandProfile> {
   return {
     url: page.url,
     siteName: company?.name || signals.siteName || signals.title.split(/[|–—-]/)[0]?.trim() || new URL(page.url).hostname,
-    logo,
+    logo: logoOptions[0] ?? null,
+    logoOptions,
     fonts: fonts.slice(0, 4),
     font: matchFont(fonts),
     colors: brandColors(css, signals.themeColor),

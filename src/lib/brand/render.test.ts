@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import sharp from "sharp";
-import { chooseLogo, flagLike, previewJpeg } from "./logo-image";
+import { chooseLogo, flagLike, logoOptionOrder, previewJpeg } from "./logo-image";
 import { isFamilyAlias, matchRenderedFont, renderedFamilies, type RenderedFontSample } from "./match";
 import { primaryFamily, rankColors } from "./parse-css";
 import { allowBrowserRequest, isPublicHost } from "./request-guard";
@@ -130,6 +130,23 @@ describe("chooseLogo", () => {
   it("utan modell: den bäst placerade som inte ser ut som en flagga", () => {
     assert.equal(chooseLogo(null, [true, false, false]), 1);
     assert.equal(chooseLogo(null, [true]), null);
+  });
+});
+
+describe("logoOptionOrder", () => {
+  it("med modellens svar: den valda först, sedan bara dess alternativ", () => {
+    assert.deepEqual(logoOptionOrder(2, [0], [false, false, false, false]), [2, 0]);
+    assert.deepEqual(logoOptionOrder(0, [], [false, false, false]), [0]);
+  });
+
+  it("rensar index utanför listan och dubbletter", () => {
+    assert.deepEqual(logoOptionOrder(1, [1, 7, -1, 0, 0], [false, false]), [1, 0]);
+    assert.deepEqual(logoOptionOrder(9, null, [false]), [0]);
+  });
+
+  it("utan modell: alla som inte liknar flaggor, begränsat antal", () => {
+    assert.deepEqual(logoOptionOrder(null, null, [true, false, false]), [1, 2]);
+    assert.deepEqual(logoOptionOrder(1, null, [false, false, false, false, false], 3), [1, 0, 2]);
   });
 });
 

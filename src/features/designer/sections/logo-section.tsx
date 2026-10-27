@@ -2,6 +2,7 @@
 
 import { useRef, useState, type CSSProperties, type Dispatch, type FormEvent } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
+import { ProgressBanner } from "@/components/ui/progress-banner";
 import { Segmented } from "@/components/ui/segmented";
 import {
   LOGO_LIMITS,
@@ -23,9 +24,25 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const WIDE_LOGO_ASPECT = 2.6;
 const TOP_LOGO_HEIGHT_MM = 7;
 
+const SCRAPE_EXPECTED_MS = 16_000;
+const SCRAPE_STEPS = [
+  [0, "Öppnar er hemsida…"],
+  [14, "Letar upp loggan…"],
+  [38, "Mäter typsnittet…"],
+  [58, "Läser av branschen…"],
+  [82, "Gör loggan graverbar…"],
+] as const;
+const UPLOAD_EXPECTED_MS = 1_500;
+const UPLOAD_STEPS = [
+  [0, "Läser bilden…"],
+  [35, "Gör loggan graverbar…"],
+] as const;
+
+type Job = "scrape" | "upload";
+
 type Status =
   | { kind: "idle" }
-  | { kind: "working"; message: string }
+  | { kind: "working"; job: Job }
   | { kind: "error"; message: string };
 
 interface LogoSectionProps {
@@ -49,9 +66,21 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [profile, setProfile] = useState<BrandProfile | null>(null);
   const [source, setSource] = useState<{ src: string; invert: boolean } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [job, setJob] = useState<Job>("scrape");
+  const abortRef = useRef<AbortController | null>(null);
   const color = getColor(doc.materialId, doc.colorId);
   const working = status.kind === "working";
+
+  const start = (next: Job) => {
+    setJob(next);
+    setStatus({ kind: "working", job: next });
+  };
+
+  const cancelScrape = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStatus({ kind: "error", message: "Hämtningen avbröts." });
+  };
 
   const applyTrace = (trace: LogoTrace, placement?: LogoPlacement) => {
     const wide = trace.viewWidth / trace.viewHeight > WIDE_LOGO_ASPECT;
@@ -79,11 +108,13 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
   const fetchBrand = async (event: FormEvent) => {
     event.preventDefault();
     if (!url.trim() || working) return;
-    setStatus({ kind: "working", message: "Öppnar er hemsida och letar upp loggan, typsnittet och branschen. Det tar 10–20 sekunder…" });
+    const controller = new AbortController();
+    abortRef.current = controller;
+    start("scrape");
     try {
-      const found = await requestBrand(url.trim());
+      const found = await requestBrand(url.trim(), controller.signal);
+      if (controller.signal.aborted) return;
       setProfile(found);
-      setStatus({ kind: "working", message: "Gör loggan graverbar…" });
       const trace = found.logo ? await adoptImage(found.logo).catch(() => null) : null;
       dispatch({ type: "font", font: found.font.fontId });
       const colorId = matchColorCombo(
@@ -98,7 +129,10 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
           : { kind: "error", message: "Vi hittade ingen logga att gravera — ladda gärna upp den själv." },
       );
     } catch (error) {
+      if (controller.signal.aborted) return;
       setStatus({ kind: "error", message: error instanceof Error ? error.message : "Något gick fel." });
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
     }
   };
 
@@ -108,13 +142,20 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
       setStatus({ kind: "error", message: "Bilden är för stor — max 8 MB." });
       return;
     }
-    setStatus({ kind: "working", message: "Gör loggan graverbar…" });
+    start("upload");
     try {
       const trace = await adoptImage(await readFile(file));
       setStatus(trace ? { kind: "idle" } : { kind: "error", message: "Vi hittade ingen logga i bilden." });
     } catch {
       setStatus({ kind: "error", message: "Bilden gick inte att läsa. Prova PNG, JPG eller SVG." });
     }
+  };
+
+  const pickOption = async (option: string) => {
+    if (working || source?.src === option) return;
+    start("upload");
+    const trace = await adoptImage(option).catch(() => null);
+    setStatus(trace ? { kind: "idle" } : { kind: "error", message: "Den loggan gick inte att gravera — prova en annan." });
   };
 
   const invert = async () => {
@@ -153,8 +194,17 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
         </button>
       </form>
 
-      {status.kind !== "idle" && (
-        <p className={status.kind === "error" ? styles.issue : styles.hint} role="status" data-severity={status.kind === "error" ? "error" : undefined}>
+      <ProgressBanner
+        active={working}
+        failed={status.kind === "error"}
+        title={job === "scrape" ? "Hämtar från hemsidan" : "Läser in loggan"}
+        expectedMs={job === "scrape" ? SCRAPE_EXPECTED_MS : UPLOAD_EXPECTED_MS}
+        steps={job === "scrape" ? SCRAPE_STEPS : UPLOAD_STEPS}
+        doneLabel={job === "scrape" ? "Klart — loggan, typsnittet och färgen är på plats" : "Klart — loggan är graverbar"}
+        onCancel={job === "scrape" ? cancelScrape : undefined}
+      />
+      {status.kind === "error" && (
+        <p className={styles.issue} role="status" data-severity="error">
           {status.message}
         </p>
       )}
@@ -192,10 +242,41 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
         </dl>
       )}
 
+      {profile && profile.logoOptions.length > 1 && status.kind !== "working" && (
+        <div className={styles.logoOptions} role="group" aria-label="Loggor från hemsidan">
+          <span className={styles.logoOptionsLabel}>Fel logga? Välj en annan från sidan</span>
+          <div className={styles.logoOptionRow}>
+            {profile.logoOptions.map((option, i) => (
+              <button
+                key={option.slice(-48)}
+                type="button"
+                className={styles.logoOption}
+                aria-pressed={source?.src === option}
+                aria-label={`Logga ${i + 1}`}
+                onClick={() => void pickOption(option)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- data-URL från skrapningen */}
+                <img src={option} alt="" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className={styles.chips}>
-        <button type="button" className="chip" disabled={working} onClick={() => fileRef.current?.click()}>
-          {doc.logo ? "Byt logga" : "Ladda upp logga"}
-        </button>
+        <label className="chip" aria-disabled={working}>
+          {doc.logo ? "Ladda upp egen logga" : "Ladda upp logga"}
+          <input
+            type="file"
+            accept={ACCEPTED_TYPES}
+            className="visually-hidden"
+            disabled={working}
+            onChange={(e) => {
+              void upload(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
+        </label>
         {doc.logo && source && (
           <button type="button" className="chip" aria-pressed={source.invert} disabled={working} onClick={() => void invert()}>
             Invertera
@@ -206,16 +287,6 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
             Ta bort
           </button>
         )}
-        <input
-          ref={fileRef}
-          type="file"
-          accept={ACCEPTED_TYPES}
-          hidden
-          onChange={(e) => {
-            void upload(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
       </div>
 
       {doc.logo && (

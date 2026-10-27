@@ -36,9 +36,12 @@ interface TextSectionProps {
   doc: BadgeDocument;
   layout: BadgeLayout;
   dispatch: Dispatch<DesignerAction>;
+  /** Öppnar ritningen där text och logga dras runt. */
+  onPlace?: () => void;
+  placing?: boolean;
 }
 
-export function TextSection({ doc, layout, dispatch }: TextSectionProps) {
+export function TextSection({ doc, layout, dispatch, onPlace, placing = false }: TextSectionProps) {
   const canAdd = doc.rows.length < TEXT_LIMITS.maxRows;
 
   return (
@@ -144,6 +147,21 @@ export function TextSection({ doc, layout, dispatch }: TextSectionProps) {
           onChange={(align) => dispatch({ type: "align", align })}
         />
       </div>
+
+      {onPlace && (
+        <button type="button" className={`btn btn--ghost ${styles.addRow}`} onClick={onPlace}>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path
+              d="M8 2v12M2 8h12M8 2 6.5 3.5M8 2l1.5 1.5M8 14l-1.5-1.5M8 14l1.5-1.5M2 8l1.5-1.5M2 8l1.5 1.5M14 8l-1.5-1.5M14 8l-1.5 1.5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              fill="none"
+            />
+          </svg>
+          {placing ? "Dra texten eller loggan på skylten till vänster" : "Flytta text och logga fritt på skylten"}
+        </button>
+      )}
     </PanelSection>
   );
 }

@@ -161,7 +161,7 @@ describe("matchColorCombo", () => {
     assert.equal(matchColorCombo(["#0b2a5b"], "plastic-2-layer"), "darkblue-white");
     assert.equal(matchColorCombo(["#d71920"], "plastic-2-layer"), "red-white");
     assert.equal(matchColorCombo(["#00693e"], "plastic-2-layer"), "darkgreen-white");
-    assert.equal(matchColorCombo(["#0a5cc2"], "plastic-2-layer"), "white-blue");
+    assert.equal(matchColorCombo(["#0a5cc2"], "plastic-2-layer"), "blue-white");
   });
 
   it("väljer inget när inget liknar", () => {

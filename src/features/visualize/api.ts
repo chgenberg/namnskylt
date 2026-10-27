@@ -6,19 +6,20 @@ async function readResult<T>(response: Response): Promise<T> {
   return body;
 }
 
-export async function requestPerson(badge: BadgeDocument, workplace: string): Promise<string> {
+export async function requestPerson(badge: BadgeDocument, workplace: string, signal?: AbortSignal): Promise<string> {
   const response = await fetch("/api/visualize/people", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ badge, workplace: workplace.trim() || undefined }),
+    signal,
   });
   return (await readResult<{ image: string }>(response)).image;
 }
 
-export async function requestTryOn(badge: BadgeDocument, photo: Blob): Promise<string> {
+export async function requestTryOn(badge: BadgeDocument, photo: Blob, signal?: AbortSignal): Promise<string> {
   const form = new FormData();
   form.set("badge", JSON.stringify(badge));
   form.set("photo", photo, "photo.jpg");
-  const response = await fetch("/api/visualize/try-on", { method: "POST", body: form });
+  const response = await fetch("/api/visualize/try-on", { method: "POST", body: form, signal });
   return (await readResult<{ image: string }>(response)).image;
 }

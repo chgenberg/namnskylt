@@ -3,15 +3,10 @@
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Segmented } from "@/components/ui/segmented";
-import { FRAME_STYLES, SHAPES, SIZE_LIMITS, SIZE_PRESETS, type BadgeDocument, type BadgeShape } from "@/engine";
+import { FRAME_STYLES, ROUND_SIZE_PRESETS, SIZE_LIMITS, SIZE_PRESETS, type BadgeDocument } from "@/engine";
+import { ShapePicker } from "../pickers";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
-
-const SHAPE_ICON: Record<BadgeShape, React.ReactNode> = {
-  rectangle: <rect x="2" y="4" width="16" height="10" rx="0.5" />,
-  rounded: <rect x="2" y="4" width="16" height="10" rx="3.5" />,
-  oval: <ellipse cx="10" cy="9" rx="8" ry="5" />,
-};
 
 interface DimensionInputProps {
   label: string;
@@ -49,28 +44,15 @@ interface FormatSectionProps {
 export function FormatSection({ doc, dispatch }: FormatSectionProps) {
   const { widthMm, heightMm } = doc.size;
   const cornerMax = Math.floor(Math.min(widthMm, heightMm) / 2);
+  const round = doc.shape === "round";
+  const presets = round ? ROUND_SIZE_PRESETS : SIZE_PRESETS;
 
   return (
     <PanelSection step={4} title="Form & storlek" aside={`${widthMm} × ${heightMm} mm`}>
-      <Segmented
-        label="Form"
-        value={doc.shape}
-        options={SHAPES.map((s) => ({
-          id: s.id,
-          label: (
-            <>
-              <svg viewBox="0 0 20 18" width="18" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.4">
-                {SHAPE_ICON[s.id]}
-              </svg>
-              {s.name}
-            </>
-          ),
-        }))}
-        onChange={(shape) => dispatch({ type: "shape", shape })}
-      />
+      <ShapePicker value={doc.shape} onChange={(shape) => dispatch({ type: "shape", shape })} />
 
       <div className={styles.chips}>
-        {SIZE_PRESETS.map((preset) => (
+        {presets.map((preset) => (
           <button
             key={preset.id}
             type="button"
@@ -86,22 +68,32 @@ export function FormatSection({ doc, dispatch }: FormatSectionProps) {
         ))}
       </div>
 
-      <div className={styles.split}>
+      {round ? (
         <DimensionInput
-          label="Bredd"
+          label="Diameter"
           value={widthMm}
-          min={SIZE_LIMITS.minWidthMm}
-          max={SIZE_LIMITS.maxWidthMm}
+          min={Math.max(SIZE_LIMITS.minWidthMm, SIZE_LIMITS.minHeightMm)}
+          max={Math.min(SIZE_LIMITS.maxWidthMm, SIZE_LIMITS.maxHeightMm)}
           onChange={(value) => dispatch({ type: "size", widthMm: value })}
         />
-        <DimensionInput
-          label="Höjd"
-          value={heightMm}
-          min={SIZE_LIMITS.minHeightMm}
-          max={SIZE_LIMITS.maxHeightMm}
-          onChange={(value) => dispatch({ type: "size", heightMm: value })}
-        />
-      </div>
+      ) : (
+        <div className={styles.split}>
+          <DimensionInput
+            label="Bredd"
+            value={widthMm}
+            min={SIZE_LIMITS.minWidthMm}
+            max={SIZE_LIMITS.maxWidthMm}
+            onChange={(value) => dispatch({ type: "size", widthMm: value })}
+          />
+          <DimensionInput
+            label="Höjd"
+            value={heightMm}
+            min={SIZE_LIMITS.minHeightMm}
+            max={SIZE_LIMITS.maxHeightMm}
+            onChange={(value) => dispatch({ type: "size", heightMm: value })}
+          />
+        </div>
+      )}
 
       {doc.shape === "rounded" && (
         <label className={styles.sliderRow}>

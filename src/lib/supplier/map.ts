@@ -1,12 +1,20 @@
 import {
+  effectiveCornerRadius,
   getFont,
   getMaterial,
   getMounting,
+  hasStraightSides,
   layoutBadge,
   type BadgeDocument,
+  type BadgeShape,
   type FontEngine,
 } from "@/engine";
 import type { SupplierLayer, SupplierSignDocument } from "./types";
+
+/** Skyltmotorn har ingen egen kapselform — den är en rektangel med radien h/2. */
+function supplierShape(shape: BadgeShape): SupplierSignDocument["shape"] {
+  return hasStraightSides(shape) ? "rectangular" : shape;
+}
 
 /** Skyltmotorns standardradhöjd; påverkar inget här eftersom varje lager har en rad. */
 const SUPPLIER_LINE_HEIGHT_RATIO = 1.2;
@@ -105,9 +113,9 @@ export function toSupplierSignDocument(
     productType: "sign",
     material: getMaterial(doc.materialId).supplierCode,
     color: doc.colorId,
-    shape: doc.shape === "oval" ? "oval" : "rectangular",
+    shape: supplierShape(doc.shape),
     dimensions: { widthMm, heightMm, autoSize: false },
-    cornerRadiusMm: doc.shape === "rounded" ? doc.cornerRadiusMm : 0,
+    cornerRadiusMm: hasStraightSides(doc.shape) ? Number(effectiveCornerRadius(doc).toFixed(2)) : 0,
     // Fästet ligger inte i skyltmotorns hålmodell — det skickas som namn tills
     // leverantören har en artikelkod per fäste.
     mounting: getMounting(doc.mounting).name,

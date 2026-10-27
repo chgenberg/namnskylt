@@ -30,7 +30,7 @@ const fonts: FontEngine = {
 };
 
 function badge(patch: Partial<BadgeDocument> = {}, texts = ["Anna Lind", "Butikschef"]): BadgeDocument {
-  return { ...createBadgeDocument(texts), ...patch };
+  return { ...createBadgeDocument(texts), materialId: "plastic-2-layer", colorId: "white-black", ...patch };
 }
 
 function order(orderNo: string, badges: BadgeDocument[]): ProductionOrder {

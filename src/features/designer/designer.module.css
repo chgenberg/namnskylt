@@ -66,18 +66,6 @@
   background: currentColor;
 }
 
-/* Strålspårningens förlopp längs scenens underkant. */
-.photoProgress {
-  position: absolute;
-  inset: auto 0 0;
-  z-index: 3;
-  height: 2px;
-  background: var(--color-navy-3);
-  transform-origin: left;
-  transform: scaleX(var(--progress, 0));
-  transition: transform var(--duration-base) var(--ease-out);
-}
-
 .chipIcon {
   width: 14px;
   height: 14px;
@@ -100,26 +88,6 @@
 @keyframes rec-pulse {
   to {
     opacity: 0.35;
-  }
-}
-
-/* Inspelningens förlopp — samma linje som fotoläget, fylls under varvet. */
-.recProgress {
-  position: absolute;
-  inset: auto 0 0;
-  z-index: 3;
-  height: 2px;
-  background: var(--color-danger);
-  transform-origin: left;
-  animation: rec-fill var(--duration) linear forwards;
-}
-
-@keyframes rec-fill {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
   }
 }
 
@@ -158,6 +126,12 @@
 .loading {
   width: 100%;
   height: 100%;
+}
+
+.loading::before {
+  content: "";
+  position: absolute;
+  inset: 0;
   background: radial-gradient(circle at 50% 50%, var(--navy-halo), transparent 40%);
   animation: pulse-bg 1.4s var(--ease-in-out) infinite alternate;
 }
@@ -191,6 +165,17 @@
 
 .hint[data-severity="warning"] {
   color: var(--color-warning);
+}
+
+.hintLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-navy-3);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
 }
 
 /* ── Panel ── */

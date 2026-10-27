@@ -1,4 +1,11 @@
-import { effectiveCornerRadius, getMaterial, type BadgeDocument, type MountingId } from "@/engine";
+import {
+  effectiveCornerRadius,
+  getMaterial,
+  hasStraightSides,
+  type BadgeDocument,
+  type MaterialFinish,
+  type MountingId,
+} from "@/engine";
 import { CUTTER_OFFSET_MM } from "./ink";
 
 /**
@@ -114,8 +121,11 @@ export interface PackingResult {
   unplaced: Array<{ unit: ProductionUnit; reason: string }>;
 }
 
+/** Skivmaterial som skärs i ark med delade skärlinjer; metall frässkärs styckvis. */
+const SHEET_FINISHES: ReadonlySet<MaterialFinish> = new Set(["plastic", "acrylic", "epoxy"]);
+
 export function productionMethod(doc: BadgeDocument): ProductionMethod {
-  return getMaterial(doc.materialId).finish === "plastic" ? "plastic-sheet" : "metal-cut";
+  return SHEET_FINISHES.has(getMaterial(doc.materialId).finish) ? "plastic-sheet" : "metal-cut";
 }
 
 /** Ordrarnas skyltar uppdelade i batcher: en batch är ett material i en färg. */
@@ -143,9 +153,9 @@ export function productionBatches(orders: readonly ProductionOrder[]): Productio
   return [...batches.values()];
 }
 
-/** Raka och rundade skyltar har raka sidor som kan delas med grannen. */
+/** Raka, rundade och kapselformade skyltar har raka sidor som kan delas med grannen. */
 export function sharesCutLines(doc: BadgeDocument, method: ProductionMethod): boolean {
-  return method === "plastic-sheet" && doc.shape !== "oval";
+  return method === "plastic-sheet" && hasStraightSides(doc.shape);
 }
 
 export function sheetCornerRadiusMm(doc: BadgeDocument): number {
@@ -154,7 +164,7 @@ export function sheetCornerRadiusMm(doc: BadgeDocument): number {
 
 function gapFor(doc: BadgeDocument, method: ProductionMethod): number {
   if (method === "metal-cut") return METAL_GAP_MM;
-  return doc.shape === "oval" ? ROUND_GAP_MM : 0;
+  return hasStraightSides(doc.shape) ? 0 : ROUND_GAP_MM;
 }
 
 function positive(value: number, fallback: number): number {

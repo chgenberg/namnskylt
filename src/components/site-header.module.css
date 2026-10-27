@@ -56,16 +56,6 @@
   background: var(--color-paper);
 }
 
-.soon {
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  padding: 2px 6px;
-  border-radius: var(--radius-pill);
-  background: var(--color-navy-tint);
-  color: var(--color-navy);
-}
-
 .adminSlot {
   display: inline-flex;
   align-items: center;

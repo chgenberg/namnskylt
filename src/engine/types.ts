@@ -8,11 +8,20 @@ export type Mm = number;
 
 export type FontId = "arial" | "arial-narrow";
 export type TextAlign = "left" | "center" | "right";
-export type BadgeShape = "rectangle" | "rounded" | "oval";
+export type BadgeShape = "rectangle" | "rounded" | "stadium" | "oval" | "round" | "hexagon" | "octagon";
 export type FrameStyle = "none" | "solid" | "double";
 export type MountingId = "pin" | "magnet" | "clip" | "safety-pin";
-export type MaterialId = "plastic-2-layer" | "aluminium-anodized" | "stainless";
-export type MaterialFinish = "plastic" | "aluminium" | "steel";
+export type MaterialId =
+  | "brass"
+  | "aluminium-solid"
+  | "acrylic"
+  | "epoxy"
+  | "aluminium-anodized"
+  | "stainless"
+  | "plastic-2-layer";
+export type MaterialFinish = "plastic" | "aluminium" | "steel" | "brass" | "acrylic" | "epoxy";
+/** Vem som tillverkar: Skylt & Gravyrteknik via API:t, Quickbutton efter bekräftad förfrågan. */
+export type Producer = "skylt-gravyr" | "quickbutton";
 
 export interface BadgeTextRow {
   id: string;
@@ -58,7 +67,7 @@ export interface BadgeDocument {
   colorId: string;
   shape: BadgeShape;
   size: { widthMm: Mm; heightMm: Mm };
-  /** Gäller bara `shape === "rounded"`. */
+  /** Gäller bara `shape === "rounded"`; kapseln har alltid halva höjden. */
   cornerRadiusMm: Mm;
   frame: BadgeFrame;
   font: FontId;

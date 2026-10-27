@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { BadgeDocument } from "@/engine";
 import { requestPerson, requestTryOn } from "./api";
 
@@ -18,6 +18,7 @@ export interface CapturedPhoto {
 }
 
 const IDLE = { status: "idle" } as const;
+const CANCELLED = { status: "error", message: "Avbrutet." } as const;
 
 function badgeKey(doc: BadgeDocument): string {
   return JSON.stringify({ ...doc, quantity: 0 });
@@ -35,6 +36,8 @@ export function useVisualize(doc: BadgeDocument) {
   const [photo, setPhotoState] = useState<CapturedPhoto | null>(null);
   /** Var personen står — fylls i från företagets hemsida eller av kunden. */
   const [workplace, setWorkplace] = useState("");
+  const personAbort = useRef<AbortController | null>(null);
+  const tryOnAbort = useRef<AbortController | null>(null);
 
   useEffect(() => () => {
     if (photo) URL.revokeObjectURL(photo.url);
@@ -47,26 +50,40 @@ export function useVisualize(doc: BadgeDocument) {
 
   const generatePerson = useCallback(async () => {
     const badge = doc;
+    const controller = new AbortController();
+    personAbort.current = controller;
     setPerson({ status: "working", startedAt: Date.now() });
     try {
-      const result = await requestPerson(badge, workplace);
+      const result = await requestPerson(badge, workplace, controller.signal);
       setPerson({ status: "done", result, badgeKey: badgeKey(badge) });
     } catch (error) {
-      setPerson({ status: "error", message: errorMessage(error) });
+      if (!controller.signal.aborted) setPerson({ status: "error", message: errorMessage(error) });
     }
   }, [doc, workplace]);
 
   const generateTryOn = useCallback(async () => {
     if (!photo) return;
     const badge = doc;
+    const controller = new AbortController();
+    tryOnAbort.current = controller;
     setTryOn({ status: "working", startedAt: Date.now() });
     try {
-      const result = await requestTryOn(badge, photo.blob);
+      const result = await requestTryOn(badge, photo.blob, controller.signal);
       setTryOn({ status: "done", result, badgeKey: badgeKey(badge) });
     } catch (error) {
-      setTryOn({ status: "error", message: errorMessage(error) });
+      if (!controller.signal.aborted) setTryOn({ status: "error", message: errorMessage(error) });
     }
   }, [doc, photo]);
+
+  const cancelPerson = useCallback(() => {
+    personAbort.current?.abort();
+    setPerson(CANCELLED);
+  }, []);
+
+  const cancelTryOn = useCallback(() => {
+    tryOnAbort.current?.abort();
+    setTryOn(CANCELLED);
+  }, []);
 
   const currentKey = badgeKey(doc);
   const isStale = (job: Job<unknown>) => job.status === "done" && job.badgeKey !== currentKey;
@@ -82,6 +99,8 @@ export function useVisualize(doc: BadgeDocument) {
     setWorkplace,
     generatePerson,
     generateTryOn,
+    cancelPerson,
+    cancelTryOn,
     isStale,
   };
 }

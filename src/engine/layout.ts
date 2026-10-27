@@ -1,6 +1,6 @@
 import { TEXT_LIMITS } from "./catalog";
 import { engravedRows } from "./document";
-import { availableHalfWidth, outlinePath } from "./shape";
+import { availableHalfWidth, isEllipseShape, outlinePath } from "./shape";
 import { placeLogoPath } from "./logo";
 import { ZERO_OFFSET, clampOffset, moveRect, rectsOverlap, unionRect } from "./placement";
 import type { BadgeDocument, FontId, Mm, Offset, Rect, TextAlign } from "./types";
@@ -135,7 +135,7 @@ function frameRings(doc: BadgeDocument): { frames: FrameRing[]; innerEdgeMm: Mm 
 }
 
 function edgeMarginMm(doc: BadgeDocument): Mm {
-  if (doc.shape === "oval") return OVAL_EDGE_MARGIN_MM;
+  if (isEllipseShape(doc.shape)) return OVAL_EDGE_MARGIN_MM;
   return doc.size.heightMm < LOW_BADGE_HEIGHT_MM ? LOW_BADGE_EDGE_MARGIN_MM : EDGE_MARGIN_MM;
 }
 

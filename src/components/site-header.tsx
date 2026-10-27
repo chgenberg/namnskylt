@@ -6,8 +6,7 @@ import styles from "./site-header.module.css";
 const NAV = [
   { href: "/#borja", label: "Namnskyltar" },
   { href: "/#sa-funkar-det", label: "Så funkar det" },
-  { href: "/#pins", label: "Pins", soon: true },
-  { href: "/foretag", label: "För företag" },
+  { href: "/inspiration", label: "Inspirationsbank" },
 ] as const;
 
 export function SiteHeader() {
@@ -28,7 +27,6 @@ export function SiteHeader() {
           {NAV.map((item) => (
             <Link key={item.href} href={item.href} className={styles.link}>
               {item.label}
-              {"soon" in item && <span className={styles.soon}>Snart</span>}
             </Link>
           ))}
           <AdminLogin />

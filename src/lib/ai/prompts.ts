@@ -5,6 +5,7 @@ import {
   getMounting,
   type BadgeDocument,
   type LogoPlacement,
+  type BadgeShape,
   type MaterialFinish,
 } from "@/engine";
 
@@ -49,6 +50,19 @@ const FINISH_DESCRIPTION: Record<MaterialFinish, string> = {
   plastic: "two-layer engraving plastic with a smooth satin surface; the text is engraved through the top layer",
   aluminium: "brushed anodised aluminium with fine horizontal brush lines; the text is engraved and filled",
   steel: "brushed stainless steel; the text is laser-marked",
+  brass: "polished solid brass with a fine metallic sheen; the text is engraved and filled black",
+  acrylic: "matt transparent acrylic, about 3 mm thick, over a coloured backing that gives a soft shadow depth; the text is printed",
+  epoxy: "printed badge under a clear, glossy domed epoxy enamel that catches the light; the text is printed",
+};
+
+const SHAPE_DESCRIPTION: Record<BadgeShape, string> = {
+  rectangle: "rectangle",
+  rounded: "rectangle with rounded corners",
+  stadium: "pill shape with fully rounded ends",
+  oval: "oval",
+  round: "circle",
+  hexagon: "elongated hexagon with points left and right",
+  octagon: "octagon with cut corners",
 };
 
 const LOGO_POSITION: Record<LogoPlacement, string> = {
@@ -64,8 +78,7 @@ export function badgeDescription(doc: BadgeDocument): string {
   const lines = engravedRows(doc)
     .map((row, i) => `line ${i + 1}: "${row.text}"${row.bold ? " (bold)" : ""}`)
     .join("; ");
-  const shape =
-    doc.shape === "oval" ? "oval" : doc.shape === "rounded" ? "rectangle with rounded corners" : "rectangle";
+  const shape = SHAPE_DESCRIPTION[doc.shape];
 
   return [
     `The name badge is shown in the reference image. It is a small ${shape}, exactly ${doc.size.widthMm} × ${doc.size.heightMm} mm in real life (about the width of a credit card or smaller) — keep it that small relative to the body.`,

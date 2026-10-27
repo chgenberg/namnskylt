@@ -32,8 +32,8 @@ export function createBadgeDocument(texts: readonly string[] = []): BadgeDocumen
   const rows = (texts.length > 0 ? texts : [""]).map((text, i) => createRow(i, text));
   return {
     version: 1,
-    materialId: "plastic-2-layer",
-    colorId: "white-black",
+    materialId: "brass",
+    colorId: "brass-gold",
     shape: "rounded",
     size: { widthMm: 70, heightMm: 25 },
     cornerRadiusMm: 3,

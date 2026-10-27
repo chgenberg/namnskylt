@@ -52,7 +52,7 @@ export interface SupplierSignDocument {
   productType: "sign";
   material: string;
   color: string;
-  shape: "rectangular" | "oval";
+  shape: "rectangular" | "oval" | "round" | "hexagon" | "octagon";
   dimensions: { widthMm: number; heightMm: number; autoSize: false };
   cornerRadiusMm: number;
   mounting: string;

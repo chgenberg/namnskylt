@@ -1,0 +1,152 @@
+.materialGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: var(--space-2);
+}
+
+.materialGrid[data-compact="true"] {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+
+.materialCard {
+  position: relative;
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 2px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  text-align: left;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.materialCard:hover {
+  border-color: var(--color-line-strong);
+}
+
+.materialCard:active {
+  transform: scale(0.98);
+}
+
+.activeRing {
+  position: absolute;
+  inset: -1px;
+  border: 1.5px solid var(--color-navy);
+  border-radius: inherit;
+  box-shadow: 0 0 0 4px var(--navy-halo);
+  pointer-events: none;
+}
+
+.materialSwatch {
+  position: relative;
+  width: 100%;
+  height: 38px;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+}
+
+.exclusiveTag {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: rgb(10 10 11 / 0.72);
+  color: var(--color-white);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.materialName {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.materialTagline,
+.materialPrice {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.materialTagline {
+  color: var(--color-ink-2);
+}
+
+.shapeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: var(--space-2);
+}
+
+.shapeCard {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  color: var(--color-ink-2);
+  font-size: var(--text-xs);
+  transition:
+    border-color var(--duration-fast),
+    background var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.shapeCard:hover {
+  border-color: var(--color-line-strong);
+}
+
+.shapeCard[aria-checked="true"] {
+  border-color: var(--color-navy);
+  background: var(--color-navy-tint);
+  color: var(--color-navy);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.swatch {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1.5px solid transparent;
+  border-radius: 50%;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.swatch:hover {
+  transform: scale(1.08);
+}
+
+.swatch[aria-checked="true"] {
+  border-color: var(--color-navy);
+}
+
+.swatchFill {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--surface) 0 55%, var(--engraving) 55% 100%);
+  box-shadow: inset 0 0 0 1px var(--color-line-strong);
+}
+
+.swatchFill[data-metallic="true"] {
+  background:
+    radial-gradient(circle at 30% 25%, rgb(255 255 255 / 0.7), transparent 45%),
+    linear-gradient(135deg, var(--surface) 0 55%, var(--engraving) 55% 100%);
+}

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { LOGO_LIMITS, MATERIALS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
+import { LOGO_LIMITS, MATERIALS, MATERIAL_IDS, SHAPE_IDS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
 import { LOGO_PATH_PATTERN } from "./logo";
 import type { BadgeDocument } from "./types";
 
@@ -13,9 +13,9 @@ const offsetSchema = z.object({
 export const badgeDocumentSchema = z
   .object({
     version: z.literal(1),
-    materialId: z.enum(["plastic-2-layer", "aluminium-anodized", "stainless"]),
+    materialId: z.enum(MATERIAL_IDS),
     colorId: z.string().min(1),
-    shape: z.enum(["rectangle", "rounded", "oval"]),
+    shape: z.enum(SHAPE_IDS),
     size: z.object({
       widthMm: z.number().min(SIZE_LIMITS.minWidthMm).max(SIZE_LIMITS.maxWidthMm),
       heightMm: z.number().min(SIZE_LIMITS.minHeightMm).max(SIZE_LIMITS.maxHeightMm),
@@ -57,6 +57,9 @@ export const badgeDocumentSchema = z
     const material = MATERIALS.find((m) => m.id === doc.materialId);
     if (material && !material.colors.some((c) => c.id === doc.colorId)) {
       ctx.addIssue({ code: "custom", path: ["colorId"], message: "Färgen finns inte i materialet" });
+    }
+    if (doc.shape === "round" && doc.size.widthMm !== doc.size.heightMm) {
+      ctx.addIssue({ code: "custom", path: ["size"], message: "En rund skylt är lika bred som hög" });
     }
     if (doc.rows.every((r) => r.text.trim().length === 0)) {
       ctx.addIssue({ code: "custom", path: ["rows"], message: "Skylten saknar text" });

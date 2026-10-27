@@ -1,4 +1,13 @@
-import { engravingPaths, layoutBadge, type BadgeDocument, type FillRule, type FontEngine } from "@/engine";
+import {
+  engravingPaths,
+  hasStraightSides,
+  isEllipseShape,
+  layoutBadge,
+  outlinePath,
+  type BadgeDocument,
+  type FillRule,
+  type FontEngine,
+} from "@/engine";
 import { computeCutGrid } from "./cut-grid";
 import {
   fitHeader,
@@ -75,14 +84,15 @@ function cornerArcPaths(w: number, h: number, r0: number): string[] {
 /**
  * Skyltens egen kontur. Metall skärs med verktygsoffset: konturen bommas ut
  * med verktygsradien (en skarp ytterkant får då radien som hörn — så går
- * verktygets centrum). Ovaler genomskärs; raka kanter skärs.
+ * verktygets centrum). Ovaler, runda och kantiga former genomskärs; raka kanter skärs.
  */
 function outlineMarks(doc: BadgeDocument, method: ProductionMethod): Array<Pick<SheetMark, "ink" | "d">> {
   const { widthMm: w, heightMm: h } = doc.size;
   const r = sheetCornerRadiusMm(doc);
-  if (doc.shape === "oval") {
+  if (!hasStraightSides(doc.shape)) {
     const o = method === "metal-cut" ? CUTTER_OFFSET_MM : 0;
-    return [{ ink: "throughCut", d: ellipsePath(w / 2, h / 2, w / 2 + o, h / 2 + o) }];
+    const d = isEllipseShape(doc.shape) ? ellipsePath(w / 2, h / 2, w / 2 + o, h / 2 + o) : outlinePath(doc, -o);
+    return [{ ink: "throughCut", d }];
   }
   if (method === "metal-cut") {
     const o = CUTTER_OFFSET_MM;

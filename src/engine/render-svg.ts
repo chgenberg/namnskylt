@@ -41,8 +41,10 @@ function num(value: number): string {
 }
 
 function surfaceDefs(finish: MaterialFinish, id: string): string {
-  if (finish === "plastic") {
-    return `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".06"/></linearGradient>`;
+  if (finish === "plastic" || finish === "acrylic" || finish === "epoxy") {
+    // Akryl och epoxykupol är blanka: starkare ljusreflex i överkanten.
+    const shine = finish === "plastic" ? ".18" : ".42";
+    return `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="${shine}"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".08"/></linearGradient>`;
   }
   const stops = [0, 0.18, 0.34, 0.5, 0.66, 0.82, 1]
     .map((o, i) => {
