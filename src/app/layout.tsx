@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
+import { cookies } from "next/headers";
 import type { ReactNode } from "react";
+import { SiteGate } from "@/components/site-gate";
 import { SiteHeader } from "@/components/site-header";
+import { GATE_COOKIE, isValidGateCookie } from "@/lib/site-gate/token";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -18,12 +21,15 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const unlocked = await isValidGateCookie((await cookies()).get(GATE_COOKIE)?.value);
   return (
     <html lang="sv" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body>
-        <SiteHeader />
-        {children}
+        <SiteGate unlocked={unlocked}>
+          <SiteHeader />
+          {children}
+        </SiteGate>
       </body>
     </html>
   );

@@ -15,6 +15,8 @@ export interface InspirationEntry {
   /** Varumärkesfärg som ramens accent. */
   accent: string;
   photo: string;
+  /** Skylten fotograferad i 3D-motorns fotoläge, 1200 × 750. */
+  badgePhoto: string;
   photoWidth: number;
   photoHeight: number;
   title: string;
@@ -49,12 +51,13 @@ function specs(doc: BadgeDocument): string[] {
 
 function entry(
   slug: string,
-  fields: Omit<InspirationEntry, "slug" | "photo" | "photoWidth" | "photoHeight" | "doc" | "highlights">,
+  fields: Omit<InspirationEntry, "slug" | "photo" | "badgePhoto" | "photoWidth" | "photoHeight" | "doc" | "highlights">,
 ): InspirationEntry {
   const doc = documentOf(slug);
   return {
     slug,
     photo: `/inspiration/${slug}.jpg`,
+    badgePhoto: `/inspiration/${slug}-badge.jpg`,
     photoWidth: 1024,
     photoHeight: 1536,
     highlights: specs(doc),

@@ -280,8 +280,11 @@
 }
 
 .badge {
-  width: min(280px, 100%);
-  margin-block: var(--space-2);
+  width: 100%;
+  height: auto;
+  margin-block: var(--space-1);
+  border-radius: var(--radius-md);
+  background: #f4f4f2;
 }
 
 .highlights {

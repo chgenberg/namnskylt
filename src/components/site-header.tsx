@@ -4,7 +4,6 @@ import { AdminLogin } from "./admin-login";
 import styles from "./site-header.module.css";
 
 const NAV = [
-  { href: "/#borja", label: "Namnskyltar" },
   { href: "/#sa-funkar-det", label: "Så funkar det" },
   { href: "/inspiration", label: "Inspirationsbank" },
 ] as const;

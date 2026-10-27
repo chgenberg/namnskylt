@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
-import { BadgePreview } from "@/components/badge-preview";
 import { getMaterial, isPartnerMade, priceBadge } from "@/engine";
 import { encodeShareCode } from "@/lib/share/share-link";
 import { INSPIRATION, type InspirationEntry } from "./catalog";
@@ -92,7 +91,14 @@ function Dialog({ entry, onClose }: { entry: InspirationEntry; onClose: () => vo
           </header>
           <p className={styles.lead}>{entry.lead}</p>
           <p className={styles.body}>{entry.body}</p>
-          <BadgePreview doc={entry.doc} className={styles.badge} label={entry.lead} />
+          <Image
+            src={entry.badgePhoto}
+            alt={`Namnskylten: ${entry.lead}`}
+            width={1200}
+            height={750}
+            className={styles.badge}
+            sizes="(max-width: 860px) 100vw, 480px"
+          />
           <ul className={styles.highlights}>
             {entry.highlights.map((item) => (
               <li key={item}>{item}</li>
