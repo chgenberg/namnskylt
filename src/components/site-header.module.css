@@ -41,6 +41,7 @@
 
 .link {
   display: inline-flex;
+  white-space: nowrap;
   align-items: center;
   gap: var(--space-2);
   height: 36px;
@@ -65,16 +66,63 @@
   color: var(--color-navy);
 }
 
+.adminSlot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 84px;
+  margin-left: var(--space-2);
+}
+
+.login {
+  margin-left: var(--space-2);
+  border: 1px solid var(--color-line-strong);
+  font-weight: 500;
+  color: var(--color-navy);
+}
+
+.admin {
+  background: var(--color-navy-tint);
+  color: var(--color-navy);
+  font-weight: 500;
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--color-navy);
+  color: var(--color-white);
+  font-size: 11px;
+  font-weight: 600;
+}
+
 @media (max-width: 640px) {
   .inner {
     padding-inline: var(--space-4);
   }
 
-  .link:not(:first-child, :last-child) {
+  .nav > .link:not(:first-child, :nth-last-child(2), :last-child) {
     display: none;
   }
 
   .link {
     padding-inline: var(--space-2);
+  }
+
+  .adminSlot {
+    min-width: 0;
+    margin-left: 0;
+  }
+
+  .admin {
+    padding-inline: 4px;
+  }
+
+  .adminText,
+  .logout {
+    display: none;
   }
 }

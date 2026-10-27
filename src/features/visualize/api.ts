@@ -6,11 +6,11 @@ async function readResult<T>(response: Response): Promise<T> {
   return body;
 }
 
-export async function requestPerson(badge: BadgeDocument): Promise<string> {
+export async function requestPerson(badge: BadgeDocument, workplace: string): Promise<string> {
   const response = await fetch("/api/visualize/people", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ badge }),
+    body: JSON.stringify({ badge, workplace: workplace.trim() || undefined }),
   });
   return (await readResult<{ image: string }>(response)).image;
 }

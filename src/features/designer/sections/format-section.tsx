@@ -51,7 +51,7 @@ export function FormatSection({ doc, dispatch }: FormatSectionProps) {
   const cornerMax = Math.floor(Math.min(widthMm, heightMm) / 2);
 
   return (
-    <PanelSection step={3} title="Form & storlek" aside={`${widthMm} × ${heightMm} mm`}>
+    <PanelSection step={4} title="Form & storlek" aside={`${widthMm} × ${heightMm} mm`}>
       <Segmented
         label="Form"
         value={doc.shape}

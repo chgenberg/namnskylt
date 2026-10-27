@@ -33,6 +33,8 @@ export function useVisualize(doc: BadgeDocument) {
   const [person, setPerson] = useState<Job<string>>(IDLE);
   const [tryOn, setTryOn] = useState<Job<string>>(IDLE);
   const [photo, setPhotoState] = useState<CapturedPhoto | null>(null);
+  /** Var personen står — fylls i från företagets hemsida eller av kunden. */
+  const [workplace, setWorkplace] = useState("");
 
   useEffect(() => () => {
     if (photo) URL.revokeObjectURL(photo.url);
@@ -47,12 +49,12 @@ export function useVisualize(doc: BadgeDocument) {
     const badge = doc;
     setPerson({ status: "working", startedAt: Date.now() });
     try {
-      const result = await requestPerson(badge);
+      const result = await requestPerson(badge, workplace);
       setPerson({ status: "done", result, badgeKey: badgeKey(badge) });
     } catch (error) {
       setPerson({ status: "error", message: errorMessage(error) });
     }
-  }, [doc]);
+  }, [doc, workplace]);
 
   const generateTryOn = useCallback(async () => {
     if (!photo) return;
@@ -69,7 +71,19 @@ export function useVisualize(doc: BadgeDocument) {
   const currentKey = badgeKey(doc);
   const isStale = (job: Job<unknown>) => job.status === "done" && job.badgeKey !== currentKey;
 
-  return { mode, setMode, person, tryOn, photo, setPhoto, generatePerson, generateTryOn, isStale };
+  return {
+    mode,
+    setMode,
+    person,
+    tryOn,
+    photo,
+    setPhoto,
+    workplace,
+    setWorkplace,
+    generatePerson,
+    generateTryOn,
+    isStale,
+  };
 }
 
 export type VisualizeState = ReturnType<typeof useVisualize>;

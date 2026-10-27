@@ -7,8 +7,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ["three"],
-  // Nativ modul — ska laddas av Node, inte buntas.
-  serverExternalPackages: ["@resvg/resvg-js"],
+  // Nativa moduler och webbläsarstyrning — ska laddas av Node, inte buntas.
+  serverExternalPackages: ["@resvg/resvg-js", "sharp", "playwright-core"],
   // API:t läser fontfilerna från disk; serverless-paket tar annars inte med public/.
   outputFileTracingIncludes: {
     "/api/**": ["./public/fonts/**"],

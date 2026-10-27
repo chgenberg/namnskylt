@@ -38,7 +38,7 @@ export function BatchSection({ badges, text, onTextChange, overflow, fonts }: Ba
 
   return (
     <PanelSection
-      step={5}
+      step={6}
       title="Fler namn"
       aside={badges.length > 0 ? `+${badges.length} skyltar` : "Samma design"}
     >

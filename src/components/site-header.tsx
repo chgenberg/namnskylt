@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { AdminLogin } from "./admin-login";
 import styles from "./site-header.module.css";
 
 const NAV = [
@@ -30,6 +31,7 @@ export function SiteHeader() {
               {"soon" in item && <span className={styles.soon}>Snart</span>}
             </Link>
           ))}
+          <AdminLogin />
         </nav>
       </div>
     </header>

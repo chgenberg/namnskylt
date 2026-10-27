@@ -1,0 +1,72 @@
+.editor {
+  position: relative;
+  width: 100%;
+  touch-action: none;
+  user-select: none;
+}
+
+.art > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  filter: var(--shadow-badge);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.safeZone {
+  fill: none;
+  stroke: var(--color-navy);
+  stroke-opacity: 0.28;
+  stroke-width: 1px;
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+  transition: stroke-opacity 160ms ease;
+}
+
+.editor[data-dragging="true"] .safeZone {
+  stroke: #e5484d;
+  stroke-opacity: 0.85;
+}
+
+.guide {
+  stroke: #e5484d;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.handle {
+  fill: transparent;
+  stroke: var(--color-navy);
+  stroke-opacity: 0;
+  stroke-width: 1px;
+  stroke-dasharray: 3 2;
+  vector-effect: non-scaling-stroke;
+  cursor: grab;
+  outline: none;
+  transition: stroke-opacity 140ms ease, fill 140ms ease;
+}
+
+.handle:hover,
+.handle[data-active="true"] {
+  stroke-opacity: 0.7;
+  fill: rgb(11 31 58 / 0.04);
+}
+
+.handle:focus-visible {
+  stroke-opacity: 1;
+  stroke-dasharray: none;
+}
+
+.editor[data-dragging="true"] .handle {
+  cursor: grabbing;
+}

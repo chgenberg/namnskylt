@@ -29,6 +29,29 @@ export interface BadgeFrame {
   thicknessMm: Mm;
 }
 
+export type LogoPlacement = "left" | "right" | "top";
+
+/** Kundens förflyttning från den automatiska placeringen. */
+export interface Offset {
+  xMm: Mm;
+  yMm: Mm;
+}
+
+/**
+ * Enfärgad logga som graveras i textens färg. Banorna ligger i en egen ruta
+ * `viewWidth × viewHeight` (bara absoluta M/L/Z, fylls evenodd) och skalas
+ * proportionerligt till `heightMm`.
+ */
+export interface BadgeLogo {
+  d: string;
+  viewWidth: number;
+  viewHeight: number;
+  placement: LogoPlacement;
+  heightMm: Mm;
+  /** Dragen av kunden. Hålls alltid inom säkerhetszonen av layouten. */
+  offsetMm?: Offset;
+}
+
 export interface BadgeDocument {
   version: 1;
   materialId: MaterialId;
@@ -41,6 +64,9 @@ export interface BadgeDocument {
   font: FontId;
   align: TextAlign;
   rows: BadgeTextRow[];
+  /** Textblocket draget av kunden. Hålls alltid inom säkerhetszonen av layouten. */
+  textOffsetMm?: Offset;
+  logo?: BadgeLogo;
   mounting: MountingId;
   quantity: number;
 }

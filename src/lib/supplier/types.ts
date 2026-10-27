@@ -28,6 +28,24 @@ export type SupplierLayer =
       visible: true;
       locked: false;
       data: { kind: "frame"; thicknessMm: number; paddingMm: number; style: "solid" | "double" };
+    }
+  | {
+      id: string;
+      /** Bildlagrets position är rutans mittpunkt. */
+      transform: { position: { x: number; y: number }; rotationDeg: 0 };
+      visible: true;
+      locked: false;
+      data: {
+        kind: "image";
+        /** PNG-miniatyr för allt hos leverantören som bara läser bilder. */
+        src: string;
+        widthMm: number;
+        heightMm: number;
+        renderMode: "engrave";
+        lockAspect: true;
+        /** Banorna som graveras — samma som i vår produktionsfil. */
+        vector: { markup: string; viewWidth: number; viewHeight: number };
+      };
     };
 
 export interface SupplierSignDocument {

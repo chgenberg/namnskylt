@@ -5,6 +5,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { MathUtils, NeutralToneMapping, type Group } from "three";
 import type { BadgeDocument, FontEngine } from "@/engine";
+import { EngraveSweep, LASER_LAYER, sweepDurationMs, type SweepState } from "./three/engrave-sweep";
 import { plateMetrics, UNITS_PER_MM } from "./three/geometry";
 import { useBadgeMaterials } from "./three/materials";
 import { Mounting } from "./three/mounting";
@@ -53,21 +54,47 @@ function focusTarget(side: SpinFocus["side"], currentY: number, now: number): Fo
   return { targetY, until, thenY: side === "back" ? targetY + Math.PI : null };
 }
 
+/** Den ograverade plattan syns en stund innan lasern börjar. */
+const ENGRAVE_LEAD_MS = 450;
+
 interface BadgeMeshProps {
   doc: BadgeDocument;
   fonts: FontEngine;
   spinning: boolean;
   focus: SpinFocus | null;
+  /** Ny nyckel = gravera fram skylten igen. `null` = ingen animation. */
+  engrave: number | null;
+  onEngraveDone: () => void;
   turnRef: RefObject<RecordingTurn | null>;
   onTarget: (group: Group | null) => void;
   onSceneChange: (version: object) => void;
 }
 
-function BadgeMesh({ doc, fonts, spinning, focus, turnRef, onTarget, onSceneChange }: BadgeMeshProps) {
+function BadgeMesh({
+  doc,
+  fonts,
+  spinning,
+  focus,
+  engrave,
+  onEngraveDone,
+  turnRef,
+  onTarget,
+  onSceneChange,
+}: BadgeMeshProps) {
   const spinRef = useRef<Group>(null);
   const geometry = useBadgeGeometry(doc, fonts);
   const materials = useBadgeMaterials(doc);
   const metrics = plateMetrics(doc);
+  const sweepRef = useRef<SweepState | null>(null);
+  const hasGeometry = geometry !== null;
+  const durationMs = sweepDurationMs(doc);
+
+  useEffect(() => {
+    if (engrave === null || !hasGeometry) return;
+    sweepRef.current = { start: performance.now() + ENGRAVE_LEAD_MS, durationMs };
+    // Animationen startar på nyckeln — inte när skyltens bredd ändras under tiden.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engrave, hasGeometry]);
 
   useEffect(() => {
     onTarget(spinRef.current);
@@ -108,6 +135,11 @@ function BadgeMesh({ doc, fonts, spinning, focus, turnRef, onTarget, onSceneChan
       return;
     }
 
+    if (sweepRef.current) {
+      group.rotation.y = MathUtils.damp(group.rotation.y, nearestTurn(group.rotation.y, 0), FOCUS_DAMPING, delta);
+      return;
+    }
+
     const target = focusRef.current;
     if (target && now < target.until) {
       group.rotation.y = MathUtils.damp(group.rotation.y, target.targetY, FOCUS_DAMPING, delta);
@@ -130,6 +162,13 @@ function BadgeMesh({ doc, fonts, spinning, focus, turnRef, onTarget, onSceneChan
   return (
     <group ref={spinRef}>
       {geometry?.map((part, slot) => <mesh key={slot} geometry={part} material={materials[slot]} />)}
+      <EngraveSweep
+        doc={doc}
+        materials={materials}
+        sweepRef={sweepRef}
+        groupRef={spinRef}
+        onDone={onEngraveDone}
+      />
       <Mounting
         mounting={doc.mounting}
         widthUnits={metrics.widthUnits}
@@ -151,6 +190,8 @@ interface Badge3DProps {
   onPhotoProgress: (samples: number) => void;
   /** Fylls med inspelaren när scenen är redo. */
   recorderRef: RefObject<BadgeRecorder | null>;
+  engrave: number | null;
+  onEngraveDone: () => void;
 }
 
 export default function Badge3D({
@@ -158,6 +199,8 @@ export default function Badge3D({
   fonts,
   spinning,
   focus,
+  engrave,
+  onEngraveDone,
   photo,
   photoSamples,
   onPhotoProgress,
@@ -173,6 +216,10 @@ export default function Badge3D({
       dpr={[1, 2]}
       camera={{ position: [0, 0, 5.6], fov: 30 }}
       gl={{ antialias: true, alpha: true, toneMapping: NeutralToneMapping }}
+      onCreated={({ gl, camera }) => {
+        gl.localClippingEnabled = true;
+        camera.layers.enable(LASER_LAYER);
+      }}
     >
       <StudioEnvironment intensity={1.35} />
       <directionalLight position={[2.5, 4, 5]} intensity={1.1} />
@@ -181,6 +228,8 @@ export default function Badge3D({
         fonts={fonts}
         spinning={spinning}
         focus={focus}
+        engrave={engrave}
+        onEngraveDone={onEngraveDone}
         turnRef={turnRef}
         onTarget={setTarget}
         onSceneChange={setSceneVersion}

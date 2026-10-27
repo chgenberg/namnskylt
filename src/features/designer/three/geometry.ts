@@ -268,8 +268,9 @@ function frameShapes(doc: BadgeDocument): Shape[] {
 const PATH_TOKEN = /[MLQCZ]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi;
 
 /**
- * Glyfkonturerna (mm, y nedåt) som former i scenens koordinater. Fontmotorn
- * skriver bara absoluta M/L/Q/C/Z, så en egen tolk räcker — och den kräver
+ * Glyf- och loggkonturerna (mm, y nedåt) som former i scenens koordinater.
+ * Fontmotorn och loggspåraren skriver bara absoluta M/L/Q/C/Z, så en egen
+ * tolk räcker — och den kräver
  * ingen DOM, så geometrin kan byggas i en worker.
  */
 function glyphShapes(doc: BadgeDocument, paths: readonly EngravedPath[]): Shape[] {
@@ -308,7 +309,7 @@ function engravingSolid(doc: BadgeDocument, engraving: readonly EngravedPath[], 
 
   const parts = [
     extrude(frameShapes(doc), OUTLINE_CURVE_SEGMENTS[doc.shape]),
-    extrude(glyphShapes(doc, engraving.filter((p) => p.rowId)), GLYPH_CURVE_SEGMENTS),
+    extrude(glyphShapes(doc, engraving.filter((p) => p.kind !== "frame")), GLYPH_CURVE_SEGMENTS),
   ].filter((part): part is ExtrudeGeometry => part !== null);
   if (parts.length === 0) return null;
 

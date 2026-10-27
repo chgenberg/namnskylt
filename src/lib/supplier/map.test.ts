@@ -21,6 +21,27 @@ describe("toSupplierSignDocument", () => {
     assert.equal(layer.data.rows[0]!.capHeightMm, Number(drawn.toFixed(2)));
   });
 
+  it("skickar loggan som graverat bildlager med vektorbanorna", () => {
+    const doc = {
+      ...createBadgeDocument(["Anna"]),
+      logo: {
+        d: "M0 0L10 0L10 10L0 10Z",
+        viewWidth: 10,
+        viewHeight: 10,
+        placement: "left" as const,
+        heightMm: 12,
+      },
+    };
+    const layer = toSupplierSignDocument(doc, approxFonts, { logoPng: "data:image/png;base64,AA" }).layers.find(
+      (l) => l.data.kind === "image",
+    );
+    assert.ok(layer?.data.kind === "image");
+    assert.equal(layer.data.renderMode, "engrave");
+    assert.equal(layer.data.widthMm, 12);
+    assert.equal(layer.transform.position.y, 12.5);
+    assert.match(layer.data.vector.markup, /^<path d="M0 0L10 0L10 10L0 10Z" fill="#000000" fill-rule="evenodd"\/>$/);
+  });
+
   it("lägger ramen som eget lager och ovalen som oval", () => {
     const doc = {
       ...createBadgeDocument(["Anna"]),

@@ -4,6 +4,7 @@ import {
   getMaterial,
   getMounting,
   type BadgeDocument,
+  type LogoPlacement,
   type MaterialFinish,
 } from "@/engine";
 
@@ -50,7 +51,13 @@ const FINISH_DESCRIPTION: Record<MaterialFinish, string> = {
   steel: "brushed stainless steel; the text is laser-marked",
 };
 
-/** Det modellen måste återge exakt — text, mått, material och fäste. */
+const LOGO_POSITION: Record<LogoPlacement, string> = {
+  left: "to the left of the text",
+  right: "to the right of the text",
+  top: "above the text",
+};
+
+/** Det modellen måste återge exakt — text, logga, mått, material och fäste. */
 export function badgeDescription(doc: BadgeDocument): string {
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
@@ -63,7 +70,10 @@ export function badgeDescription(doc: BadgeDocument): string {
   return [
     `The name badge is shown in the reference image. It is a small ${shape}, exactly ${doc.size.widthMm} × ${doc.size.heightMm} mm in real life (about the width of a credit card or smaller) — keep it that small relative to the body.`,
     `Material: ${FINISH_DESCRIPTION[material.finish]}. Colours: ${color.name.toLowerCase()} (surface ${color.surface}, text ${color.engraving}).`,
-    `Text in Arial, centred, reproduced letter for letter including Swedish characters å, ä, ö: ${lines}. No other text, logos or symbols on the badge.`,
+    `Text in Arial, reproduced letter for letter including Swedish characters å, ä, ö: ${lines}.`,
+    doc.logo
+      ? `The badge also carries the engraved single-colour logo exactly as in the reference image, ${LOGO_POSITION[doc.logo.placement]}. Keep its shape exactly; no other text, logos or symbols on the badge.`
+      : "No other text, logos or symbols on the badge.",
     `Fastened with a ${getMounting(doc.mounting).name.toLowerCase()} on the back, not visible from the front.`,
   ].join(" ");
 }
@@ -74,17 +84,33 @@ const PLACEMENT =
 const REALISM =
   "Hyperrealistic photograph, natural skin texture, true-to-life fabric, soft natural light, shot on a full-frame camera with a 50 mm lens, shallow depth of field. No watermark, no captions, no extra text anywhere in the image.";
 
-function roleSetting(doc: BadgeDocument): string {
+/** Kundens miljötext hamnar i en prompt — bara vanlig text, kort, utan citattecken. */
+export const MAX_WORKPLACE_CHARS = 240;
+
+export function cleanWorkplace(raw: string | undefined): string | null {
+  const text = (raw ?? "")
+    .replace(/[\p{Cc}"`<>{}[\]\\]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_WORKPLACE_CHARS);
+  return text.length >= 3 ? text : null;
+}
+
+function roleSetting(doc: BadgeDocument, workplace: string | null): string {
   const title = engravedRows(doc)[1]?.text;
+  if (workplace) {
+    const role = title ? ` as "${title}"` : "";
+    return `at work${role} in a real, lived-in Swedish workplace: ${workplace}. Photographed on location during a normal working day, with the environment clearly recognisable behind them, dressed exactly as staff there would be`;
+  }
   return title
     ? `in a realistic Swedish workplace that suits the role "${title}", dressed as someone in that role would be at work`
     : "in a bright, minimalist Scandinavian workplace, dressed in smart-casual work clothes";
 }
 
-/** Prompt för en genererad person som bär skylten. */
-export function personaPrompt(doc: BadgeDocument, wearer: Wearer): string {
+/** Prompt för en genererad person som bär skylten, i kundens miljö när den är känd. */
+export function personaPrompt(doc: BadgeDocument, wearer: Wearer, workplace: string | null = null): string {
   return [
-    `Half-body portrait of ${wearerDescription(wearer)}, ${roleSetting(doc)}. Looking naturally towards the camera.`,
+    `Half-body portrait of ${wearerDescription(wearer)}, ${roleSetting(doc, workplace)}. Looking naturally towards the camera.`,
     badgeDescription(doc),
     PLACEMENT,
     REALISM,

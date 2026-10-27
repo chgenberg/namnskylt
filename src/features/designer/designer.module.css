@@ -176,7 +176,7 @@
 }
 
 .drawing > * {
-  width: min(560px, 100%);
+  width: min(760px, 100%);
 }
 
 .spec {
@@ -187,6 +187,10 @@
 .hint {
   font-size: var(--text-xs);
   color: var(--color-muted);
+}
+
+.hint[data-severity="warning"] {
+  color: var(--color-warning);
 }
 
 /* ── Panel ── */

@@ -1,4 +1,13 @@
-import type { BadgeShape, FontId, FrameStyle, MaterialFinish, MaterialId, Mm, MountingId } from "./types";
+import type {
+  BadgeShape,
+  FontId,
+  FrameStyle,
+  LogoPlacement,
+  MaterialFinish,
+  MaterialId,
+  Mm,
+  MountingId,
+} from "./types";
 
 /**
  * Sortimentet följer det Skylt & Gravyrteknik faktiskt tillverkar. Koderna i
@@ -135,6 +144,21 @@ export const TEXT_LIMITS = {
   minCapHeightMm: 1.8,
   maxCapHeightMm: 14,
 } as const;
+
+export const LOGO_LIMITS = {
+  minHeightMm: 4,
+  maxHeightMm: 40,
+  defaultHeightMm: 14,
+  /** Större banor än så blir tunga i 3D och i ordern — vektoriseraren förenklar under taket. */
+  maxPathChars: 80_000,
+  maxViewSize: 4096,
+} as const;
+
+export const LOGO_PLACEMENTS: readonly { id: LogoPlacement; name: string }[] = [
+  { id: "left", name: "Vänster" },
+  { id: "top", name: "Ovanför" },
+  { id: "right", name: "Höger" },
+];
 
 export const SHAPES: readonly { id: BadgeShape; name: string }[] = [
   { id: "rectangle", name: "Rak" },

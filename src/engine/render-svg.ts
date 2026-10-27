@@ -67,6 +67,12 @@ function dimensionMarks(widthMm: number, heightMm: number): string {
   ].join("");
 }
 
+/** Ritningens koordinatsystem i mm, så att ett överlägg kan läggas exakt ovanpå. */
+export function previewViewBox(layout: BadgeLayout, showDimensions: boolean): string {
+  const pad = showDimensions ? DIMENSION_PAD_MM : 0;
+  return `0 0 ${num(layout.widthMm + pad)} ${num(layout.heightMm + pad)}`;
+}
+
 export function renderBadgeSvg(
   doc: BadgeDocument,
   layout: BadgeLayout,
@@ -110,6 +116,9 @@ export function renderBadgeSvg(
   } else {
     for (const frame of layout.frames) {
       parts.push(`<path d="${frame.d}" fill="${engraveFill}" fill-rule="evenodd"/>`);
+    }
+    if (layout.logo) {
+      parts.push(`<path d="${layout.logo.d}" fill="${engraveFill}" fill-rule="evenodd"/>`);
     }
     const family = escapeXml(getFont(doc.font).css);
     for (const row of layout.rows) {

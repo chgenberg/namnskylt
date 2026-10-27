@@ -20,6 +20,7 @@ const SUPPLIER_LINE_HEIGHT_RATIO = 1.2;
 export function toSupplierSignDocument(
   doc: BadgeDocument,
   fonts: FontEngine,
+  assets: { logoPng?: string } = {},
 ): SupplierSignDocument {
   const layout = layoutBadge(doc, fonts);
   const font = getFont(doc.font);
@@ -69,6 +70,37 @@ export function toSupplierSignDocument(
           },
         ];
 
+  const logoLayers: SupplierLayer[] =
+    doc.logo && layout.logo
+      ? [
+          {
+            id: "logo",
+            transform: {
+              position: {
+                x: Number((layout.logo.x + layout.logo.width / 2).toFixed(3)),
+                y: Number((layout.logo.y + layout.logo.height / 2).toFixed(3)),
+              },
+              rotationDeg: 0,
+            },
+            visible: true,
+            locked: false,
+            data: {
+              kind: "image",
+              src: assets.logoPng ?? "",
+              widthMm: Number(layout.logo.width.toFixed(3)),
+              heightMm: Number(layout.logo.height.toFixed(3)),
+              renderMode: "engrave",
+              lockAspect: true,
+              vector: {
+                markup: `<path d="${doc.logo.d}" fill="#000000" fill-rule="evenodd"/>`,
+                viewWidth: doc.logo.viewWidth,
+                viewHeight: doc.logo.viewHeight,
+              },
+            },
+          },
+        ]
+      : [];
+
   return {
     productType: "sign",
     material: getMaterial(doc.materialId).supplierCode,
@@ -80,6 +112,6 @@ export function toSupplierSignDocument(
     // leverantören har en artikelkod per fäste.
     mounting: getMounting(doc.mounting).name,
     holes: { type: "none", count: 0, diameterMm: 3.2, placement: "none" },
-    layers: [...frameLayers, ...textLayers],
+    layers: [...frameLayers, ...logoLayers, ...textLayers],
   };
 }

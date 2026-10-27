@@ -23,7 +23,7 @@ export function MaterialSection({ doc, dispatch }: MaterialSectionProps) {
   const color = getColor(doc.materialId, doc.colorId);
 
   return (
-    <PanelSection step={2} title="Material & färg" aside={color.name}>
+    <PanelSection step={3} title="Material & färg" aside={color.name}>
       <div className={styles.materialGrid} role="radiogroup" aria-label="Material">
         {MATERIALS.map((m) => {
           const active = m.id === doc.materialId;

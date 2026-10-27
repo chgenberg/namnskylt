@@ -2,6 +2,7 @@
 
 import { motion } from "motion/react";
 import { GeneratingStatus } from "./generating-status";
+import { MAX_WORKPLACE_CHARS } from "@/lib/ai/prompts";
 import type { VisualizeState } from "./use-visualize";
 import styles from "./visualize.module.css";
 
@@ -18,7 +19,7 @@ interface PersonPortraitProps {
 }
 
 export function PersonPortrait({ state }: PersonPortraitProps) {
-  const { person, generatePerson, isStale } = state;
+  const { person, generatePerson, isStale, workplace, setWorkplace } = state;
   const working = person.status === "working";
   const image = person.status === "done" ? person.result : null;
 
@@ -28,13 +29,24 @@ export function PersonPortrait({ state }: PersonPortraitProps) {
         <div>
           <h2 className={styles.modeTitle}>Din skylt på en person</h2>
           <p className={styles.modeLead}>
-            En fotorealistisk bild där kön och ålder passar namnet på skylten.
+            En fotorealistisk bild där kön och ålder passar namnet på skylten — på er arbetsplats.
           </p>
         </div>
         <button type="button" className="btn btn--primary" disabled={working} onClick={generatePerson}>
           {image ? "Skapa ny" : "Visa på en person"}
         </button>
       </header>
+
+      <label className={`field ${styles.workplace}`}>
+        <span className={styles.workplaceLabel}>Miljö</span>
+        <input
+          type="text"
+          value={workplace}
+          maxLength={MAX_WORKPLACE_CHARS}
+          placeholder="T.ex. hotellreception, tandläkarmottagning, butik med kassor"
+          onChange={(e) => setWorkplace(e.target.value)}
+        />
+      </label>
 
       {isStale(person) && <p className={styles.notice}>Skylten har ändrats sedan bilden skapades.</p>}
       {person.status === "error" && (

@@ -2,7 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createBadgeDocument, parseSmartInput } from "@/engine";
 import { isUsablePhoto, photoRejection, type PhotoCheck } from "./photo-check";
-import { UNKNOWN_WEARER, badgeName, personaPrompt, tryOnPrompt, wearerDescription } from "./prompts";
+import {
+  MAX_WORKPLACE_CHARS,
+  UNKNOWN_WEARER,
+  badgeName,
+  cleanWorkplace,
+  personaPrompt,
+  tryOnPrompt,
+  wearerDescription,
+} from "./prompts";
 import { clientKey, createRateLimiter } from "./rate-limit";
 
 const goodPhoto: PhotoCheck = { people: 1, framing: "half_body", chestVisible: true, reason: "" };
@@ -80,6 +88,29 @@ describe("prompter", () => {
   it("läser namnet från första graverade raden", () => {
     assert.equal(badgeName(doc), "Åsa Öberg");
     assert.equal(badgeName(createBadgeDocument([""])), null);
+  });
+
+  it("ställer personen i kundens arbetsmiljö när den är angiven", () => {
+    const workplace = cleanWorkplace("Ljus tandläkarmottagning med behandlingsstol");
+    const prompt = personaPrompt(doc, UNKNOWN_WEARER, workplace);
+    assert.match(prompt, /as "Säljchef" in a real, lived-in Swedish workplace: Ljus tandläkarmottagning/);
+    assert.doesNotMatch(personaPrompt(doc, UNKNOWN_WEARER), /lived-in/);
+  });
+
+  it("rensar miljötexten innan den hamnar i prompten", () => {
+    assert.equal(cleanWorkplace('  Butik "med" <b>kassa</b>\n\n '), "Butik med b kassa /b");
+    assert.equal(cleanWorkplace("a"), null);
+    assert.equal(cleanWorkplace(undefined), null);
+    assert.equal(cleanWorkplace("x".repeat(500))?.length, MAX_WORKPLACE_CHARS);
+  });
+
+  it("beskriver loggan på skylten bara när den finns", () => {
+    const withLogo = {
+      ...doc,
+      logo: { d: "M0 0L1 0L1 1Z", viewWidth: 1, viewHeight: 1, placement: "left" as const, heightMm: 10 },
+    };
+    assert.match(personaPrompt(withLogo, UNKNOWN_WEARER), /single-colour logo .* to the left of the text/);
+    assert.match(personaPrompt(doc, UNKNOWN_WEARER), /No other text, logos or symbols/);
   });
 
   it("ber om att bevara kundens foto vid provning", () => {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema, layoutBadge, renderBadgeSvg } from "@/engine";
+import { renderLogoPng } from "@/lib/ai/badge-image";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { createSupplierClient } from "@/lib/supplier/client";
 import { toSupplierSignDocument } from "@/lib/supplier/map";
@@ -30,7 +31,9 @@ export async function POST(request: Request) {
     const receipt = await createSupplierClient().placeOrder({
       customer,
       lines: badges.map((badge, i) => ({
-        document: toSupplierSignDocument(badge, fonts),
+        document: toSupplierSignDocument(badge, fonts, {
+          logoPng: badge.logo ? renderLogoPng(badge.logo) : undefined,
+        }),
         productionSvg: renderBadgeSvg(badge, layoutBadge(badge, fonts), {
           mode: "production",
           fonts,

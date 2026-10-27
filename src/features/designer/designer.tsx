@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useCallback, useMemo, useReducer, useRef, useState, type CSSProperties } from "react";
-import { BadgePreview } from "@/components/badge-preview";
+import { withPlaceholders } from "@/components/badge-preview";
 import { Segmented } from "@/components/ui/segmented";
 import {
   MAX_ORDER_BADGES,
@@ -14,19 +14,23 @@ import {
   parseBatchInput,
   parseSmartInput,
   withTexts,
+  type BadgeDocument,
 } from "@/engine";
 import { useFontEngine } from "@/hooks/use-font-engine";
 import { useVisualize } from "@/features/visualize/use-visualize";
 import { VisualizeView } from "@/features/visualize/visualize-view";
+import { BadgeEditor } from "./badge-editor";
 import styles from "./designer.module.css";
 import { BatchSection } from "./sections/batch-section";
 import { FormatSection } from "./sections/format-section";
+import { LogoSection } from "./sections/logo-section";
 import { MaterialSection } from "./sections/material-section";
 import { MountingSection } from "./sections/mounting-section";
 import { OrderSection } from "./sections/order-section";
 import { TextSection } from "./sections/text-section";
 import type { SpinFocus } from "./badge-3d";
 import type { BadgeRecorder } from "./three/recorder";
+import { shareBadge } from "./share";
 import { videoFileName } from "./video-file";
 import { designerReducer, type DesignerAction } from "./state";
 
@@ -50,21 +54,27 @@ const VIEW_OPTIONS = [
 
 interface DesignerProps {
   initialText: string;
+  /** En delad skylt från länken — vinner över texten. */
+  initialDoc?: BadgeDocument | null;
 }
 
-export function Designer({ initialText }: DesignerProps) {
-  const [doc, dispatch] = useReducer(designerReducer, initialText, (text) =>
-    createBadgeDocument(parseSmartInput(text)),
+export function Designer({ initialText, initialDoc }: DesignerProps) {
+  const [doc, dispatch] = useReducer(
+    designerReducer,
+    initialText,
+    (text) => initialDoc ?? createBadgeDocument(parseSmartInput(text)),
   );
   const [view, setView] = useState<View>("3d");
   const [spinning, setSpinning] = useState(false);
   const [focus, setFocus] = useState<SpinFocus | null>(null);
+  /** Skylten graveras fram en gång när designern öppnas, och igen på begäran. */
+  const [engrave, setEngrave] = useState<number | null>(0);
   const [photo, setPhoto] = useState(false);
   const [photoSamples, setPhotoSamples] = useState(0);
   const fonts = useFontEngine();
   const recorderRef = useRef<BadgeRecorder | null>(null);
   const [recording, setRecording] = useState(false);
-  const [videoNote, setVideoNote] = useState<string | null>(null);
+  const [stageNote, setStageNote] = useState<string | null>(null);
   const visualize = useVisualize(doc);
   const [batchText, setBatchText] = useState("");
   const batchEntries = useMemo(() => parseBatchInput(batchText, Infinity), [batchText]);
@@ -88,12 +98,12 @@ export function Designer({ initialText }: DesignerProps) {
     const recorder = recorderRef.current;
     if (recording || !recorder) return;
     setPhoto(false);
-    setVideoNote(null);
+    setStageNote(null);
     setRecording(true);
     const clip = await recorder.recordTurn(VIDEO_SECONDS).catch(() => null);
     setRecording(false);
     if (!clip) {
-      setVideoNote("Webbläsaren kan inte spela in video — prova Chrome eller Safari.");
+      setStageNote("Webbläsaren kan inte spela in video — prova Chrome eller Safari.");
       return;
     }
     const url = URL.createObjectURL(clip.blob);
@@ -102,7 +112,19 @@ export function Designer({ initialText }: DesignerProps) {
     link.download = videoFileName(doc, clip.extension);
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setVideoNote("3D-filmen är nedladdad.");
+    setStageNote("3D-filmen är nedladdad.");
+  };
+
+  const endEngrave = useCallback(() => setEngrave(null), []);
+
+  const [sharing, setSharing] = useState(false);
+  const share = async () => {
+    if (sharing) return;
+    setSharing(true);
+    setStageNote(null);
+    const note = await shareBadge(doc).catch(() => "Det gick inte att dela just nu. Försök igen.");
+    setSharing(false);
+    setStageNote(note || null);
   };
 
   const toggleSpin = () => {
@@ -117,6 +139,12 @@ export function Designer({ initialText }: DesignerProps) {
     setFocus({ side, key: performance.now() });
   }, [photo]);
   const layout = useMemo(() => layoutBadge(doc, fonts), [doc, fonts]);
+  const moved = Boolean(doc.textOffsetMm || doc.logo?.offsetMm);
+  /** Ritningen visar platshållare för tomma rader — loggan ska inte heller hamna över dem. */
+  const logoOverlapsText = useMemo(
+    () => Boolean(doc.logo) && layoutBadge(withPlaceholders(doc).doc, fonts).logoOverlapsText,
+    [doc, fonts],
+  );
 
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
@@ -156,6 +184,22 @@ export function Designer({ initialText }: DesignerProps) {
               <button
                 type="button"
                 className={`chip ${styles.stageChip}`}
+                title="Se lasern gravera fram skylten"
+                disabled={recording || engrave !== null}
+                onClick={() => {
+                  setPhoto(false);
+                  setEngrave(performance.now());
+                }}
+              >
+                <svg className={styles.chipIcon} viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3v7M9 7l3 3 3-3" />
+                  <path d="M4 20h16M7 16.5l1.5-1.5M17 16.5 15.5 15M12 17v-2" />
+                </svg>
+                Gravera
+              </button>
+              <button
+                type="button"
+                className={`chip ${styles.stageChip}`}
                 title="Vänd skylten och se andra sidan"
                 onClick={() => setFocus({ side: "flip", key: performance.now() })}
               >
@@ -174,6 +218,26 @@ export function Designer({ initialText }: DesignerProps) {
               >
                 <span className={styles.spinDot} data-on={spinning} aria-hidden="true" />
                 Snurra
+              </button>
+              <button
+                type="button"
+                className={`chip ${styles.stageChip}`}
+                title="Dela skylten som bild och länk"
+                disabled={sharing}
+                onClick={() => void share()}
+              >
+                <svg className={styles.chipIcon} viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 15V3M7.5 7.5 12 3l4.5 4.5" />
+                  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
+                </svg>
+                {sharing ? "Skapar bild…" : "Dela"}
+              </button>
+            </div>
+          )}
+          {view === "drawing" && moved && (
+            <div className={styles.stageActions}>
+              <button type="button" className={`chip ${styles.stageChip}`} onClick={() => update({ type: "move/reset" })}>
+                Återställ placering
               </button>
             </div>
           )}
@@ -194,6 +258,8 @@ export function Designer({ initialText }: DesignerProps) {
                 fonts={fonts}
                 spinning={spinning}
                 focus={focus}
+                engrave={engrave}
+                onEngraveDone={endEngrave}
                 photo={photo}
                 photoSamples={PHOTO_SAMPLES}
                 onPhotoProgress={setPhotoSamples}
@@ -201,7 +267,7 @@ export function Designer({ initialText }: DesignerProps) {
               />
             ) : view === "drawing" ? (
               <div className={styles.drawing}>
-                <BadgePreview doc={doc} showDimensions />
+                <BadgeEditor doc={doc} fonts={fonts} dispatch={update} />
               </div>
             ) : (
               <VisualizeView state={visualize} />
@@ -213,9 +279,9 @@ export function Designer({ initialText }: DesignerProps) {
           <p className={`mono ${styles.spec}`}>
             {doc.size.widthMm} × {doc.size.heightMm} mm · {material.name} · {color.name}
           </p>
-          {view === "3d" && (recording || videoNote) ? (
+          {view === "3d" && (recording || stageNote) ? (
             <p className={styles.hint} role="status">
-              {recording ? "Spelar in 3D-film — rör inte skylten" : videoNote}
+              {recording ? "Spelar in 3D-film — rör inte skylten" : stageNote}
             </p>
           ) : view === "3d" && photo ? (
             <p className={`mono ${styles.hint}`} aria-live="polite">
@@ -223,8 +289,18 @@ export function Designer({ initialText }: DesignerProps) {
                 ? "Strålspårad · klar"
                 : `Strålspårar · ${Math.round((photoSamples / PHOTO_SAMPLES) * 100)} %`}
             </p>
+          ) : view === "drawing" ? (
+            <p className={styles.hint} data-severity={logoOverlapsText ? "warning" : undefined} role="status">
+              {logoOverlapsText
+                ? "Loggan ligger över texten — dra isär dem så att båda syns i gravyren."
+                : `Dra texten eller loggan. Streckad linje = säkerhetsmarginal, ${layout.contentInsetMm.toLocaleString("sv-SE")} mm.`}
+            </p>
+          ) : view === "3d" && logoOverlapsText ? (
+            <p className={styles.hint} data-severity="warning" role="status">
+              Loggan ligger över texten — flytta isär dem under Ritning.
+            </p>
           ) : (
-            view === "3d" && <p className={styles.hint}>Dra för att vrida skylten</p>
+            view === "3d" && <p className={styles.hint}>Dra för att vrida skylten · flytta text och logga under Ritning</p>
           )}
         </footer>
         {view === "3d" && recording && (
@@ -250,6 +326,7 @@ export function Designer({ initialText }: DesignerProps) {
             <h1 className={styles.panelTitle}>Din namnskylt</h1>
           </div>
           <TextSection doc={doc} layout={layout} dispatch={update} />
+          <LogoSection doc={doc} dispatch={update} onWorkplace={visualize.setWorkplace} />
           <MaterialSection doc={doc} dispatch={update} />
           <FormatSection doc={doc} dispatch={update} />
           <MountingSection doc={doc} dispatch={update} />

@@ -25,6 +25,7 @@ const AREA_PRICE_SEK_PER_CM2 = 0.9;
 const BASE_AREA_CM2 = 17.5;
 const EXTRA_ROW_SEK = 6;
 const FRAME_SEK = 5;
+const LOGO_SEK = 9;
 const VAT_RATE = 0.25;
 
 export interface PriceBreakdown {
@@ -52,6 +53,7 @@ function listPriceSek(doc: BadgeDocument): number {
     extraArea * AREA_PRICE_SEK_PER_CM2 +
     extraRows * EXTRA_ROW_SEK +
     (doc.frame.style === "none" ? 0 : FRAME_SEK) +
+    (doc.logo ? LOGO_SEK : 0) +
     getMounting(doc.mounting).priceSek
   );
 }

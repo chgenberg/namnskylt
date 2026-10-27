@@ -15,7 +15,7 @@ interface BadgePreviewProps {
 }
 
 /** Tomma rader ritas som grå platshållare så kunden ser var texten hamnar. */
-function withPlaceholders(doc: BadgeDocument): { doc: BadgeDocument; ids: Set<string> } {
+export function withPlaceholders(doc: BadgeDocument): { doc: BadgeDocument; ids: Set<string> } {
   const ids = new Set<string>();
   const rows = doc.rows.map((row, i) => {
     if (row.text.trim()) return row;

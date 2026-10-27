@@ -4,14 +4,20 @@ import { badgeDocumentSchema } from "@/engine";
 import { renderBadgePng } from "@/lib/ai/badge-image";
 import { aiUnavailable, generationFailed, takeGenerations, tooManyRequests } from "@/lib/ai/limits";
 import { editImage, guessWearer, openai } from "@/lib/ai/openai";
-import { UNKNOWN_WEARER, badgeName, personaPrompt } from "@/lib/ai/prompts";
+import { MAX_WORKPLACE_CHARS, UNKNOWN_WEARER, badgeName, cleanWorkplace, personaPrompt } from "@/lib/ai/prompts";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
 
-const requestSchema = z.object({ badge: badgeDocumentSchema });
+const requestSchema = z.object({
+  badge: badgeDocumentSchema,
+  workplace: z.string().max(MAX_WORKPLACE_CHARS * 2).optional(),
+});
 
-/** En genererad svensk person som bär skylten — kön och ålder efter namnet på den. */
+/**
+ * En genererad svensk person som bär skylten — kön och ålder efter namnet på
+ * den, i kundens arbetsmiljö när den är angiven.
+ */
 export async function POST(request: Request) {
   const ai = openai();
   if (!ai) return aiUnavailable();
@@ -20,7 +26,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Ogiltig skylt" }, { status: 400 });
   if (!takeGenerations(request, 1)) return tooManyRequests();
 
-  const { badge } = parsed.data;
+  const { badge, workplace } = parsed.data;
   try {
     const name = badgeName(badge);
     const [png, wearer] = await Promise.all([
@@ -28,7 +34,7 @@ export async function POST(request: Request) {
       name ? guessWearer(ai, name) : Promise.resolve(UNKNOWN_WEARER),
     ]);
     const image = await editImage(ai, {
-      prompt: personaPrompt(badge, wearer),
+      prompt: personaPrompt(badge, wearer, cleanWorkplace(workplace)),
       images: [{ data: png, name: "badge.png", type: "image/png" }],
       size: "1024x1536",
       quality: "medium",

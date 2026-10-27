@@ -47,12 +47,13 @@ export function outlinePath(doc: BadgeDocument, inset: Mm = 0): string {
 
 /**
  * Tillgänglig halvbredd på höjden `y0…y1` inuti konturen indragen `inset`.
- * På en oval krymper bredden mot över- och underkant; en rak skylt har samma
- * bredd hela vägen.
+ * På en oval och i rundade hörn krymper bredden mot över- och underkant; en
+ * rak skylt har samma bredd hela vägen.
  */
 export function availableHalfWidth(doc: BadgeDocument, inset: Mm, y0: Mm, y1: Mm): Mm {
   const halfW = doc.size.widthMm / 2 - inset;
   if (halfW <= 0) return 0;
+  if (doc.shape === "rounded") return roundedHalfWidth(doc, inset, halfW, y0, y1);
   if (doc.shape !== "oval") return halfW;
 
   const cy = doc.size.heightMm / 2;
@@ -61,4 +62,15 @@ export function availableHalfWidth(doc: BadgeDocument, inset: Mm, y0: Mm, y1: Mm
   const dy = Math.max(Math.abs(y0 - cy), Math.abs(y1 - cy));
   const t = Math.min(1, dy / halfH);
   return halfW * Math.sqrt(1 - t * t);
+}
+
+/** Samma indragna hörnbåge som `outlinePath(doc, inset)` ritar. */
+function roundedHalfWidth(doc: BadgeDocument, inset: Mm, halfW: Mm, y0: Mm, y1: Mm): Mm {
+  const halfH = doc.size.heightMm / 2 - inset;
+  const r = Math.max(0, Math.min(effectiveCornerRadius(doc) - inset, halfW, halfH));
+  if (r === 0) return halfW;
+  const arcTop = inset + r;
+  const arcBottom = doc.size.heightMm - inset - r;
+  const dy = Math.min(r, Math.max(0, arcTop - y0, y1 - arcBottom));
+  return halfW - r + Math.sqrt(r * r - dy * dy);
 }

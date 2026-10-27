@@ -1,6 +1,13 @@
 import { z } from "zod";
-import { MATERIALS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
+import { LOGO_LIMITS, MATERIALS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
+import { LOGO_PATH_PATTERN } from "./logo";
 import type { BadgeDocument } from "./types";
+
+/** Förflyttningen hålls inom skylten av layouten; schemat stoppar bara orimliga tal. */
+const offsetSchema = z.object({
+  xMm: z.number().finite().min(-SIZE_LIMITS.maxWidthMm).max(SIZE_LIMITS.maxWidthMm),
+  yMm: z.number().finite().min(-SIZE_LIMITS.maxHeightMm).max(SIZE_LIMITS.maxHeightMm),
+});
 
 /** Körs både i designern och i API:t — servern litar aldrig på klientens dokument. */
 export const badgeDocumentSchema = z
@@ -32,6 +39,17 @@ export const badgeDocumentSchema = z
       )
       .min(1)
       .max(TEXT_LIMITS.maxRows),
+    textOffsetMm: offsetSchema.optional(),
+    logo: z
+      .object({
+        d: z.string().min(1).max(LOGO_LIMITS.maxPathChars).regex(LOGO_PATH_PATTERN),
+        viewWidth: z.number().positive().max(LOGO_LIMITS.maxViewSize),
+        viewHeight: z.number().positive().max(LOGO_LIMITS.maxViewSize),
+        placement: z.enum(["left", "right", "top"]),
+        heightMm: z.number().min(LOGO_LIMITS.minHeightMm).max(LOGO_LIMITS.maxHeightMm),
+        offsetMm: offsetSchema.optional(),
+      })
+      .optional(),
     mounting: z.enum(["pin", "magnet", "clip", "safety-pin"]),
     quantity: z.number().int().min(1).max(10_000),
   })
