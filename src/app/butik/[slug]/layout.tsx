@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { ShopFrame } from "@/features/shop/shop-frame";
+import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { databaseConfigured } from "@/lib/orders/repository";
 import { SHOP_SLUG } from "@/lib/shops/model";
 import { getShop } from "@/lib/shops/repository";
@@ -31,5 +32,10 @@ export const dynamic = "force-dynamic";
 export default async function ShopLayout({ children, params }: ShopLayoutProps) {
   const shop = await loadShop((await params).slug);
   if (!shop) notFound();
-  return <ShopFrame shop={shop}>{children}</ShopFrame>;
+  const plate = (await isLightLogo(shop.profile.logo)) ? darkPlate(shop.profile.primaryColor) : null;
+  return (
+    <ShopFrame shop={shop} logoPlate={plate}>
+      {children}
+    </ShopFrame>
+  );
 }

@@ -7,7 +7,14 @@ import styles from "./shop.module.css";
 export const shopPath = (shop: Pick<Shop, "slug">, rest = "") => `/butik/${shop.slug}${rest}`;
 
 /** Butikens skal: deras färger och typsnitt över hela sidan, deras logga och uppgifter runt om. */
-export function ShopFrame({ shop, children }: { shop: Shop; children: ReactNode }) {
+interface ShopFrameProps {
+  shop: Shop;
+  /** Vit logga på genomskinlig botten — läggs på en mörk platta så att den syns. */
+  logoPlate: string | null;
+  children: ReactNode;
+}
+
+export function ShopFrame({ shop, logoPlate, children }: ShopFrameProps) {
   const { profile } = shop;
   return (
     <div className={styles.frame} style={shopThemeVars(shop) as CSSProperties}>
@@ -22,7 +29,13 @@ export function ShopFrame({ shop, children }: { shop: Shop; children: ReactNode 
           <Link href={shopPath(shop)} className={styles.brand} aria-label={`${profile.name} — till startsidan`}>
             {profile.logo ? (
               // eslint-disable-next-line @next/next/no-img-element -- data-URL ur butikens profil
-              <img src={profile.logo} alt={profile.name} className={styles.logo} />
+              <img
+                src={profile.logo}
+                alt={profile.name}
+                className={styles.logo}
+                data-plate={logoPlate ? "" : undefined}
+                style={logoPlate ? { background: logoPlate } : undefined}
+              />
             ) : (
               <span className={styles.brandName}>{profile.name}</span>
             )}

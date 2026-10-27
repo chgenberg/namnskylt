@@ -1,5 +1,6 @@
 import { clientKey, createRateLimiter } from "@/lib/ai/rate-limit";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
+import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
 import { htmlToPdf } from "@/lib/pdf/html-to-pdf";
 import { quoteHtml } from "@/lib/quotes/document";
@@ -19,7 +20,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
 
   try {
     const [fonts, company] = await Promise.all([loadNodeFontEngine(), getCompanyProfile()]);
-    const pdf = await htmlToPdf(quoteHtml(quote, fonts, company));
+    const plate = (await isLightLogo(company.logo)) ? darkPlate(company.primaryColor) : null;
+    const pdf = await htmlToPdf(quoteHtml(quote, fonts, company, plate));
     return new Response(new Uint8Array(pdf), {
       headers: {
         "content-type": "application/pdf",

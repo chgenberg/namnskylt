@@ -47,6 +47,12 @@
   object-fit: contain;
 }
 
+.logo[data-plate] {
+  max-height: 44px;
+  padding: 6px 12px;
+  border-radius: 10px;
+}
+
 .brandName {
   font-size: var(--text-lg);
   font-weight: 700;

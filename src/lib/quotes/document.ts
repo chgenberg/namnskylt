@@ -37,12 +37,18 @@ function badgeSpec(quote: StoredQuote, index: number): string {
  * Offerten som fristående A4-HTML — samma dokument blir PDF:en. Skyltarna är
  * inbäddade SVG med glyferna som konturer, så inget behöver hämtas.
  */
-export function quoteHtml(quote: StoredQuote, fonts: FontEngine, company: CompanyProfile = DEFAULT_COMPANY): string {
+export function quoteHtml(
+  quote: StoredQuote,
+  fonts: FontEngine,
+  company: CompanyProfile = DEFAULT_COMPANY,
+  /** Färgen bakom en vit logga, så att den syns på det vita papperet. */
+  logoPlate: string | null = null,
+): string {
   const primary = company.primaryColor;
   const accent = company.accentColor;
   const onPrimary = readableOn(primary);
   const brand = company.logo
-    ? `<img class="logo" src="${esc(company.logo)}" alt="${esc(company.name)}">`
+    ? `<img class="logo${logoPlate ? " plate" : ""}" src="${esc(company.logo)}" alt="${esc(company.name)}"${logoPlate ? ` style="background:${logoPlate}"` : ""}>`
     : `<div class="brand">${esc(company.name)}${company.tagline ? `<small>${esc(company.tagline)}</small>` : ""}</div>`;
   const footer = companyFooter(company);
   const priced = priceWithPricing(quote.badges, quote.pricing);
@@ -75,6 +81,7 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Aria
 .page{width:210mm;min-height:297mm;padding:15mm 15mm 12mm;display:flex;flex-direction:column}
 .top{display:flex;justify-content:space-between;align-items:flex-start}
 .logo{display:block;max-width:62mm;max-height:16mm;object-fit:contain;object-position:left top}
+.logo.plate{box-sizing:content-box;padding:2.5mm 4mm;border-radius:3mm}
 .brand{font-size:17px;font-weight:700;letter-spacing:-.01em}.brand small{display:block;margin-top:1mm;font-size:8.5px;font-weight:400;color:#6b7280;letter-spacing:0}
 .ref{text-align:right;font-size:9px;color:#6b7280}.ref b{display:block;font-size:12px;color:${primary}}
 .eyebrow{margin:10mm 0 0;font-size:8px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#6b7280}

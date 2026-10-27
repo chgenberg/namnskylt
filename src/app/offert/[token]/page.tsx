@@ -7,6 +7,7 @@ import { formatDay, formatSek } from "@/features/orders/format";
 import { QuoteDecision } from "@/features/quote-public/quote-decision";
 import styles from "@/features/quote-public/quote-public.module.css";
 import { companyFooter, readableOn } from "@/lib/company/profile";
+import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import { displayStatus } from "@/lib/quotes/model";
@@ -28,6 +29,7 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
   const { token } = await params;
   const [quote, company] = await Promise.all([getQuoteByToken(token), getCompanyProfile()]);
   if (!quote || quote.status === "cancelled") notFound();
+  const plate = (await isLightLogo(company.logo)) ? darkPlate(company.primaryColor) : null;
   const brand = {
     "--brand": company.primaryColor,
     "--brand-on": readableOn(company.primaryColor),
@@ -54,7 +56,12 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
       <div className={styles.inner}>
         {company.logo ? (
           // eslint-disable-next-line @next/next/no-img-element -- data-URL ur inställningarna
-          <img src={company.logo} alt={company.name} className={styles.logo} />
+          <img
+            src={company.logo}
+            alt={company.name}
+            className={styles.logo}
+            style={plate ? { background: plate, padding: "6px 12px", borderRadius: 10 } : undefined}
+          />
         ) : company.name === "namnskylt.com" ? (
           <Image src="/logo-namnskylt.png" alt="namnskylt.com" width={1024} height={328} className={styles.logo} priority />
         ) : (

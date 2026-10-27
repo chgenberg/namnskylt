@@ -4,6 +4,7 @@ import { ShopCardActions } from "@/features/admin/shop-card-actions";
 import styles from "@/features/admin/admin.module.css";
 import { formatDate } from "@/features/orders/format";
 import { siteOrigin } from "@/lib/http/origin";
+import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { listShops } from "@/lib/shops/repository";
 
 /** Bygget läser hemsidan via en server action härifrån och kan ta en halv minut. */
@@ -12,6 +13,11 @@ export const maxDuration = 60;
 export default async function ShopsPage() {
   if (!(await canViewAdmin())) return null;
   const [shops, origin] = await Promise.all([listShops(), siteOrigin()]);
+  const lightLogos = new Set(
+    (await Promise.all(shops.map(async ({ shop }) => ((await isLightLogo(shop.profile.logo)) ? shop.slug : null)))).filter(
+      (slug): slug is string => slug !== null,
+    ),
+  );
   return (
     <>
       <header className={styles.pageHead}>
@@ -45,7 +51,10 @@ export default async function ShopsPage() {
                 className={styles.shopBanner}
                 style={{ background: `linear-gradient(135deg, ${shop.profile.primaryColor}, ${shop.profile.accentColor})` }}
               >
-                <div className={styles.shopLogo}>
+                <div
+                  className={styles.shopLogo}
+                  style={lightLogos.has(shop.slug) ? { background: darkPlate(shop.profile.primaryColor) } : undefined}
+                >
                   {shop.profile.logo ? (
                     // eslint-disable-next-line @next/next/no-img-element -- liten logga, ingen optimering behövs
                     <img src={`/butik/${shop.slug}/logo`} alt="" loading="lazy" decoding="async" />
