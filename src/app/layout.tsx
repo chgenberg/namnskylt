@@ -21,8 +21,8 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
 };
 
-/** Kunder öppnar korrektur via en hemlig länk — den är deras behörighet, inte sajtkoden. */
-const OPEN_PATHS = ["/korrektur/"];
+/** Kunder öppnar korrektur och offerter via en hemlig länk — den är deras behörighet, inte sajtkoden. */
+const OPEN_PATHS = ["/korrektur/", "/offert/"];
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const pathname = (await headers()).get("x-pathname") ?? "";

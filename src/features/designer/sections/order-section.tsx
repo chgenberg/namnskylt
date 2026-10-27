@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState, type Dispatch, type FormEvent } from "react";
 import { ProgressBanner } from "@/components/ui/progress-banner";
 import { QUANTITY_TIERS, badgeDocumentSchema, isPartnerMade, priceOrder, type BadgeDocument } from "@/engine";
+import type { ResellerOrderContext } from "../reseller";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
@@ -34,9 +35,10 @@ interface OrderSectionProps {
   /** Allt som beställs: `doc` först, sedan skyltarna med samma design. */
   badges: readonly BadgeDocument[];
   dispatch: Dispatch<DesignerAction>;
+  reseller?: ResellerOrderContext;
 }
 
-export function OrderSection({ doc, badges, dispatch }: OrderSectionProps) {
+export function OrderSection({ doc, badges, dispatch, reseller }: OrderSectionProps) {
   const [order, setOrder] = useState<OrderState>({ status: "idle" });
   const price = priceOrder(badges);
   const names = badges.length;
@@ -44,6 +46,26 @@ export function OrderSection({ doc, badges, dispatch }: OrderSectionProps) {
   const nextTier = [...QUANTITY_TIERS].reverse().find((t) => t.minQuantity > price.quantity);
   const valid = badges.every((badge) => badgeDocumentSchema.safeParse(badge).success);
   const partnerMade = isPartnerMade(doc.materialId);
+
+  /** Återförsäljaren: ordern eller offerten läggs på kunden och panelen öppnar den. */
+  async function submitForCustomer(context: ResellerOrderContext) {
+    setOrder({ status: "sending" });
+    const quote = context.mode === "quote";
+    try {
+      const response = await fetch(quote ? "/api/admin/quotes" : "/api/admin/orders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ customerId: context.customerId, badges }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "Något gick fel");
+      window.location.href = quote
+        ? `/admin/offerter/${encodeURIComponent(body.quoteNo)}`
+        : `/admin/ordrar/${encodeURIComponent(body.orderNumber)}`;
+    } catch (error) {
+      setOrder({ status: "error", message: error instanceof Error ? error.message : "Något gick fel" });
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -131,7 +153,7 @@ export function OrderSection({ doc, badges, dispatch }: OrderSectionProps) {
             exkl. moms · {nextTier ? `Mängdrabatt från ${nextTier.minQuantity} st` : "Högsta mängdrabatt"}
           </p>
         </div>
-        {order.status === "idle" || order.status === "error" ? (
+        {!reseller && (order.status === "idle" || order.status === "error") ? (
           <button
             type="button"
             className="btn btn--primary btn--lg"
@@ -143,8 +165,25 @@ export function OrderSection({ doc, badges, dispatch }: OrderSectionProps) {
         ) : null}
       </div>
 
+      {reseller && (
+        <button
+          type="button"
+          className="btn btn--primary btn--lg btn--block"
+          disabled={!valid || order.status === "sending"}
+          onClick={() => void submitForCustomer(reseller)}
+        >
+          {order.status === "sending"
+            ? reseller.mode === "quote"
+              ? "Skapar offerten…"
+              : "Lägger ordern…"
+            : reseller.mode === "quote"
+              ? `Skapa offert till ${reseller.customerName}`
+              : `Lägg order åt ${reseller.customerName}`}
+        </button>
+      )}
+
       <AnimatePresence initial={false}>
-        {(order.status === "form" || order.status === "sending") && (
+        {!reseller && (order.status === "form" || order.status === "sending") && (
           <motion.form
             key="form"
             className={styles.orderForm}
@@ -169,7 +208,7 @@ export function OrderSection({ doc, badges, dispatch }: OrderSectionProps) {
       </AnimatePresence>
 
       <ProgressBanner
-        active={order.status === "sending"}
+        active={order.status === "sending" && !reseller}
         failed={order.status === "error"}
         title={partnerMade ? "Skickar förfrågan" : "Skickar ordern"}
         expectedMs={ORDER_EXPECTED_MS}

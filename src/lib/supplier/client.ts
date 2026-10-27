@@ -1,8 +1,11 @@
 import "server-only";
-import type { SupplierClient, SupplierOrderReceipt, SupplierOrderRequest } from "./types";
+import { supplierOrderStateSchema } from "./status";
+import type { SupplierClient, SupplierOrderReceipt, SupplierOrderRequest, SupplierOrderState } from "./types";
 
 const PRODUCTION_DAYS = 5;
 const REQUEST_TIMEOUT_MS = 15_000;
+/** Statusen hämtas när sidan visas — den får inte hålla upp sidan länge. */
+const STATUS_TIMEOUT_MS = 4_000;
 
 function shipDate(fromDate: Date, workingDays: number): string {
   const date = new Date(fromDate);
@@ -22,6 +25,10 @@ class MockSupplierClient implements SupplierClient {
       status: "mock",
       estimatedShipDate: shipDate(new Date(), PRODUCTION_DAYS),
     };
+  }
+
+  async getOrder(_orderNumber: string): Promise<SupplierOrderState | null> {
+    return null;
   }
 }
 
@@ -47,6 +54,21 @@ class HttpSupplierClient implements SupplierClient {
     }
     return (await response.json()) as SupplierOrderReceipt;
   }
+
+  async getOrder(orderNumber: string): Promise<SupplierOrderState | null> {
+    const response = await fetch(new URL(`/orders/${encodeURIComponent(orderNumber)}`, this.baseUrl), {
+      headers: { authorization: `Bearer ${this.apiKey}` },
+      signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
+      cache: "no-store",
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`Leverantören svarade ${response.status}`);
+    return supplierOrderStateSchema.parse(await response.json());
+  }
+}
+
+export function supplierApiConfigured(): boolean {
+  return !!process.env.SUPPLIER_API_URL && !!process.env.SUPPLIER_API_KEY;
 }
 
 export function createSupplierClient(): SupplierClient {

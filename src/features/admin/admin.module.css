@@ -1125,13 +1125,20 @@
   gap: var(--space-4);
 }
 
+/* Knappen längst ned, så att korten bredvid varandra får knapparna i linje oavsett textlängd. */
 .exportCard {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--space-3);
-  align-content: start;
+}
+
+.exportCard > button[type="submit"] {
+  margin-top: auto;
 }
 
 .exportIcon {
+  align-self: flex-start;
   display: grid;
   place-items: center;
   width: 48px;
@@ -1139,6 +1146,299 @@
   border-radius: 14px;
   background: #eef3fb;
   color: #1f4db3;
+}
+
+/* ───────────── Skapa order ───────────── */
+
+.createButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 42px;
+  border-radius: 12px;
+  background: #fff;
+  color: #0b1f3a;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  box-shadow: 0 8px 20px -10px rgb(0 0 0 / 0.5);
+  transition: transform var(--duration-fast);
+}
+
+.createButton:hover {
+  transform: translateY(-1px);
+}
+
+.createSecondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  margin-top: calc(-1 * var(--space-3));
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: background var(--duration-fast);
+}
+
+.createSecondary:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+
+.startOrder {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 760px;
+}
+
+.stepHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.stepNo {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #0b1f3a;
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.customerPick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-2);
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.customerOption {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: 14px;
+  background: #f6f6f3;
+  text-align: left;
+  box-shadow: inset 0 0 0 1px rgb(10 10 11 / 0.06);
+  transition: box-shadow var(--duration-fast), background var(--duration-fast);
+}
+
+.customerOption:hover {
+  box-shadow: inset 0 0 0 1px rgb(10 10 11 / 0.18);
+}
+
+.customerOption[aria-checked="true"] {
+  background: #eef3fb;
+  box-shadow:
+    inset 0 0 0 1.5px #1f4db3,
+    0 0 0 4px var(--navy-halo);
+}
+
+.customerOption .muted {
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.formWide {
+  grid-column: 1 / -1;
+}
+
+/* ───────────── Priser ───────────── */
+
+.priceTable {
+  display: grid;
+}
+
+.priceHead,
+.priceRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 130px 110px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.priceHead {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.priceRow {
+  border-bottom: 1px solid var(--color-line);
+}
+
+.priceInput {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: #f6f6f3;
+  box-shadow: inset 0 0 0 1px rgb(10 10 11 / 0.1);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.priceInput:focus-within {
+  box-shadow:
+    inset 0 0 0 1px var(--color-navy-3),
+    0 0 0 4px var(--navy-halo);
+}
+
+.priceInput input {
+  width: 64px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-family: var(--font-mono);
+  color: var(--color-ink);
+  text-align: right;
+}
+
+.priceInput input:focus-visible {
+  box-shadow: none;
+}
+
+.priceFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin-top: var(--space-2);
+}
+
+.priceFoot .summary {
+  min-width: 240px;
+}
+
+.discountField {
+  display: grid;
+  gap: 6px;
+}
+
+.discountText {
+  color: #0b7a4b;
+}
+
+/* ───────────── Offerter ───────────── */
+
+.quoteFlow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-5);
+}
+
+.quoteStep {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(10 10 11 / 0.08);
+  font-size: var(--text-sm);
+  color: var(--color-subtle);
+}
+
+.quoteStep[data-state="done"] {
+  background: #0b1f3a;
+  color: #fff;
+  box-shadow: none;
+}
+
+.quoteStep[data-state="current"] {
+  color: #0b1f3a;
+  font-weight: 600;
+  box-shadow:
+    0 0 0 1.5px #0b1f3a,
+    0 0 0 5px rgb(11 31 58 / 0.08);
+}
+
+.quoteStep[data-state="off"] {
+  background: #f6e8e8;
+  color: #a12b2b;
+  box-shadow: none;
+}
+
+.status[data-status="draft"] {
+  background: #eef0f4;
+  color: #3b4452;
+}
+
+.status[data-status="sent"] {
+  background: #fdf1dc;
+  color: #a35a00;
+}
+
+.status[data-status="accepted"] {
+  background: #e5f5ee;
+  color: #0b7a4b;
+}
+
+.status[data-status="declined"],
+.status[data-status="expired"] {
+  background: #f6e8e8;
+  color: #a12b2b;
+}
+
+.callout {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-radius: 16px;
+  background: #f6f6f3;
+  font-size: var(--text-sm);
+}
+
+.callout[data-tone="good"] {
+  background: #e5f5ee;
+  color: #0b5a38;
+}
+
+.callout[data-tone="warn"] {
+  background: #fbf3dc;
+  color: #5c3d00;
+}
+
+.eventList {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.eventList li {
+  display: grid;
+  gap: 2px;
+  padding-left: var(--space-4);
+  border-left: 2px solid #e3e3de;
 }
 
 /* ───────────── Demodata ───────────── */
@@ -1300,4 +1600,27 @@
     animation: none;
     transition: none;
   }
+}
+
+.syncNote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 var(--space-4);
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.syncNote::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: #c8cbd2;
+}
+
+.syncNote[data-link="connected"]::before {
+  background: #2f9e62;
+  box-shadow: 0 0 0 3px rgb(47 158 98 / 0.15);
 }

@@ -90,6 +90,36 @@ export interface SupplierOrderReceipt {
   estimatedShipDate: string;
 }
 
+/**
+ * Leverantörens orderstatusar, samma koder som i deras system
+ * (`packages/shared/src/order.ts` i skyltmotorn).
+ */
+export const SUPPLIER_ORDER_STATUSES = [
+  "draft",
+  "submitted",
+  "in_review",
+  "in_production",
+  "completed",
+  "shipped",
+  "delivered",
+  "cancelled",
+] as const;
+export type SupplierOrderStatus = (typeof SUPPLIER_ORDER_STATUSES)[number];
+
+/**
+ * Orderns läge hos leverantören. Svaret på `GET /orders/{orderNumber}` och
+ * kroppen i webhooken `order.status_changed` mot `/api/supplier/webhook`.
+ */
+export interface SupplierOrderState {
+  orderNumber: string;
+  status: SupplierOrderStatus;
+  trackingUrl?: string | null;
+  /** När statusen sattes hos leverantören (ISO 8601). */
+  changedAt: string;
+}
+
 export interface SupplierClient {
   placeOrder(request: SupplierOrderRequest): Promise<SupplierOrderReceipt>;
+  /** `null` när leverantören inte känner till ordern. */
+  getOrder(orderNumber: string): Promise<SupplierOrderState | null>;
 }

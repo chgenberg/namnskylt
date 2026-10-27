@@ -1,0 +1,40 @@
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
+import { placeOrder } from "@/lib/orders/place-order";
+import { databaseConfigured, getCustomer } from "@/lib/orders/repository";
+import { resellerPass } from "@/lib/reseller-auth/session";
+
+export const runtime = "nodejs";
+
+const requestSchema = z.object({
+  customerId: z.uuid(),
+  badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
+});
+
+/** Återförsäljaren lägger en order åt en kund — samma väg till tillverkningen som webbshoppen. */
+export async function POST(request: Request) {
+  if (!(await resellerPass.verify((await cookies()).get(resellerPass.cookie)?.value))) {
+    return NextResponse.json({ error: "Inte inloggad" }, { status: 401 });
+  }
+  if (!databaseConfigured()) return NextResponse.json({ error: "Databasen är inte kopplad" }, { status: 503 });
+  const parsed = requestSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) return NextResponse.json({ error: "Ogiltig order" }, { status: 400 });
+
+  const customer = await getCustomer(parsed.data.customerId);
+  if (!customer) return NextResponse.json({ error: "Kunden finns inte" }, { status: 404 });
+  try {
+    const receipt = await placeOrder({
+      customer,
+      badges: parsed.data.badges,
+      source: "reseller",
+      note: "Lagd av återförsäljaren",
+      demo: customer.demo,
+    });
+    return NextResponse.json(receipt, { status: 201 });
+  } catch (error) {
+    console.error("Återförsäljarens order kunde inte läggas", error);
+    return NextResponse.json({ error: "Tillverkningen kunde inte ta emot ordern" }, { status: 502 });
+  }
+}

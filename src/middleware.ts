@@ -14,7 +14,8 @@ export async function middleware(request: NextRequest) {
     headers.set(PATHNAME_HEADER, pathname);
     return NextResponse.next({ request: { headers } });
   }
-  if (pathname === "/api/gate") return NextResponse.next();
+  // Webhooken anropas av leverantörens server, som saknar kakan — den kräver i stället signatur.
+  if (pathname === "/api/gate" || pathname === "/api/supplier/webhook") return NextResponse.next();
   if (await isValidGateCookie(request.cookies.get(GATE_COOKIE)?.value)) return NextResponse.next();
   return NextResponse.json({ error: "Sajten är låst" }, { status: 401 });
 }

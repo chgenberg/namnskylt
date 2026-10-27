@@ -45,7 +45,12 @@ export default async function CustomerPage({ params }: CustomerPageProps) {
             </a>
           </p>
         </div>
-        {latest && <RepeatButton order={latest} />}
+        <div className={styles.actionBar}>
+          <Link href={`/admin/ny-order?kund=${customer.id}`} className={styles.ghostButton}>
+            + Ny order
+          </Link>
+          {latest && <RepeatButton order={latest} />}
+        </div>
       </header>
 
       <div className={styles.kpis}>

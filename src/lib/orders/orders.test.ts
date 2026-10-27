@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createBadgeDocument, withTexts, type BadgeDocument } from "@/engine";
+import { createBadgeDocument, priceOrder, withTexts, type BadgeDocument } from "@/engine";
 import { invoiceCsv, ordersCsv } from "./csv";
 import { demoPlan } from "./demo-data";
 import { DEMO_ORDERS } from "./demo-orders";
 import { stepTimes, type StoredOrder } from "./model";
+import { isCustomPricing, priceWithPricing } from "./pricing";
 import { repeatBadges, staffBadges } from "./repeat";
 import { orderStats } from "./stats";
 
@@ -14,7 +15,7 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
   return {
     id: "o1",
     orderNo: "NS-1",
-    customer: { id: "c1", name: "Anna", company: "Kafé; Ett", email: "anna@example.se", demo: false },
+    customer: { id: "c1", name: "Anna", company: "Kafé; Ett", email: "anna@example.se", phone: null, orgNumber: null, address: null, demo: false },
     status: "received",
     badges: [plastic],
     totalSek: 100,
@@ -26,6 +27,8 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     repeatOfOrderNo: null,
     placedAt: "2026-10-26T10:00:00Z",
     events: [],
+    supplierSyncedAt: null,
+    pricing: null,
     demo: false,
     ...patch,
   };
@@ -58,7 +61,7 @@ describe("statistik", () => {
   const orders = [
     order({ id: "a", placedAt: "2026-10-26T10:00:00Z", totalSek: 300 }),
     order({ id: "b", placedAt: "2026-10-20T10:00:00Z", totalSek: 100 }),
-    order({ id: "c", customer: { id: "c2", name: "Bo", company: null, email: "bo@x.se", demo: false }, totalSek: 200 }),
+    order({ id: "c", customer: { id: "c2", name: "Bo", company: null, email: "bo@x.se", phone: null, orgNumber: null, address: null, demo: false }, totalSek: 200 }),
     order({ id: "d", status: "cancelled", totalSek: 9999 }),
   ];
   const stats = orderStats(orders, now, 4);
@@ -98,6 +101,37 @@ describe("export", () => {
     assert.equal(lines.length, 3);
     assert.match(lines[1] ?? "", /Namnskylt: Anna Lind \/ Säljare/);
     assert.match(lines[2] ?? "", /;3;/);
+  });
+});
+
+describe("egna priser", () => {
+  const badges = [
+    { ...plastic, quantity: 2 },
+    { ...withTexts(plastic, ["Bo"]), quantity: 3 },
+  ];
+
+  it("utan prissättning blir det listpris, samma som motorn", () => {
+    const priced = priceWithPricing(badges);
+    assert.equal(priced.totalSek, priceOrder(badges).totalSek);
+    assert.equal(priced.discountSek, 0);
+    assert.ok(priced.lines.every((l) => !l.overridden));
+  });
+
+  it("à-pris per skylt och rabatt på summan", () => {
+    const priced = priceWithPricing(badges, { unitOverrides: [50, null], discountPercent: 10 });
+    const second = priced.lines[1];
+    assert.ok(second);
+    assert.equal(priced.lines[0]?.totalSek, 100);
+    assert.equal(priced.subtotalSek, 100 + second.listUnitSek * 3);
+    assert.equal(priced.discountSek, Math.round(priced.subtotalSek * 0.1));
+    assert.equal(priced.totalSek, priced.subtotalSek - priced.discountSek);
+    assert.equal(priced.totalInclVatSek, priced.totalSek + Math.round(priced.totalSek * 0.25));
+    assert.equal(priced.lines[0]?.overridden, true);
+  });
+
+  it("sparar bara prissättning som avviker", () => {
+    assert.equal(isCustomPricing({ unitOverrides: [null, null], discountPercent: 0 }), false);
+    assert.equal(isCustomPricing({ unitOverrides: [], discountPercent: 5 }), true);
   });
 });
 

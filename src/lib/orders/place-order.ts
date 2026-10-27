@@ -5,6 +5,7 @@ import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { createSupplierClient } from "@/lib/supplier/client";
 import { toSupplierSignDocument } from "@/lib/supplier/map";
 import type { OrderSource } from "./model";
+import type { Pricing } from "./pricing";
 import { partnerRequestNumber, splitByProducer } from "./partner";
 import { createOrder, databaseConfigured } from "./repository";
 
@@ -16,6 +17,8 @@ export interface PlaceOrderInput {
   note?: string | null;
   /** Demoorder: sparas men skickas inte till tillverkningen. */
   demo?: boolean;
+  /** Återförsäljarens priser till kunden — påverkar inte vad tillverkningen får. */
+  pricing?: Pricing | null;
 }
 
 export interface PlaceOrderResult {
@@ -63,6 +66,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         supplierOrderNo: supplier?.orderNumber ?? null,
         partnerRequestNo: partnerRequest ?? null,
         note: input.note ?? (partnerRequest ? `Partnerförfrågan ${partnerRequest}` : null),
+        pricing: input.pricing,
       });
       savedOrderNo = saved.orderNo;
     } catch (error) {
@@ -98,6 +102,7 @@ async function placeDemoOrder(input: PlaceOrderInput): Promise<PlaceOrderResult>
     supplierOrderNo: "DEMO",
     note: input.note ?? "Demoorder — skickas inte till tillverkningen",
     demo: true,
+    pricing: input.pricing,
   });
   return { orderNumber: saved.orderNo, status: "mock" };
 }

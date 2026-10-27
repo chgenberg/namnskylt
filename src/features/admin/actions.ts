@@ -5,7 +5,7 @@ import { z } from "zod";
 import { MAX_ORDER_BADGES } from "@/engine";
 import { requireDb } from "@/lib/db/client";
 import { insertDemoData, removeDemoData } from "@/lib/orders/demo-data";
-import { ORDER_STATUSES } from "@/lib/orders/model";
+import { pricingSchema, type Pricing } from "@/lib/orders/pricing";
 import { placeOrder } from "@/lib/orders/place-order";
 import { repeatBadges, staffBadges } from "@/lib/orders/repeat";
 import {
@@ -15,7 +15,8 @@ import {
   getDesign,
   getOrder,
   saveDesign,
-  updateStatus,
+  updateOrderPricing,
+  upsertCustomer,
 } from "@/lib/orders/repository";
 import { siteOrigin } from "@/lib/http/origin";
 import { requireReseller } from "@/lib/reseller-auth/session";
@@ -101,24 +102,6 @@ export async function orderFromDesignAction(designId: string, names: string, qua
   }
 }
 
-const statusSchema = z.object({
-  orderNo: orderNoSchema,
-  status: z.enum(ORDER_STATUSES),
-  note: z.string().trim().max(500).optional(),
-  trackingUrl: z.url().max(500).optional().or(z.literal("")),
-});
-
-export async function updateStatusAction(input: z.input<typeof statusSchema>): Promise<ActionResult> {
-  await requireReseller();
-  try {
-    const { orderNo, status, note, trackingUrl } = statusSchema.parse(input);
-    const ok = await updateStatus(orderNo, status, { note: note || null, trackingUrl: trackingUrl || null });
-    return ok ? done(orderNo) : { ok: false, error: "Ordern finns inte" };
-  } catch (error) {
-    return fail(error, "Statusen kunde inte sparas");
-  }
-}
-
 export async function createProofAction(orderNo: string): Promise<ActionResult> {
   await requireReseller();
   try {
@@ -170,5 +153,57 @@ export async function removeDemoDataAction(): Promise<ActionResult> {
     return done();
   } catch (error) {
     return fail(error, "Demodatan kunde inte tas bort");
+  }
+}
+
+const optionalText = (max: number) => z.string().trim().max(max).optional();
+const startOrderSchema = z.union([
+  z.object({ customerId: z.uuid(), text: z.string().max(300).optional(), mode: z.enum(["order", "quote"]) }),
+  z.object({
+    name: z.string().trim().min(1).max(120),
+    email: z.email(),
+    company: optionalText(120),
+    phone: optionalText(40),
+    orgNumber: optionalText(20),
+    address: optionalText(300),
+    text: z.string().max(300).optional(),
+    mode: z.enum(["order", "quote"]),
+  }),
+]);
+
+/** Första steget i "Skapa order/offert": kunden väljs eller skapas, sedan öppnas designern åt den kunden. */
+export async function startOrderAction(input: z.input<typeof startOrderSchema>): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    const parsed = startOrderSchema.parse(input);
+    const customer =
+      "customerId" in parsed
+        ? await getCustomer(parsed.customerId)
+        : await upsertCustomer({
+            name: parsed.name,
+            email: parsed.email,
+            company: parsed.company || null,
+            phone: parsed.phone || null,
+            orgNumber: parsed.orgNumber || null,
+            address: parsed.address || null,
+          });
+    if (!customer) return { ok: false, error: "Kunden finns inte" };
+    const params = new URLSearchParams({ kund: customer.id });
+    if (parsed.mode === "quote") params.set("offert", "1");
+    if (parsed.text?.trim()) params.set("t", parsed.text.trim());
+    revalidatePath("/admin/kunder");
+    return { ok: true, url: `/skapa?${params}` };
+  } catch (error) {
+    return fail(error, "Kunden kunde inte sparas");
+  }
+}
+
+export async function updateOrderPricingAction(orderNo: string, pricing: Pricing): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    const ok = await updateOrderPricing(orderNoSchema.parse(orderNo), pricingSchema.parse(pricing));
+    return ok ? done(orderNo) : { ok: false, error: "Ordern finns inte" };
+  } catch (error) {
+    return fail(error, "Priserna kunde inte sparas");
   }
 }

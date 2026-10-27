@@ -2,8 +2,9 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { Sql } from "postgres";
 import { z } from "zod";
-import { badgeDocumentSchema, priceOrder, type BadgeDocument } from "@/engine";
+import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
 import { db, requireDb } from "@/lib/db/client";
+import { isCustomPricing, pricingSchema, priceWithPricing, type Pricing } from "./pricing";
 import {
   isOrderSource,
   isOrderStatus,
@@ -21,6 +22,7 @@ interface OrderRow {
   order_no: string;
   status: string;
   badges: unknown;
+  pricing: unknown;
   total_sek: number;
   total_incl_vat_sek: number;
   supplier_order_no: string | null;
@@ -29,10 +31,14 @@ interface OrderRow {
   source: string;
   repeat_of_order_no: string | null;
   placed_at: Date;
+  supplier_synced_at: Date | null;
   customer_id: string;
   customer_name: string;
   customer_company: string | null;
   customer_email: string;
+  customer_phone: string | null;
+  customer_org_number: string | null;
+  customer_address: string | null;
   customer_demo: boolean;
   is_demo: boolean;
   events: { status: string; note: string | null; at: string }[] | null;
@@ -53,10 +59,14 @@ function toOrder(row: OrderRow): StoredOrder {
       name: row.customer_name,
       company: row.customer_company,
       email: row.customer_email,
+      phone: row.customer_phone,
+      orgNumber: row.customer_org_number,
+      address: row.customer_address,
       demo: row.customer_demo,
     },
     status: isOrderStatus(row.status) ? row.status : "received",
     badges: badges.success ? badges.data : [],
+    pricing: parsePricing(row.pricing),
     totalSek: row.total_sek,
     totalInclVatSek: row.total_incl_vat_sek,
     supplierOrderNo: row.supplier_order_no,
@@ -66,16 +76,28 @@ function toOrder(row: OrderRow): StoredOrder {
     repeatOfOrderNo: row.repeat_of_order_no,
     placedAt: row.placed_at.toISOString(),
     events,
+    supplierSyncedAt: row.supplier_synced_at?.toISOString() ?? null,
     demo: row.is_demo,
   };
 }
 
+export function parsePricing(value: unknown): Pricing | null {
+  const parsed = pricingSchema.safeParse(value);
+  return parsed.success && isCustomPricing(parsed.data) ? parsed.data : null;
+}
+
+/** Kundens kolumner som ett `Customer` — samma urval överallt. */
+const CUSTOMER_COLUMNS = "id, name, company, email, phone, org_number as \"orgNumber\", address, is_demo as demo";
+
+type Json = Parameters<Sql["json"]>[0];
+
 function selectOrders(sql: Sql) {
   return sql`
-    select o.id, o.order_no, o.status, o.badges, o.total_sek, o.total_incl_vat_sek,
-           o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo,
+    select o.id, o.order_no, o.status, o.badges, o.pricing, o.total_sek, o.total_incl_vat_sek,
+           o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo, o.supplier_synced_at,
            r.order_no as repeat_of_order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email, c.is_demo as customer_demo,
+           c.phone as customer_phone, c.org_number as customer_org_number, c.address as customer_address,
            (select json_agg(json_build_object('status', e.status, 'note', e.note, 'at', e.at) order by e.at)
               from order_events e where e.order_id = o.id) as events
       from orders o
@@ -117,12 +139,14 @@ export interface NewOrder {
   note?: string | null;
   placedAt?: string;
   demo?: boolean;
+  pricing?: Pricing | null;
 }
 
 /** Sparar ordern, kopplar den till kunden (samma e-post = samma kund) och loggar första steget. */
 export async function createOrder(order: NewOrder): Promise<{ id: string; orderNo: string }> {
   const sql = requireDb();
-  const price = priceOrder(order.badges);
+  const pricing = isCustomPricing(order.pricing ?? null) ? (order.pricing ?? null) : null;
+  const price = priceWithPricing(order.badges, pricing);
   const email = order.customer.email.trim().toLowerCase();
   const placedAt = order.placedAt ? new Date(order.placedAt) : new Date();
   return sql.begin(async (tx) => {
@@ -134,9 +158,10 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
       returning id`;
     if (!customer) throw new Error("Kunden kunde inte sparas");
     const [saved] = await tx<{ id: string; order_no: string }[]>`
-      insert into orders (customer_id, status, badges, total_sek, total_incl_vat_sek,
+      insert into orders (customer_id, status, badges, pricing, total_sek, total_incl_vat_sek,
                           supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo)
-      values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Parameters<typeof tx.json>[0])},
+      values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Json)},
+              ${pricing ? tx.json(pricing as unknown as Json) : null},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
               ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false})
       returning id, order_no`;
@@ -164,6 +189,92 @@ export async function updateStatus(
   });
 }
 
+export interface SupplierUpdate {
+  status: OrderStatus | null;
+  trackingUrl?: string | null;
+  at: string;
+}
+
+/**
+ * Leverantörens läge för en order. Statusen flyttas bara framåt (`canAdvance`
+ * avgör), spårningslänken fylls på och avstämningstiden sparas oavsett.
+ */
+export async function applySupplierUpdate(
+  supplierOrderNo: string,
+  update: SupplierUpdate,
+  canAdvance: (current: OrderStatus, next: OrderStatus) => boolean,
+): Promise<{ found: boolean; changed: boolean }> {
+  const sql = requireDb();
+  return sql.begin(async (tx) => {
+    const [order] = await tx<{ id: string; status: string }[]>`
+      select id, status from orders
+       where supplier_order_no = ${supplierOrderNo} and not is_demo
+       for update`;
+    if (!order) return { found: false, changed: false };
+    const current = isOrderStatus(order.status) ? order.status : "received";
+    const next = update.status && canAdvance(current, update.status) ? update.status : null;
+    await tx`
+      update orders set status = ${next ?? current},
+             tracking_url = coalesce(${update.trackingUrl ?? null}, tracking_url),
+             supplier_synced_at = now()
+       where id = ${order.id}`;
+    if (next) {
+      await tx`insert into order_events (order_id, status, note, at)
+               values (${order.id}, ${next}, ${"Från tryckeriet"}, ${new Date(update.at)})`;
+    }
+    return { found: true, changed: next !== null };
+  });
+}
+
+export interface CustomerInput {
+  name: string;
+  email: string;
+  company?: string | null;
+  phone?: string | null;
+  orgNumber?: string | null;
+  address?: string | null;
+}
+
+/** Ny kund, eller samma kund om e-posten redan finns — ifyllda uppgifter skriver över, tomma behåller det gamla. */
+export async function upsertCustomer(input: CustomerInput): Promise<Customer> {
+  const sql = requireDb();
+  const [row] = await sql<Customer[]>`
+    insert into customers (email, name, company, phone, org_number, address)
+    values (${input.email.trim().toLowerCase()}, ${input.name}, ${input.company || null},
+            ${input.phone || null}, ${input.orgNumber || null}, ${input.address || null})
+    on conflict (email) do update
+      set name = excluded.name,
+          company = coalesce(excluded.company, customers.company),
+          phone = coalesce(excluded.phone, customers.phone),
+          org_number = coalesce(excluded.org_number, customers.org_number),
+          address = coalesce(excluded.address, customers.address)
+    returning ${sql.unsafe(CUSTOMER_COLUMNS)}`;
+  if (!row) throw new Error("Kunden kunde inte sparas");
+  return row;
+}
+
+/** Nya priser på en order. Totalerna räknas om och ändringen syns i tidslinjen. */
+export async function updateOrderPricing(orderNo: string, pricing: Pricing): Promise<boolean> {
+  const sql = requireDb();
+  return sql.begin(async (tx) => {
+    const [row] = await tx<{ id: string; badges: unknown; status: string }[]>`
+      select id, badges, status from orders where order_no = ${orderNo} for update`;
+    const badges = badgesSchema.safeParse(row?.badges);
+    if (!row || !badges.success) return false;
+    const custom = isCustomPricing(pricing) ? pricing : null;
+    const price = priceWithPricing(badges.data, custom);
+    await tx`
+      update orders set pricing = ${custom ? tx.json(custom as unknown as Json) : null},
+             total_sek = ${price.totalSek}, total_incl_vat_sek = ${price.totalInclVatSek}
+       where id = ${row.id}`;
+    const note = custom
+      ? `Pris justerat till ${price.totalSek} kr${custom.discountPercent ? ` (${custom.discountPercent} % rabatt)` : ""}`
+      : "Återställt till listpris";
+    await tx`insert into order_events (order_id, status, note) values (${row.id}, ${row.status}, ${note})`;
+    return true;
+  });
+}
+
 export interface CustomerSummary extends Customer {
   orders: number;
   badges: number;
@@ -180,6 +291,9 @@ export async function listCustomers(): Promise<CustomerSummary[]> {
       name: string;
       company: string | null;
       email: string;
+      phone: string | null;
+      org_number: string | null;
+      address: string | null;
       is_demo: boolean;
       orders: number;
       badges: number;
@@ -188,7 +302,7 @@ export async function listCustomers(): Promise<CustomerSummary[]> {
       designs: number;
     }[]
   >`
-    select c.id, c.name, c.company, c.email, c.is_demo,
+    select c.id, c.name, c.company, c.email, c.phone, c.org_number, c.address, c.is_demo,
            count(o.id)::int as orders,
            coalesce(sum((select sum((b->>'quantity')::int) from jsonb_array_elements(o.badges) b)), 0)::int as badges,
            coalesce(sum(o.total_sek) filter (where o.status <> 'cancelled'), 0)::int as revenue,
@@ -203,6 +317,9 @@ export async function listCustomers(): Promise<CustomerSummary[]> {
     name: r.name,
     company: r.company,
     email: r.email,
+    phone: r.phone,
+    orgNumber: r.org_number,
+    address: r.address,
     demo: r.is_demo,
     orders: r.orders,
     badges: r.badges,
@@ -215,7 +332,7 @@ export async function listCustomers(): Promise<CustomerSummary[]> {
 export async function getCustomer(id: string): Promise<Customer | null> {
   const sql = requireDb();
   if (!z.uuid().safeParse(id).success) return null;
-  const [row] = await sql<Customer[]>`select id, name, company, email, is_demo as demo from customers where id = ${id}`;
+  const [row] = await sql<Customer[]>`select ${sql.unsafe(CUSTOMER_COLUMNS)} from customers where id = ${id}`;
   return row ?? null;
 }
 
@@ -256,7 +373,7 @@ export async function saveDesign(customerId: string, name: string, doc: BadgeDoc
   const template = { ...doc, quantity: 1 };
   const [row] = await sql<{ id: string }[]>`
     insert into designs (customer_id, name, doc)
-    values (${customerId}, ${name}, ${sql.json(template as unknown as Parameters<typeof sql.json>[0])})
+    values (${customerId}, ${name}, ${sql.json(template as unknown as Json)})
     returning id`;
   if (!row) throw new Error("Mallen kunde inte sparas");
   return row.id;

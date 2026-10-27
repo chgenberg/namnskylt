@@ -69,6 +69,55 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       alter table orders add column is_demo boolean not null default false;
     `,
   },
+  {
+    id: "003_pricing_quotes",
+    sql: `
+      alter table orders add column pricing jsonb;
+      alter table customers add column phone text;
+      alter table customers add column org_number text;
+      alter table customers add column address text;
+
+      create sequence quote_number_seq start 1001;
+
+      create table quotes (
+        id uuid primary key default gen_random_uuid(),
+        quote_no text not null unique default ('OF-' || nextval('quote_number_seq')),
+        customer_id uuid not null references customers(id),
+        status text not null default 'draft',
+        badges jsonb not null,
+        pricing jsonb,
+        total_sek integer not null,
+        total_incl_vat_sek integer not null,
+        message text,
+        valid_until date not null,
+        token text not null unique,
+        order_id uuid references orders(id),
+        decline_reason text,
+        is_demo boolean not null default false,
+        created_at timestamptz not null default now(),
+        sent_at timestamptz,
+        decided_at timestamptz
+      );
+      create index quotes_created on quotes (created_at desc);
+      create index quotes_customer on quotes (customer_id);
+
+      create table quote_events (
+        id bigserial primary key,
+        quote_id uuid not null references quotes(id) on delete cascade,
+        status text not null,
+        note text,
+        at timestamptz not null default now()
+      );
+      create index quote_events_quote on quote_events (quote_id, at);
+    `,
+  },
+  {
+    id: "004_supplier_sync",
+    sql: `
+      alter table orders add column supplier_synced_at timestamptz;
+      create index orders_supplier_order_no on orders (supplier_order_no);
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

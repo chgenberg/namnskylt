@@ -257,3 +257,27 @@
     overflow: visible;
   }
 }
+
+.resellerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #0b1f3a;
+  color: rgb(255 255 255 / 0.86);
+  font-size: var(--text-sm);
+}
+
+.resellerBar strong {
+  color: #fff;
+}
+
+.resellerLink {
+  font-size: var(--text-xs);
+  color: #9cc0ff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

@@ -88,9 +88,11 @@ export async function insertDemoData(sql: Sql, now: Date = new Date()): Promise<
   });
 }
 
-/** Tar bort allt märkt som demo, och ordrar som skapats ur demoordrar. */
+/** Tar bort allt märkt som demo — ordrar, offerter och kunder — men aldrig riktiga ordrar. */
 export async function removeDemoData(sql: Sql): Promise<number> {
   return sql.begin(async (tx) => {
+    await tx`delete from quotes where is_demo or customer_id in (select id from customers where is_demo)`;
+    await tx`update quotes set order_id = null where order_id in (select id from orders where is_demo)`;
     await tx`update orders set repeat_of = null where repeat_of in (select id from orders where is_demo)`;
     const removed = await tx`delete from orders where is_demo`;
     await tx`delete from customers c where c.is_demo and not exists (select 1 from orders o where o.customer_id = c.id)`;

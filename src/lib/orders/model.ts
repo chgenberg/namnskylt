@@ -1,4 +1,5 @@
 import type { BadgeDocument } from "@/engine";
+import type { Pricing } from "./pricing";
 
 export const ORDER_STATUSES = [
   "received",
@@ -32,11 +33,13 @@ export const TIMELINE_STEPS: readonly OrderStatus[] = [
   "delivered",
 ];
 
-export const ORDER_SOURCES = ["web", "repeat", "staff", "template"] as const;
+export const ORDER_SOURCES = ["web", "reseller", "quote", "repeat", "staff", "template"] as const;
 export type OrderSource = (typeof ORDER_SOURCES)[number];
 
 export const ORDER_SOURCE_LABEL: Record<OrderSource, string> = {
   web: "Webbshop",
+  reseller: "Lagd av dig",
+  quote: "Från offert",
   repeat: "Beställd igen",
   staff: "Ny personal",
   template: "Från mall",
@@ -47,6 +50,9 @@ export interface Customer {
   name: string;
   company: string | null;
   email: string;
+  phone: string | null;
+  orgNumber: string | null;
+  address: string | null;
   /** Påhittad kund från demodatan. */
   demo: boolean;
 }
@@ -63,6 +69,8 @@ export interface StoredOrder {
   customer: Customer;
   status: OrderStatus;
   badges: BadgeDocument[];
+  /** Återförsäljarens egna priser; `null` = listpris. */
+  pricing: Pricing | null;
   totalSek: number;
   totalInclVatSek: number;
   supplierOrderNo: string | null;
@@ -72,6 +80,8 @@ export interface StoredOrder {
   repeatOfOrderNo: string | null;
   placedAt: string;
   events: OrderEvent[];
+  /** Senast statusen stämdes av mot leverantören. */
+  supplierSyncedAt: string | null;
   /** Demoorder — skickas aldrig till tillverkningen, inte heller om den beställs igen. */
   demo: boolean;
 }

@@ -2,20 +2,28 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
 import { engravedRows, getColor, getMaterial, getMounting, SHAPES } from "@/engine";
-import { staffOrderAction } from "@/features/admin/actions";
+import { staffOrderAction, updateOrderPricingAction } from "@/features/admin/actions";
+import { PricingEditor } from "@/features/admin/pricing-editor";
 import { canViewAdmin } from "@/features/admin/guard";
 import { NewNamesButton } from "@/features/admin/new-names-button";
 import { OrderTimeline } from "@/features/admin/order-timeline";
 import { ProofPanel } from "@/features/admin/proof-panel";
 import { RepeatButton } from "@/features/admin/repeat-button";
 import { SaveDesignButton } from "@/features/admin/save-design-button";
-import { StatusForm } from "@/features/admin/status-form";
 import { StatusPill } from "@/features/admin/status-pill";
 import styles from "@/features/admin/admin.module.css";
 import { formatDate, formatSek } from "@/features/orders/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { badgeCount, ORDER_SOURCE_LABEL } from "@/lib/orders/model";
 import { getOrder, latestProof } from "@/lib/orders/repository";
+import { refreshFromSupplier, supplierLink, type SupplierLink } from "@/lib/supplier/sync";
+
+const SYNC_NOTE: Record<SupplierLink, string> = {
+  connected: "Följer tryckeriet automatiskt",
+  "not-configured": "Tryckeriet är inte anslutet ännu — statusen uppdateras när kopplingen är på plats",
+  "not-sent": "Ordern har inte gått till tryckeriets system",
+  demo: "Demoorder — följer inte tryckeriet",
+};
 
 interface OrderPageProps {
   params: Promise<{ orderNo: string }>;
@@ -24,8 +32,11 @@ interface OrderPageProps {
 export default async function OrderPage({ params }: OrderPageProps) {
   if (!(await canViewAdmin())) return null;
   const { orderNo } = await params;
-  const order = await getOrder(decodeURIComponent(orderNo));
-  if (!order) notFound();
+  const orderNumber = decodeURIComponent(orderNo);
+  const stored = await getOrder(orderNumber);
+  if (!stored) notFound();
+  const order = (await refreshFromSupplier(stored)) ? ((await getOrder(orderNumber)) ?? stored) : stored;
+  const link = supplierLink(order);
   const [proof, origin] = await Promise.all([latestProof(order.orderNo), siteOrigin()]);
   const template = order.badges[0];
   const customerName = order.customer.company ?? order.customer.name;
@@ -85,6 +96,18 @@ export default async function OrderPage({ params }: OrderPageProps) {
                 );
               })}
             </div>
+          </section>
+
+          <section className={styles.panel}>
+            <div className={styles.sectionHead}>
+              <h2 className={styles.sectionTitle}>Pris</h2>
+              <span className={styles.muted}>Ditt pris till kunden — påverkar fakturaunderlaget, inte tillverkningen</span>
+            </div>
+            <PricingEditor
+              badges={order.badges}
+              pricing={order.pricing}
+              submit={order.status === "cancelled" ? undefined : updateOrderPricingAction.bind(null, order.orderNo)}
+            />
           </section>
 
           <section className={styles.panel}>
@@ -156,16 +179,12 @@ export default async function OrderPage({ params }: OrderPageProps) {
 
         <div className={styles.detailSide}>
           <section className={styles.panel}>
-            <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-4)" }}>
-              Tidslinje
-            </h2>
+            <h2 className={styles.sectionTitle}>Tidslinje</h2>
+            <p className={styles.syncNote} data-link={link}>
+              {SYNC_NOTE[link]}
+              {link === "connected" && order.supplierSyncedAt && <> · senast {formatDate(order.supplierSyncedAt)}</>}
+            </p>
             <OrderTimeline order={order} />
-          </section>
-          <section className={styles.panel}>
-            <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>
-              Uppdatera status
-            </h2>
-            <StatusForm key={`${order.status}-${order.events.length}`} order={order} />
           </section>
           <section className={styles.panel}>
             <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>

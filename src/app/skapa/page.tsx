@@ -3,11 +3,18 @@ import { headers } from "next/headers";
 import { engravedRows } from "@/engine";
 import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
+import { databaseConfigured, getCustomer } from "@/lib/orders/repository";
+import { isResellerSignedIn } from "@/lib/reseller-auth/session";
 import { genitive } from "@/lib/share/genitive";
 import { decodeShareCode } from "@/lib/share/share-link";
 
 interface SkapaPageProps {
-  searchParams: Promise<{ t?: string | string[]; d?: string | string[] }>;
+  searchParams: Promise<{
+    t?: string | string[];
+    d?: string | string[];
+    kund?: string | string[];
+    offert?: string | string[];
+  }>;
 }
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -44,13 +51,23 @@ export async function generateMetadata({ searchParams }: SkapaPageProps): Promis
   };
 }
 
+/** `?kund=` gäller bara inloggad återförsäljare — annars är det en vanlig besökare. */
+async function resellerContext(customerId: string | undefined, quote: boolean) {
+  if (!customerId || !databaseConfigured() || !(await isResellerSignedIn())) return undefined;
+  const customer = await getCustomer(customerId);
+  return customer
+    ? { customerId: customer.id, customerName: customer.company ?? customer.name, mode: quote ? ("quote" as const) : ("order" as const) }
+    : undefined;
+}
+
 export default async function SkapaPage({ searchParams }: SkapaPageProps) {
   preloadDesignerAssets();
   const params = await searchParams;
   const shared = await decodeShareCode(first(params.d));
+  const reseller = await resellerContext(first(params.kund), first(params.offert) === "1");
   return (
     <main>
-      <Designer initialText={first(params.t) ?? ""} initialDoc={shared} />
+      <Designer initialText={first(params.t) ?? ""} initialDoc={shared} reseller={reseller} />
     </main>
   );
 }

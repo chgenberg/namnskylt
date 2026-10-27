@@ -34,6 +34,7 @@ import type { BadgeRecorder } from "./three/recorder";
 import { shareBadge } from "./share";
 import { videoFileName } from "./video-file";
 import { OnboardingDialog } from "./onboarding-dialog";
+import type { ResellerOrderContext } from "./reseller";
 import { designerReducer, type DesignerAction } from "./state";
 
 const Badge3D = dynamic(() => import("./badge-3d"), {
@@ -89,16 +90,18 @@ interface DesignerProps {
   initialText: string;
   /** En delad skylt från länken — vinner över texten. */
   initialDoc?: BadgeDocument | null;
+  /** Återförsäljaren beställer åt en kund — ordern läggs direkt på kunden. */
+  reseller?: ResellerOrderContext;
 }
 
-export function Designer({ initialText, initialDoc }: DesignerProps) {
+export function Designer({ initialText, initialDoc, reseller }: DesignerProps) {
   const [doc, dispatch] = useReducer(
     designerReducer,
     initialText,
     (text) => initialDoc ?? createBadgeDocument(parseSmartInput(text)),
   );
   const [view, setView] = useState<View>("3d");
-  const [onboarding, setOnboarding] = useState(() => !initialDoc && initialText.trim() !== "");
+  const [onboarding, setOnboarding] = useState(() => !initialDoc && (initialText.trim() !== "" || Boolean(reseller)));
   const [spinning, setSpinning] = useState(false);
   const [focus, setFocus] = useState<SpinFocus | null>(null);
   /** Skylten graveras fram en gång när designern öppnas, och igen på begäran. */
@@ -387,9 +390,19 @@ export function Designer({ initialText, initialDoc }: DesignerProps) {
 
       <aside className={styles.panel} aria-label="Skyltmotor">
         <div className={styles.panelScroll}>
+          {reseller && (
+            <div className={styles.resellerBar} role="status">
+              <span>
+                {reseller.mode === "quote" ? "Offert till" : "Order åt"} <strong>{reseller.customerName}</strong>
+              </span>
+              <a href={reseller.mode === "quote" ? "/admin/ny-offert" : "/admin/ny-order"} className={styles.resellerLink}>
+                Byt kund
+              </a>
+            </div>
+          )}
           <div className={styles.panelHead}>
             <p className="eyebrow">Skyltmotor</p>
-            <h1 className={styles.panelTitle}>Din namnskylt</h1>
+            <h1 className={styles.panelTitle}>{reseller ? `Skylt till ${reseller.customerName}` : "Din namnskylt"}</h1>
           </div>
           <TextSection
             doc={doc}
@@ -410,7 +423,7 @@ export function Designer({ initialText, initialDoc }: DesignerProps) {
             fonts={fonts}
           />
         </div>
-        <OrderSection doc={doc} badges={orderBadges} dispatch={update} />
+        <OrderSection doc={doc} badges={orderBadges} dispatch={update} reseller={reseller} />
       </aside>
       {onboarding && <OnboardingDialog doc={doc} dispatch={update} onClose={finishOnboarding} />}
     </div>

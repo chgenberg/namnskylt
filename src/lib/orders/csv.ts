@@ -1,5 +1,6 @@
-import { engravedRows, getColor, getMaterial, getMounting, priceBadge } from "@/engine";
+import { engravedRows, getColor, getMaterial, getMounting } from "@/engine";
 import { badgeCount, ORDER_STATUS_LABEL, type StoredOrder } from "./model";
+import { priceWithPricing } from "./pricing";
 
 /** Semikolon och komma som decimaltecken — så öppnar svenska Excel filen rätt. */
 const SEPARATOR = ";";
@@ -44,9 +45,10 @@ export function ordersCsv(orders: readonly StoredOrder[]): string {
 export function invoiceCsv(orders: readonly StoredOrder[]): string {
   const rows = orders
     .filter((o) => o.status !== "cancelled")
-    .flatMap((o) =>
-      o.badges.map((badge) => {
-        const unit = priceBadge({ ...badge, quantity: 1 }).unitSek;
+    .flatMap((o) => {
+      const priced = priceWithPricing(o.badges, o.pricing);
+      const rows = o.badges.map((badge, i) => {
+        const unit = priced.lines[i]?.unitSek ?? 0;
         const text = engravedRows(badge)
           .map((row) => row.text.trim())
           .filter(Boolean)
@@ -64,8 +66,13 @@ export function invoiceCsv(orders: readonly StoredOrder[]): string {
           unit * badge.quantity,
           25,
         ];
-      }),
-    );
+      });
+      if (priced.discountSek === 0) return rows;
+      return [
+        ...rows,
+        [o.orderNo, date(o.placedAt), o.customer.company ?? o.customer.name, o.customer.email, `Rabatt ${priced.discountPercent} %`, "", 1, -priced.discountSek, -priced.discountSek, 25],
+      ];
+    });
   return toCsv(
     ["Order", "Datum", "Kund", "E-post", "Benämning", "Artikel", "Antal", "À-pris exkl. moms", "Summa exkl. moms", "Moms %"],
     rows,

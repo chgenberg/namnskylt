@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { canViewAdmin } from "@/features/admin/guard";
 import { OrderCard } from "@/features/admin/order-card";
 import { OrderFilters, type StatusFilter } from "@/features/admin/order-filters";
@@ -54,6 +55,9 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
           <h1 className={styles.pageTitle}>Alla ordrar</h1>
           <p className={styles.pageLead}>Klicka på en order för detaljer, eller beställ samma sak igen direkt från kortet.</p>
         </div>
+        <Link href="/admin/ny-order" className="btn btn--primary">
+          + Skapa order
+        </Link>
       </header>
       <OrderFilters counts={counts} active={active} query={query} />
       {shown.length === 0 ? (

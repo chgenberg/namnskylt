@@ -26,7 +26,7 @@ const BASE_AREA_CM2 = 17.5;
 const EXTRA_ROW_SEK = 6;
 const FRAME_SEK = 5;
 const LOGO_SEK = 9;
-const VAT_RATE = 0.25;
+export const VAT_RATE = 0.25;
 
 export interface PriceBreakdown {
   unitSek: number;
@@ -66,10 +66,8 @@ function listPriceSek(doc: BadgeDocument): number {
 export function priceOrder(docs: readonly BadgeDocument[]): PriceBreakdown {
   const quantity = docs.reduce((sum, doc) => sum + quantityOf(doc), 0);
   const tier = tierFor(quantity);
-  const totalSek = docs.reduce(
-    (sum, doc) => sum + Math.round(listPriceSek(doc) * tier.factor) * quantityOf(doc),
-    0,
-  );
+  const units = lineUnitPrices(docs);
+  const totalSek = docs.reduce((sum, doc, i) => sum + (units[i] ?? 0) * quantityOf(doc), 0);
   return {
     unitSek: quantity > 0 ? Math.round(totalSek / quantity) : 0,
     totalSek,
@@ -77,6 +75,12 @@ export function priceOrder(docs: readonly BadgeDocument[]): PriceBreakdown {
     tier,
     quantity,
   };
+}
+
+/** À-pris per skylt i ordern, med mängdrabatten för orderns totala antal. */
+export function lineUnitPrices(docs: readonly BadgeDocument[]): number[] {
+  const tier = tierFor(docs.reduce((sum, doc) => sum + quantityOf(doc), 0));
+  return docs.map((doc) => Math.round(listPriceSek(doc) * tier.factor));
 }
 
 export function priceBadge(doc: BadgeDocument): PriceBreakdown {
