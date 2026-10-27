@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { DemoBanner } from "./demo-data-controls";
 import styles from "./admin.module.css";
 
 const ICON: Record<string, ReactNode> = {
@@ -34,10 +35,12 @@ function NavIcon({ name }: { name: string }) {
 interface AdminShellProps {
   /** Ordrar som väntar på att någon gör något — visas som siffra i menyn. */
   pending: number;
+  /** Antal demoordrar — visas som en banner över varje sida. */
+  demoCount?: number;
   children: ReactNode;
 }
 
-export function AdminShell({ pending, children }: AdminShellProps) {
+export function AdminShell({ pending, demoCount = 0, children }: AdminShellProps) {
   const pathname = usePathname();
   const isCurrent = (href: string) => (href === "/admin" ? pathname === href : pathname.startsWith(href));
 
@@ -74,7 +77,10 @@ export function AdminShell({ pending, children }: AdminShellProps) {
           </button>
         </div>
       </aside>
-      <div className={styles.main}>{children}</div>
+      <div className={styles.main}>
+        {demoCount > 0 && <DemoBanner count={demoCount} />}
+        {children}
+      </div>
     </div>
   );
 }

@@ -42,10 +42,14 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       </main>
     );
   }
-  const pending = (await listOrders()).filter((o) => o.status === "received").length;
+  const orders = await listOrders();
+  const pending = orders.filter((o) => o.status === "received").length;
+  const demoCount = orders.filter((o) => o.demo).length;
   return (
     <main>
-      <AdminShell pending={pending}>{children}</AdminShell>
+      <AdminShell pending={pending} demoCount={demoCount}>
+        {children}
+      </AdminShell>
     </main>
   );
 }

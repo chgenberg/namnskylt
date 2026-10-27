@@ -14,6 +14,8 @@ export interface PlaceOrderInput {
   source: OrderSource;
   repeatOf?: string | null;
   note?: string | null;
+  /** Demoorder: sparas men skickas inte till tillverkningen. */
+  demo?: boolean;
 }
 
 export interface PlaceOrderResult {
@@ -31,6 +33,7 @@ export interface PlaceOrderResult {
  * av återförsäljarens "Beställ igen".
  */
 export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
+  if (input.demo) return placeDemoOrder(input);
   const { workshop, partner } = splitByProducer(input.badges);
   const partnerRequest = partner.length > 0 ? partnerRequestNumber() : undefined;
 
@@ -83,4 +86,18 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     partnerRequest,
     supplierOrderNumber: supplier.orderNumber,
   };
+}
+
+async function placeDemoOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
+  const saved = await createOrder({
+    customer: input.customer,
+    badges: input.badges,
+    status: "received",
+    source: input.source,
+    repeatOf: input.repeatOf,
+    supplierOrderNo: "DEMO",
+    note: input.note ?? "Demoorder — skickas inte till tillverkningen",
+    demo: true,
+  });
+  return { orderNumber: saved.orderNo, status: "mock" };
 }

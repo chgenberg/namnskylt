@@ -47,6 +47,8 @@ export interface Customer {
   name: string;
   company: string | null;
   email: string;
+  /** Påhittad kund från demodatan. */
+  demo: boolean;
 }
 
 export interface OrderEvent {
@@ -70,6 +72,8 @@ export interface StoredOrder {
   repeatOfOrderNo: string | null;
   placedAt: string;
   events: OrderEvent[];
+  /** Demoorder — skickas aldrig till tillverkningen, inte heller om den beställs igen. */
+  demo: boolean;
 }
 
 export function isOrderStatus(value: string): value is OrderStatus {

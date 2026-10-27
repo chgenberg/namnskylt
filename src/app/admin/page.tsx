@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FillDemoButton } from "@/features/admin/demo-data-controls";
 import { canViewAdmin } from "@/features/admin/guard";
 import { OrderCard } from "@/features/admin/order-card";
 import { RepeatButton } from "@/features/admin/repeat-button";
@@ -29,6 +30,19 @@ export default async function AdminOverviewPage() {
   if (!(await canViewAdmin())) return null;
   const orders = await listOrders();
   const now = new Date();
+  if (orders.length === 0) {
+    return (
+      <section className={styles.welcome}>
+        <p className={styles.eyebrow}>Välkommen</p>
+        <h1 className={styles.welcomeTitle}>Här hamnar alla ordrar från namnskylt.com</h1>
+        <p className={styles.muted}>
+          Inga ordrar än. Fyll panelen med påhittade kunder och ordrar för att se hur den fungerar — demodatan märks
+          tydligt, skickas aldrig till tillverkningen och tas bort med ett klick.
+        </p>
+        <FillDemoButton onDark />
+      </section>
+    );
+  }
   const stats = orderStats(orders, now, 8);
   const recent = orders.filter((o) => now.getTime() - Date.parse(o.placedAt) < 30 * DAY_MS && o.status !== "cancelled");
   const recentRevenue = recent.reduce((sum, o) => sum + o.totalSek, 0);

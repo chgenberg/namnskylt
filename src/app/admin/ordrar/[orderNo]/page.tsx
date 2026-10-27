@@ -39,6 +39,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
               Ordrar
             </Link>{" "}
             / <span className="mono">{order.orderNo}</span> · {ORDER_SOURCE_LABEL[order.source]}
+            {order.demo && <span className={styles.demoTag}> Demo</span>}
           </p>
           <h1 className={styles.pageTitle}>{customerName}</h1>
           <p className={styles.pageLead}>

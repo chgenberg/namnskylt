@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { priceOrder } from "@/engine";
 import { packSheets, productionBatches, sheetUtilization } from "@/lib/production";
 import styles from "@/components/dashboard/dashboard.module.css";
-import type { AdminOrder } from "@/features/orders/demo-orders";
+import type { AdminOrder } from "@/lib/orders/demo-orders";
 import { formatSek } from "@/features/orders/format";
 import { batchLabel, METHOD_LABEL } from "./batch-label";
 

@@ -33,6 +33,8 @@ interface OrderRow {
   customer_name: string;
   customer_company: string | null;
   customer_email: string;
+  customer_demo: boolean;
+  is_demo: boolean;
   events: { status: string; note: string | null; at: string }[] | null;
 }
 
@@ -46,7 +48,13 @@ function toOrder(row: OrderRow): StoredOrder {
   return {
     id: row.id,
     orderNo: row.order_no,
-    customer: { id: row.customer_id, name: row.customer_name, company: row.customer_company, email: row.customer_email },
+    customer: {
+      id: row.customer_id,
+      name: row.customer_name,
+      company: row.customer_company,
+      email: row.customer_email,
+      demo: row.customer_demo,
+    },
     status: isOrderStatus(row.status) ? row.status : "received",
     badges: badges.success ? badges.data : [],
     totalSek: row.total_sek,
@@ -58,15 +66,16 @@ function toOrder(row: OrderRow): StoredOrder {
     repeatOfOrderNo: row.repeat_of_order_no,
     placedAt: row.placed_at.toISOString(),
     events,
+    demo: row.is_demo,
   };
 }
 
 function selectOrders(sql: Sql) {
   return sql`
     select o.id, o.order_no, o.status, o.badges, o.total_sek, o.total_incl_vat_sek,
-           o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at,
+           o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo,
            r.order_no as repeat_of_order_no,
-           c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email,
+           c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email, c.is_demo as customer_demo,
            (select json_agg(json_build_object('status', e.status, 'note', e.note, 'at', e.at) order by e.at)
               from order_events e where e.order_id = o.id) as events
       from orders o
@@ -107,6 +116,7 @@ export interface NewOrder {
   partnerRequestNo?: string | null;
   note?: string | null;
   placedAt?: string;
+  demo?: boolean;
 }
 
 /** Sparar ordern, kopplar den till kunden (samma e-post = samma kund) och loggar första steget. */
@@ -117,18 +127,18 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
   const placedAt = order.placedAt ? new Date(order.placedAt) : new Date();
   return sql.begin(async (tx) => {
     const [customer] = await tx<{ id: string }[]>`
-      insert into customers (email, name, company)
-      values (${email}, ${order.customer.name}, ${order.customer.company ?? null})
+      insert into customers (email, name, company, is_demo)
+      values (${email}, ${order.customer.name}, ${order.customer.company ?? null}, ${order.demo ?? false})
       on conflict (email) do update
         set name = excluded.name, company = coalesce(excluded.company, customers.company)
       returning id`;
     if (!customer) throw new Error("Kunden kunde inte sparas");
     const [saved] = await tx<{ id: string; order_no: string }[]>`
       insert into orders (customer_id, status, badges, total_sek, total_incl_vat_sek,
-                          supplier_order_no, partner_request_no, source, repeat_of, placed_at)
+                          supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo)
       values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Parameters<typeof tx.json>[0])},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
-              ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt})
+              ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false})
       returning id, order_no`;
     if (!saved) throw new Error("Ordern kunde inte sparas");
     await tx`insert into order_events (order_id, status, note, at) values (${saved.id}, ${order.status}, ${order.note ?? null}, ${placedAt})`;
@@ -170,6 +180,7 @@ export async function listCustomers(): Promise<CustomerSummary[]> {
       name: string;
       company: string | null;
       email: string;
+      is_demo: boolean;
       orders: number;
       badges: number;
       revenue: number;
@@ -177,7 +188,7 @@ export async function listCustomers(): Promise<CustomerSummary[]> {
       designs: number;
     }[]
   >`
-    select c.id, c.name, c.company, c.email,
+    select c.id, c.name, c.company, c.email, c.is_demo,
            count(o.id)::int as orders,
            coalesce(sum((select sum((b->>'quantity')::int) from jsonb_array_elements(o.badges) b)), 0)::int as badges,
            coalesce(sum(o.total_sek) filter (where o.status <> 'cancelled'), 0)::int as revenue,
@@ -192,6 +203,7 @@ export async function listCustomers(): Promise<CustomerSummary[]> {
     name: r.name,
     company: r.company,
     email: r.email,
+    demo: r.is_demo,
     orders: r.orders,
     badges: r.badges,
     revenueSek: r.revenue,
@@ -203,7 +215,7 @@ export async function listCustomers(): Promise<CustomerSummary[]> {
 export async function getCustomer(id: string): Promise<Customer | null> {
   const sql = requireDb();
   if (!z.uuid().safeParse(id).success) return null;
-  const [row] = await sql<Customer[]>`select id, name, company, email from customers where id = ${id}`;
+  const [row] = await sql<Customer[]>`select id, name, company, email, is_demo as demo from customers where id = ${id}`;
   return row ?? null;
 }
 

@@ -32,6 +32,7 @@ export function OrderCard({ order }: { order: StoredOrder }) {
           <span>{count} st</span>
           <span>{formatRelative(order.placedAt)}</span>
           {order.source !== "web" && <span className={styles.source}>{ORDER_SOURCE_LABEL[order.source]}</span>}
+          {order.demo && <span className={styles.demoTag}>Demo</span>}
         </div>
         <div className={styles.cardFoot}>
           <span className={styles.amount}>{formatSek(order.totalSek)}</span>

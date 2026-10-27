@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { MAX_ORDER_BADGES } from "@/engine";
+import { requireDb } from "@/lib/db/client";
+import { insertDemoData, removeDemoData } from "@/lib/orders/demo-data";
 import { ORDER_STATUSES } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import { repeatBadges, staffBadges } from "@/lib/orders/repeat";
@@ -46,6 +48,7 @@ export async function repeatOrderAction(orderNo: string): Promise<ActionResult> 
       source: "repeat",
       repeatOf: original.id,
       note: `Beställd igen från ${original.orderNo}`,
+      demo: original.demo,
     });
     return done(placed.orderNumber);
   } catch (error) {
@@ -68,6 +71,7 @@ export async function staffOrderAction(orderNo: string, names: string, quantity:
       source: "staff",
       repeatOf: original.id,
       note: `Ny personal, samma design som ${original.orderNo}`,
+      demo: original.demo,
     });
     return done(placed.orderNumber);
   } catch (error) {
@@ -84,7 +88,13 @@ export async function orderFromDesignAction(designId: string, names: string, qua
     const badges = staffBadges(design.doc, namesSchema.parse(names), quantitySchema.parse(quantity));
     if (badges.length === 0) return { ok: false, error: "Skriv minst ett namn" };
     if (badges.length > MAX_ORDER_BADGES) return { ok: false, error: `Högst ${MAX_ORDER_BADGES} namn per order` };
-    const placed = await placeOrder({ customer, badges, source: "template", note: `Från mallen ”${design.name}”` });
+    const placed = await placeOrder({
+      customer,
+      badges,
+      source: "template",
+      note: `Från mallen ”${design.name}”`,
+      demo: customer.demo,
+    });
     return done(placed.orderNumber);
   } catch (error) {
     return fail(error, "Ordern kunde inte läggas");
@@ -140,5 +150,25 @@ export async function deleteDesignAction(designId: string): Promise<ActionResult
     return done();
   } catch (error) {
     return fail(error, "Mallen kunde inte tas bort");
+  }
+}
+
+export async function insertDemoDataAction(): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    await insertDemoData(requireDb());
+    return done();
+  } catch (error) {
+    return fail(error, "Demodatan kunde inte läggas in");
+  }
+}
+
+export async function removeDemoDataAction(): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    await removeDemoData(requireDb());
+    return done();
+  } catch (error) {
+    return fail(error, "Demodatan kunde inte tas bort");
   }
 }

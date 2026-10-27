@@ -3,7 +3,7 @@
 import { useState } from "react";
 import styles from "@/components/dashboard/dashboard.module.css";
 import { Segmented } from "@/components/ui/segmented";
-import { DEMO_ORDERS, type AdminOrder } from "@/features/orders/demo-orders";
+import { DEMO_ORDERS, type AdminOrder } from "@/lib/orders/demo-orders";
 import { ProductionEditor } from "./production-editor";
 import { ProductionQueue } from "./production-queue";
 import { TestOrderForm } from "./test-order-form";

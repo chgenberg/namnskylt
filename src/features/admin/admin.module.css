@@ -1141,6 +1141,77 @@
   color: #1f4db3;
 }
 
+/* ───────────── Demodata ───────────── */
+
+.demoBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 14px;
+  background: #fbf3dc;
+  box-shadow: inset 0 0 0 1px rgb(163 90 0 / 0.15);
+  font-size: var(--text-sm);
+  color: #5c3d00;
+}
+
+.demoBanner > span:nth-child(2) {
+  flex: 1 1 280px;
+}
+
+.demoDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d18a00;
+  box-shadow: 0 0 0 4px rgb(209 138 0 / 0.18);
+  flex: none;
+}
+
+.demoTag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: #f1ece0;
+  color: #7a5a00;
+  text-transform: uppercase;
+}
+
+.welcome {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-6);
+  border-radius: 24px;
+  background:
+    radial-gradient(70% 120% at 100% 0%, rgb(47 93 168 / 0.45), transparent 60%),
+    linear-gradient(135deg, #0b1f3a, #14315c);
+  color: #fff;
+}
+
+.welcome .muted,
+.welcome .eyebrow {
+  color: rgb(255 255 255 / 0.72);
+}
+
+.welcomeTitle {
+  max-width: 22ch;
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.onDarkButton {
+  --btn-bg: #fff;
+  --btn-fg: #0b1f3a;
+  --btn-border: transparent;
+  margin-top: var(--space-2);
+}
+
 /* ───────────── Inloggning ───────────── */
 
 .login {

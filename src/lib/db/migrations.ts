@@ -62,6 +62,13 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       create index proofs_order on proofs (order_id);
     `,
   },
+  {
+    id: "002_demo_flag",
+    sql: `
+      alter table customers add column is_demo boolean not null default false;
+      alter table orders add column is_demo boolean not null default false;
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

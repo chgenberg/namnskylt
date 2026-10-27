@@ -19,7 +19,7 @@ import {
   type SheetSettings,
 } from "@/lib/production";
 import { batchLabel, METHOD_LABEL, productionNumber } from "./batch-label";
-import type { AdminOrder } from "@/features/orders/demo-orders";
+import type { AdminOrder } from "@/lib/orders/demo-orders";
 import { downloadFile, printSheets, type PrintScale } from "./production-files";
 import styles from "@/components/dashboard/dashboard.module.css";
 

@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import styles from "@/components/dashboard/dashboard.module.css";
-import type { AdminOrder } from "@/features/orders/demo-orders";
+import type { AdminOrder } from "@/lib/orders/demo-orders";
 import { decodeShareCode } from "@/lib/share/share-link";
 
 /** Koden ur en delningslänk (`…/skapa?d=1.xxx`) eller koden själv. */

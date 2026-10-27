@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createBadgeDocument, withTexts, type BadgeDocument } from "@/engine";
 import { invoiceCsv, ordersCsv } from "./csv";
+import { demoPlan } from "./demo-data";
+import { DEMO_ORDERS } from "./demo-orders";
 import { stepTimes, type StoredOrder } from "./model";
 import { repeatBadges, staffBadges } from "./repeat";
 import { orderStats } from "./stats";
@@ -12,7 +14,7 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
   return {
     id: "o1",
     orderNo: "NS-1",
-    customer: { id: "c1", name: "Anna", company: "Kafé; Ett", email: "anna@example.se" },
+    customer: { id: "c1", name: "Anna", company: "Kafé; Ett", email: "anna@example.se", demo: false },
     status: "received",
     badges: [plastic],
     totalSek: 100,
@@ -24,6 +26,7 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     repeatOfOrderNo: null,
     placedAt: "2026-10-26T10:00:00Z",
     events: [],
+    demo: false,
     ...patch,
   };
 }
@@ -55,7 +58,7 @@ describe("statistik", () => {
   const orders = [
     order({ id: "a", placedAt: "2026-10-26T10:00:00Z", totalSek: 300 }),
     order({ id: "b", placedAt: "2026-10-20T10:00:00Z", totalSek: 100 }),
-    order({ id: "c", customer: { id: "c2", name: "Bo", company: null, email: "bo@x.se" }, totalSek: 200 }),
+    order({ id: "c", customer: { id: "c2", name: "Bo", company: null, email: "bo@x.se", demo: false }, totalSek: 200 }),
     order({ id: "d", status: "cancelled", totalSek: 9999 }),
   ];
   const stats = orderStats(orders, now, 4);
@@ -95,6 +98,17 @@ describe("export", () => {
     assert.equal(lines.length, 3);
     assert.match(lines[1] ?? "", /Namnskylt: Anna Lind \/ Säljare/);
     assert.match(lines[2] ?? "", /;3;/);
+  });
+});
+
+describe("demodata", () => {
+  it("räknar datumen från nu, så att demon alltid ser aktuell ut", () => {
+    const now = new Date("2027-03-01T12:00:00Z");
+    const plan = demoPlan(now);
+    const newest = Math.max(...plan.map((o) => Date.parse(o.placedAt)));
+    assert.ok(newest <= now.getTime() && now.getTime() - newest < 24 * 60 * 60 * 1000);
+    assert.ok(plan.length > DEMO_ORDERS.length, "några kunder har beställt förut");
+    assert.ok(plan.every((o) => o.email.endsWith("@example.se")));
   });
 });
 
