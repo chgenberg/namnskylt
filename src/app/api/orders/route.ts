@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { MAX_ORDER_BADGES, badgeDocumentSchema, layoutBadge, renderBadgeSvg } from "@/engine";
-import { renderLogoPng } from "@/lib/ai/badge-image";
-import { loadNodeFontEngine } from "@/lib/fonts/load-node";
-import { partnerRequestNumber, splitByProducer } from "@/lib/orders/partner";
-import { createSupplierClient } from "@/lib/supplier/client";
-import { toSupplierSignDocument } from "@/lib/supplier/map";
+import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
+import { placeOrder } from "@/lib/orders/place-order";
 
 const orderRequestSchema = z.object({
   customer: z.object({
@@ -26,37 +22,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const { customer, badges } = parsed.data;
-  const { workshop, partner } = splitByProducer(badges);
-  const partnerRequest = partner.length > 0 ? partnerRequestNumber() : undefined;
-  if (partnerRequest) {
-    // Quickbutton saknar API — förfrågan behandlas manuellt och bekräftas via e-post.
-    console.warn("Partnerförfrågan att hantera manuellt", partnerRequest, {
-      customer,
-      badges: partner.map((b) => ({ materialId: b.materialId, colorId: b.colorId, shape: b.shape, size: b.size, quantity: b.quantity })),
-    });
-  }
-  if (workshop.length === 0) {
-    return NextResponse.json({ orderNumber: partnerRequest, status: "request", partnerRequest }, { status: 201 });
-  }
-
   try {
-    const fonts = await loadNodeFontEngine();
-    const receipt = await createSupplierClient().placeOrder({
-      customer,
-      lines: workshop.map((badge, i) => ({
-        document: toSupplierSignDocument(badge, fonts, {
-          logoPng: badge.logo ? renderLogoPng(badge.logo) : undefined,
-        }),
-        productionSvg: renderBadgeSvg(badge, layoutBadge(badge, fonts), {
-          mode: "production",
-          fonts,
-        }),
-        quantity: badge.quantity,
-        reference: `NS-${i + 1}`,
-      })),
-    });
-    return NextResponse.json({ ...receipt, partnerRequest }, { status: 201 });
+    const receipt = await placeOrder({ ...parsed.data, source: "web" });
+    return NextResponse.json(receipt, { status: 201 });
   } catch (error) {
     console.error("Ordern kunde inte läggas hos leverantören", error);
     return NextResponse.json({ error: "Leverantören kunde inte ta emot ordern" }, { status: 502 });

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 import { SiteGate } from "@/components/site-gate";
 import { SiteHeader } from "@/components/site-header";
@@ -21,13 +21,18 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
 };
 
+/** Kunder öppnar korrektur via en hemlig länk — den är deras behörighet, inte sajtkoden. */
+const OPEN_PATHS = ["/korrektur/"];
+
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const unlocked = await isValidGateCookie((await cookies()).get(GATE_COOKIE)?.value);
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  const open = OPEN_PATHS.some((prefix) => pathname.startsWith(prefix));
+  const unlocked = open || (await isValidGateCookie((await cookies()).get(GATE_COOKIE)?.value));
   return (
     <html lang="sv" className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <body>
         <SiteGate unlocked={unlocked}>
-          <SiteHeader />
+          {!open && <SiteHeader />}
           {children}
         </SiteGate>
       </body>

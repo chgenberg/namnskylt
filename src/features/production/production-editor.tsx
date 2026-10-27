@@ -19,9 +19,9 @@ import {
   type SheetSettings,
 } from "@/lib/production";
 import { batchLabel, METHOD_LABEL, productionNumber } from "./batch-label";
-import type { AdminOrder } from "./demo-orders";
+import type { AdminOrder } from "@/features/orders/demo-orders";
 import { downloadFile, printSheets, type PrintScale } from "./production-files";
-import styles from "./admin.module.css";
+import styles from "@/components/dashboard/dashboard.module.css";
 
 type LineMode = "machine" | "proof";
 type ZoomMode = "used" | "sheet";

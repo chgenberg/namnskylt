@@ -1,0 +1,144 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { MAX_ORDER_BADGES } from "@/engine";
+import { ORDER_STATUSES } from "@/lib/orders/model";
+import { placeOrder } from "@/lib/orders/place-order";
+import { repeatBadges, staffBadges } from "@/lib/orders/repeat";
+import {
+  createProof,
+  deleteDesign,
+  getCustomer,
+  getDesign,
+  getOrder,
+  saveDesign,
+  updateStatus,
+} from "@/lib/orders/repository";
+import { siteOrigin } from "@/lib/http/origin";
+import { requireReseller } from "@/lib/reseller-auth/session";
+
+export type ActionResult = { ok: true; orderNo?: string; url?: string } | { ok: false; error: string };
+
+const orderNoSchema = z.string().regex(/^NS-\d{1,9}$/);
+const namesSchema = z.string().trim().min(1).max(20_000);
+const quantitySchema = z.number().int().min(1).max(1000);
+
+function fail(error: unknown, fallback: string): ActionResult {
+  if (error instanceof z.ZodError) return { ok: false, error: "Ogiltiga uppgifter" };
+  console.error(fallback, error);
+  return { ok: false, error: fallback };
+}
+
+function done(orderNo?: string, url?: string): ActionResult {
+  revalidatePath("/admin", "layout");
+  return { ok: true, orderNo, url };
+}
+
+export async function repeatOrderAction(orderNo: string): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    const original = await getOrder(orderNoSchema.parse(orderNo));
+    if (!original || original.badges.length === 0) return { ok: false, error: "Ordern finns inte" };
+    const placed = await placeOrder({
+      customer: original.customer,
+      badges: repeatBadges(original.badges),
+      source: "repeat",
+      repeatOf: original.id,
+      note: `Beställd igen från ${original.orderNo}`,
+    });
+    return done(placed.orderNumber);
+  } catch (error) {
+    return fail(error, "Ordern kunde inte läggas");
+  }
+}
+
+export async function staffOrderAction(orderNo: string, names: string, quantity: number): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    const original = await getOrder(orderNoSchema.parse(orderNo));
+    const template = original?.badges[0];
+    if (!original || !template) return { ok: false, error: "Ordern finns inte" };
+    const badges = staffBadges(template, namesSchema.parse(names), quantitySchema.parse(quantity));
+    if (badges.length === 0) return { ok: false, error: "Skriv minst ett namn" };
+    if (badges.length > MAX_ORDER_BADGES) return { ok: false, error: `Högst ${MAX_ORDER_BADGES} namn per order` };
+    const placed = await placeOrder({
+      customer: original.customer,
+      badges,
+      source: "staff",
+      repeatOf: original.id,
+      note: `Ny personal, samma design som ${original.orderNo}`,
+    });
+    return done(placed.orderNumber);
+  } catch (error) {
+    return fail(error, "Ordern kunde inte läggas");
+  }
+}
+
+export async function orderFromDesignAction(designId: string, names: string, quantity: number): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    const design = await getDesign(z.uuid().parse(designId));
+    const customer = design ? await getCustomer(design.customerId) : null;
+    if (!design || !customer) return { ok: false, error: "Mallen finns inte" };
+    const badges = staffBadges(design.doc, namesSchema.parse(names), quantitySchema.parse(quantity));
+    if (badges.length === 0) return { ok: false, error: "Skriv minst ett namn" };
+    if (badges.length > MAX_ORDER_BADGES) return { ok: false, error: `Högst ${MAX_ORDER_BADGES} namn per order` };
+    const placed = await placeOrder({ customer, badges, source: "template", note: `Från mallen ”${design.name}”` });
+    return done(placed.orderNumber);
+  } catch (error) {
+    return fail(error, "Ordern kunde inte läggas");
+  }
+}
+
+const statusSchema = z.object({
+  orderNo: orderNoSchema,
+  status: z.enum(ORDER_STATUSES),
+  note: z.string().trim().max(500).optional(),
+  trackingUrl: z.url().max(500).optional().or(z.literal("")),
+});
+
+export async function updateStatusAction(input: z.input<typeof statusSchema>): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    const { orderNo, status, note, trackingUrl } = statusSchema.parse(input);
+    const ok = await updateStatus(orderNo, status, { note: note || null, trackingUrl: trackingUrl || null });
+    return ok ? done(orderNo) : { ok: false, error: "Ordern finns inte" };
+  } catch (error) {
+    return fail(error, "Statusen kunde inte sparas");
+  }
+}
+
+export async function createProofAction(orderNo: string): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    const token = await createProof(orderNoSchema.parse(orderNo));
+    if (!token) return { ok: false, error: "Ordern finns inte" };
+    return done(orderNo, `${await siteOrigin()}/korrektur/${token}`);
+  } catch (error) {
+    return fail(error, "Korrekturlänken kunde inte skapas");
+  }
+}
+
+export async function saveDesignAction(orderNo: string, badgeIndex: number, name: string): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    const order = await getOrder(orderNoSchema.parse(orderNo));
+    const badge = order?.badges[z.number().int().min(0).parse(badgeIndex)];
+    if (!order || !badge) return { ok: false, error: "Skylten finns inte" };
+    await saveDesign(order.customer.id, z.string().trim().min(1).max(80).parse(name), badge);
+    return done();
+  } catch (error) {
+    return fail(error, "Mallen kunde inte sparas");
+  }
+}
+
+export async function deleteDesignAction(designId: string): Promise<ActionResult> {
+  await requireReseller();
+  try {
+    await deleteDesign(z.uuid().parse(designId));
+    return done();
+  } catch (error) {
+    return fail(error, "Mallen kunde inte tas bort");
+  }
+}

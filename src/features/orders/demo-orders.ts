@@ -32,7 +32,8 @@ function team(template: BadgeDocument, people: readonly (readonly string[])[]): 
   return people.map((texts) => withTexts(template, texts));
 }
 
-const base = createBadgeDocument();
+/** Demoordrarna är gravyrplast om inget annat sägs — färgerna nedan är plastens. */
+const base: BadgeDocument = { ...createBadgeDocument(), materialId: "plastic-2-layer", colorId: "white-black" };
 
 export const DEMO_ORDERS: readonly AdminOrder[] = [
   {

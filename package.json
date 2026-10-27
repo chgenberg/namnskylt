@@ -10,11 +10,13 @@
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build",
-    "start": "next start -p 3100",
+    "start": "tsx scripts/db-migrate.ts && next start -p 3100",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/engine/*.test.ts src/lib/**/*.test.ts",
-    "format": "prettier --write \"**/*.{ts,tsx,css,md,json}\""
+    "format": "prettier --write \"**/*.{ts,tsx,css,md,json}\"",
+    "db:migrate": "tsx --env-file-if-exists=.env.local scripts/db-migrate.ts",
+    "db:seed": "tsx --env-file-if-exists=.env.local scripts/db-seed.ts"
   },
   "dependencies": {
     "@react-three/drei": "10",
@@ -26,6 +28,7 @@
     "openai": "^7.45.0",
     "opentype.js": "^2.0.0",
     "playwright-core": "^1.63.0",
+    "postgres": "^3.4.9",
     "react": "19",
     "react-dom": "19",
     "server-only": "^0.0.1",

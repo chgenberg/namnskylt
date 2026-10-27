@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { AdminLogin } from "./admin-login";
+import { isResellerSignedIn } from "@/lib/reseller-auth/session";
 import styles from "./site-header.module.css";
 
 const NAV = [
@@ -8,7 +8,8 @@ const NAV = [
   { href: "/inspiration", label: "Inspirationsbank" },
 ] as const;
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const signedIn = await isResellerSignedIn();
   return (
     <header className={styles.header}>
       <div className={styles.inner}>
@@ -28,7 +29,18 @@ export function SiteHeader() {
               {item.label}
             </Link>
           ))}
-          <AdminLogin />
+          {signedIn ? (
+            <Link href="/admin" className={`${styles.link} ${styles.admin}`}>
+              <span className={styles.avatar} aria-hidden>
+                A
+              </span>
+              <span className={styles.adminText}>Admin</span>
+            </Link>
+          ) : (
+            <Link href="/admin" className={`${styles.link} ${styles.login}`}>
+              Logga in
+            </Link>
+          )}
         </nav>
       </div>
     </header>
