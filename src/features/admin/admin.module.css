@@ -2039,3 +2039,158 @@
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px rgb(10 10 11 / 0.15);
 }
+
+/* ───────────── Mejlförhandsvisning ───────────── */
+
+.mailDialog {
+  width: min(1240px, calc(100vw - 32px));
+  height: min(860px, calc(100dvh - 32px));
+}
+
+.mailLayout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  height: 100%;
+}
+
+.mailSide {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  min-height: 0;
+  padding: var(--space-5);
+  border-right: 1px solid var(--color-line);
+  background: var(--color-paper);
+}
+
+.mailShops {
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mailShops button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  text-align: left;
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mailShops button:hover {
+  background: rgb(10 10 11 / 0.05);
+}
+
+.mailShops button[aria-selected="true"] {
+  background: var(--color-navy);
+  color: #fff;
+}
+
+.mailTech ul {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.mailTech li {
+  display: grid;
+}
+
+.mailTech span {
+  color: var(--color-muted);
+}
+
+.mailMain {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: var(--space-3);
+  min-height: 0;
+  padding: var(--space-5);
+}
+
+.mailToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mailHead {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 4px var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: 14px;
+  background: var(--color-paper);
+  font-size: var(--text-sm);
+}
+
+.mailHead dt {
+  color: var(--color-muted);
+}
+
+.mailHead dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mailFrameWrap {
+  display: grid;
+  justify-items: center;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #e9e8e3;
+}
+
+.mailFrame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #f2f1ec;
+  transition: width var(--duration-base) var(--ease-out);
+}
+
+.mailFrameWrap[data-view="mobile"] .mailFrame {
+  width: 390px;
+  margin: var(--space-4) 0;
+  height: calc(100% - 2 * var(--space-4));
+  border-radius: 28px;
+  box-shadow:
+    0 0 0 10px #111418,
+    0 20px 40px -10px rgb(0 0 0 / 0.4);
+}
+
+.mailText {
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: 14px;
+  background: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .mailLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .mailSide {
+    display: none;
+  }
+}

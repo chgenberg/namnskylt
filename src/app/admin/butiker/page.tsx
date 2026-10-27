@@ -1,6 +1,7 @@
 import { canViewAdmin } from "@/features/admin/guard";
 import { ShopBuilder } from "@/features/admin/shop-builder";
 import { ShopCardActions } from "@/features/admin/shop-card-actions";
+import { ShopEmailPreview } from "@/features/admin/shop-email-preview";
 import styles from "@/features/admin/admin.module.css";
 import { formatDate } from "@/features/orders/format";
 import { siteOrigin } from "@/lib/http/origin";
@@ -29,6 +30,7 @@ export default async function ShopsPage() {
             skyltmotorn. Ordrarna landar här, märkta med butiken.
           </p>
         </div>
+        <ShopEmailPreview shops={shops.map(({ shop }) => ({ slug: shop.slug, name: shop.profile.name }))} />
       </header>
 
       <section className={styles.panel} style={{ marginBottom: "var(--space-5)" }}>
