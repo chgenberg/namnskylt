@@ -1930,6 +1930,12 @@
   color: #9ca3af;
 }
 
+.qpTerms {
+  margin-bottom: 4px;
+  color: #4b5563;
+  white-space: pre-line;
+}
+
 @media (max-width: 1100px) {
   .companyLayout {
     grid-template-columns: 1fr;

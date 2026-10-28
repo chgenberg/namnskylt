@@ -351,6 +351,7 @@ function QuotePreview({ profile }: { profile: CompanyProfile }) {
           <b>Godkänn offerten</b> — ett klick så går skyltarna till gravyren.
         </div>
         <div className={styles.qpFoot}>
+          {profile.quoteTerms.trim() && <span className={styles.qpTerms}>{profile.quoteTerms}</span>}
           <span>{[profile.name, profile.orgNumber && `Org.nr ${profile.orgNumber}`].filter(Boolean).join(" · ")}</span>
           <span>{[profile.phone, profile.email, profile.website].filter(Boolean).join(" · ")}</span>
         </div>
