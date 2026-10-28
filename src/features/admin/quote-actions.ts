@@ -33,6 +33,7 @@ export async function updateQuotePricingAction(quoteNo: string, pricing: Pricing
 }
 
 const termsSchema = z.object({
+  project: z.string().trim().max(120),
   message: z.string().trim().max(2000),
   validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
@@ -40,8 +41,8 @@ const termsSchema = z.object({
 export async function updateQuoteTermsAction(quoteNo: string, input: z.input<typeof termsSchema>): Promise<ActionResult> {
   await requireReseller();
   try {
-    const { message, validUntil } = termsSchema.parse(input);
-    const ok = await updateQuote(quoteNoSchema.parse(quoteNo), { message: message || null, validUntil });
+    const { project, message, validUntil } = termsSchema.parse(input);
+    const ok = await updateQuote(quoteNoSchema.parse(quoteNo), { project: project || null, message: message || null, validUntil });
     return ok ? done() : { ok: false, error: "Offerten går inte att ändra längre" };
   } catch (error) {
     return fail(error, "Villkoren kunde inte sparas");

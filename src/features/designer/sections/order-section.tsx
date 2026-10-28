@@ -64,7 +64,12 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
       const response = await fetch(quote ? "/api/admin/quotes" : "/api/admin/orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ customerId: context.customerId, badges, badgeShot: captureShot?.() ?? undefined }),
+        body: JSON.stringify({
+          customerId: context.customerId,
+          badges,
+          badgeShot: captureShot?.() ?? undefined,
+          project: quote ? context.project : undefined,
+        }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "Något gick fel");

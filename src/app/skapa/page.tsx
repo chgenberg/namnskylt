@@ -14,6 +14,7 @@ interface SkapaPageProps {
     d?: string | string[];
     kund?: string | string[];
     offert?: string | string[];
+    projekt?: string | string[];
   }>;
 }
 
@@ -52,7 +53,7 @@ export async function generateMetadata({ searchParams }: SkapaPageProps): Promis
 }
 
 /** `?kund=` gäller bara inloggad återförsäljare — annars är det en vanlig besökare. */
-async function resellerContext(customerId: string | undefined, quote: boolean) {
+async function resellerContext(customerId: string | undefined, quote: boolean, project: string | undefined) {
   if (!customerId || !databaseConfigured() || !(await isResellerSignedIn())) return undefined;
   const [customer, purchase] = await Promise.all([getCustomer(customerId), getPurchaseTerms()]);
   return customer
@@ -60,6 +61,7 @@ async function resellerContext(customerId: string | undefined, quote: boolean) {
         customerId: customer.id,
         customerName: customer.company ?? customer.name,
         mode: quote ? ("quote" as const) : ("order" as const),
+        project: quote ? project?.trim().slice(0, 120) || undefined : undefined,
         purchase,
       }
     : undefined;
@@ -69,7 +71,7 @@ export default async function SkapaPage({ searchParams }: SkapaPageProps) {
   preloadDesignerAssets();
   const params = await searchParams;
   const shared = await decodeShareCode(first(params.d));
-  const reseller = await resellerContext(first(params.kund), first(params.offert) === "1");
+  const reseller = await resellerContext(first(params.kund), first(params.offert) === "1", first(params.projekt));
   return (
     <main>
       <Designer initialText={first(params.t) ?? ""} initialDoc={shared} reseller={reseller} />

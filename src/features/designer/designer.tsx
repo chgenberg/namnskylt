@@ -36,6 +36,7 @@ import type { SpinFocus } from "./badge-3d";
 import type { BadgeRecorder } from "./three/recorder";
 import { shareBadge } from "./share";
 import { videoFileName } from "./video-file";
+import { SmartInput } from "@/features/home/smart-input";
 import { OnboardingDialog } from "./onboarding-dialog";
 import type { ResellerOrderContext, ShopContext } from "./reseller";
 import { designerReducer, type DesignerAction } from "./state";
@@ -105,7 +106,9 @@ export function Designer({ initialText, initialDoc, reseller, shop }: DesignerPr
     (text) => initialDoc ?? createBadgeDocument(parseSmartInput(text)),
   );
   const [view, setView] = useState<View>("3d");
-  const [onboarding, setOnboarding] = useState(() => !initialDoc && (initialText.trim() !== "" || Boolean(reseller)));
+  const [onboarding, setOnboarding] = useState(() => !initialDoc && initialText.trim() !== "");
+  /** Återförsäljaren börjar som på startsidan: namnet först, sedan material och form. */
+  const [starting, setStarting] = useState(() => Boolean(reseller) && !initialDoc && initialText.trim() === "");
   const [spinning, setSpinning] = useState(false);
   const [focus, setFocus] = useState<SpinFocus | null>(null);
   /** Skylten graveras fram en gång när designern öppnas, och igen på begäran. */
@@ -309,6 +312,26 @@ export function Designer({ initialText, initialDoc, reseller, shop }: DesignerPr
           )}
         </div>
 
+        {starting && reseller && (
+          <div className={styles.startStage}>
+            <p className={styles.startEyebrow}>
+              {reseller.mode === "quote" ? "Offert till" : "Order åt"} {reseller.customerName}
+              {reseller.project && ` · ${reseller.project}`}
+            </p>
+            <h2 className={styles.startTitle}>
+              Skriv namnet.
+              <span>Vi graverar resten.</span>
+            </h2>
+            <SmartInput
+              onSubmit={(rows) => {
+                update({ type: "texts", texts: rows });
+                setStarting(false);
+                setOnboarding(true);
+              }}
+            />
+          </div>
+        )}
+
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={view}
@@ -415,6 +438,7 @@ export function Designer({ initialText, initialDoc, reseller, shop }: DesignerPr
             <div className={styles.resellerBar} role="status">
               <span>
                 {reseller.mode === "quote" ? "Offert till" : "Order åt"} <strong>{reseller.customerName}</strong>
+                {reseller.project && <> · {reseller.project}</>}
               </span>
               <a href={reseller.mode === "quote" ? "/admin/ny-offert" : "/admin/ny-order"} className={styles.resellerLink}>
                 Byt kund

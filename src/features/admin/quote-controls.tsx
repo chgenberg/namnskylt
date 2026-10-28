@@ -8,17 +8,19 @@ import styles from "./admin.module.css";
 
 interface TermsFormProps {
   quoteNo: string;
+  project: string | null;
   message: string | null;
   validUntil: string;
   editable: boolean;
 }
 
-export function QuoteTermsForm({ quoteNo, message, validUntil, editable }: TermsFormProps) {
+export function QuoteTermsForm({ quoteNo, project, message, validUntil, editable }: TermsFormProps) {
+  const [title, setTitle] = useState(project ?? "");
   const [text, setText] = useState(message ?? "");
   const [until, setUntil] = useState(validUntil);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const dirty = text !== (message ?? "") || until !== validUntil;
+  const dirty = title !== (project ?? "") || text !== (message ?? "") || until !== validUntil;
 
   return (
     <form
@@ -27,11 +29,22 @@ export function QuoteTermsForm({ quoteNo, message, validUntil, editable }: Terms
         event.preventDefault();
         setNote(null);
         startTransition(async () => {
-          const result = await updateQuoteTermsAction(quoteNo, { message: text, validUntil: until });
+          const result = await updateQuoteTermsAction(quoteNo, { project: title, message: text, validUntil: until });
           setNote(result.ok ? { ok: true, text: "Sparat" } : { ok: false, text: result.error });
         });
       }}
     >
+      <label className={styles.formRow}>
+        <span className={styles.formLabel}>Projektets namn (offertens rubrik)</span>
+        <input
+          className={styles.input}
+          maxLength={120}
+          disabled={!editable}
+          value={title}
+          placeholder="Nya namnskyltar till receptionen"
+          onChange={(e) => setTitle(e.target.value)}
+        />
+      </label>
       <label className={styles.formRow}>
         <span className={styles.formLabel}>Hälsning till kunden (syns överst i offerten)</span>
         <textarea

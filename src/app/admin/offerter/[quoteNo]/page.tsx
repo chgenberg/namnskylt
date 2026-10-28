@@ -38,9 +38,10 @@ export default async function QuotePage({ params }: QuotePageProps) {
               Offerter
             </Link>{" "}
             / <span className="mono">{quote.quoteNo}</span>
+            {quote.project && <> · {name}</>}
             {quote.demo && <span className={styles.demoTag}> Demo</span>}
           </p>
-          <h1 className={styles.pageTitle}>{name}</h1>
+          <h1 className={styles.pageTitle}>{quote.project ?? name}</h1>
           <p className={styles.pageLead}>
             <QuoteStatusPill status={status} /> &nbsp;{badgeCount(quote)} skyltar · {formatSek(quote.totalSek)} exkl. moms · skapad{" "}
             {formatDate(quote.createdAt)}
@@ -104,7 +105,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
             <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>
               Villkor och hälsning
             </h2>
-            <QuoteTermsForm quoteNo={quote.quoteNo} message={quote.message} validUntil={quote.validUntil} editable={editable} />
+            <QuoteTermsForm quoteNo={quote.quoteNo} project={quote.project} message={quote.message} validUntil={quote.validUntil} editable={editable} />
           </section>
         </div>
 

@@ -109,8 +109,8 @@ s{color:#9ca3af;font-weight:400}
 .foot .terms{max-width:85mm;white-space:pre-line}.foot .seller{text-align:right}
 </style></head><body><div class="page">
 <div class="top">${brand}<div class="ref">Offert<b>${esc(quote.quoteNo)}</b></div></div>
-<p class="eyebrow">Offert</p>
-<h1>Namnskyltar till ${esc(customer.company ?? customer.name)}</h1>
+<p class="eyebrow">${quote.project ? `Offert till ${esc(customer.company ?? customer.name)}` : "Offert"}</p>
+<h1>${esc(quote.project ?? `Namnskyltar till ${customer.company ?? customer.name}`)}</h1>
 ${quote.message ? `<p class="message">${esc(quote.message)}</p>` : ""}
 <div class="grid"><div class="info">${info.map(([k, v]) => `<div><p class="k">${esc(k)}</p><p class="v">${esc(v)}</p></div>`).join("")}</div>
 ${

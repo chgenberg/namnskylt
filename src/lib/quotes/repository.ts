@@ -46,6 +46,7 @@ interface QuoteRow {
   customer_demo: boolean;
   events: { status: string; note: string | null; at: string }[] | null;
   badge_shot: string | null;
+  project: string | null;
 }
 
 function toQuote(row: QuoteRow): StoredQuote {
@@ -57,6 +58,7 @@ function toQuote(row: QuoteRow): StoredQuote {
   return {
     id: row.id,
     badgeShot: row.badge_shot,
+    project: row.project,
     quoteNo: row.quote_no,
     customer: {
       id: row.customer_id,
@@ -89,7 +91,7 @@ function toQuote(row: QuoteRow): StoredQuote {
 /** Stillbilden är den tunga kolumnen — listan klarar sig utan. */
 function selectQuotes(sql: Sql, withShot = false) {
   return sql`
-    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, q.quote_no, q.status, q.badges, q.pricing, q.total_sek, q.total_incl_vat_sek, q.message,
+    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, q.project, q.quote_no, q.status, q.badges, q.pricing, q.total_sek, q.total_incl_vat_sek, q.message,
            to_char(q.valid_until, 'YYYY-MM-DD') as valid_until, q.token, q.decline_reason, q.is_demo,
            q.created_at, q.sent_at, q.decided_at, o.order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email,
@@ -126,6 +128,7 @@ export async function createQuote(input: {
   badges: BadgeDocument[];
   demo: boolean;
   badgeShot?: string | null;
+  project?: string | null;
 }): Promise<{ quoteNo: string }> {
   const sql = requireDb();
   const price = priceWithPricing(input.badges);
@@ -133,9 +136,9 @@ export async function createQuote(input: {
   const token = randomBytes(18).toString("base64url");
   return sql.begin(async (tx) => {
     const [row] = await tx<{ id: string; quote_no: string }[]>`
-      insert into quotes (customer_id, badges, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot)
+      insert into quotes (customer_id, badges, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project)
       values (${input.customerId}, ${tx.json(input.badges as unknown as Json)}, ${price.totalSek},
-              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null})
+              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null}, ${input.project ?? null})
       returning id, quote_no`;
     if (!row) throw new Error("Offerten kunde inte sparas");
     await tx`insert into quote_events (quote_id, status, note) values (${row.id}, 'draft', 'Offert skapad i skyltmotorn')`;
@@ -150,7 +153,7 @@ async function addEvent(tx: TransactionSql, quoteId: string, status: QuoteStatus
 /** Nya priser och villkor. En nekad offert som ändras blir ett utkast igen. */
 export async function updateQuote(
   quoteNo: string,
-  patch: { pricing?: Pricing; message?: string | null; validUntil?: string },
+  patch: { pricing?: Pricing; message?: string | null; validUntil?: string; project?: string | null },
 ): Promise<boolean> {
   const sql = requireDb();
   return sql.begin(async (tx) => {
@@ -166,6 +169,7 @@ export async function updateQuote(
              total_sek = ${price.totalSek}, total_incl_vat_sek = ${price.totalInclVatSek},
              message = ${patch.message === undefined ? tx`message` : patch.message},
              valid_until = ${patch.validUntil ?? tx`valid_until`},
+             project = ${patch.project === undefined ? tx`project` : patch.project},
              status = ${status}
        where id = ${row.id}`;
     if (patch.pricing !== undefined) {

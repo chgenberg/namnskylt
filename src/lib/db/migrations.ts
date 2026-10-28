@@ -146,6 +146,10 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       alter table orders add column shop_slug text references shops(slug) on delete set null;
     `,
   },
+  {
+    id: "008_quote_project",
+    sql: `alter table quotes add column project text;`,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

@@ -48,8 +48,14 @@ function useTypewriter(active: boolean): string {
   return text;
 }
 
-/** `target` = skyltmotorns adress; demobutikerna har sin egen. */
-export function SmartInput({ target = "/skapa" }: { target?: string }) {
+interface SmartInputProps {
+  /** Skyltmotorns adress; demobutikerna har sin egen. */
+  target?: string;
+  /** I stället för att byta sida — rutan sitter redan i skyltmotorn. */
+  onSubmit?: (rows: string[]) => void;
+}
+
+export function SmartInput({ target = "/skapa", onSubmit }: SmartInputProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
@@ -73,8 +79,8 @@ export function SmartInput({ target = "/skapa" }: { target?: string }) {
   });
 
   useEffect(() => {
-    router.prefetch(target);
-  }, [router, target]);
+    if (!onSubmit) router.prefetch(target);
+  }, [router, target, onSubmit]);
 
   // Länkar till #borja (menyn, "Så funkar det") ska lämna markören i rutan.
   // Next byter hash med pushState, så hashchange kommer inte — lyssna på klicket.
@@ -101,6 +107,10 @@ export function SmartInput({ target = "/skapa" }: { target?: string }) {
     if (rows.length === 0) {
       setShake((n) => n + 1);
       inputRef.current?.focus();
+      return;
+    }
+    if (onSubmit) {
+      onSubmit(rows);
       return;
     }
     setLeaving(true);

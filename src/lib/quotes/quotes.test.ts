@@ -11,6 +11,7 @@ function quote(patch: Partial<StoredQuote> = {}): StoredQuote {
   return {
     id: "q1",
     badgeShot: null,
+    project: null,
     quoteNo: "OF-1001",
     customer: { id: "c1", name: "Anna Lind", company: "Kafé <Ett>", email: "anna@example.se", phone: "070-123", orgNumber: "556000-0000", address: "Storgatan 1\n111 22 Stockholm", demo: false },
     status: "sent",
@@ -60,6 +61,13 @@ describe("offertdokumentet", () => {
     assert.match(html, /Rabatt 10 %/);
     assert.match(html, /<s>/, "listpriset stryks när à-priset är ändrat");
     assert.doesNotMatch(html, /<Ett>/);
+  });
+
+  it("har projektets namn som rubrik och kunden ovanför", () => {
+    const named = quoteHtml(quote({ project: "Receptionen <2027>" }), approxFonts);
+    assert.match(named, /<h1>Receptionen &lt;2027&gt;<\/h1>/);
+    assert.match(named, /Offert till Kafé &lt;Ett&gt;/);
+    assert.match(html, /<h1>Namnskyltar till Kafé &lt;Ett&gt;<\/h1>/);
   });
 
   it("bäddar in skyltarna så att PDF:en inte hämtar något", () => {

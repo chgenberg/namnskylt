@@ -12,6 +12,8 @@ export interface ResellerOrderContext {
   customerName: string;
   /** `quote` sparar en offert — inget går till tillverkningen förrän kunden godkänt. */
   mode: "order" | "quote";
+  /** Offertens rubrik, satt innan skyltmotorn öppnades. */
+  project?: string;
   /** Inköpsvillkoren hos tryckeriet; `null` innan de ställts in. Skickas bara till inloggad återförsäljare. */
   purchase: PurchaseTerms | null;
 }

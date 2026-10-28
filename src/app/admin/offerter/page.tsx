@@ -60,8 +60,9 @@ export default async function QuotesPage() {
                     <span className={styles.orderNo}>{quote.quoteNo}</span>
                     <QuoteStatusPill status={status} />
                   </div>
-                  <h3 className={styles.cardTitle}>{quote.customer.company ?? quote.customer.name}</h3>
+                  <h3 className={styles.cardTitle}>{quote.project ?? quote.customer.company ?? quote.customer.name}</h3>
                   <div className={styles.cardMeta}>
+                    {quote.project && <span>{quote.customer.company ?? quote.customer.name}</span>}
                     <span>{badgeCount(quote)} st</span>
                     <span>{formatRelative(quote.createdAt, now)}</span>
                     {status === "sent" && <span>gäller t.o.m. {formatDay(quote.validUntil)}</span>}

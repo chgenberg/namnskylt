@@ -13,6 +13,7 @@ const requestSchema = z.object({
   customerId: z.uuid(),
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
   badgeShot: badgeShotUploadSchema,
+  project: z.string().trim().max(120).optional(),
 });
 
 /** Skyltmotorn i offertläge: samma skyltar som en order, men inget skickas till tillverkningen. */
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
       badges: parsed.data.badges,
       demo: customer.demo,
       badgeShot: await normalizeBadgeShot(parsed.data.badgeShot),
+      project: parsed.data.project || null,
     });
     return NextResponse.json({ quoteNo }, { status: 201 });
   } catch (error) {

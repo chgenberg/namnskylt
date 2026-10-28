@@ -49,7 +49,10 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
           ? { title: "Offerten har gått ut", text: `Den gällde till ${formatDay(quote.validUntil)}. Hör av dig så skickar vi en ny.` }
           : status === "draft"
             ? { title: "Offerten är inte klar än", text: "Du får en länk när den är klar att godkänna." }
-            : { title: `Offert till ${quote.customer.company ?? firstName}`, text: `Giltig till och med ${formatDay(quote.validUntil)}.` };
+            : {
+                title: quote.project ?? `Offert till ${quote.customer.company ?? firstName}`,
+                text: `${quote.project ? `Till ${quote.customer.company ?? quote.customer.name} · ` : ""}Giltig till och med ${formatDay(quote.validUntil)}.`,
+              };
 
   return (
     <main className={styles.page} style={brand}>
