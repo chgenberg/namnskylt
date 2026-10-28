@@ -314,6 +314,13 @@
   border-top: 1px solid var(--color-line);
 }
 
+/* Samma brytpunkt som panelen i designer.module.css — där scrollar hela panelen och priset ligger sist. */
+@media (min-width: 901px) and (max-height: 760px) {
+  .order {
+    position: static;
+  }
+}
+
 .quantityRow {
   display: flex;
   flex-wrap: wrap;

@@ -200,29 +200,49 @@
 
 /* Chrome och Safari hoppar över den egna listen om standardegenskaperna är satta — de gäller bara Firefox. */
 @supports not selector(::-webkit-scrollbar) {
+  .panel,
   .panelScroll {
     scrollbar-width: thin;
-    scrollbar-color: rgb(10 10 11 / 0.22) transparent;
+    scrollbar-color: rgb(10 10 11 / 0.35) rgb(10 10 11 / 0.06);
   }
 }
 
 /* macOS döljer annars scrollisten tills man scrollar; en egen gör den alltid synlig. */
+.panel::-webkit-scrollbar,
 .panelScroll::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
 }
 
+.panel::-webkit-scrollbar-track,
 .panelScroll::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgb(10 10 11 / 0.06);
 }
 
+.panel::-webkit-scrollbar-thumb,
 .panelScroll::-webkit-scrollbar-thumb {
-  border: 2px solid var(--color-white);
+  min-height: 40px;
+  border: 2px solid transparent;
   border-radius: 999px;
-  background: rgb(10 10 11 / 0.22);
+  background: rgb(10 10 11 / 0.35) padding-box;
 }
 
+.panel::-webkit-scrollbar-thumb:hover,
 .panelScroll::-webkit-scrollbar-thumb:hover {
-  background: rgb(10 10 11 / 0.38);
+  background: rgb(10 10 11 / 0.5) padding-box;
+}
+
+/* På låga skärmar äter den fasta prisdelen nästan hela höjden — då scrollar hela panelen i stället. */
+@media (min-width: 901px) and (max-height: 760px) {
+  .panel {
+    display: block;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .panelScroll {
+    overflow: visible;
+    background: none;
+  }
 }
 
 .panelHead {
