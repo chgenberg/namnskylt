@@ -2,7 +2,7 @@
   position: relative;
   padding-block: var(--space-9) var(--space-8);
   border-top: 1px solid var(--color-line);
-  background: var(--color-white);
+  background: var(--color-paper);
 }
 
 /* ── Ingress + stegrad ── */
@@ -16,10 +16,11 @@
 
 .title {
   max-width: 20ch;
-  font-size: var(--text-2xl);
-  font-weight: 600;
-  line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-tight);
+  font-family: var(--font-serif);
+  font-size: clamp(2.2rem, 1.7rem + 1.8vw, 3.1rem);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
   text-wrap: balance;
 }
 
@@ -112,18 +113,20 @@
 }
 
 .number {
+  font-family: var(--font-serif);
   font-size: var(--text-display);
-  font-weight: 600;
+  font-style: italic;
+  font-weight: 400;
   line-height: 1;
-  letter-spacing: var(--tracking-tight);
-  color: var(--color-navy);
+  color: var(--color-muted);
 }
 
 .stepTitle {
   margin-top: var(--space-3);
-  font-size: var(--text-2xl);
-  font-weight: 600;
-  letter-spacing: var(--tracking-tight);
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 1.6rem + 1.4vw, 2.7rem);
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
 .lead {
@@ -188,8 +191,9 @@
 }
 
 .outroTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
   font-size: var(--text-2xl);
-  font-weight: 600;
   letter-spacing: var(--tracking-tight);
 }
 

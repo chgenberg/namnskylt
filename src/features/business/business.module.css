@@ -29,8 +29,9 @@
 }
 
 .heroTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
   font-size: var(--text-display);
-  font-weight: 600;
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-tight);
 }
@@ -89,9 +90,10 @@
 }
 
 .sectionTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
   max-width: 22ch;
   font-size: var(--text-2xl);
-  font-weight: 600;
   line-height: var(--leading-tight);
   letter-spacing: var(--tracking-tight);
   text-wrap: balance;
@@ -402,8 +404,9 @@
 }
 
 .outroTitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
   font-size: var(--text-display);
-  font-weight: 600;
   letter-spacing: var(--tracking-tight);
 }
 

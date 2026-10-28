@@ -30,7 +30,7 @@ export default async function ProofPage({ params }: ProofPageProps) {
   return (
     <main className={styles.page}>
       <div className={styles.inner}>
-        <Image src="/logo-namnskylt.png" alt="namnskylt.com" width={1024} height={328} className={styles.logo} priority />
+        <Image src="/logo-namnskylt.svg" alt="namnskylt.com" width={504} height={97} unoptimized className={styles.logo} priority />
         <header className={styles.head}>
           <p className={styles.eyebrow}>
             Korrektur · <span className="mono">{order.orderNo}</span>

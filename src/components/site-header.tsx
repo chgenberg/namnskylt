@@ -15,10 +15,11 @@ export async function SiteHeader() {
       <div className={styles.inner}>
         <Link href="/" className={styles.brand} aria-label="namnskylt.com — till startsidan">
           <Image
-            src="/logo-namnskylt.png"
+            src="/logo-namnskylt.svg"
             alt="namnskylt.com"
-            width={1024}
-            height={328}
+            width={504}
+            height={97}
+            unoptimized
             priority
             className={styles.logo}
           />

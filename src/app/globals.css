@@ -7,36 +7,39 @@
 /* ───────────── Tokens ───────────── */
 
 :root {
-  /* Färg — nordisk: vitt, svart, mörkblått. */
+  /* Färg — redaktionell: papper, bläck och mässing. `navy` är bläckets accentskala. */
   --color-white: #ffffff;
-  --color-paper: #f6f6f3;
-  --color-paper-2: #eeeeea;
+  --color-paper: #f4f2ec;
+  --color-paper-2: #ebe8e0;
+  --color-paper-3: #fbfaf6;
   --color-ink: #0a0a0b;
-  --color-ink-2: #2b2e34;
-  --color-muted: #6b7079;
-  --color-subtle: #9a9fa8;
+  --color-ink-2: #2b2a27;
+  --color-muted: #75746c;
+  --color-subtle: #a3a198;
   --color-line: rgb(10 10 11 / 0.08);
   --color-line-strong: rgb(10 10 11 / 0.16);
-  --color-navy: #0b1f3a;
-  --color-navy-2: #14315c;
-  --color-navy-3: #2f5da8;
-  --color-navy-tint: #e8edf5;
+  --color-navy: #0a0a0b;
+  --color-navy-2: #2a2a27;
+  --color-navy-3: #57564f;
+  --color-navy-tint: #ebe8e0;
+  --color-brass: #b8934a;
   --color-success: #1f7a4d;
   --color-warning: #9a6a00;
   --color-danger: #b42318;
 
-  --surface-glass: rgb(255 255 255 / 0.72);
+  --surface-glass: rgb(244 242 236 / 0.78);
   --surface-highlight: rgb(255 255 255 / 0.9);
   --surface-highlight-0: rgb(255 255 255 / 0);
-  --navy-glow: rgb(47 93 168 / 0.1);
-  --navy-glow-0: rgb(47 93 168 / 0);
-  --navy-ring: rgb(47 93 168 / 0.18);
-  --navy-halo: rgb(11 31 58 / 0.06);
-  --focus-ring: 0 0 0 3px rgb(47 93 168 / 0.28);
+  --navy-glow: rgb(10 10 11 / 0.04);
+  --navy-glow-0: rgb(10 10 11 / 0);
+  --navy-ring: rgb(10 10 11 / 0.14);
+  --navy-halo: rgb(10 10 11 / 0.05);
+  --focus-ring: 0 0 0 3px rgb(10 10 11 / 0.14);
 
   /* Typografi */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-serif: var(--font-editorial), Georgia, "Times New Roman", serif;
 
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -118,7 +121,7 @@ body {
   font-size: var(--text-md);
   line-height: var(--leading-body);
   color: var(--color-ink);
-  background: var(--color-white);
+  background: var(--color-paper);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -216,10 +219,22 @@ p {
 /* ───────────── Typografi ───────────── */
 
 .eyebrow {
-  font-size: var(--text-xs);
-  font-weight: 500;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
   letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.serif {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.serif em {
+  font-style: italic;
   color: var(--color-muted);
 }
 
@@ -482,4 +497,9 @@ p {
 .dot-grid {
   background-image: radial-gradient(rgb(10 10 11 / 0.07) 1px, transparent 1px);
   background-size: 22px 22px;
+}
+
+/* Startsidan har pappersvit botten även bakom menyn och under sidfoten. */
+body:has([data-home]) {
+  background: #f4f2ec;
 }

@@ -98,13 +98,13 @@ export default async function StatsPage() {
                 cy="70"
                 r={RING_R}
                 fill="none"
-                stroke="#0b1f3a"
+                stroke="#0a0a0b"
                 strokeWidth="14"
                 strokeLinecap="round"
                 strokeDasharray={`${RING_C * stats.repeatCustomerShare} ${RING_C}`}
                 transform="rotate(-90 70 70)"
               />
-              <text x="70" y="78" textAnchor="middle" fontSize="26" fontWeight="600" fill="#0b1f3a">
+              <text x="70" y="78" textAnchor="middle" fontSize="26" fontWeight="600" fill="#0a0a0b">
                 {Math.round(stats.repeatCustomerShare * 100)}%
               </text>
             </svg>

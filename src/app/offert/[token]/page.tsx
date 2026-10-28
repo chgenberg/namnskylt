@@ -67,7 +67,7 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
             style={plate ? { background: plate, padding: "6px 12px", borderRadius: 10 } : undefined}
           />
         ) : company.name === "namnskylt.com" ? (
-          <Image src="/logo-namnskylt.png" alt="namnskylt.com" width={1024} height={328} className={styles.logo} priority />
+          <Image src="/logo-namnskylt.svg" alt="namnskylt.com" width={504} height={97} unoptimized className={styles.logo} priority />
         ) : (
           <p className={styles.brandName}>{company.name}</p>
         )}

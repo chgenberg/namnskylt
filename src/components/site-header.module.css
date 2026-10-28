@@ -30,7 +30,7 @@
 
 .logo {
   width: auto;
-  height: 36px;
+  height: 26px;
 }
 
 .nav {
@@ -89,9 +89,45 @@
   font-weight: 600;
 }
 
+/* Startsidan: menyn som en svävande, halvgenomskinlig pill. */
+:global(body:has([data-home])) .header {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  width: min(1080px, calc(100% - 48px));
+  height: 56px;
+  translate: -50% 0;
+  border: 1px solid rgb(10 10 11 / 0.08);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.55);
+  box-shadow: 0 12px 32px -22px rgb(10 10 11 / 0.35);
+}
+
+:global(body:has([data-home])) .inner {
+  padding-inline: 18px 8px;
+}
+
+:global(body:has([data-home])) .brand {
+  flex: none;
+}
+
+:global(body:has([data-home])) .logo {
+  height: 24px;
+}
+
 @media (max-width: 640px) {
   .inner {
     padding-inline: var(--space-4);
+  }
+
+  :global(body:has([data-home])) .header {
+    top: 12px;
+    width: calc(100% - 24px);
+  }
+
+  /* "Så funkar det" finns som knapp under rutan. */
+  :global(body:has([data-home])) .link:first-child {
+    display: none;
   }
 
   .link {

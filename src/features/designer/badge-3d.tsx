@@ -68,12 +68,14 @@ interface BadgeMeshProps {
   turnRef: RefObject<RecordingTurn | null>;
   onTarget: (group: Group | null) => void;
   onSceneChange: (version: object) => void;
+  resumeAfterDragMs: number;
 }
 
 function BadgeMesh({
   doc,
   fonts,
   spinning,
+  resumeAfterDragMs,
   focus,
   engrave,
   onEngraveDone,
@@ -152,7 +154,7 @@ function BadgeMesh({
     if (focusRef.current) return;
     if (!spinning) return;
 
-    const sinceRelease = now - drag.current.releasedAt - RESUME_AFTER_DRAG_MS;
+    const sinceRelease = now - drag.current.releasedAt - resumeAfterDragMs;
     const ramp = MathUtils.clamp(sinceRelease / SPIN_RAMP_MS, 0, 1);
     // Långsamt förbi framsidan där gravyren syns, snabbare över baksidan.
     const facingBack = (1 - Math.cos(group.rotation.y)) / 2;
@@ -196,6 +198,8 @@ interface Badge3DProps {
   cameraZ?: number;
   /** När WebGL-scenen finns — då kan en platt ersättare under den döljas. */
   onReady?: () => void;
+  /** Paus efter ett släpp innan autosnurren tar vid. 0 = kastet glider direkt över i snurren. */
+  resumeAfterDragMs?: number;
 }
 
 export default function Badge3D({
@@ -211,6 +215,7 @@ export default function Badge3D({
   recorderRef,
   cameraZ = 5.6,
   onReady,
+  resumeAfterDragMs = RESUME_AFTER_DRAG_MS,
 }: Badge3DProps) {
   const [target, setTarget] = useState<Group | null>(null);
   const turnRef = useRef<RecordingTurn | null>(null);
@@ -234,6 +239,7 @@ export default function Badge3D({
         doc={doc}
         fonts={fonts}
         spinning={spinning}
+        resumeAfterDragMs={resumeAfterDragMs}
         focus={focus}
         engrave={engrave}
         onEngraveDone={onEngraveDone}

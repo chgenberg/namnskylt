@@ -1,0 +1,296 @@
+.hero {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--home-top) + 8px) var(--space-6) 72px;
+  text-align: center;
+}
+
+/* ── Skylten som bild med bildtext ── */
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(760px, 100%);
+  margin: 0;
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: clamp(220px, 36vh, 360px);
+}
+
+/* Ritningen syns tills WebGL-scenen finns. */
+.flat {
+  width: min(420px, 62%);
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.canvas canvas {
+  animation: fade-in 600ms var(--ease-out) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.dimension {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(440px, 70%);
+  margin-top: -14px;
+  color: var(--home-muted);
+}
+
+.dimLine {
+  position: relative;
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.45;
+}
+
+.dimLine:first-child::before,
+.dimLine:last-child::after {
+  content: "";
+  position: absolute;
+  top: -5px;
+  width: 1px;
+  height: 11px;
+  background: currentColor;
+}
+
+.dimLine:first-child::before {
+  left: 0;
+}
+
+.dimLine:last-child::after {
+  right: 0;
+}
+
+.dimLabel,
+.figNo,
+.margins {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.dimLabel {
+  white-space: nowrap;
+}
+
+.caption {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin-top: 14px;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-style: italic;
+  color: var(--home-muted);
+}
+
+.figNo {
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+/* ── Rubrik och ruta ── */
+
+.copy {
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  width: min(620px, 100%);
+  margin-top: clamp(28px, 5vh, 52px);
+  padding-top: clamp(24px, 4vh, 40px);
+  border-top: 1px solid rgb(10 10 11 / 0.12);
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 3.4vw, 2.75rem);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--color-ink);
+}
+
+.title em {
+  font-style: italic;
+  color: #85857e;
+}
+
+.form {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px;
+  border-radius: 999px;
+  background: #fbfaf6;
+  box-shadow: 0 0 0 1px rgb(10 10 11 / 0.14);
+  transition: box-shadow 160ms var(--ease-out);
+}
+
+.field[data-active="true"] {
+  box-shadow: 0 0 0 1.5px var(--color-ink);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  padding-inline: 20px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 17px;
+  color: var(--color-ink);
+  outline: none;
+}
+
+/* Fältets ram visar fokus — inte sajtens vanliga ring runt själva inputen. */
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.input::placeholder {
+  color: #a3a39c;
+}
+
+.primary {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding-inline: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-ink);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 160ms var(--ease-out);
+}
+
+.primary:hover {
+  background: #000;
+}
+
+.primary svg {
+  transition: transform 160ms var(--ease-out);
+}
+
+.primary:hover svg {
+  transform: translateX(3px);
+}
+
+.primary:focus-visible,
+.secondary:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 3px;
+}
+
+.below {
+  display: grid;
+  place-items: center;
+  min-height: 22px;
+}
+
+.secondary {
+  font-size: 14px;
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-decoration-color: rgb(10 10 11 / 0.3);
+  text-underline-offset: 4px;
+}
+
+.secondary:hover {
+  text-decoration-color: currentColor;
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--home-muted);
+}
+
+.hint kbd {
+  padding: 1px 6px;
+  border: 1px solid rgb(10 10 11 / 0.15);
+  border-radius: 5px;
+  font: 11px/1.4 var(--font-mono);
+}
+
+/* Marginaltext längs ramens nederkant, som i en trycksak. */
+.margins {
+  position: absolute;
+  inset: auto 40px 30px;
+  display: flex;
+  justify-content: space-between;
+  text-transform: uppercase;
+  color: var(--home-muted);
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding-inline: var(--space-4);
+    padding-bottom: 64px;
+  }
+
+  .title em {
+    display: block;
+  }
+
+  .field {
+    flex-direction: column;
+    padding: 6px;
+    border-radius: 22px;
+  }
+
+  .input {
+    width: 100%;
+    text-align: center;
+  }
+
+  .primary {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .margins {
+    inset: auto 20px 22px;
+    justify-content: center;
+  }
+
+  .margins span:not(:last-child) {
+    display: none;
+  }
+}

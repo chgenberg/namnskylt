@@ -1,82 +1,36 @@
+/* Startsidan: pappersvit botten, menyn svävar ovanpå (se site-header.module.css). */
+.home {
+  --home-top: 88px;
+  --home-muted: #7c7c75;
+  background: #f4f2ec;
+}
+
+/* Tunn ram runt hela fönstret, som en ritning. */
+.frame {
+  position: fixed;
+  inset: 10px;
+  z-index: 40;
+  border: 1px solid rgb(10 10 11 / 0.1);
+  border-radius: 22px;
+  pointer-events: none;
+}
+
 .main {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - var(--header-height));
+  justify-content: center;
+  min-height: 100dvh;
   overflow: hidden;
 }
 
-/* Svagt mörkblått ljus bakom rutan — enda färgaccenten på sidan. */
-.glow {
-  position: absolute;
-  inset: -20% -10% auto;
-  height: 70%;
-  background: radial-gradient(
-    ellipse 50% 60% at 50% 40%,
-    var(--navy-glow),
-    var(--navy-glow-0) 70%
-  );
-  pointer-events: none;
-}
-
-.hero {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-5);
-  padding-block: var(--space-8) var(--space-6);
-  text-align: center;
-}
-
-.title {
-  max-width: 18ch;
-  font-size: var(--text-display);
-  font-weight: 600;
-  margin-bottom: var(--space-4);
-}
-
-.titleMuted {
-  display: block;
-  color: var(--color-subtle);
-}
-
-.hero {
-  scroll-margin-top: var(--header-height);
-}
-
-.scrollHint {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  align-self: center;
-  margin-bottom: var(--space-5);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-pill);
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-  transition: color var(--duration-fast) var(--ease-out);
-}
-
-.scrollHint:hover {
-  color: var(--color-ink);
-}
-
-.scrollHint svg {
-  animation: nudge 2.4s var(--ease-in-out) infinite;
-}
-
-@keyframes nudge {
-  50% {
-    translate: 0 3px;
+@media (max-width: 640px) {
+  .home {
+    --home-top: 76px;
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .scrollHint svg {
-    animation: none;
+  .frame {
+    inset: 6px;
+    border-radius: 16px;
   }
 }

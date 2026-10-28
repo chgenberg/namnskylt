@@ -18,8 +18,8 @@ export function WeeklyChart({ weeks }: { weeks: readonly WeekBucket[] }) {
     <svg className={styles.chart} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Ordervärde per vecka">
       <defs>
         <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#2f5da8" />
-          <stop offset="1" stopColor="#0b1f3a" />
+          <stop offset="0" stopColor="#57564f" />
+          <stop offset="1" stopColor="#0a0a0b" />
         </linearGradient>
       </defs>
       {[0.25, 0.5, 0.75, 1].map((t) => (
@@ -55,7 +55,7 @@ export function WeeklyChart({ weeks }: { weeks: readonly WeekBucket[] }) {
                 {Math.round(week.revenueSek / 100) / 10}k
               </text>
             )}
-            <text x={x + barW / 2} y={HEIGHT - 8} textAnchor="middle" fontSize="11" fill={current ? "#0b1f3a" : "#8a909a"} fontWeight={current ? 600 : 400}>
+            <text x={x + barW / 2} y={HEIGHT - 8} textAnchor="middle" fontSize="11" fill={current ? "#0a0a0b" : "#8a909a"} fontWeight={current ? 600 : 400}>
               {week.label}
             </text>
           </g>

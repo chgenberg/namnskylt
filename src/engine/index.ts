@@ -2,6 +2,7 @@ export * from "./types";
 export * from "./catalog";
 export * from "./document";
 export * from "./batch";
+export * from "./roster";
 export * from "./shape";
 export * from "./layout";
 export * from "./placement";

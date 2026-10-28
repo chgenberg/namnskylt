@@ -7,7 +7,7 @@ import { BadgePreview } from "@/components/badge-preview";
 import { createBadgeDocument, parseSmartInput } from "@/engine";
 import styles from "./smart-input.module.css";
 
-const EXAMPLES = [
+export const EXAMPLES = [
   "Anna Lindqvist, Projektledare",
   "Dr. Erik Holm | Överläkare",
   "Wilma – Barista",
@@ -22,7 +22,7 @@ const MAX_TILT_DEG = 10;
 export const INPUT_ANCHOR = "borja";
 
 /** Skriver ut exemplen tecken för tecken i platshållaren när rutan är tom. */
-function useTypewriter(active: boolean): string {
+export function useTypewriter(active: boolean): string {
   const [text, setText] = useState("");
   useEffect(() => {
     if (!active) return;

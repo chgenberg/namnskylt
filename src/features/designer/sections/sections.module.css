@@ -384,9 +384,11 @@
 }
 
 .priceTotal {
-  font-size: var(--text-2xl);
-  font-weight: 600;
-  letter-spacing: var(--tracking-tight);
+  font-family: var(--font-serif);
+  font-size: clamp(2.1rem, 1.7rem + 1.4vw, 2.75rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -403,7 +405,7 @@
   padding: var(--space-3);
   border-radius: var(--radius-md);
   background: #f4f6f9;
-  box-shadow: inset 0 0 0 1px rgb(11 31 58 / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(10 10 11 / 0.08);
   font-size: var(--text-xs);
   color: var(--color-muted);
 }
@@ -510,6 +512,63 @@
 .hint {
   font-size: var(--text-xs);
   color: var(--color-muted);
+}
+
+.batchField {
+  position: relative;
+  display: block;
+}
+
+.batchField[data-dragging] textarea {
+  border-style: dashed;
+  border-color: var(--color-ink);
+  background: var(--color-paper-3);
+}
+
+.dropHint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: rgb(251 250 246 / 0.88);
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  pointer-events: none;
+}
+
+.importRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.importButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding-inline: 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-line-strong);
+  background: var(--color-white);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.importButton:hover:not(:disabled) {
+  border-color: var(--color-ink);
+}
+
+.importButton:disabled {
+  opacity: 0.6;
+}
+
+.importOk {
+  font-size: var(--text-xs);
+  color: var(--color-success);
 }
 
 .batchList {

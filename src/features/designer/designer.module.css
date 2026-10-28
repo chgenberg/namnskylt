@@ -253,7 +253,10 @@
 }
 
 .panelTitle {
-  font-size: var(--text-xl);
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
   margin-top: var(--space-1);
 }
 
@@ -319,7 +322,7 @@
   margin-bottom: var(--space-3);
   padding: 10px 14px;
   border-radius: 12px;
-  background: #0b1f3a;
+  background: #0a0a0b;
   color: rgb(255 255 255 / 0.86);
   font-size: var(--text-sm);
 }
@@ -330,7 +333,7 @@
 
 .resellerLink {
   font-size: var(--text-xs);
-  color: #9cc0ff;
+  color: #d9b866;
   text-decoration: underline;
   text-underline-offset: 3px;
 }

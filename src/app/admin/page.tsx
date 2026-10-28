@@ -90,7 +90,7 @@ export default async function AdminOverviewPage() {
           <span className={styles.kpiLabel}>Ordrar senaste 30 dagarna</span>
           <span className={styles.kpiValue}>{recent.length}</span>
           <span className={styles.kpiHint}>{recent.reduce((sum, o) => sum + badgeCount(o), 0)} skyltar</span>
-          <Sparkline className={styles.spark} values={stats.weeks.map((w) => w.orders)} stroke="#9cc0ff" />
+          <Sparkline className={styles.spark} values={stats.weeks.map((w) => w.orders)} stroke="#d9b866" />
         </div>
         <div className={styles.kpi} data-tone="gold">
           <span className={styles.kpiLabel}>Ordervärde 30 dagar</span>

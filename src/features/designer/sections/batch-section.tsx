@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo } from "react";
+import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { BadgePreview } from "@/components/badge-preview";
 import { PanelSection } from "@/components/ui/panel-section";
 import {
@@ -9,10 +9,54 @@ import {
   batchLine,
   layoutBadge,
   removeBatchEntry,
+  rosterFromTable,
+  rosterText,
   type BadgeDocument,
   type FontEngine,
+  type Roster,
 } from "@/engine";
+import { readTable, SpreadsheetError } from "@/lib/spreadsheet/read-table";
 import styles from "./sections.module.css";
+
+const ACCEPT = ".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
+
+type ImportStatus = { kind: "ok"; text: string } | { kind: "error"; text: string } | null;
+
+function describeImport(roster: Roster, fileName: string): string {
+  const people = roster.entries.length === 1 ? "1 namn" : `${roster.entries.length} namn`;
+  if (!roster.columns) return `${people} från ${fileName}. Kolla att namn och titel hamnade rätt.`;
+  const title = roster.columns.title ? ` och titel ur ”${roster.columns.title}”` : "";
+  return `${people} från ${fileName} — namn ur ”${roster.columns.name}”${title}.`;
+}
+
+function useRosterImport(text: string, onTextChange: (text: string) => void) {
+  const [status, setStatus] = useState<ImportStatus>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function importFile(file: File) {
+    setBusy(true);
+    try {
+      const table = await readTable(file.name, new Uint8Array(await file.arrayBuffer()));
+      const roster = rosterFromTable(table);
+      if (roster.entries.length === 0) {
+        setStatus({ kind: "error", text: `Hittade inga namn i ${file.name}.` });
+        return;
+      }
+      const lines = rosterText(roster.entries);
+      onTextChange(text.trim() ? `${text.trimEnd()}\n${lines}` : lines);
+      setStatus({ kind: "ok", text: describeImport(roster, file.name) });
+    } catch (error) {
+      setStatus({
+        kind: "error",
+        text: error instanceof SpreadsheetError ? error.message : `${file.name} gick inte att läsa.`,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return { status, busy, importFile };
+}
 
 const PLACEHOLDER = "Erik Holm, Överläkare\nWilma Berg, Barista\nMarcus Holm, VD";
 
@@ -66,6 +110,24 @@ export function BatchSection({
     });
   }, [all]);
 
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const { status, busy, importFile } = useRosterImport(text, onTextChange);
+
+  function handleFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (file) void importFile(file);
+  }
+
+  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+    const file = event.dataTransfer.files[0];
+    setDragging(false);
+    if (!file) return;
+    event.preventDefault();
+    void importFile(file);
+  }
+
   return (
     <PanelSection
       step={6}
@@ -76,7 +138,17 @@ export function BatchSection({
         Skylt till hela teamet? Skriv en skylt per rad — namn, titel. Alla får designen ovan. Klicka på en skylt i listan
         för att se och ändra den.
       </p>
-      <label className={styles.batchField}>
+      <label
+        className={styles.batchField}
+        data-dragging={dragging || undefined}
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+      >
         <span className="visually-hidden">Fler namn, en skylt per rad</span>
         <textarea
           value={text}
@@ -85,8 +157,29 @@ export function BatchSection({
           rows={4}
           spellCheck={false}
         />
+        {dragging && <span className={styles.dropHint}>Släpp filen här</span>}
       </label>
-      <p className={styles.hint}>Komma eller | delar rader. Klistra in två kolumner från Excel fungerar också.</p>
+      <div className={styles.importRow}>
+        <button
+          type="button"
+          className={styles.importButton}
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+        >
+          <span aria-hidden>↑</span> {busy ? "Läser filen…" : "Ladda upp Excel"}
+        </button>
+        <p className={styles.hint}>Vi hittar namn och titel själva. .xlsx eller CSV — eller dra hit filen.</p>
+        <input ref={fileRef} type="file" accept={ACCEPT} hidden onChange={handleFile} />
+      </div>
+      {status && (
+        <p
+          className={status.kind === "ok" ? styles.importOk : styles.issue}
+          data-severity={status.kind === "error" ? "error" : undefined}
+          role={status.kind === "error" ? "alert" : "status"}
+        >
+          {status.text}
+        </p>
+      )}
 
       {overflow > 0 && (
         <p className={styles.issue} data-severity="error" role="alert">
