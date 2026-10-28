@@ -61,23 +61,26 @@ export function CompanyForm({ profile }: { profile: CompanyProfile }) {
       }
       const { found } = result;
       const [primary, accent] = found.colors;
+      // En ny hemsida ersätter allt den kan läsa — det den inte hittar blir tomt, inte kvar från förra företaget.
       setDraft((d) => ({
         ...d,
-        name: found.name ?? d.name,
-        tagline: found.tagline ?? d.tagline,
+        name: found.name ?? "",
+        tagline: found.tagline ?? "",
         website: found.website,
-        email: found.contacts.email ?? d.email,
-        phone: found.contacts.phone ?? d.phone,
-        orgNumber: found.contacts.orgNumber ?? d.orgNumber,
-        address: found.contacts.address ?? d.address,
-        logo: found.logoOptions[0] ?? d.logo,
+        email: found.contacts.email ?? "",
+        phone: found.contacts.phone ?? "",
+        orgNumber: found.contacts.orgNumber ?? "",
+        address: found.contacts.address ?? "",
+        logo: found.logoOptions[0] ?? null,
         primaryColor: primary ?? d.primaryColor,
         accentColor: accent ?? d.accentColor,
       }));
       setLogoOptions(found.logoOptions);
       setColorOptions(found.colors.slice(0, 8));
       const missing = [
+        !found.name && "företagsnamn",
         !found.logoOptions.length && "logga",
+        !found.contacts.email && "e-post",
         !found.contacts.orgNumber && "org.nr",
         !found.contacts.address && "adress",
         !found.contacts.phone && "telefon",
