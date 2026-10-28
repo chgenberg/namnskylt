@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import { PricingEditor } from "@/features/admin/pricing-editor";
 import { updateQuotePricingAction } from "@/features/admin/quote-actions";
 import { QuoteDecisionButtons, QuoteSendPanel, QuoteTermsForm } from "@/features/admin/quote-controls";
@@ -19,13 +19,14 @@ interface QuotePageProps {
 }
 
 export default async function QuotePage({ params }: QuotePageProps) {
-  if (!(await canViewAdmin())) return null;
+  const tenant = await adminTenant();
+  if (!tenant) return null;
   const { quoteNo } = await params;
-  const quote = await getQuote(decodeURIComponent(quoteNo));
+  const quote = await getQuote(tenant, decodeURIComponent(quoteNo));
   if (!quote) notFound();
   const status = displayStatus(quote);
   const editable = canEditQuote(quote);
-  const [origin, purchase] = await Promise.all([siteOrigin(), getPurchaseTerms()]);
+  const [origin, purchase] = await Promise.all([siteOrigin(), getPurchaseTerms(tenant)]);
   const link = quote.status === "sent" || status === "expired" ? `${origin}/offert/${quote.token}` : null;
   const name = quote.customer.company ?? quote.customer.name;
 

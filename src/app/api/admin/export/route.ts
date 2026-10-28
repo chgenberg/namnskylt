@@ -1,9 +1,8 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { invoiceCsv, ordersCsv } from "@/lib/orders/csv";
 import { databaseConfigured, listOrders } from "@/lib/orders/repository";
-import { resellerPass } from "@/lib/reseller-auth/session";
+import { currentTenant } from "@/lib/reseller-auth/session";
 
 export const runtime = "nodejs";
 
@@ -21,7 +20,8 @@ function inRange(iso: string, from: string | undefined, to: string | undefined):
 }
 
 export async function GET(request: Request) {
-  if (!(await resellerPass.verify((await cookies()).get(resellerPass.cookie)?.value))) {
+  const tenant = await currentTenant();
+  if (!tenant) {
     return NextResponse.json({ error: "Inte inloggad" }, { status: 401 });
   }
   if (!databaseConfigured()) return NextResponse.json({ error: "Databasen är inte kopplad" }, { status: 503 });
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Ogiltig förfrågan" }, { status: 400 });
 
   const { type, from, to } = parsed.data;
-  const orders = (await listOrders()).filter((o) => inRange(o.placedAt, from || undefined, to || undefined));
+  const orders = (await listOrders(tenant)).filter((o) => inRange(o.placedAt, from || undefined, to || undefined));
   const csv = type === "invoice" ? invoiceCsv(orders) : ordersCsv(orders);
   const name = `namnskylt-${type === "invoice" ? "fakturaunderlag" : "ordrar"}-${from || "start"}-${to || "idag"}.csv`;
   return new NextResponse(csv, {

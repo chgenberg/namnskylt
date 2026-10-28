@@ -1,23 +1,24 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { siteOrigin } from "@/lib/http/origin";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { buildShopEmail } from "@/lib/outreach/shop-email";
 import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
-import { resellerPass } from "@/lib/reseller-auth/session";
+import { currentTenant } from "@/lib/reseller-auth/session";
 import { SHOP_SLUG } from "@/lib/shops/model";
 import { getShop } from "@/lib/shops/repository";
+import { isOwner } from "@/lib/tenants/model";
 
 export const runtime = "nodejs";
 
 /** Mejlet till en butiks återförsäljare, för förhandsvisningen i panelen. */
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
-  if (!(await resellerPass.verify((await cookies()).get(resellerPass.cookie)?.value))) {
+  const tenant = await currentTenant();
+  if (!tenant || !isOwner(tenant)) {
     return NextResponse.json({ error: "Inte inloggad" }, { status: 401 });
   }
   const { slug } = await params;
   if (!databaseConfigured() || !SHOP_SLUG.test(slug)) return NextResponse.json({ error: "Hittades inte" }, { status: 404 });
-  const [shop, sender, origin] = await Promise.all([getShop(slug), getCompanyProfile(), siteOrigin()]);
+  const [shop, sender, origin] = await Promise.all([getShop(slug), getCompanyProfile(tenant), siteOrigin()]);
   if (!shop) return NextResponse.json({ error: "Hittades inte" }, { status: 404 });
   const base = `${origin}/butik/${shop.slug}`;
   const email = buildShopEmail({

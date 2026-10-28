@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
 import { orderFromDesignAction } from "@/features/admin/actions";
 import { DeleteDesignButton } from "@/features/admin/delete-design-button";
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import { NewNamesButton } from "@/features/admin/new-names-button";
 import { OrderCard } from "@/features/admin/order-card";
 import { RepeatButton } from "@/features/admin/repeat-button";
@@ -17,11 +17,12 @@ interface CustomerPageProps {
 }
 
 export default async function CustomerPage({ params }: CustomerPageProps) {
-  if (!(await canViewAdmin())) return null;
+  const tenant = await adminTenant();
+  if (!tenant) return null;
   const { id } = await params;
-  const customer = await getCustomer(id);
+  const customer = await getCustomer(tenant, id);
   if (!customer) notFound();
-  const [orders, designs] = await Promise.all([listCustomerOrders(customer.id), listDesigns(customer.id)]);
+  const [orders, designs] = await Promise.all([listCustomerOrders(tenant, customer.id), listDesigns(tenant, customer.id)]);
   const counted = orders.filter((o) => o.status !== "cancelled");
   const revenue = counted.reduce((sum, o) => sum + o.totalSek, 0);
   const latest = orders[0];

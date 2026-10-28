@@ -45,18 +45,19 @@ function done(orderNo?: string, url?: string): ActionResult {
 }
 
 export async function repeatOrderAction(orderNo: string): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    const original = await getOrder(orderNoSchema.parse(orderNo));
+    const original = await getOrder(tenant, orderNoSchema.parse(orderNo));
     if (!original || original.badges.length === 0) return { ok: false, error: "Ordern finns inte" };
     const placed = await placeOrder({
+      tenant,
       customer: original.customer,
       badges: repeatBadges(original.badges),
       source: "repeat",
       repeatOf: original.id,
       note: `Beställd igen från ${original.orderNo}`,
       demo: original.demo,
-      badgeShot: original.hasBadgeShot ? await getBadgeShot(original.orderNo) : null,
+      badgeShot: original.hasBadgeShot ? await getBadgeShot(tenant, original.orderNo) : null,
     });
     return done(placed.orderNumber);
   } catch (error) {
@@ -65,15 +66,16 @@ export async function repeatOrderAction(orderNo: string): Promise<ActionResult> 
 }
 
 export async function staffOrderAction(orderNo: string, names: string, quantity: number): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    const original = await getOrder(orderNoSchema.parse(orderNo));
+    const original = await getOrder(tenant, orderNoSchema.parse(orderNo));
     const template = original?.badges[0];
     if (!original || !template) return { ok: false, error: "Ordern finns inte" };
     const badges = staffBadges(template, namesSchema.parse(names), quantitySchema.parse(quantity));
     if (badges.length === 0) return { ok: false, error: "Skriv minst ett namn" };
     if (badges.length > MAX_ORDER_BADGES) return { ok: false, error: `Högst ${MAX_ORDER_BADGES} namn per order` };
     const placed = await placeOrder({
+      tenant,
       customer: original.customer,
       badges,
       source: "staff",
@@ -88,15 +90,16 @@ export async function staffOrderAction(orderNo: string, names: string, quantity:
 }
 
 export async function orderFromDesignAction(designId: string, names: string, quantity: number): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    const design = await getDesign(z.uuid().parse(designId));
-    const customer = design ? await getCustomer(design.customerId) : null;
+    const design = await getDesign(tenant, z.uuid().parse(designId));
+    const customer = design ? await getCustomer(tenant, design.customerId) : null;
     if (!design || !customer) return { ok: false, error: "Mallen finns inte" };
     const badges = staffBadges(design.doc, namesSchema.parse(names), quantitySchema.parse(quantity));
     if (badges.length === 0) return { ok: false, error: "Skriv minst ett namn" };
     if (badges.length > MAX_ORDER_BADGES) return { ok: false, error: `Högst ${MAX_ORDER_BADGES} namn per order` };
     const placed = await placeOrder({
+      tenant,
       customer,
       badges,
       source: "template",
@@ -110,9 +113,9 @@ export async function orderFromDesignAction(designId: string, names: string, qua
 }
 
 export async function createProofAction(orderNo: string): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    const token = await createProof(orderNoSchema.parse(orderNo));
+    const token = await createProof(tenant, orderNoSchema.parse(orderNo));
     if (!token) return { ok: false, error: "Ordern finns inte" };
     return done(orderNo, `${await siteOrigin()}/korrektur/${token}`);
   } catch (error) {
@@ -121,12 +124,12 @@ export async function createProofAction(orderNo: string): Promise<ActionResult> 
 }
 
 export async function saveDesignAction(orderNo: string, badgeIndex: number, name: string): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    const order = await getOrder(orderNoSchema.parse(orderNo));
+    const order = await getOrder(tenant, orderNoSchema.parse(orderNo));
     const badge = order?.badges[z.number().int().min(0).parse(badgeIndex)];
     if (!order || !badge) return { ok: false, error: "Skylten finns inte" };
-    await saveDesign(order.customer.id, z.string().trim().min(1).max(80).parse(name), badge);
+    await saveDesign(tenant, order.customer.id, z.string().trim().min(1).max(80).parse(name), badge);
     return done();
   } catch (error) {
     return fail(error, "Mallen kunde inte sparas");
@@ -134,9 +137,9 @@ export async function saveDesignAction(orderNo: string, badgeIndex: number, name
 }
 
 export async function deleteOrderAction(orderNo: string): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    const ok = await deleteOrder(orderNoSchema.parse(orderNo));
+    const ok = await deleteOrder(tenant, orderNoSchema.parse(orderNo));
     return ok ? done() : { ok: false, error: "Ordern finns inte" };
   } catch (error) {
     return fail(error, "Ordern kunde inte tas bort");
@@ -144,9 +147,9 @@ export async function deleteOrderAction(orderNo: string): Promise<ActionResult> 
 }
 
 export async function savePurchaseTermsAction(terms: PurchaseTerms): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    await savePurchaseTerms(purchaseTermsSchema.parse(terms));
+    await savePurchaseTerms(tenant, purchaseTermsSchema.parse(terms));
     return done();
   } catch (error) {
     return fail(error, "Inköpspriserna kunde inte sparas");
@@ -154,9 +157,9 @@ export async function savePurchaseTermsAction(terms: PurchaseTerms): Promise<Act
 }
 
 export async function saveCompanyProfileAction(profile: CompanyProfile): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    await saveCompanyProfile(companyProfileSchema.parse(profile));
+    await saveCompanyProfile(tenant, companyProfileSchema.parse(profile));
     revalidatePath("/offert", "layout");
     return done();
   } catch (error) {
@@ -166,9 +169,9 @@ export async function saveCompanyProfileAction(profile: CompanyProfile): Promise
 }
 
 export async function deleteDesignAction(designId: string): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    await deleteDesign(z.uuid().parse(designId));
+    await deleteDesign(tenant, z.uuid().parse(designId));
     return done();
   } catch (error) {
     return fail(error, "Mallen kunde inte tas bort");
@@ -176,9 +179,9 @@ export async function deleteDesignAction(designId: string): Promise<ActionResult
 }
 
 export async function insertDemoDataAction(): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    await insertDemoData(requireDb());
+    await insertDemoData(requireDb(), tenant);
     return done();
   } catch (error) {
     return fail(error, "Demodatan kunde inte läggas in");
@@ -186,9 +189,9 @@ export async function insertDemoDataAction(): Promise<ActionResult> {
 }
 
 export async function removeDemoDataAction(): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    await removeDemoData(requireDb());
+    await removeDemoData(requireDb(), tenant);
     return done();
   } catch (error) {
     return fail(error, "Demodatan kunde inte tas bort");
@@ -218,13 +221,13 @@ const startOrderSchema = z.union([
 
 /** Första steget i "Skapa order/offert": kunden väljs eller skapas, sedan öppnas designern åt den kunden. */
 export async function startOrderAction(input: z.input<typeof startOrderSchema>): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
     const parsed = startOrderSchema.parse(input);
     const customer =
       "customerId" in parsed
-        ? await getCustomer(parsed.customerId)
-        : await upsertCustomer({
+        ? await getCustomer(tenant, parsed.customerId)
+        : await upsertCustomer(tenant, {
             name: parsed.name,
             email: parsed.email,
             company: parsed.company || null,
@@ -248,9 +251,9 @@ export async function startOrderAction(input: z.input<typeof startOrderSchema>):
 }
 
 export async function updateOrderPricingAction(orderNo: string, pricing: Pricing): Promise<ActionResult> {
-  await requireReseller();
+  const tenant = await requireReseller();
   try {
-    const ok = await updateOrderPricing(orderNoSchema.parse(orderNo), pricingSchema.parse(pricing));
+    const ok = await updateOrderPricing(tenant, orderNoSchema.parse(orderNo), pricingSchema.parse(pricing));
     return ok ? done(orderNo) : { ok: false, error: "Ordern finns inte" };
   } catch (error) {
     return fail(error, "Priserna kunde inte sparas");

@@ -5,7 +5,7 @@ import { invoiceCsv, ordersCsv } from "./csv";
 import { demoPlan } from "./demo-data";
 import { DEMO_ORDERS } from "./demo-orders";
 import { stepTimes, type StoredOrder } from "./model";
-import { isCustomPricing, priceWithPricing } from "./pricing";
+import { discountForUnits, isCustomPricing, priceWithPricing, pricingSchema, unitsForDiscount } from "./pricing";
 import { repeatBadges, staffBadges } from "./repeat";
 import { orderStats } from "./stats";
 
@@ -30,6 +30,7 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     supplierSyncedAt: null,
     hasBadgeShot: false,
     shopSlug: null,
+    resellerId: "namnskylt",
     pricing: null,
     demo: false,
     ...patch,
@@ -120,7 +121,7 @@ describe("egna priser", () => {
   });
 
   it("à-pris per skylt och rabatt på summan", () => {
-    const priced = priceWithPricing(badges, { unitOverrides: [50, null], discountPercent: 10 });
+    const priced = priceWithPricing(badges, { unitOverrides: [50, null], discountPercent: 10, extras: [] });
     const second = priced.lines[1];
     assert.ok(second);
     assert.equal(priced.lines[0]?.totalSek, 100);
@@ -132,8 +133,37 @@ describe("egna priser", () => {
   });
 
   it("sparar bara prissättning som avviker", () => {
-    assert.equal(isCustomPricing({ unitOverrides: [null, null], discountPercent: 0 }), false);
-    assert.equal(isCustomPricing({ unitOverrides: [], discountPercent: 5 }), true);
+    assert.equal(isCustomPricing({ unitOverrides: [null, null], discountPercent: 0, extras: [] }), false);
+    assert.equal(isCustomPricing({ unitOverrides: [], discountPercent: 5, extras: [] }), true);
+    assert.equal(isCustomPricing({ unitOverrides: [], discountPercent: 0, extras: [{ label: "Express", amountSek: 300 }] }), true);
+  });
+
+  it("extra kostnader läggs på efter rabatten och momsas", () => {
+    const priced = priceWithPricing(badges, {
+      unitOverrides: [],
+      discountPercent: 0,
+      extras: [
+        { label: "Framtagning av korrektur", amountSek: 250 },
+        { label: "Expressorder", amountSek: 300 },
+      ],
+    });
+    assert.equal(priced.extrasSek, 550);
+    assert.equal(priced.totalSek, priced.badgesSek + 550);
+    assert.equal(priced.totalInclVatSek, priced.totalSek + Math.round(priced.totalSek * 0.25));
+  });
+
+  it("rabatten och à-priserna följer varandra", () => {
+    const list = [164, 100];
+    const units = unitsForDiscount(list, 10);
+    assert.deepEqual(units, [148, 90]);
+    assert.equal(discountForUnits(list, [131, 100], [1, 1]), 12.5);
+    assert.equal(discountForUnits(list, list, [1, 1]), 0);
+    const priced = priceWithPricing(badges, { unitOverrides: [40, null], discountPercent: 0, extras: [] });
+    assert.equal(priced.savingsSek, priced.listTotalSek - priced.badgesSek);
+  });
+
+  it("äldre sparade priser utan extrarader läses in", () => {
+    assert.deepEqual(pricingSchema.parse({ unitOverrides: [10], discountPercent: 0 }).extras, []);
   });
 });
 

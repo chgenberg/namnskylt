@@ -23,7 +23,7 @@ export async function decideQuoteAction(input: z.input<typeof decisionSchema>): 
       const ok = await declineQuote(token, reason || null);
       return ok ? { ok: true } : { ok: false, error: "Offerten är redan besvarad" };
     }
-    const result = await acceptQuote(quote.quoteNo, false);
+    const result = await acceptQuote(quote.resellerId, quote.quoteNo, false);
     return result.ok ? { ok: true, orderNo: result.orderNo } : { ok: false, error: result.error };
   } catch (error) {
     console.error("Offertsvaret kunde inte sparas", error);

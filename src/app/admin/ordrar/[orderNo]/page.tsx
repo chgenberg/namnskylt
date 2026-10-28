@@ -4,7 +4,7 @@ import { BadgePreview } from "@/components/badge-preview";
 import { engravedRows, getColor, getMaterial, getMounting, SHAPES } from "@/engine";
 import { staffOrderAction, updateOrderPricingAction } from "@/features/admin/actions";
 import { PricingEditor } from "@/features/admin/pricing-editor";
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import { DeleteOrderButton } from "@/features/admin/delete-order-button";
 import { NewNamesButton } from "@/features/admin/new-names-button";
 import { OrderTimeline } from "@/features/admin/order-timeline";
@@ -31,14 +31,15 @@ interface OrderPageProps {
 }
 
 export default async function OrderPage({ params }: OrderPageProps) {
-  if (!(await canViewAdmin())) return null;
+  const tenant = await adminTenant();
+  if (!tenant) return null;
   const { orderNo } = await params;
   const orderNumber = decodeURIComponent(orderNo);
-  const stored = await getOrder(orderNumber);
+  const stored = await getOrder(tenant, orderNumber);
   if (!stored) notFound();
-  const order = (await refreshFromSupplier(stored)) ? ((await getOrder(orderNumber)) ?? stored) : stored;
+  const order = (await refreshFromSupplier(stored)) ? ((await getOrder(tenant, orderNumber)) ?? stored) : stored;
   const link = supplierLink(order);
-  const [proof, origin, purchase] = await Promise.all([latestProof(order.orderNo), siteOrigin(), getPurchaseTerms()]);
+  const [proof, origin, purchase] = await Promise.all([latestProof(tenant, order.orderNo), siteOrigin(), getPurchaseTerms(tenant)]);
   const template = order.badges[0];
   const customerName = order.customer.company ?? order.customer.name;
 

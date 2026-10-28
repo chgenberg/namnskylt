@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   if (!perClient.take(clientKey(request))) return new Response("För många nedladdningar. Försök igen om en stund.", { status: 429 });
 
   try {
-    const [fonts, company] = await Promise.all([loadNodeFontEngine(), getCompanyProfile()]);
+    const [fonts, company] = await Promise.all([loadNodeFontEngine(), getCompanyProfile(quote.resellerId)]);
     const plate = (await isLightLogo(company.logo)) ? darkPlate(company.primaryColor) : null;
     const pdf = await htmlToPdf(quoteHtml(quote, fonts, company, plate));
     return new Response(new Uint8Array(pdf), {

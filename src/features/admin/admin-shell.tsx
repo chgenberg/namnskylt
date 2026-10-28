@@ -24,7 +24,7 @@ const NAV = [
   { href: "/admin/offerter", label: "Offerter", icon: "quotes" },
   { href: "/admin/kunder", label: "Kunder", icon: "customers" },
   { href: "/admin/statistik", label: "Statistik", icon: "stats" },
-  { href: "/admin/butiker", label: "Butiker", icon: "shops" },
+  { href: "/admin/butiker", label: "Butiker", icon: "shops", ownerOnly: true },
   { href: "/admin/inkopspriser", label: "Inköpspriser", icon: "purchase" },
   { href: "/admin/export", label: "Export", icon: "export" },
   { href: "/admin/installningar", label: "Inställningar", icon: "settings" },
@@ -47,10 +47,12 @@ interface AdminShellProps {
   demoCount?: number;
   /** Återförsäljarens namn från inställningarna. */
   companyName?: string;
+  /** namnskylt.com själv — bara ägaren har demobutikerna. */
+  owner?: boolean;
   children: ReactNode;
 }
 
-export function AdminShell({ pending, demoCount = 0, companyName = "namnskylt.com", children }: AdminShellProps) {
+export function AdminShell({ pending, demoCount = 0, companyName = "namnskylt.com", owner = false, children }: AdminShellProps) {
   const pathname = usePathname();
   const isCurrent = (href: string) => (href === "/admin" ? pathname === href : pathname.startsWith(href));
 
@@ -67,7 +69,7 @@ export function AdminShell({ pending, demoCount = 0, companyName = "namnskylt.co
           <span className={styles.brandName}>{companyName}</span>
         </div>
         <nav className={styles.nav} aria-label="Adminmeny">
-          {NAV.map((item) => (
+          {NAV.filter((item) => owner || !("ownerOnly" in item)).map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -81,7 +83,7 @@ export function AdminShell({ pending, demoCount = 0, companyName = "namnskylt.co
           ))}
         </nav>
         <div className={styles.sidebarFoot}>
-          <span>Inloggad som återförsäljare</span>
+          <span>{owner ? "Inloggad som namnskylt.com (ägare)" : "Inloggad som återförsäljare"}</span>
           <button type="button" className={styles.logout} onClick={() => void logout()}>
             Logga ut
           </button>

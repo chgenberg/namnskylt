@@ -1,11 +1,12 @@
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import { PurchaseTermsForm } from "@/features/admin/purchase-terms-form";
 import styles from "@/features/admin/admin.module.css";
 import { getPurchaseTerms } from "@/lib/orders/repository";
 
 export default async function PurchasePricesPage() {
-  if (!(await canViewAdmin())) return null;
-  const terms = await getPurchaseTerms();
+  const tenant = await adminTenant();
+  if (!tenant) return null;
+  const terms = await getPurchaseTerms(tenant);
   return (
     <>
       <header className={styles.pageHead}>

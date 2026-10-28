@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { FillDemoButton } from "@/features/admin/demo-data-controls";
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import { OrderCard } from "@/features/admin/order-card";
 import { RepeatButton } from "@/features/admin/repeat-button";
 import { Sparkline } from "@/features/admin/sparkline";
@@ -27,8 +27,9 @@ function changesRequested(order: StoredOrder): boolean {
 }
 
 export default async function AdminOverviewPage() {
-  if (!(await canViewAdmin())) return null;
-  const orders = await listOrders();
+  const tenant = await adminTenant();
+  if (!tenant) return null;
+  const orders = await listOrders(tenant);
   const now = new Date();
   if (orders.length === 0) {
     return (

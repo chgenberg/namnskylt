@@ -10,8 +10,8 @@ async function main() {
   const sql = db();
   if (!sql) throw new Error("DATABASE_URL saknas");
   await migrate(sql);
-  if (process.argv.includes("--reset")) console.warn(`Tog bort ${await removeDemoData(sql)} demoordrar.`);
-  console.warn(`Lade in ${await insertDemoData(sql)} demoordrar.`);
+  if (process.argv.includes("--reset")) console.warn(`Tog bort ${await removeDemoData(sql, "namnskylt")} demoordrar.`);
+  console.warn(`Lade in ${await insertDemoData(sql, "namnskylt")} demoordrar.`);
   await sql.end();
 }
 

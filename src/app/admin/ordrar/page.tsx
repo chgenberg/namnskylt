@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import { OrderCard } from "@/features/admin/order-card";
 import { OrderFilters, type StatusFilter } from "@/features/admin/order-filters";
 import styles from "@/features/admin/admin.module.css";
@@ -35,13 +35,14 @@ function inFilter(order: StoredOrder, filter: StatusFilter): boolean {
 }
 
 export default async function OrdersPage({ searchParams }: OrdersPageProps) {
-  if (!(await canViewAdmin())) return null;
+  const tenant = await adminTenant();
+  if (!tenant) return null;
   const params = await searchParams;
   const query = (params.q ?? "").trim().slice(0, 100);
   const active: StatusFilter =
     params.status === "all" ? "all" : params.status && isOrderStatus(params.status) ? params.status : "open";
 
-  const orders = (await listOrders()).filter((o) => matches(o, query));
+  const orders = (await listOrders(tenant)).filter((o) => matches(o, query));
   const counts = Object.fromEntries(
     (["open", "all", ...ORDER_STATUSES] as StatusFilter[]).map((f) => [f, orders.filter((o) => inFilter(o, f)).length]),
   ) as Record<StatusFilter, number>;

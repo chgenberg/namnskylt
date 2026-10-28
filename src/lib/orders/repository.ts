@@ -7,6 +7,7 @@ import { db, requireDb } from "@/lib/db/client";
 import { isCustomPricing, pricingSchema, priceWithPricing, type Pricing } from "./pricing";
 import { purchaseTermsSchema, type PurchaseTerms } from "./purchase";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
+import { isOwner, settingsKey } from "@/lib/tenants/model";
 import {
   isOrderSource,
   isOrderStatus,
@@ -36,6 +37,7 @@ interface OrderRow {
   supplier_synced_at: Date | null;
   has_badge_shot: boolean;
   shop_slug: string | null;
+  reseller_id: string;
   customer_id: string;
   customer_name: string;
   customer_company: string | null;
@@ -83,6 +85,7 @@ function toOrder(row: OrderRow): StoredOrder {
     supplierSyncedAt: row.supplier_synced_at?.toISOString() ?? null,
     hasBadgeShot: row.has_badge_shot,
     shopSlug: row.shop_slug,
+    resellerId: row.reseller_id,
     demo: row.is_demo,
   };
 }
@@ -101,7 +104,7 @@ function selectOrders(sql: Sql) {
   return sql`
     select o.id, o.order_no, o.status, o.badges, o.pricing, o.total_sek, o.total_incl_vat_sek,
            o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo, o.supplier_synced_at,
-           o.badge_shot is not null as has_badge_shot, o.shop_slug,
+           o.badge_shot is not null as has_badge_shot, o.shop_slug, o.reseller_id,
            r.order_no as repeat_of_order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email, c.is_demo as customer_demo,
            c.phone as customer_phone, c.org_number as customer_org_number, c.address as customer_address,
@@ -117,21 +120,29 @@ export function databaseConfigured(): boolean {
   return db() !== null;
 }
 
-export async function listOrders(): Promise<StoredOrder[]> {
+export async function listOrders(tenant: string): Promise<StoredOrder[]> {
   const sql = requireDb();
-  const rows = await sql<OrderRow[]>`${selectOrders(sql)} order by o.placed_at desc`;
+  const rows = await sql<OrderRow[]>`${selectOrders(sql)} where o.reseller_id = ${tenant} order by o.placed_at desc`;
   return rows.map(toOrder);
 }
 
-export async function getOrder(orderNo: string): Promise<StoredOrder | null> {
+export async function getOrder(tenant: string, orderNo: string): Promise<StoredOrder | null> {
+  const sql = requireDb();
+  const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.order_no = ${orderNo} and o.reseller_id = ${tenant}`;
+  return row ? toOrder(row) : null;
+}
+
+/** Utan hyresgäst — bara för kundens egna länkar (korrektur), där token är behörigheten. */
+async function getOrderAnyTenant(orderNo: string): Promise<StoredOrder | null> {
   const sql = requireDb();
   const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.order_no = ${orderNo}`;
   return row ? toOrder(row) : null;
 }
 
-export async function listCustomerOrders(customerId: string): Promise<StoredOrder[]> {
+export async function listCustomerOrders(tenant: string, customerId: string): Promise<StoredOrder[]> {
   const sql = requireDb();
-  const rows = await sql<OrderRow[]>`${selectOrders(sql)} where o.customer_id = ${customerId} order by o.placed_at desc`;
+  const rows = await sql<OrderRow[]>`${selectOrders(sql)}
+    where o.customer_id = ${customerId} and o.reseller_id = ${tenant} order by o.placed_at desc`;
   return rows.map(toOrder);
 }
 
@@ -149,6 +160,8 @@ export interface NewOrder {
   pricing?: Pricing | null;
   badgeShot?: string | null;
   shopSlug?: string | null;
+  /** Återförsäljaren ordern tillhör; webbshoppen och butikerna är ägarens. */
+  tenant: string;
 }
 
 /** Sparar ordern, kopplar den till kunden (samma e-post = samma kund) och loggar första steget. */
@@ -158,22 +171,23 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
   const price = priceWithPricing(order.badges, pricing);
   const email = order.customer.email.trim().toLowerCase();
   const placedAt = order.placedAt ? new Date(order.placedAt) : new Date();
+  const tenant = order.tenant;
   return sql.begin(async (tx) => {
     const [customer] = await tx<{ id: string }[]>`
-      insert into customers (email, name, company, is_demo)
-      values (${email}, ${order.customer.name}, ${order.customer.company ?? null}, ${order.demo ?? false})
-      on conflict (email) do update
+      insert into customers (reseller_id, email, name, company, is_demo)
+      values (${tenant}, ${email}, ${order.customer.name}, ${order.customer.company ?? null}, ${order.demo ?? false})
+      on conflict (reseller_id, email) do update
         set name = excluded.name, company = coalesce(excluded.company, customers.company)
       returning id`;
     if (!customer) throw new Error("Kunden kunde inte sparas");
     const [saved] = await tx<{ id: string; order_no: string }[]>`
       insert into orders (customer_id, status, badges, pricing, total_sek, total_incl_vat_sek,
-                          supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug)
+                          supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug, reseller_id)
       values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Json)},
               ${pricing ? tx.json(pricing as unknown as Json) : null},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
               ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false},
-              ${order.badgeShot ?? null}, ${order.shopSlug ?? null})
+              ${order.badgeShot ?? null}, ${order.shopSlug ?? null}, ${tenant})
       returning id, order_no`;
     if (!saved) throw new Error("Ordern kunde inte sparas");
     await tx`insert into order_events (order_id, status, note, at) values (${saved.id}, ${order.status}, ${order.note ?? null}, ${placedAt})`;
@@ -203,10 +217,11 @@ export async function updateStatus(
  * Tar bort ordern för gott. Kopior och offerter som pekar hit behålls men
  * tappar länken; tidslinje och korrektur följer med ordern.
  */
-export async function deleteOrder(orderNo: string): Promise<boolean> {
+export async function deleteOrder(tenant: string, orderNo: string): Promise<boolean> {
   const sql = requireDb();
   return sql.begin(async (tx) => {
-    const [order] = await tx<{ id: string }[]>`select id from orders where order_no = ${orderNo} for update`;
+    const [order] = await tx<{ id: string }[]>`
+      select id from orders where order_no = ${orderNo} and reseller_id = ${tenant} for update`;
     if (!order) return false;
     await tx`update orders set repeat_of = null where repeat_of = ${order.id}`;
     await tx`update quotes set order_id = null where order_id = ${order.id}`;
@@ -224,14 +239,14 @@ export interface MissingShot {
 }
 
 /** Ordrar och offerter från innan stillbilderna fanns — panelen ritar dem i efterhand. */
-export async function missingBadgeShots(limit: number): Promise<MissingShot[]> {
+export async function missingBadgeShots(tenant: string, limit: number): Promise<MissingShot[]> {
   const sql = requireDb();
   const rows = await sql<{ kind: ShotKind; id: string; badge: unknown }[]>`
     (select 'order' as kind, order_no as id, badges->0 as badge, placed_at as at from orders
-      where badge_shot is null and jsonb_array_length(badges) > 0)
+      where badge_shot is null and jsonb_array_length(badges) > 0 and reseller_id = ${tenant})
     union all
     (select 'quote', quote_no, badges->0, created_at from quotes
-      where badge_shot is null and jsonb_array_length(badges) > 0)
+      where badge_shot is null and jsonb_array_length(badges) > 0 and reseller_id = ${tenant})
     order by at desc limit ${limit}`;
   return rows.flatMap((row) => {
     const badge = badgeDocumentSchema.safeParse(row.badge);
@@ -240,53 +255,60 @@ export async function missingBadgeShots(limit: number): Promise<MissingShot[]> {
 }
 
 /** Sparar bara där bilden saknas — en riktig bild från skyltmotorn skrivs aldrig över. */
-export async function saveMissingBadgeShot(kind: ShotKind, id: string, shot: string): Promise<boolean> {
+export async function saveMissingBadgeShot(tenant: string, kind: ShotKind, id: string, shot: string): Promise<boolean> {
   const sql = requireDb();
   const rows =
     kind === "order"
-      ? await sql`update orders set badge_shot = ${shot} where order_no = ${id} and badge_shot is null returning 1`
-      : await sql`update quotes set badge_shot = ${shot} where quote_no = ${id} and badge_shot is null returning 1`;
+      ? await sql`update orders set badge_shot = ${shot}
+                   where order_no = ${id} and reseller_id = ${tenant} and badge_shot is null returning 1`
+      : await sql`update quotes set badge_shot = ${shot}
+                   where quote_no = ${id} and reseller_id = ${tenant} and badge_shot is null returning 1`;
   return rows.length > 0;
 }
 
-export async function getBadgeShot(orderNo: string): Promise<string | null> {
+export async function getBadgeShot(tenant: string, orderNo: string): Promise<string | null> {
   const sql = requireDb();
-  const [row] = await sql<{ badge_shot: string | null }[]>`select badge_shot from orders where order_no = ${orderNo}`;
+  const [row] = await sql<{ badge_shot: string | null }[]>`
+    select badge_shot from orders where order_no = ${orderNo} and reseller_id = ${tenant}`;
   return row?.badge_shot ?? null;
 }
 
 const PURCHASE_TERMS_KEY = "purchase_terms";
 
 /** `null` tills återförsäljaren ställt in sina villkor. */
-export async function getPurchaseTerms(): Promise<PurchaseTerms | null> {
+export async function getPurchaseTerms(tenant: string): Promise<PurchaseTerms | null> {
   const sql = requireDb();
-  const [row] = await sql<{ value: unknown }[]>`select value from settings where key = ${PURCHASE_TERMS_KEY}`;
+  const [row] = await sql<{ value: unknown }[]>`select value from settings where key = ${settingsKey(tenant, PURCHASE_TERMS_KEY)}`;
   const parsed = purchaseTermsSchema.safeParse(row?.value);
   return parsed.success ? parsed.data : null;
 }
 
-export async function savePurchaseTerms(terms: PurchaseTerms): Promise<void> {
+export async function savePurchaseTerms(tenant: string, terms: PurchaseTerms): Promise<void> {
   const sql = requireDb();
   await sql`
-    insert into settings (key, value) values (${PURCHASE_TERMS_KEY}, ${sql.json(terms as unknown as Json)})
+    insert into settings (key, value) values (${settingsKey(tenant, PURCHASE_TERMS_KEY)}, ${sql.json(terms as unknown as Json)})
     on conflict (key) do update set value = excluded.value, updated_at = now()`;
 }
 
 const COMPANY_PROFILE_KEY = "company_profile";
 
 /** Återförsäljarens uppgifter; standarduppgifterna tills något sparats eller utan databas. */
-export async function getCompanyProfile(): Promise<CompanyProfile> {
+export async function getCompanyProfile(tenant: string): Promise<CompanyProfile> {
   if (!databaseConfigured()) return DEFAULT_COMPANY;
   const sql = requireDb();
-  const [row] = await sql<{ value: unknown }[]>`select value from settings where key = ${COMPANY_PROFILE_KEY}`;
+  const [row] = await sql<{ value: unknown }[]>`select value from settings where key = ${settingsKey(tenant, COMPANY_PROFILE_KEY)}`;
   const parsed = companyProfileSchema.safeParse(row?.value);
-  return parsed.success ? parsed.data : DEFAULT_COMPANY;
+  if (parsed.success) return parsed.data;
+  if (isOwner(tenant)) return DEFAULT_COMPANY;
+  // En ny återförsäljare börjar med sitt namn och tomma uppgifter — aldrig med namnskylt.coms.
+  const [account] = await sql<{ name: string }[]>`select name from reseller_accounts where id = ${tenant}`;
+  return { ...DEFAULT_COMPANY, name: account?.name ?? tenant, tagline: "", website: "" };
 }
 
-export async function saveCompanyProfile(profile: CompanyProfile): Promise<void> {
+export async function saveCompanyProfile(tenant: string, profile: CompanyProfile): Promise<void> {
   const sql = requireDb();
   await sql`
-    insert into settings (key, value) values (${COMPANY_PROFILE_KEY}, ${sql.json(profile as unknown as Json)})
+    insert into settings (key, value) values (${settingsKey(tenant, COMPANY_PROFILE_KEY)}, ${sql.json(profile as unknown as Json)})
     on conflict (key) do update set value = excluded.value, updated_at = now()`;
 }
 
@@ -337,13 +359,13 @@ export interface CustomerInput {
 }
 
 /** Ny kund, eller samma kund om e-posten redan finns — ifyllda uppgifter skriver över, tomma behåller det gamla. */
-export async function upsertCustomer(input: CustomerInput): Promise<Customer> {
+export async function upsertCustomer(tenant: string, input: CustomerInput): Promise<Customer> {
   const sql = requireDb();
   const [row] = await sql<Customer[]>`
-    insert into customers (email, name, company, phone, org_number, address)
-    values (${input.email.trim().toLowerCase()}, ${input.name}, ${input.company || null},
+    insert into customers (reseller_id, email, name, company, phone, org_number, address)
+    values (${tenant}, ${input.email.trim().toLowerCase()}, ${input.name}, ${input.company || null},
             ${input.phone || null}, ${input.orgNumber || null}, ${input.address || null})
-    on conflict (email) do update
+    on conflict (reseller_id, email) do update
       set name = excluded.name,
           company = coalesce(excluded.company, customers.company),
           phone = coalesce(excluded.phone, customers.phone),
@@ -355,11 +377,11 @@ export async function upsertCustomer(input: CustomerInput): Promise<Customer> {
 }
 
 /** Nya priser på en order. Totalerna räknas om och ändringen syns i tidslinjen. */
-export async function updateOrderPricing(orderNo: string, pricing: Pricing): Promise<boolean> {
+export async function updateOrderPricing(tenant: string, orderNo: string, pricing: Pricing): Promise<boolean> {
   const sql = requireDb();
   return sql.begin(async (tx) => {
     const [row] = await tx<{ id: string; badges: unknown; status: string }[]>`
-      select id, badges, status from orders where order_no = ${orderNo} for update`;
+      select id, badges, status from orders where order_no = ${orderNo} and reseller_id = ${tenant} for update`;
     const badges = badgesSchema.safeParse(row?.badges);
     if (!row || !badges.success) return false;
     const custom = isCustomPricing(pricing) ? pricing : null;
@@ -369,7 +391,9 @@ export async function updateOrderPricing(orderNo: string, pricing: Pricing): Pro
              total_sek = ${price.totalSek}, total_incl_vat_sek = ${price.totalInclVatSek}
        where id = ${row.id}`;
     const note = custom
-      ? `Pris justerat till ${price.totalSek} kr${custom.discountPercent ? ` (${custom.discountPercent} % rabatt)` : ""}`
+      ? `Pris justerat till ${price.totalSek} kr${price.savingsSek > 0 ? ` (${String(price.savingsPercent).replace(".", ",")} % rabatt)` : ""}${
+          price.extrasSek > 0 ? `, varav extra ${price.extrasSek} kr` : ""
+        }`
       : "Återställt till listpris";
     await tx`insert into order_events (order_id, status, note) values (${row.id}, ${row.status}, ${note})`;
     return true;
@@ -384,7 +408,7 @@ export interface CustomerSummary extends Customer {
   designs: number;
 }
 
-export async function listCustomers(): Promise<CustomerSummary[]> {
+export async function listCustomers(tenant: string): Promise<CustomerSummary[]> {
   const sql = requireDb();
   const rows = await sql<
     {
@@ -411,6 +435,7 @@ export async function listCustomers(): Promise<CustomerSummary[]> {
            (select count(*)::int from designs d where d.customer_id = c.id) as designs
       from customers c
       left join orders o on o.customer_id = c.id
+     where c.reseller_id = ${tenant}
      group by c.id
      order by max(o.placed_at) desc nulls last`;
   return rows.map((r) => ({
@@ -430,10 +455,11 @@ export async function listCustomers(): Promise<CustomerSummary[]> {
   }));
 }
 
-export async function getCustomer(id: string): Promise<Customer | null> {
+export async function getCustomer(tenant: string, id: string): Promise<Customer | null> {
   const sql = requireDb();
   if (!z.uuid().safeParse(id).success) return null;
-  const [row] = await sql<Customer[]>`select ${sql.unsafe(CUSTOMER_COLUMNS)} from customers where id = ${id}`;
+  const [row] = await sql<Customer[]>`
+    select ${sql.unsafe(CUSTOMER_COLUMNS)} from customers where id = ${id} and reseller_id = ${tenant}`;
   return row ?? null;
 }
 
@@ -445,10 +471,11 @@ export interface Design {
   createdAt: string;
 }
 
-export async function listDesigns(customerId: string): Promise<Design[]> {
+export async function listDesigns(tenant: string, customerId: string): Promise<Design[]> {
   const sql = requireDb();
   const rows = await sql<{ id: string; customer_id: string; name: string; doc: unknown; created_at: Date }[]>`
-    select id, customer_id, name, doc, created_at from designs where customer_id = ${customerId} order by created_at desc`;
+    select d.id, d.customer_id, d.name, d.doc, d.created_at from designs d join customers c on c.id = d.customer_id
+     where d.customer_id = ${customerId} and c.reseller_id = ${tenant} order by d.created_at desc`;
   return rows.flatMap((r) => {
     const doc = badgeDocumentSchema.safeParse(r.doc);
     return doc.success
@@ -457,11 +484,12 @@ export async function listDesigns(customerId: string): Promise<Design[]> {
   });
 }
 
-export async function getDesign(id: string): Promise<Design | null> {
+export async function getDesign(tenant: string, id: string): Promise<Design | null> {
   const sql = requireDb();
   if (!z.uuid().safeParse(id).success) return null;
   const [r] = await sql<{ id: string; customer_id: string; name: string; doc: unknown; created_at: Date }[]>`
-    select id, customer_id, name, doc, created_at from designs where id = ${id}`;
+    select d.id, d.customer_id, d.name, d.doc, d.created_at from designs d join customers c on c.id = d.customer_id
+     where d.id = ${id} and c.reseller_id = ${tenant}`;
   if (!r) return null;
   const doc = badgeDocumentSchema.safeParse(r.doc);
   return doc.success
@@ -469,21 +497,22 @@ export async function getDesign(id: string): Promise<Design | null> {
     : null;
 }
 
-export async function saveDesign(customerId: string, name: string, doc: BadgeDocument): Promise<string> {
+export async function saveDesign(tenant: string, customerId: string, name: string, doc: BadgeDocument): Promise<string> {
   const sql = requireDb();
   const template = { ...doc, quantity: 1 };
   const [row] = await sql<{ id: string }[]>`
     insert into designs (customer_id, name, doc)
-    values (${customerId}, ${name}, ${sql.json(template as unknown as Json)})
+    select ${customerId}, ${name}, ${sql.json(template as unknown as Json)}
+     where exists (select 1 from customers where id = ${customerId} and reseller_id = ${tenant})
     returning id`;
   if (!row) throw new Error("Mallen kunde inte sparas");
   return row.id;
 }
 
-export async function deleteDesign(id: string): Promise<void> {
+export async function deleteDesign(tenant: string, id: string): Promise<void> {
   const sql = requireDb();
   if (!z.uuid().safeParse(id).success) return;
-  await sql`delete from designs where id = ${id}`;
+  await sql`delete from designs d using customers c where d.id = ${id} and c.id = d.customer_id and c.reseller_id = ${tenant}`;
 }
 
 export type ProofStatus = "pending" | "approved" | "changes";
@@ -502,11 +531,11 @@ function toProofStatus(value: string): ProofStatus {
 }
 
 /** En korrekturlänk per gång; token är slumpad och går inte att gissa. */
-export async function createProof(orderNo: string): Promise<string | null> {
+export async function createProof(tenant: string, orderNo: string): Promise<string | null> {
   const sql = requireDb();
   const token = randomBytes(18).toString("base64url");
   return sql.begin(async (tx) => {
-    const [order] = await tx<{ id: string }[]>`select id from orders where order_no = ${orderNo}`;
+    const [order] = await tx<{ id: string }[]>`select id from orders where order_no = ${orderNo} and reseller_id = ${tenant}`;
     if (!order) return null;
     await tx`insert into proofs (token, order_id) values (${token}, ${order.id})`;
     await tx`update orders set status = 'proof-sent' where id = ${order.id}`;
@@ -515,14 +544,14 @@ export async function createProof(orderNo: string): Promise<string | null> {
   });
 }
 
-export async function latestProof(orderNo: string): Promise<Proof | null> {
+export async function latestProof(tenant: string, orderNo: string): Promise<Proof | null> {
   const sql = requireDb();
   const [row] = await sql<
     { token: string; order_no: string; status: string; comment: string | null; created_at: Date; decided_at: Date | null }[]
   >`
     select p.token, o.order_no, p.status, p.comment, p.created_at, p.decided_at
       from proofs p join orders o on o.id = p.order_id
-     where o.order_no = ${orderNo}
+     where o.order_no = ${orderNo} and o.reseller_id = ${tenant}
      order by p.created_at desc limit 1`;
   return row
     ? {
@@ -545,7 +574,7 @@ export async function getProof(token: string): Promise<{ proof: Proof; order: St
     select p.token, o.order_no, p.status, p.comment, p.created_at, p.decided_at
       from proofs p join orders o on o.id = p.order_id where p.token = ${token}`;
   if (!row) return null;
-  const order = await getOrder(row.order_no);
+  const order = await getOrderAnyTenant(row.order_no);
   if (!order) return null;
   return {
     proof: {

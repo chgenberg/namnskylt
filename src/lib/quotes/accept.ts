@@ -8,10 +8,10 @@ export type AcceptResult = { ok: true; orderNo: string } | { ok: false; error: s
  * Godkänd offert blir en order med offertens priser. `byReseller` tillåter även
  * utkast (kunden har godkänt muntligt) och utgångna offerter.
  */
-export async function acceptQuote(quoteNo: string, byReseller: boolean): Promise<AcceptResult> {
-  const before = await getQuote(quoteNo);
+export async function acceptQuote(tenant: string, quoteNo: string, byReseller: boolean): Promise<AcceptResult> {
+  const before = await getQuote(tenant, quoteNo);
   if (!before) return { ok: false, error: "Offerten finns inte" };
-  const quote = await claimForAcceptance(quoteNo, byReseller);
+  const quote = await claimForAcceptance(tenant, quoteNo, byReseller);
   if (!quote) return { ok: false, error: "Offerten kan inte godkännas längre" };
   try {
     const placed = await placeOrder({
@@ -22,6 +22,7 @@ export async function acceptQuote(quoteNo: string, byReseller: boolean): Promise
       note: `Från offert ${quote.quoteNo}`,
       demo: quote.demo,
       badgeShot: quote.badgeShot,
+      tenant,
     });
     await completeAcceptance(quote.id, placed.orderNumber, byReseller ? "Godkänd av återförsäljaren" : "Godkänd av kunden");
     return { ok: true, orderNo: placed.orderNumber };

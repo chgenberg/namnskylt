@@ -118,10 +118,17 @@ ${
       ? `<div class="shot"><img src="${esc(quote.badgeShot)}" alt="">${quote.badges.length > 1 ? `<small>Visas med första namnet — alla ${quote.badges.length} namn står nedan</small>` : ""}</div>`
       : `<div class="stage">${svgs.join("")}</div>`
   }</div>
-<table><thead><tr><th>Skylt</th><th class="r">Antal</th><th class="r">À-pris</th><th class="r">Summa</th></tr></thead><tbody>${rows}</tbody></table>
+<table><thead><tr><th>Skylt</th><th class="r">Antal</th><th class="r">À-pris</th><th class="r">Summa</th></tr></thead><tbody>${rows}${priced.extras
+    .map((e) => `<tr><td><b>${esc(e.label)}</b></td><td class="r">1 st</td><td class="r">${esc(sek(e.amountSek))}</td><td class="r"><b>${esc(sek(e.amountSek))}</b></td></tr>`)
+    .join("")}</tbody></table>
 <div class="sum">
-<div><span>Delsumma</span><span>${esc(sek(priced.subtotalSek))}</span></div>
-${priced.discountSek > 0 ? `<div class="disc"><span>Rabatt ${priced.discountPercent} %</span><span>−${esc(sek(priced.discountSek))}</span></div>` : ""}
+${
+    priced.savingsSek > 0
+      ? `<div class="vat"><span>Skyltar till listpris</span><span>${esc(sek(priced.listTotalSek))}</span></div><div class="disc"><span>Rabatt ${esc(String(priced.savingsPercent).replace(".", ","))} %</span><span>−${esc(sek(priced.savingsSek))}</span></div>`
+      : ""
+  }
+<div><span>Skyltar</span><span>${esc(sek(priced.badgesSek))}</span></div>
+${priced.extras.map((e) => `<div><span>${esc(e.label)}</span><span>${esc(sek(e.amountSek))}</span></div>`).join("")}
 <div class="tot"><span>Totalt exkl. moms</span><span>${esc(sek(priced.totalSek))}</span></div>
 <div class="vat"><span>Moms 25 %</span><span>${esc(sek(priced.vatSek))}</span></div>
 <div class="vat"><span>Att betala inkl. moms</span><span>${esc(sek(priced.totalInclVatSek))}</span></div>

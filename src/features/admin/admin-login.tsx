@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import styles from "./admin.module.css";
 
 export function AdminLogin() {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -17,7 +18,7 @@ export function AdminLogin() {
       const response = await fetch("/api/admin/session", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email: email.trim() || undefined, password }),
       });
       if (response.ok) {
         window.location.reload();
@@ -42,14 +43,28 @@ export function AdminLogin() {
         </span>
         <p className={styles.eyebrow}>Återförsäljare</p>
         <h1 className={styles.pageTitle}>Logga in</h1>
-        <p className={styles.muted}>Ordrar, kunder och statistik för namnskylt.com.</p>
+        <p className={styles.muted}>Ordrar, offerter, kunder och inställningar för ditt företag.</p>
+        <label className={styles.formRow}>
+          <span className="visually-hidden">E-post</span>
+          <input
+            className={styles.input}
+            type="email"
+            autoComplete="username"
+            autoFocus
+            placeholder="E-post"
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setError(null);
+            }}
+          />
+        </label>
         <label className={styles.formRow}>
           <span className="visually-hidden">Lösenord</span>
           <input
             className={styles.input}
             type="password"
             autoComplete="current-password"
-            autoFocus
             placeholder="Lösenord"
             value={password}
             onChange={(event) => {

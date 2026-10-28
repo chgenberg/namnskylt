@@ -3,7 +3,16 @@
 import { useMemo, useState, useTransition } from "react";
 import { engravedRows, type BadgeDocument } from "@/engine";
 import { formatSek } from "@/features/orders/format";
-import { MAX_DISCOUNT_PERCENT, MAX_UNIT_SEK, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
+import {
+  discountForUnits,
+  MAX_DISCOUNT_PERCENT,
+  MAX_EXTRAS,
+  MAX_UNIT_SEK,
+  NO_PRICING,
+  priceWithPricing,
+  unitsForDiscount,
+  type Pricing,
+} from "@/lib/orders/pricing";
 import { marginOf, purchasePrice, type PurchaseTerms } from "@/lib/orders/purchase";
 import type { ActionResult } from "./actions";
 import styles from "./admin.module.css";
@@ -17,31 +26,74 @@ interface PricingEditorProps {
   purchase?: PurchaseTerms | null;
 }
 
+interface ExtraDraft {
+  label: string;
+  amount: string;
+}
+
 function parseSek(text: string): number | null {
   const value = Number(text.replace(/\s/g, "").replace(",", "."));
   return text.trim() === "" || !Number.isFinite(value) ? null : Math.min(MAX_UNIT_SEK, Math.max(0, Math.round(value)));
 }
 
-/** À-pris per skylt och rabatt på summan — totalerna räknas live innan de sparas. */
+function parsePercent(text: string): number {
+  const value = Number(text.replace(",", "."));
+  return Number.isFinite(value) ? Math.min(MAX_DISCOUNT_PERCENT, Math.max(0, value)) : 0;
+}
+
+const formatPercent = (value: number) => String(Math.round(value * 10) / 10).replace(".", ",");
+
+/**
+ * À-pris per skylt och rabatt hänger ihop: ändras ett à-pris visar rabatten hur
+ * långt under listpris skyltarna ligger, och en ny rabatt räknar om à-priserna.
+ * Extra kostnader läggs till efter rabatten.
+ */
 export function PricingEditor({ badges, pricing, submit, purchase }: PricingEditorProps) {
-  const list = useMemo(() => priceWithPricing(badges).lines.map((l) => l.listUnitSek), [badges]);
-  const [units, setUnits] = useState<string[]>(() => badges.map((_, i) => String(pricing?.unitOverrides[i] ?? list[i] ?? "")));
-  const [discount, setDiscount] = useState(String(pricing?.discountPercent ?? 0));
+  const base = useMemo(() => priceWithPricing(badges), [badges]);
+  const list = useMemo(() => base.lines.map((l) => l.listUnitSek), [base]);
+  const quantities = useMemo(() => base.lines.map((l) => l.quantity), [base]);
+  const saved = priceWithPricing(badges, pricing);
+  // Äldre priser kan ha rabatten separat — här blir den en del av à-priserna.
+  const savedUnits = saved.lines.map((l) => Math.round(l.unitSek * (1 - saved.discountPercent / 100)));
+
+  const [units, setUnits] = useState<string[]>(() => savedUnits.map(String));
+  const [discount, setDiscount] = useState(() => formatPercent(discountForUnits(list, savedUnits, quantities)));
+  const [extras, setExtras] = useState<ExtraDraft[]>(() =>
+    (pricing?.extras ?? []).map((e) => ({ label: e.label, amount: String(e.amountSek) })),
+  );
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const unitValues = units.map((u, i) => parseSek(u) ?? list[i] ?? 0);
   const draft: Pricing = {
-    unitOverrides: units.map((u, i) => {
-      const value = parseSek(u);
-      return value === null || value === list[i] ? null : value;
+    unitOverrides: unitValues.map((value, i) => (value === list[i] ? null : value)),
+    discountPercent: 0,
+    extras: extras.flatMap((e) => {
+      const amountSek = parseSek(e.amount);
+      return e.label.trim() && amountSek !== null ? [{ label: e.label.trim().slice(0, 80), amountSek }] : [];
     }),
-    discountPercent: Math.min(MAX_DISCOUNT_PERCENT, Math.max(0, Number(discount.replace(",", ".")) || 0)),
   };
   const priced = priceWithPricing(badges, draft);
-  const saved = priceWithPricing(badges, pricing);
+  const dirty =
+    JSON.stringify(draft) !==
+    JSON.stringify({
+      unitOverrides: savedUnits.map((value, i) => (value === list[i] ? null : value)),
+      discountPercent: 0,
+      extras: pricing?.extras ?? [],
+    });
   const cost = purchase ? purchasePrice(badges, purchase) : null;
   const margin = cost ? marginOf(priced.totalSek, cost.totalSek) : null;
-  const dirty = priced.totalSek !== saved.totalSek || JSON.stringify(draft.unitOverrides) !== JSON.stringify(badges.map((_, i) => pricing?.unitOverrides[i] ?? null));
+
+  const changeUnit = (index: number, text: string) => {
+    const next = units.map((u, j) => (j === index ? text : u));
+    setUnits(next);
+    setDiscount(formatPercent(discountForUnits(list, next.map((u, i) => parseSek(u) ?? list[i] ?? 0), quantities)));
+  };
+
+  const changeDiscount = (text: string) => {
+    setDiscount(text);
+    setUnits(unitsForDiscount(list, parsePercent(text)).map(String));
+  };
 
   const save = (next: Pricing) => {
     if (!submit) return;
@@ -55,7 +107,8 @@ export function PricingEditor({ badges, pricing, submit, purchase }: PricingEdit
   const reset = () => {
     setUnits(list.map(String));
     setDiscount("0");
-    save({ unitOverrides: [], discountPercent: 0 });
+    setExtras([]);
+    save(NO_PRICING);
   };
 
   return (
@@ -94,7 +147,7 @@ export function PricingEditor({ badges, pricing, submit, purchase }: PricingEdit
                 {submit ? (
                   <label className={styles.priceInput}>
                     <span className="visually-hidden">À-pris för {name}</span>
-                    <input inputMode="numeric" value={units[i] ?? ""} onChange={(e) => setUnits((all) => all.map((u, j) => (j === i ? e.target.value : u)))} />
+                    <input inputMode="numeric" value={units[i] ?? ""} onChange={(e) => changeUnit(i, e.target.value)} />
                     <span>kr</span>
                   </label>
                 ) : (
@@ -109,27 +162,84 @@ export function PricingEditor({ badges, pricing, submit, purchase }: PricingEdit
         })}
       </div>
 
+      <div className={styles.extras}>
+        <p className={styles.formLabel}>Extra kostnader</p>
+        {extras.map((extra, i) => (
+          <div key={i} className={styles.extraRow}>
+            <input
+              className={styles.input}
+              value={extra.label}
+              maxLength={80}
+              disabled={!submit}
+              placeholder="Framtagning av korrektur"
+              aria-label={`Extra kostnad ${i + 1}, beskrivning`}
+              onChange={(e) => setExtras((all) => all.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+            />
+            <label className={styles.priceInput}>
+              <span className="visually-hidden">Belopp för extra kostnad {i + 1}</span>
+              <input
+                inputMode="numeric"
+                value={extra.amount}
+                disabled={!submit}
+                placeholder="0"
+                onChange={(e) => setExtras((all) => all.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))}
+              />
+              <span>kr</span>
+            </label>
+            {submit && (
+              <button
+                type="button"
+                className={styles.iconDanger}
+                aria-label={`Ta bort ${extra.label || "extra kostnad"}`}
+                onClick={() => setExtras((all) => all.filter((_, j) => j !== i))}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        ))}
+        {submit && extras.length < MAX_EXTRAS && (
+          <button
+            type="button"
+            className={styles.addExtra}
+            onClick={() => setExtras((all) => [...all, { label: "", amount: "" }])}
+          >
+            + Lägg till extra kostnad
+          </button>
+        )}
+        {!submit && extras.length === 0 && <span className={styles.muted}>Inga</span>}
+      </div>
+
       <div className={styles.priceFoot}>
         {submit ? (
           <label className={styles.discountField}>
-            <span className={styles.formLabel}>Rabatt på hela ordern</span>
+            <span className={styles.formLabel}>Rabatt på skyltarna</span>
             <span className={styles.priceInput}>
-              <input inputMode="decimal" value={discount} onChange={(e) => setDiscount(e.target.value)} aria-label="Rabatt i procent" />
+              <input inputMode="decimal" value={discount} onChange={(e) => changeDiscount(e.target.value)} aria-label="Rabatt i procent" />
               <span>%</span>
             </span>
+            <span className={styles.muted}>Följer à-priserna — ändra här så räknas de om.</span>
           </label>
         ) : (
           <span />
         )}
         <dl className={styles.summary}>
-          <dt>Delsumma</dt>
-          <dd>{formatSek(priced.subtotalSek)}</dd>
-          {priced.discountSek > 0 && (
+          {priced.savingsSek > 0 && (
             <>
-              <dt className={styles.discountText}>Rabatt {priced.discountPercent} %</dt>
-              <dd className={styles.discountText}>−{formatSek(priced.discountSek)}</dd>
+              <dt className={styles.muted}>Skyltar till listpris</dt>
+              <dd className={styles.muted}>{formatSek(priced.listTotalSek)}</dd>
+              <dt className={styles.discountText}>Rabatt {formatPercent(priced.savingsPercent)} %</dt>
+              <dd className={styles.discountText}>−{formatSek(priced.savingsSek)}</dd>
             </>
           )}
+          <dt>Skyltar</dt>
+          <dd>{formatSek(priced.badgesSek)}</dd>
+          {priced.extras.map((extra, i) => (
+            <span key={i} style={{ display: "contents" }}>
+              <dt>{extra.label}</dt>
+              <dd>{formatSek(extra.amountSek)}</dd>
+            </span>
+          ))}
           <dt className={styles.summaryTotal}>Totalt exkl. moms</dt>
           <dd className={styles.summaryTotal}>{formatSek(priced.totalSek)}</dd>
           <dt>Inkl. moms</dt>
@@ -143,12 +253,6 @@ export function PricingEditor({ badges, pricing, submit, purchase }: PricingEdit
                 {formatSek(margin.sek)}
                 {margin.percent !== null && ` · ${margin.percent} %`}
               </dd>
-            </>
-          )}
-          {priced.totalSek !== priced.listTotalSek && (
-            <>
-              <dt className={styles.muted}>Listpris</dt>
-              <dd className={styles.muted}>{formatSek(priced.listTotalSek)}</dd>
             </>
           )}
         </dl>

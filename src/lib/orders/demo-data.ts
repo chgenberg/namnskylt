@@ -50,24 +50,24 @@ export function demoPlan(now: Date): DemoPlan[] {
   return plan.sort((a, b) => a.placedAt.localeCompare(b.placedAt));
 }
 
-export async function insertDemoData(sql: Sql, now: Date = new Date()): Promise<number> {
+export async function insertDemoData(sql: Sql, tenant: string, now: Date = new Date()): Promise<number> {
   return sql.begin(async (tx) => {
     let created = 0;
     for (const order of demoPlan(now)) {
       const price = priceOrder(order.badges);
       const [customer] = await tx<{ id: string }[]>`
-        insert into customers (email, name, company, is_demo)
-        values (${order.email}, ${order.customer}, ${order.company}, true)
-        on conflict (email) do update set name = excluded.name
+        insert into customers (reseller_id, email, name, company, is_demo)
+        values (${tenant}, ${order.email}, ${order.customer}, ${order.company}, true)
+        on conflict (reseller_id, email) do update set name = excluded.name
         returning id`;
       if (!customer) continue;
       const shipped = order.status === "shipped" || order.status === "delivered";
       const [saved] = await tx<{ id: string }[]>`
         insert into orders (customer_id, status, badges, total_sek, total_incl_vat_sek, supplier_order_no,
-                            source, placed_at, tracking_url, is_demo)
+                            source, placed_at, tracking_url, is_demo, reseller_id)
         values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Json)},
                 ${price.totalSek}, ${price.totalInclVatSek}, 'DEMO', 'web', ${new Date(order.placedAt)},
-                ${shipped ? DEMO_TRACKING_URL : null}, true)
+                ${shipped ? DEMO_TRACKING_URL : null}, true, ${tenant})
         returning id`;
       if (!saved) continue;
       created += 1;
@@ -82,25 +82,28 @@ export async function insertDemoData(sql: Sql, now: Date = new Date()): Promise<
       await tx`
         insert into designs (customer_id, name, doc)
         select id, ${`${demo.company ?? demo.customer} – standard`}, ${tx.json({ ...template, quantity: 1 } as unknown as Json)}
-          from customers where email = ${demo.email} and is_demo`;
+          from customers where email = ${demo.email} and is_demo and reseller_id = ${tenant}`;
     }
     return created;
   });
 }
 
 /** Tar bort allt märkt som demo — ordrar, offerter och kunder — men aldrig riktiga ordrar. */
-export async function removeDemoData(sql: Sql): Promise<number> {
+export async function removeDemoData(sql: Sql, tenant: string): Promise<number> {
   return sql.begin(async (tx) => {
-    await tx`delete from quotes where is_demo or customer_id in (select id from customers where is_demo)`;
-    await tx`update quotes set order_id = null where order_id in (select id from orders where is_demo)`;
-    await tx`update orders set repeat_of = null where repeat_of in (select id from orders where is_demo)`;
-    const removed = await tx`delete from orders where is_demo`;
-    await tx`delete from customers c where c.is_demo and not exists (select 1 from orders o where o.customer_id = c.id)`;
+    const demoOrders = tx`select id from orders where is_demo and reseller_id = ${tenant}`;
+    await tx`delete from quotes where reseller_id = ${tenant}
+               and (is_demo or customer_id in (select id from customers where is_demo and reseller_id = ${tenant}))`;
+    await tx`update quotes set order_id = null where order_id in (${demoOrders})`;
+    await tx`update orders set repeat_of = null where repeat_of in (${demoOrders})`;
+    const removed = await tx`delete from orders where is_demo and reseller_id = ${tenant}`;
+    await tx`delete from customers c where c.is_demo and c.reseller_id = ${tenant}
+               and not exists (select 1 from orders o where o.customer_id = c.id)`;
     return removed.count;
   });
 }
 
-export async function demoOrderCount(sql: Sql): Promise<number> {
-  const [row] = await sql<{ count: number }[]>`select count(*)::int as count from orders where is_demo`;
+export async function demoOrderCount(sql: Sql, tenant: string): Promise<number> {
+  const [row] = await sql<{ count: number }[]>`select count(*)::int as count from orders where is_demo and reseller_id = ${tenant}`;
   return row?.count ?? 0;
 }

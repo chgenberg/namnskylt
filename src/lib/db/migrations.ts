@@ -150,6 +150,25 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
     id: "008_quote_project",
     sql: `alter table quotes add column project text;`,
   },
+  {
+    id: "009_tenants",
+    sql: `
+      create table reseller_accounts (
+        id text primary key,
+        name text not null,
+        email text not null unique,
+        password_hash text not null,
+        created_at timestamptz not null default now()
+      );
+      alter table customers add column reseller_id text not null default 'namnskylt';
+      alter table orders add column reseller_id text not null default 'namnskylt';
+      alter table quotes add column reseller_id text not null default 'namnskylt';
+      alter table customers drop constraint customers_email_key;
+      create unique index customers_reseller_email on customers (reseller_id, email);
+      create index orders_reseller on orders (reseller_id, placed_at desc);
+      create index quotes_reseller on quotes (reseller_id, created_at desc);
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

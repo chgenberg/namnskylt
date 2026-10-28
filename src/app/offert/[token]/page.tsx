@@ -27,8 +27,9 @@ interface QuotePublicPageProps {
 export default async function QuotePublicPage({ params }: QuotePublicPageProps) {
   if (!databaseConfigured()) notFound();
   const { token } = await params;
-  const [quote, company] = await Promise.all([getQuoteByToken(token), getCompanyProfile()]);
+  const quote = await getQuoteByToken(token);
   if (!quote || quote.status === "cancelled") notFound();
+  const company = await getCompanyProfile(quote.resellerId);
   const plate = (await isLightLogo(company.logo)) ? darkPlate(company.primaryColor) : null;
   const brand = {
     "--brand": company.primaryColor,
@@ -38,7 +39,7 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
   const status = displayStatus(quote);
   const priced = priceWithPricing(quote.badges, quote.pricing);
   const firstName = quote.customer.name.split(" ")[0] ?? quote.customer.name;
-  const saving = priced.listTotalSek - priced.totalSek;
+  const saving = priced.savingsSek;
 
   const head =
     status === "accepted"
@@ -122,16 +123,35 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
                 </li>
               );
             })}
+            {priced.extras.map((extra, i) => (
+              <li key={`extra-${i}`} className={styles.line}>
+                <span className={styles.lineBadge} aria-hidden="true" />
+                <div>
+                  <div className={styles.lineName}>{extra.label}</div>
+                </div>
+                <div className={styles.lineAmount}>
+                  <strong>{formatSek(extra.amountSek)}</strong>
+                </div>
+              </li>
+            ))}
           </ul>
           <dl className={styles.totals}>
-            <dt>Delsumma</dt>
-            <dd>{formatSek(priced.subtotalSek)}</dd>
-            {priced.discountSek > 0 && (
+            {priced.savingsSek > 0 && (
               <>
-                <dt className={styles.saving}>Rabatt {priced.discountPercent} %</dt>
-                <dd className={styles.saving}>−{formatSek(priced.discountSek)}</dd>
+                <dt>Skyltar till listpris</dt>
+                <dd>{formatSek(priced.listTotalSek)}</dd>
+                <dt className={styles.saving}>Rabatt {String(priced.savingsPercent).replace(".", ",")} %</dt>
+                <dd className={styles.saving}>−{formatSek(priced.savingsSek)}</dd>
               </>
             )}
+            <dt>Skyltar</dt>
+            <dd>{formatSek(priced.badgesSek)}</dd>
+            {priced.extras.map((extra, i) => (
+              <span key={i} style={{ display: "contents" }}>
+                <dt>{extra.label}</dt>
+                <dd>{formatSek(extra.amountSek)}</dd>
+              </span>
+            ))}
             <dt className={styles.grand}>Totalt exkl. moms</dt>
             <dd className={styles.grand}>{formatSek(priced.totalSek)}</dd>
             <dt>Moms 25 %</dt>

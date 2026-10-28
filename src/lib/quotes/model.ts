@@ -30,6 +30,8 @@ export interface StoredQuote {
   badgeShot: string | null;
   /** Projektets namn — offertens rubrik. */
   project: string | null;
+  /** Återförsäljaren offerten tillhör — dess logga och uppgifter står på offerten. */
+  resellerId: string;
   quoteNo: string;
   customer: Customer;
   status: QuoteStatus;

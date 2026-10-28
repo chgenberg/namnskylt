@@ -4,7 +4,7 @@ import { engravedRows } from "@/engine";
 import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
 import { databaseConfigured, getCustomer, getPurchaseTerms } from "@/lib/orders/repository";
-import { isResellerSignedIn } from "@/lib/reseller-auth/session";
+import { currentTenant } from "@/lib/reseller-auth/session";
 import { genitive } from "@/lib/share/genitive";
 import { decodeShareCode } from "@/lib/share/share-link";
 
@@ -54,8 +54,9 @@ export async function generateMetadata({ searchParams }: SkapaPageProps): Promis
 
 /** `?kund=` gäller bara inloggad återförsäljare — annars är det en vanlig besökare. */
 async function resellerContext(customerId: string | undefined, quote: boolean, project: string | undefined) {
-  if (!customerId || !databaseConfigured() || !(await isResellerSignedIn())) return undefined;
-  const [customer, purchase] = await Promise.all([getCustomer(customerId), getPurchaseTerms()]);
+  const tenant = customerId && databaseConfigured() ? await currentTenant() : null;
+  if (!customerId || !tenant) return undefined;
+  const [customer, purchase] = await Promise.all([getCustomer(tenant, customerId), getPurchaseTerms(tenant)]);
   return customer
     ? {
         customerId: customer.id,

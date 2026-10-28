@@ -1,4 +1,4 @@
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import styles from "@/features/admin/admin.module.css";
 
 function isoDay(date: Date): string {
@@ -19,7 +19,8 @@ const EXPORTS = [
 ] as const;
 
 export default async function ExportPage() {
-  if (!(await canViewAdmin())) return null;
+  const tenant = await adminTenant();
+  if (!tenant) return null;
   const now = new Date();
   const monthStart = isoDay(new Date(now.getFullYear(), now.getMonth(), 1));
 

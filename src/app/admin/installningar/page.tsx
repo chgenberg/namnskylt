@@ -1,5 +1,5 @@
 import { CompanyForm } from "@/features/admin/company-form";
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import styles from "@/features/admin/admin.module.css";
 import { getCompanyProfile } from "@/lib/orders/repository";
 
@@ -7,8 +7,9 @@ import { getCompanyProfile } from "@/lib/orders/repository";
 export const maxDuration = 60;
 
 export default async function SettingsPage() {
-  if (!(await canViewAdmin())) return null;
-  const profile = await getCompanyProfile();
+  const tenant = await adminTenant();
+  if (!tenant) return null;
+  const profile = await getCompanyProfile(tenant);
   return (
     <>
       <header className={styles.pageHead}>

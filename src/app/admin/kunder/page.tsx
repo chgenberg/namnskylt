@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import styles from "@/features/admin/admin.module.css";
 import { formatRelative, formatSek } from "@/features/orders/format";
 import { listCustomers } from "@/lib/orders/repository";
@@ -14,8 +14,9 @@ function initials(text: string): string {
 }
 
 export default async function CustomersPage() {
-  if (!(await canViewAdmin())) return null;
-  const customers = await listCustomers();
+  const tenant = await adminTenant();
+  if (!tenant) return null;
+  const customers = await listCustomers(tenant);
 
   return (
     <>

@@ -1,4 +1,4 @@
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import { WeeklyChart } from "@/features/admin/weekly-chart";
 import styles from "@/features/admin/admin.module.css";
 import { formatSek } from "@/features/orders/format";
@@ -10,8 +10,9 @@ const RING_R = 52;
 const RING_C = 2 * Math.PI * RING_R;
 
 export default async function StatsPage() {
-  if (!(await canViewAdmin())) return null;
-  const orders = await listOrders();
+  const tenant = await adminTenant();
+  if (!tenant) return null;
+  const orders = await listOrders(tenant);
   const stats = orderStats(orders, new Date(), 12);
   const lastFour = stats.weeks.slice(-4).reduce((sum, w) => sum + w.revenueSek, 0);
   const prevFour = stats.weeks.slice(-8, -4).reduce((sum, w) => sum + w.revenueSek, 0);

@@ -1,11 +1,12 @@
 import "server-only";
 import { databaseConfigured } from "@/lib/orders/repository";
-import { isResellerSignedIn } from "@/lib/reseller-auth/session";
+import { currentTenant } from "@/lib/reseller-auth/session";
 
 /**
  * Varje adminsida kontrollerar själv — layouten körs inte om vid navigering
  * mellan undersidor, och sidans data får aldrig hämtas utan inloggning.
+ * Svaret är återförsäljaren vars data sidan får visa.
  */
-export async function canViewAdmin(): Promise<boolean> {
-  return databaseConfigured() && (await isResellerSignedIn());
+export async function adminTenant(): Promise<string | null> {
+  return databaseConfigured() ? currentTenant() : null;
 }

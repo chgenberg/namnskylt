@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createRateLimiter } from "@/lib/ai/rate-limit";
 import { FetchBlockedError } from "@/lib/brand/url";
 import { requireReseller } from "@/lib/reseller-auth/session";
+import { isOwner } from "@/lib/tenants/model";
 import { buildShop } from "@/lib/shops/build";
 import { SHOP_SLUG } from "@/lib/shops/model";
 import { deleteShop } from "@/lib/shops/repository";
@@ -16,7 +17,7 @@ const builds = createRateLimiter({ limit: 30, windowMs: HOUR_MS });
 export type BuildShopResult = { ok: true; slug: string; name: string } | { ok: false; error: string };
 
 export async function buildShopAction(url: string): Promise<BuildShopResult> {
-  await requireReseller();
+  if (!isOwner(await requireReseller())) throw new Error("Bara namnskylt.com har demobutiker");
   const parsed = z.string().trim().min(4).max(300).safeParse(url);
   if (!parsed.success) return { ok: false, error: "Skriv in en webbadress" };
   if (!builds.take("reseller")) return { ok: false, error: "Många butiker på kort tid. Försök igen om en stund." };
@@ -32,7 +33,7 @@ export async function buildShopAction(url: string): Promise<BuildShopResult> {
 }
 
 export async function deleteShopAction(slug: string): Promise<{ ok: boolean }> {
-  await requireReseller();
+  if (!isOwner(await requireReseller())) throw new Error("Bara namnskylt.com har demobutiker");
   if (!SHOP_SLUG.test(slug)) return { ok: false };
   await deleteShop(slug);
   revalidatePath("/admin/butiker");

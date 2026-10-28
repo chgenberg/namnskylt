@@ -5,7 +5,8 @@ import { AdminShell } from "@/features/admin/admin-shell";
 import { Notice } from "@/features/admin/notice";
 import { ShotBackfill } from "@/features/admin/shot-backfill";
 import { databaseConfigured, getCompanyProfile, listOrders, missingBadgeShots } from "@/lib/orders/repository";
-import { isResellerSignedIn, resellerPass } from "@/lib/reseller-auth/session";
+import { currentTenant, resellerPass } from "@/lib/reseller-auth/session";
+import { isOwner } from "@/lib/tenants/model";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -27,7 +28,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       </main>
     );
   }
-  if (!(await isResellerSignedIn())) {
+  const tenant = await currentTenant();
+  if (!tenant) {
     return (
       <main>
         <AdminLogin />
@@ -37,7 +39,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   if (!databaseConfigured()) {
     return (
       <main>
-        <AdminShell pending={0}>
+        <AdminShell pending={0} owner={isOwner(tenant)}>
           <Notice title="Databasen är inte kopplad">
             Ordrar skickas fortfarande till tillverkningen men sparas inte. Lägg till en Postgres-databas och sätt{" "}
             <code>DATABASE_URL</code>.
@@ -47,15 +49,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     );
   }
   const [orders, company, missing] = await Promise.all([
-    listOrders(),
-    getCompanyProfile(),
-    missingBadgeShots(MISSING_SHOTS_PER_VIEW),
+    listOrders(tenant),
+    getCompanyProfile(tenant),
+    missingBadgeShots(tenant, MISSING_SHOTS_PER_VIEW),
   ]);
   const pending = orders.filter((o) => o.status === "received").length;
   const demoCount = orders.filter((o) => o.demo).length;
   return (
     <main>
-      <AdminShell pending={pending} demoCount={demoCount} companyName={company.name}>
+      <AdminShell pending={pending} demoCount={demoCount} companyName={company.name} owner={isOwner(tenant)}>
         {children}
       </AdminShell>
       <ShotBackfill items={missing} />

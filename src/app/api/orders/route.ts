@@ -5,6 +5,7 @@ import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-sh
 import { placeOrder } from "@/lib/orders/place-order";
 import { databaseConfigured } from "@/lib/orders/repository";
 import { SHOP_SLUG } from "@/lib/shops/model";
+import { OWNER_TENANT } from "@/lib/tenants/model";
 import { getShop } from "@/lib/shops/repository";
 
 const orderRequestSchema = z.object({
@@ -32,8 +33,10 @@ export async function POST(request: Request) {
     const { badgeShot, shop: shopSlug, ...order } = parsed.data;
     const shop = shopSlug && databaseConfigured() ? await getShop(shopSlug) : null;
     if (shopSlug && !shop) return NextResponse.json({ error: "Butiken finns inte" }, { status: 404 });
+    // Webbshoppen och demobutikerna är namnskylt.coms egna.
     const receipt = await placeOrder({
       ...order,
+      tenant: OWNER_TENANT,
       source: shop ? "shop" : "web",
       shopSlug: shop?.slug ?? null,
       note: shop ? `Beställd i butiken ${shop.profile.name}` : null,

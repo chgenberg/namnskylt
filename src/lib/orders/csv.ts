@@ -67,10 +67,13 @@ export function invoiceCsv(orders: readonly StoredOrder[]): string {
           25,
         ];
       });
-      if (priced.discountSek === 0) return rows;
+      const customer = [o.orderNo, date(o.placedAt), o.customer.company ?? o.customer.name, o.customer.email] as const;
       return [
         ...rows,
-        [o.orderNo, date(o.placedAt), o.customer.company ?? o.customer.name, o.customer.email, `Rabatt ${priced.discountPercent} %`, "", 1, -priced.discountSek, -priced.discountSek, 25],
+        ...(priced.discountSek > 0
+          ? [[...customer, `Rabatt ${priced.discountPercent} %`, "", 1, -priced.discountSek, -priced.discountSek, 25]]
+          : []),
+        ...priced.extras.map((extra) => [...customer, extra.label, "Extra kostnad", 1, extra.amountSek, extra.amountSek, 25]),
       ];
     });
   return toCsv(

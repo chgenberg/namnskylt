@@ -192,7 +192,37 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
+  /* Skugga nedtill så länge det finns mer att scrolla till — den vita täckningen följer innehållet. */
+  background:
+    linear-gradient(var(--color-white), var(--color-white)) bottom / 100% 28px no-repeat local,
+    radial-gradient(farthest-side at 50% 100%, rgb(10 10 11 / 0.14), transparent) bottom / 100% 14px no-repeat scroll;
+}
+
+/* Chrome och Safari hoppar över den egna listen om standardegenskaperna är satta — de gäller bara Firefox. */
+@supports not selector(::-webkit-scrollbar) {
+  .panelScroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(10 10 11 / 0.22) transparent;
+  }
+}
+
+/* macOS döljer annars scrollisten tills man scrollar; en egen gör den alltid synlig. */
+.panelScroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.panelScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panelScroll::-webkit-scrollbar-thumb {
+  border: 2px solid var(--color-white);
+  border-radius: 999px;
+  background: rgb(10 10 11 / 0.22);
+}
+
+.panelScroll::-webkit-scrollbar-thumb:hover {
+  background: rgb(10 10 11 / 0.38);
 }
 
 .panelHead {

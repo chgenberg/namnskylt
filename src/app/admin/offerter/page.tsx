@@ -1,16 +1,21 @@
 import Link from "next/link";
 import { BadgePreview } from "@/components/badge-preview";
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import { QuoteStatusPill } from "@/features/admin/quote-parts";
 import styles from "@/features/admin/admin.module.css";
 import { formatDay, formatRelative, formatSek } from "@/features/orders/format";
 import { badgeCount } from "@/lib/orders/model";
-import { displayStatus } from "@/lib/quotes/model";
+import { priceWithPricing } from "@/lib/orders/pricing";
+import { displayStatus, type StoredQuote } from "@/lib/quotes/model";
 import { listQuotes } from "@/lib/quotes/repository";
 
+/** Rabatten mot listpris, oavsett om den kommer från à-pris eller procent. */
+const savings = (quote: StoredQuote) => priceWithPricing(quote.badges, quote.pricing).savingsPercent;
+
 export default async function QuotesPage() {
-  if (!(await canViewAdmin())) return null;
-  const quotes = await listQuotes();
+  const tenant = await adminTenant();
+  if (!tenant) return null;
+  const quotes = await listQuotes(tenant);
   const now = new Date();
   const open = quotes.filter((q) => ["draft", "sent"].includes(displayStatus(q, now)));
   const openValue = open.reduce((sum, q) => sum + q.totalSek, 0);
@@ -66,7 +71,7 @@ export default async function QuotesPage() {
                     <span>{badgeCount(quote)} st</span>
                     <span>{formatRelative(quote.createdAt, now)}</span>
                     {status === "sent" && <span>gäller t.o.m. {formatDay(quote.validUntil)}</span>}
-                    {quote.pricing?.discountPercent ? <span className={styles.source}>−{quote.pricing.discountPercent} %</span> : null}
+                    {savings(quote) > 0 && <span className={styles.source}>−{String(savings(quote)).replace(".", ",")} %</span>}
                     {quote.demo && <span className={styles.demoTag}>Demo</span>}
                   </div>
                   <div className={styles.cardFoot}>

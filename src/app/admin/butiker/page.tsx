@@ -1,4 +1,4 @@
-import { canViewAdmin } from "@/features/admin/guard";
+import { adminTenant } from "@/features/admin/guard";
 import { ShopBuilder } from "@/features/admin/shop-builder";
 import { ShopCardActions } from "@/features/admin/shop-card-actions";
 import { ShopEmailPreview } from "@/features/admin/shop-email-preview";
@@ -8,6 +8,7 @@ import { formatDate } from "@/features/orders/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { listShops } from "@/lib/shops/repository";
+import { isOwner } from "@/lib/tenants/model";
 
 /** Bygget läser hemsidan via en server action härifrån och kan ta en halv minut. */
 export const maxDuration = 60;
@@ -23,7 +24,9 @@ function matches(haystack: string, query: string): boolean {
 }
 
 export default async function ShopsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  if (!(await canViewAdmin())) return null;
+  const tenant = await adminTenant();
+  // Demobutikerna är namnskylt.coms säljverktyg — andra återförsäljare ser dem inte.
+  if (!tenant || !isOwner(tenant)) return null;
   const query = ((await searchParams).q ?? "").trim().slice(0, 100);
   const [allShops, origin] = await Promise.all([listShops(), siteOrigin()]);
   const shops = query
