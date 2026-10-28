@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef, useState, useTransition, type ChangeEvent } from "react";
+import { useLightLogo } from "@/hooks/use-light-logo";
 import { isHexColor, MAX_LOGO_DATA_URL_CHARS, readableOn, type CompanyProfile } from "@/lib/company/profile";
+import { darkPlate } from "@/lib/images/logo-plate";
 import { saveCompanyProfileAction } from "./actions";
 import { scrapeCompanyAction } from "./company-actions";
 import styles from "./admin.module.css";
@@ -219,8 +221,7 @@ export function CompanyForm({ profile }: { profile: CompanyProfile }) {
                       aria-label={`Logga ${i + 1}`}
                       onClick={() => setDraft((d) => ({ ...d, logo }))}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element -- data-URL */}
-                      <img src={logo} alt="" />
+                      <LogoThumb src={logo} plate={darkPlate(draft.primaryColor)} />
                     </button>
                   ))}
                 </div>
@@ -298,8 +299,15 @@ export function CompanyForm({ profile }: { profile: CompanyProfile }) {
 }
 
 /** Så här ser offertens överdel ut med uppgifterna — uppdateras medan du skriver. */
+function LogoThumb({ src, plate }: { src: string; plate: string }) {
+  const light = useLightLogo(src);
+  // eslint-disable-next-line @next/next/no-img-element -- data-URL
+  return <img src={src} alt="" style={light ? { background: plate, borderRadius: 6, padding: 4 } : undefined} />;
+}
+
 function QuotePreview({ profile }: { profile: CompanyProfile }) {
   const primary = isHexColor(profile.primaryColor) ? profile.primaryColor : "#0b1f3a";
+  const lightLogo = useLightLogo(profile.logo);
   const accent = isHexColor(profile.accentColor) ? profile.accentColor : "#0b7a4b";
   return (
     <aside className={styles.previewSticky} aria-label="Förhandsvisning av offerten">
@@ -308,7 +316,12 @@ function QuotePreview({ profile }: { profile: CompanyProfile }) {
         <div className={styles.qpTop}>
           {profile.logo ? (
             // eslint-disable-next-line @next/next/no-img-element -- data-URL
-            <img src={profile.logo} alt="" className={styles.qpLogo} />
+            <img
+              src={profile.logo}
+              alt=""
+              className={styles.qpLogo}
+              style={lightLogo ? { background: darkPlate(primary), padding: "6px 10px", borderRadius: 8 } : undefined}
+            />
           ) : (
             <strong>{profile.name || "Ditt företag"}</strong>
           )}
