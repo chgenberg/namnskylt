@@ -107,7 +107,7 @@
   height: 120px;
 }
 
-/* 3D-vyn läggs över ritningen; ritningen syns tills scenen har en första bild. */
+/* 3D-vyn läggs över ritningen; ritningen tas bort när scenen finns. */
 .previewCanvas {
   position: absolute;
   inset: -12px 0;
@@ -115,10 +115,6 @@
 
 .previewCanvas canvas {
   animation: fade-in 500ms var(--ease-out, ease-out) both;
-}
-
-.preview3d:has(canvas) > .previewBadge {
-  visibility: hidden;
 }
 
 @keyframes fade-in {

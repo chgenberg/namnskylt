@@ -194,6 +194,8 @@ interface Badge3DProps {
   onEngraveDone: () => void;
   /** Kamerans avstånd — närmare i små vyer, så att skylten fyller rutan. */
   cameraZ?: number;
+  /** När WebGL-scenen finns — då kan en platt ersättare under den döljas. */
+  onReady?: () => void;
 }
 
 export default function Badge3D({
@@ -208,6 +210,7 @@ export default function Badge3D({
   onPhotoProgress,
   recorderRef,
   cameraZ = 5.6,
+  onReady,
 }: Badge3DProps) {
   const [target, setTarget] = useState<Group | null>(null);
   const turnRef = useRef<RecordingTurn | null>(null);
@@ -222,6 +225,7 @@ export default function Badge3D({
       onCreated={({ gl, camera }) => {
         gl.localClippingEnabled = true;
         camera.layers.enable(LASER_LAYER);
+        onReady?.();
       }}
     >
       <StudioEnvironment intensity={1.35} />

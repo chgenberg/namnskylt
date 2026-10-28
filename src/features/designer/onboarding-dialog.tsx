@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, type Dispatch } from "react";
+import { useEffect, useRef, useState, type Dispatch } from "react";
 import { BadgePreview } from "@/components/badge-preview";
 import { SHAPES, getColor, getMaterial, isPartnerMade, type BadgeDocument, type FontEngine } from "@/engine";
 import type { BadgeRecorder } from "./three/recorder";
@@ -27,6 +27,7 @@ interface OnboardingDialogProps {
 export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const recorderRef = useRef<BadgeRecorder | null>(null);
+  const [canvasReady, setCanvasReady] = useState(false);
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
   const shapeName = SHAPES.find((s) => s.id === doc.shape)?.name;
@@ -61,7 +62,7 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
 
         <div className={styles.preview}>
           <div className={styles.preview3d}>
-            <BadgePreview doc={doc} label="Din skylt" className={styles.previewBadge} />
+            {!canvasReady && <BadgePreview doc={doc} label="Din skylt" className={styles.previewBadge} />}
             <div className={styles.previewCanvas} aria-hidden="true">
               <Badge3D
                 doc={doc}
@@ -75,6 +76,7 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
                 onPhotoProgress={noop}
                 recorderRef={recorderRef}
                 cameraZ={PREVIEW_CAMERA_Z}
+                onReady={() => setCanvasReady(true)}
               />
             </div>
           </div>

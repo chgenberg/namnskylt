@@ -180,7 +180,9 @@
 
 /* ── Panel ── */
 
+/* `relative` här och på .panelScroll: dolda etiketter (visually-hidden) är absoluta — annars räknas de mot sidans höjd. */
 .panel {
+  position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   min-height: 0;
@@ -189,6 +191,7 @@
 }
 
 .panelScroll {
+  position: relative;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
