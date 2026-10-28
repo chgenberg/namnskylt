@@ -37,6 +37,7 @@ interface OrderRow {
   supplier_synced_at: Date | null;
   has_badge_shot: boolean;
   shop_slug: string | null;
+  project: string | null;
   reseller_id: string;
   customer_id: string;
   customer_name: string;
@@ -85,6 +86,7 @@ function toOrder(row: OrderRow): StoredOrder {
     supplierSyncedAt: row.supplier_synced_at?.toISOString() ?? null,
     hasBadgeShot: row.has_badge_shot,
     shopSlug: row.shop_slug,
+    project: row.project,
     resellerId: row.reseller_id,
     demo: row.is_demo,
   };
@@ -104,7 +106,7 @@ function selectOrders(sql: Sql) {
   return sql`
     select o.id, o.order_no, o.status, o.badges, o.pricing, o.total_sek, o.total_incl_vat_sek,
            o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo, o.supplier_synced_at,
-           o.badge_shot is not null as has_badge_shot, o.shop_slug, o.reseller_id,
+           o.badge_shot is not null as has_badge_shot, o.shop_slug, o.project, o.reseller_id,
            r.order_no as repeat_of_order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email, c.is_demo as customer_demo,
            c.phone as customer_phone, c.org_number as customer_org_number, c.address as customer_address,
@@ -160,6 +162,7 @@ export interface NewOrder {
   pricing?: Pricing | null;
   badgeShot?: string | null;
   shopSlug?: string | null;
+  project?: string | null;
   /** Återförsäljaren ordern tillhör; webbshoppen och butikerna är ägarens. */
   tenant: string;
 }
@@ -182,12 +185,12 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
     if (!customer) throw new Error("Kunden kunde inte sparas");
     const [saved] = await tx<{ id: string; order_no: string }[]>`
       insert into orders (customer_id, status, badges, pricing, total_sek, total_incl_vat_sek,
-                          supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug, reseller_id)
+                          supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug, reseller_id, project)
       values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Json)},
               ${pricing ? tx.json(pricing as unknown as Json) : null},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
               ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false},
-              ${order.badgeShot ?? null}, ${order.shopSlug ?? null}, ${tenant})
+              ${order.badgeShot ?? null}, ${order.shopSlug ?? null}, ${tenant}, ${order.project ?? null})
       returning id, order_no`;
     if (!saved) throw new Error("Ordern kunde inte sparas");
     await tx`insert into order_events (order_id, status, note, at) values (${saved.id}, ${order.status}, ${order.note ?? null}, ${placedAt})`;

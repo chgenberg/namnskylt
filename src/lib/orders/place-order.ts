@@ -23,6 +23,7 @@ export interface PlaceOrderInput {
   badgeShot?: string | null;
   /** Demobutiken ordern kom från. */
   shopSlug?: string | null;
+  project?: string | null;
   /** Återförsäljaren ordern tillhör; webbshoppen och butikerna är ägarens. */
   tenant: string;
 }
@@ -75,6 +76,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         pricing: input.pricing,
         badgeShot: input.badgeShot,
         shopSlug: input.shopSlug,
+        project: input.project,
         tenant: input.tenant,
       });
       savedOrderNo = saved.orderNo;
@@ -113,6 +115,7 @@ async function placeDemoOrder(input: PlaceOrderInput): Promise<PlaceOrderResult>
     demo: true,
     pricing: input.pricing,
     badgeShot: input.badgeShot,
+    project: input.project,
     tenant: input.tenant,
   });
   return { orderNumber: saved.orderNo, status: "mock" };

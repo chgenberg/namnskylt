@@ -22,6 +22,7 @@ export async function acceptQuote(tenant: string, quoteNo: string, byReseller: b
       note: `Från offert ${quote.quoteNo}`,
       demo: quote.demo,
       badgeShot: quote.badgeShot,
+      project: quote.project,
       tenant,
     });
     await completeAcceptance(quote.id, placed.orderNumber, byReseller ? "Godkänd av återförsäljaren" : "Godkänd av kunden");

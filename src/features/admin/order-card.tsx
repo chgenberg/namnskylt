@@ -34,8 +34,9 @@ export function OrderCard({ order }: { order: StoredOrder }) {
           <span className={styles.orderNo}>{order.orderNo}</span>
           <StatusPill status={order.status} />
         </div>
-        <h3 className={styles.cardTitle}>{order.customer.company ?? order.customer.name}</h3>
+        <h3 className={styles.cardTitle}>{order.project ?? order.customer.company ?? order.customer.name}</h3>
         <div className={styles.cardMeta}>
+          {order.project && <span>{order.customer.company ?? order.customer.name}</span>}
           <span>{count} st</span>
           <span>{formatRelative(order.placedAt)}</span>
           {order.source !== "web" && <span className={styles.source}>{ORDER_SOURCE_LABEL[order.source]}</span>}

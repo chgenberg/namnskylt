@@ -30,6 +30,7 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     supplierSyncedAt: null,
     hasBadgeShot: false,
     shopSlug: null,
+    project: null,
     resellerId: "namnskylt",
     pricing: null,
     demo: false,

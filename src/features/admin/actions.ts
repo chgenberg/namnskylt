@@ -202,7 +202,6 @@ const optionalText = (max: number) => z.string().trim().max(max).optional();
 const startOrderSchema = z.union([
   z.object({
     customerId: z.uuid(),
-    text: z.string().max(300).optional(),
     project: optionalText(120),
     mode: z.enum(["order", "quote"]),
   }),
@@ -213,7 +212,6 @@ const startOrderSchema = z.union([
     phone: optionalText(40),
     orgNumber: optionalText(20),
     address: optionalText(300),
-    text: z.string().max(300).optional(),
     project: optionalText(120),
     mode: z.enum(["order", "quote"]),
   }),
@@ -237,12 +235,8 @@ export async function startOrderAction(input: z.input<typeof startOrderSchema>):
           });
     if (!customer) return { ok: false, error: "Kunden finns inte" };
     const params = new URLSearchParams({ kund: customer.id });
-    if (parsed.mode === "quote") {
-      params.set("offert", "1");
-      if (parsed.project?.trim()) params.set("projekt", parsed.project.trim());
-    } else if (parsed.text?.trim()) {
-      params.set("t", parsed.text.trim());
-    }
+    if (parsed.mode === "quote") params.set("offert", "1");
+    if (parsed.project?.trim()) params.set("projekt", parsed.project.trim());
     revalidatePath("/admin/kunder");
     return { ok: true, url: `/skapa?${params}` };
   } catch (error) {

@@ -24,9 +24,7 @@ export function StartOrderForm({ customers, preselected, mode: kind = "order" }:
   const [mode, setMode] = useState<"existing" | "new">(customers.length > 0 ? "existing" : "new");
   const [query, setQuery] = useState("");
   const [customerId, setCustomerId] = useState(preselected ?? "");
-  const [text, setText] = useState("");
   const [project, setProject] = useState("");
-  const quote = kind === "quote";
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -41,7 +39,7 @@ export function StartOrderForm({ customers, preselected, mode: kind = "order" }:
     const form = new FormData(event.currentTarget);
     const input =
       mode === "existing"
-        ? { customerId, text, project, mode: kind }
+        ? { customerId, project, mode: kind }
         : {
             name: String(form.get("name") ?? ""),
             email: String(form.get("email") ?? ""),
@@ -49,7 +47,6 @@ export function StartOrderForm({ customers, preselected, mode: kind = "order" }:
             phone: String(form.get("phone") ?? "") || undefined,
             orgNumber: String(form.get("orgNumber") ?? "") || undefined,
             address: String(form.get("address") ?? "") || undefined,
-            text,
             project,
             mode: kind,
           };
@@ -57,8 +54,8 @@ export function StartOrderForm({ customers, preselected, mode: kind = "order" }:
       setError("Välj en kund");
       return;
     }
-    if (quote ? !project.trim() : !text.trim()) {
-      setError(quote ? "Ge projektet ett namn" : "Skriv namn och titel för första skylten");
+    if (!project.trim()) {
+      setError("Ge projektet ett namn");
       return;
     }
     startTransition(async () => {
@@ -148,33 +145,21 @@ export function StartOrderForm({ customers, preselected, mode: kind = "order" }:
 
       <div className={styles.stepHead}>
         <span className={styles.stepNo}>2</span>
-        <h2 className={styles.sectionTitle}>{quote ? "Namn på projektet" : "Namn och titel på skylten"}</h2>
+        <h2 className={styles.sectionTitle}>Namn på projektet</h2>
       </div>
-      {quote ? (
-        <label className={styles.formRow}>
-          <span className={styles.formLabel}>Står som rubrik på offerten — skyltarna skapar du i nästa steg</span>
-          <input
-            className={styles.input}
-            required
-            value={project}
-            maxLength={120}
-            placeholder="Nya namnskyltar till receptionen"
-            onChange={(e) => setProject(e.target.value)}
-          />
-        </label>
-      ) : (
-        <label className={styles.formRow}>
-          <span className={styles.formLabel}>Samma ruta som på startsidan — fler namn lägger du till i designern</span>
-          <input
-            className={styles.input}
-            required
-            value={text}
-            maxLength={300}
-            placeholder="Anna Lindqvist, Projektledare"
-            onChange={(e) => setText(e.target.value)}
-          />
-        </label>
-      )}
+      <label className={styles.formRow}>
+        <span className={styles.formLabel}>
+          {kind === "quote" ? "Står som rubrik på offerten" : "Står som rubrik på ordern"} — namnen på skyltarna skriver du i nästa steg
+        </span>
+        <input
+          className={styles.input}
+          required
+          value={project}
+          maxLength={120}
+          placeholder="Nya namnskyltar till receptionen"
+          onChange={(e) => setProject(e.target.value)}
+        />
+      </label>
 
       {error && (
         <p className={styles.error} role="alert">

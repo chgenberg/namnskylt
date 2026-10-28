@@ -62,7 +62,7 @@ async function resellerContext(customerId: string | undefined, quote: boolean, p
         customerId: customer.id,
         customerName: customer.company ?? customer.name,
         mode: quote ? ("quote" as const) : ("order" as const),
-        project: quote ? project?.trim().slice(0, 120) || undefined : undefined,
+        project: project?.trim().slice(0, 120) || undefined,
         purchase,
       }
     : undefined;

@@ -52,9 +52,10 @@ export default async function OrderPage({ params }: OrderPageProps) {
               Ordrar
             </Link>{" "}
             / <span className="mono">{order.orderNo}</span> · {ORDER_SOURCE_LABEL[order.source]}
+            {order.project && <> · {customerName}</>}
             {order.demo && <span className={styles.demoTag}> Demo</span>}
           </p>
-          <h1 className={styles.pageTitle}>{customerName}</h1>
+          <h1 className={styles.pageTitle}>{order.project ?? customerName}</h1>
           <p className={styles.pageLead}>
             <StatusPill status={order.status} /> &nbsp;{badgeCount(order)} skyltar · {formatSek(order.totalSek)} exkl. moms ·
             lagd {formatDate(order.placedAt)}

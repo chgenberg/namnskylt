@@ -169,6 +169,10 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       create index quotes_reseller on quotes (reseller_id, created_at desc);
     `,
   },
+  {
+    id: "010_order_project",
+    sql: `alter table orders add column project text;`,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

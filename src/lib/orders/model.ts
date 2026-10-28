@@ -87,6 +87,8 @@ export interface StoredOrder {
   hasBadgeShot: boolean;
   /** Demobutiken ordern lades i; `null` = vår egen sajt eller panelen. */
   shopSlug: string | null;
+  /** Återförsäljarens namn på beställningen, t.ex. "Nya skyltar till receptionen". */
+  project: string | null;
   /** Återförsäljaren ordern tillhör. */
   resellerId: string;
   /** Demoorder — skickas aldrig till tillverkningen, inte heller om den beställs igen. */

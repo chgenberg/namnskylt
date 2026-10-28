@@ -68,7 +68,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
           customerId: context.customerId,
           badges,
           badgeShot: captureShot?.() ?? undefined,
-          project: quote ? context.project : undefined,
+          project: context.project,
         }),
       });
       const body = await response.json();
