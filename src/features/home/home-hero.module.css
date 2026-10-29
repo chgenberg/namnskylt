@@ -284,7 +284,9 @@
   letter-spacing: -0.02em;
 }
 
+/* Bredare typsnitt bryter annars mitt i "Vi graverar resten." — andra raden får stå för sig. */
 .hero[data-branded] .title em {
+  display: block;
   font-style: normal;
 }
 
