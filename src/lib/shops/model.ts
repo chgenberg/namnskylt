@@ -73,6 +73,27 @@ function mix(hex: string, toward: [number, number, number], amount: number): str
 const WHITE: [number, number, number] = [255, 255, 255];
 const BLACK: [number, number, number] = [0, 0, 0];
 
+function relativeLuminance(hex: string): number {
+  const [r, g, b] = rgb(hex).map((c) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG AA för vanlig text. */
+const TEXT_CONTRAST = 4.5;
+const DARKEN_STEP = 0.05;
+
+/** Butikens färg som text på vitt: mörkas i steg tills den går att läsa. */
+export function readableTextColor(hex: string): string {
+  for (let amount = 0; amount < 1; amount += DARKEN_STEP) {
+    const candidate = mix(hex, BLACK, amount);
+    if (1.05 / (relativeLuminance(candidate) + 0.05) >= TEXT_CONTRAST) return candidate;
+  }
+  return "#0a0a0b";
+}
+
 /**
  * Butikens färger som sajtens egna tokens: knappar, länkar och markeringar
  * i skyltmotorn läser `--color-navy*`, så hela motorn byter färg utan ny CSS.
@@ -91,6 +112,7 @@ export function shopThemeVars(shop: Pick<Shop, "profile" | "font">): Record<stri
     "--navy-halo": `rgb(${r} ${g} ${b} / 0.08)`,
     "--focus-ring": `0 0 0 3px rgb(${r} ${g} ${b} / 0.3)`,
     "--shop-on": readableOn(primary),
+    "--shop-text": readableTextColor(primary),
     "--shop-accent": shop.profile.accentColor,
   };
   // Ett typsnitt som inte går att ladda ger bara systemets reservtypsnitt — då hellre sajtens.

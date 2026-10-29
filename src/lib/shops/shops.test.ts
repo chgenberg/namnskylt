@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
-import { googleFontsHref, pickFontFamily, shopSchema, shopThemeVars, slugify } from "./model";
+import { googleFontsHref, pickFontFamily, readableTextColor, shopSchema, shopThemeVars, slugify } from "./model";
 
 describe("slugify", () => {
   it("gör korta adresser utan å, ä, ö och bolagsform", () => {
@@ -48,6 +48,18 @@ describe("butikens tema", () => {
     const vars = shopThemeVars({ ...shop, profile: { ...shop.profile, primaryColor: "#ffd200" }, font: { family: null, google: false } });
     assert.equal(vars["--shop-on"], "#0a0a0b");
     assert.equal(vars["--font-sans"], undefined);
+  });
+
+  it("mörkar ljusa färger tills de går att läsa som text, men lämnar mörka orörda", () => {
+    assert.equal(readableTextColor("#0b1f3a"), "#0b1f3a");
+    const yellow = readableTextColor("#ffe100");
+    assert.notEqual(yellow, "#ffe100");
+    const linear = (hex: string, i: number) => {
+      const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    const lum = (hex: string) => 0.2126 * linear(hex, 1) + 0.7152 * linear(hex, 3) + 0.0722 * linear(hex, 5);
+    assert.ok(1.05 / (lum(yellow) + 0.05) >= 4.5);
   });
 
   it("länkar Google Fonts med plus för mellanslag", () => {

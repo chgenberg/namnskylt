@@ -36,7 +36,16 @@ function useNarrow(): boolean | null {
   return narrow;
 }
 
-export function HomeHero() {
+interface HomeHeroProps {
+  /** Skyltmotorns adress — en butik skickar kunden till sin egen. */
+  createPath?: string;
+  /** Rad ovanför rubriken, t.ex. butikens namn. */
+  eyebrow?: string;
+  /** Knapp, kursiv och fokusram i butikens färg i stället för bläck. */
+  branded?: boolean;
+}
+
+export function HomeHero({ createPath = "/skapa", eyebrow, branded = false }: HomeHeroProps) {
   const router = useRouter();
   const fonts = useFontEngine();
   const narrow = useNarrow();
@@ -63,8 +72,8 @@ export function HomeHero() {
   const color = getColor(doc.materialId, doc.colorId);
 
   useEffect(() => {
-    router.prefetch("/skapa");
-  }, [router]);
+    router.prefetch(createPath);
+  }, [router, createPath]);
 
   // Tillbaka till samma vinkel när man börjar skriva, även om man vridit skylten.
   useEffect(() => {
@@ -78,11 +87,11 @@ export function HomeHero() {
       inputRef.current?.focus();
       return;
     }
-    router.push(`/skapa?${new URLSearchParams({ t: rows.join("|") })}`);
+    router.push(`${createPath}?${new URLSearchParams({ t: rows.join("|") })}`);
   }
 
   return (
-    <section id={INPUT_ANCHOR} className={styles.hero}>
+    <section id={INPUT_ANCHOR} className={styles.hero} data-branded={branded || undefined}>
       <figure className={styles.figure}>
         <div className={styles.stage} aria-hidden="true">
           {!canvasReady && <BadgePreview doc={doc} className={styles.flat} />}
@@ -121,6 +130,7 @@ export function HomeHero() {
       </figure>
 
       <div className={styles.copy}>
+        {eyebrow && <p className={styles.eyebrow}>{eyebrow}</p>}
         <h1 className={styles.title}>
           Skriv ditt namn. <em>Vi graverar resten.</em>
         </h1>

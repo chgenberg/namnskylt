@@ -136,6 +136,15 @@
   color: #85857e;
 }
 
+.eyebrow {
+  margin-bottom: -10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--home-muted);
+}
+
 .form {
   display: grid;
   justify-items: center;
@@ -257,6 +266,30 @@
   justify-content: space-between;
   text-transform: uppercase;
   color: var(--home-muted);
+}
+
+/* Butiksläge: återförsäljarens färg där vår sajt använder bläck. */
+.hero[data-branded] .eyebrow,
+.hero[data-branded] .title em {
+  color: var(--shop-text, var(--color-navy));
+}
+
+.hero[data-branded] .field[data-active="true"] {
+  box-shadow: 0 0 0 1.5px var(--color-navy);
+}
+
+.hero[data-branded] .primary {
+  background: var(--color-navy);
+  color: var(--shop-on);
+}
+
+.hero[data-branded] .primary:hover {
+  background: var(--color-navy-2);
+}
+
+.hero[data-branded] .primary:focus-visible,
+.hero[data-branded] .secondary:focus-visible {
+  outline-color: var(--color-navy);
 }
 
 @media (max-width: 640px) {
