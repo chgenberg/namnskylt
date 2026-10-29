@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { BadgePreview } from "@/components/badge-preview";
-import { createBadgeDocument, getColor, getMaterial, parseSmartInput } from "@/engine";
+import { createBadgeDocument, getColor, getMaterial, parseSmartInput, type FontId } from "@/engine";
 import type { SpinFocus } from "@/features/designer/badge-3d";
 import type { BadgeRecorder } from "@/features/designer/three/recorder";
 import { useFontEngine } from "@/hooks/use-font-engine";
@@ -43,9 +43,11 @@ interface HomeHeroProps {
   eyebrow?: string;
   /** Knapp, kursiv och fokusram i butikens färg i stället för bläck. */
   branded?: boolean;
+  /** Gravyrtypsnittet som liknar butikens sajt mest. */
+  badgeFont?: FontId;
 }
 
-export function HomeHero({ createPath = "/skapa", eyebrow, branded = false }: HomeHeroProps) {
+export function HomeHero({ createPath = "/skapa", eyebrow, branded = false, badgeFont }: HomeHeroProps) {
   const router = useRouter();
   const fonts = useFontEngine();
   const narrow = useNarrow();
@@ -67,7 +69,10 @@ export function HomeHero({ createPath = "/skapa", eyebrow, branded = false }: Ho
     if (EXAMPLES.includes(placeholder)) setExample(placeholder);
   }, [placeholder]);
   const exampleRows = useMemo(() => parseSmartInput(example), [example]);
-  const doc = useMemo(() => createBadgeDocument(rows.length > 0 ? rows : exampleRows), [rows, exampleRows]);
+  const doc = useMemo(() => {
+    const base = createBadgeDocument(rows.length > 0 ? rows : exampleRows);
+    return badgeFont ? { ...base, font: badgeFont } : base;
+  }, [rows, exampleRows, badgeFont]);
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
 

@@ -42,12 +42,13 @@ describe("butikens tema", () => {
     assert.equal(vars["--color-navy-tint"], "#fdebeb");
     assert.equal(vars["--shop-on"], "#ffffff");
     assert.match(vars["--font-sans"] ?? "", /^"Inter", /);
+    assert.match(vars["--font-serif"] ?? "", /^"Inter", /);
   });
 
-  it("ger mörk text på ljus färg och låter typsnittet vara utan eget", () => {
+  it("ger mörk text på ljus färg och systemets typsnitt när sajten saknar eget", () => {
     const vars = shopThemeVars({ ...shop, profile: { ...shop.profile, primaryColor: "#ffd200" }, font: { family: null, google: false } });
     assert.equal(vars["--shop-on"], "#0a0a0b");
-    assert.equal(vars["--font-sans"], undefined);
+    assert.doesNotMatch(vars["--font-sans"] ?? "", /geist/i);
   });
 
   it("mörkar ljusa färger tills de går att läsa som text, men lämnar mörka orörda", () => {

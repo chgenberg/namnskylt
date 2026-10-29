@@ -3,6 +3,7 @@ import { HomeHero } from "@/features/home/home-hero";
 import { shopPath } from "@/features/shop/shop-frame";
 import styles from "@/features/shop/shop.module.css";
 import { getShop } from "@/lib/shops/repository";
+import { engravingFontFor } from "@/lib/shops/typeface";
 
 const STEPS = [
   { title: "Skriv namnet", text: "Börja med namn och titel. Hela teamet går att lägga till på en gång — en rad per person." },
@@ -21,6 +22,7 @@ export default async function ShopHomePage({ params }: { params: Promise<{ slug:
           createPath={shopPath(shop, "/skapa")}
           eyebrow={`Graverade namnskyltar från ${shop.profile.name}`}
           branded
+          badgeFont={engravingFontFor(shop.font)}
         />
       </div>
       <section id="sa-funkar-det" className={styles.usps} aria-label="Så funkar det">

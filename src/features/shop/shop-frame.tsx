@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { companyFooter } from "@/lib/company/profile";
-import { googleFontsHref, shopThemeVars, type Shop } from "@/lib/shops/model";
+import { googleFontsHref, shopThemeVars, shopWebFamilies, type Shop } from "@/lib/shops/model";
 import styles from "./shop.module.css";
 
 export const shopPath = (shop: Pick<Shop, "slug">, rest = "") => `/butik/${shop.slug}${rest}`;
@@ -16,14 +16,13 @@ interface ShopFrameProps {
 
 export function ShopFrame({ shop, logoPlate, children }: ShopFrameProps) {
   const { profile } = shop;
+  const webFamilies = shopWebFamilies(shop.font);
   return (
     <div className={styles.frame} style={shopThemeVars(shop) as CSSProperties}>
-      {shop.font.family && shop.font.google && (
-        <>
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-          <link rel="stylesheet" href={googleFontsHref(shop.font.family)} precedence="default" />
-        </>
-      )}
+      {webFamilies.length > 0 && <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />}
+      {webFamilies.map((family) => (
+        <link key={family} rel="stylesheet" href={googleFontsHref(family)} precedence="default" />
+      ))}
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Link href={shopPath(shop)} className={styles.brand} aria-label={`${profile.name} — till startsidan`}>

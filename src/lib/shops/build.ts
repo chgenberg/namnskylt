@@ -3,6 +3,7 @@ import { z } from "zod";
 import { DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
 import { scrapeCompany } from "@/lib/company/scrape";
 import { googleFontsHref, pickFontFamily, type Shop } from "./model";
+import { googleFamilyFor } from "./typeface";
 import { createShop } from "./repository";
 
 const FONT_CHECK_TIMEOUT_MS = 4_000;
@@ -21,7 +22,10 @@ async function onGoogleFonts(family: string): Promise<boolean> {
 export async function buildShop(url: string, options: { name?: string } = {}): Promise<Shop> {
   const found = await scrapeCompany(url);
   const [primary, accent] = found.colors;
-  const family = pickFontFamily(found.fonts);
+  // "Inter var" och "Raleway-Semibold" heter något annat hos Google — då sparas Googles namn.
+  const canonical = (f: string | null) => (f ? (googleFamilyFor(f) ?? f) : null);
+  const family = canonical(pickFontFamily(found.fonts));
+  const bodyFamily = canonical(pickFontFamily(found.fonts.filter((f) => canonical(pickFontFamily([f])) !== family)));
   const profile: CompanyProfile = {
     ...DEFAULT_COMPANY,
     name: options.name?.trim() || found.name || found.website,
@@ -36,9 +40,13 @@ export async function buildShop(url: string, options: { name?: string } = {}): P
     primaryColor: primary ?? DEFAULT_COMPANY.primaryColor,
     accentColor: accent && accent !== primary ? accent : primary ? NEUTRAL_ACCENT : DEFAULT_COMPANY.accentColor,
   };
+  const [google, bodyGoogle] = await Promise.all([
+    family ? onGoogleFonts(family) : false,
+    bodyFamily ? onGoogleFonts(bodyFamily) : false,
+  ]);
   return createShop({
     profile,
-    font: { family, google: family ? await onGoogleFonts(family) : false },
+    font: { family, google, body: bodyFamily ? { family: bodyFamily, google: bodyGoogle } : null },
     sourceUrl: found.website,
   });
 }

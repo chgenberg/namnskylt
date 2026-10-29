@@ -3,6 +3,7 @@ import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
 import { getShop } from "@/lib/shops/repository";
 import { decodeShareCode } from "@/lib/share/share-link";
+import { engravingFontFor } from "@/lib/shops/typeface";
 
 interface ShopDesignerPageProps {
   params: Promise<{ slug: string }>;
@@ -22,6 +23,7 @@ export default async function ShopDesignerPage({ params, searchParams }: ShopDes
         initialText={first(query.t) ?? ""}
         initialDoc={shared}
         shop={{ slug: shop.slug, name: shop.profile.name }}
+        initialFont={engravingFontFor(shop.font)}
       />
     </main>
   );

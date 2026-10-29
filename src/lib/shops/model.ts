@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { companyProfileSchema, readableOn, type CompanyProfile } from "@/lib/company/profile";
+import { shopTypeface, type ShopFont } from "./typeface";
 
 /**
  * En återförsäljares demobutik: deras uppgifter, logga, färger och typsnitt
@@ -8,8 +9,11 @@ import { companyProfileSchema, readableOn, type CompanyProfile } from "@/lib/com
 export interface Shop {
   slug: string;
   profile: CompanyProfile;
-  /** Typsnittet på deras hemsida; `google` = finns hos Google Fonts och laddas därifrån. */
-  font: { family: string | null; google: boolean };
+  /**
+   * Rubriktypsnittet på deras hemsida; `google` = finns hos Google Fonts och laddas därifrån.
+   * `body` är brödtextens, när sajten har ett eget — äldre butiker saknar det.
+   */
+  font: ShopFont & { body?: ShopFont | null };
   sourceUrl: string;
   createdAt: string;
 }
@@ -20,7 +24,11 @@ const FONT_FAMILY = /^[A-Za-z0-9][A-Za-z0-9 -]{0,39}$/;
 export const shopSchema = z.object({
   slug: z.string().regex(SHOP_SLUG),
   profile: companyProfileSchema,
-  font: z.object({ family: z.string().regex(FONT_FAMILY).nullable(), google: z.boolean() }),
+  font: z.object({
+    family: z.string().regex(FONT_FAMILY).nullable(),
+    google: z.boolean(),
+    body: z.object({ family: z.string().regex(FONT_FAMILY).nullable(), google: z.boolean() }).nullish(),
+  }),
   sourceUrl: z.string().max(300),
   createdAt: z.string(),
 });
@@ -53,6 +61,12 @@ export function pickFontFamily(families: readonly unknown[]): string | null {
     if (FONT_FAMILY.test(family)) return family === family.toLowerCase() ? family.replace(/\b[a-z]/g, (c) => c.toUpperCase()) : family;
   }
   return null;
+}
+
+/** Google-familjerna butiken behöver: rubrikens och brödtextens, egna eller ersatta. */
+export function shopWebFamilies(font: Shop["font"]): string[] {
+  const families = [shopTypeface(font).webFamily, font.body?.family ? shopTypeface(font.body).webFamily : null];
+  return [...new Set(families.filter((family): family is string => family !== null))];
 }
 
 export function googleFontsHref(family: string): string {
@@ -115,9 +129,11 @@ export function shopThemeVars(shop: Pick<Shop, "profile" | "font">): Record<stri
     "--shop-text": readableTextColor(primary),
     "--shop-accent": shop.profile.accentColor,
   };
-  // Ett typsnitt som inte går att ladda ger bara systemets reservtypsnitt — då hellre sajtens.
-  if (shop.font.family && shop.font.google) {
-    vars["--font-sans"] = `"${shop.font.family}", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif`;
-  }
+  // Sajtens typsnitt överallt där vår sajt har sina tre — rubriker, brödtext och etiketter.
+  const heading = shopTypeface(shop.font).stack;
+  const body = shop.font.body?.family ? shopTypeface(shop.font.body).stack : heading;
+  vars["--font-serif"] = heading;
+  vars["--font-sans"] = body;
+  vars["--font-mono"] = body;
   return vars;
 }

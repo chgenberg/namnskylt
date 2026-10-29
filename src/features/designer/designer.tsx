@@ -19,6 +19,7 @@ import {
   parseSmartInput,
   withTexts,
   type BadgeDocument,
+  type FontId,
 } from "@/engine";
 import { useFontEngine } from "@/hooks/use-font-engine";
 import { useVisualize } from "@/features/visualize/use-visualize";
@@ -97,14 +98,16 @@ interface DesignerProps {
   /** Återförsäljaren beställer åt en kund — ordern läggs direkt på kunden. */
   reseller?: ResellerOrderContext;
   shop?: ShopContext;
+  /** Butikens gravyrtypsnitt — det som liknar deras sajt mest. */
+  initialFont?: FontId;
 }
 
-export function Designer({ initialText, initialDoc, reseller, shop }: DesignerProps) {
-  const [doc, dispatch] = useReducer(
-    designerReducer,
-    initialText,
-    (text) => initialDoc ?? createBadgeDocument(parseSmartInput(text)),
-  );
+export function Designer({ initialText, initialDoc, reseller, shop, initialFont }: DesignerProps) {
+  const [doc, dispatch] = useReducer(designerReducer, initialText, (text) => {
+    if (initialDoc) return initialDoc;
+    const created = createBadgeDocument(parseSmartInput(text));
+    return initialFont ? { ...created, font: initialFont } : created;
+  });
   const [view, setView] = useState<View>("3d");
   const [onboarding, setOnboarding] = useState(() => !initialDoc && initialText.trim() !== "");
   /** Återförsäljaren börjar som på startsidan: namnet först, sedan material och form. */
