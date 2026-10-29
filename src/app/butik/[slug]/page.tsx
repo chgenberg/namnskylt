@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { HomeHero } from "@/features/home/home-hero";
+import { ShopBeacon } from "@/features/shop/shop-beacon";
 import { shopPath } from "@/features/shop/shop-frame";
 import styles from "@/features/shop/shop.module.css";
 import { getShop } from "@/lib/shops/repository";
@@ -16,6 +17,7 @@ export default async function ShopHomePage({ params }: { params: Promise<{ slug:
   if (!shop) notFound();
   return (
     <main>
+      <ShopBeacon slug={shop.slug} kind="visit" />
       <div className={styles.heroStage}>
         <div className={styles.glow} aria-hidden="true" />
         <HomeHero

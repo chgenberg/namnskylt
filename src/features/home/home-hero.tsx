@@ -45,9 +45,17 @@ interface HomeHeroProps {
   branded?: boolean;
   /** Gravyrtypsnittet som liknar butikens sajt mest. */
   badgeFont?: FontId;
+  /** Inbäddad på återförsäljarens sajt: skyltmotorn öppnas i hela fönstret, utan marginaltext. */
+  embedded?: boolean;
 }
 
-export function HomeHero({ createPath = "/skapa", eyebrow, branded = false, badgeFont }: HomeHeroProps) {
+export function HomeHero({
+  createPath = "/skapa",
+  eyebrow,
+  branded = false,
+  badgeFont,
+  embedded = false,
+}: HomeHeroProps) {
   const router = useRouter();
   const fonts = useFontEngine();
   const narrow = useNarrow();
@@ -92,11 +100,19 @@ export function HomeHero({ createPath = "/skapa", eyebrow, branded = false, badg
       inputRef.current?.focus();
       return;
     }
-    router.push(`${createPath}?${new URLSearchParams({ t: rows.join("|") })}`);
+    const target = `${createPath}?${new URLSearchParams({ t: rows.join("|") })}`;
+    // I en ram på någon annans sajt ska motorn inte öppnas inuti rutan.
+    if (embedded) window.open(target, "_top");
+    else router.push(target);
   }
 
   return (
-    <section id={INPUT_ANCHOR} className={styles.hero} data-branded={branded || undefined}>
+    <section
+      id={INPUT_ANCHOR}
+      className={styles.hero}
+      data-branded={branded || undefined}
+      data-embedded={embedded || undefined}
+    >
       <figure className={styles.figure}>
         <div className={styles.stage} aria-hidden="true">
           {!canvasReady && <BadgePreview doc={doc} className={styles.flat} />}
@@ -192,7 +208,7 @@ export function HomeHero({ createPath = "/skapa", eyebrow, branded = false, badg
                 >
                   Separera rader med komma — <kbd>Enter</kbd> öppnar skyltmotorn
                 </motion.p>
-              ) : (
+              ) : embedded ? null : (
                 <motion.a
                   key="how"
                   href="#sa-funkar-det"
@@ -210,11 +226,13 @@ export function HomeHero({ createPath = "/skapa", eyebrow, branded = false, badg
         </form>
       </div>
 
-      <footer className={styles.margins} aria-hidden="true">
-        <span>Graverade namnskyltar</span>
-        <span>Korrektur innan gravyr</span>
-        <span>Tillverkade i Sverige</span>
-      </footer>
+      {!embedded && (
+        <footer className={styles.margins} aria-hidden="true">
+          <span>Graverade namnskyltar</span>
+          <span>Korrektur innan gravyr</span>
+          <span>Tillverkade i Sverige</span>
+        </footer>
+      )}
     </section>
   );
 }

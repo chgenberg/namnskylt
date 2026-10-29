@@ -9,7 +9,10 @@ export function ShopCardActions({ slug, name, url }: { slug: string; name: strin
   const [pending, startTransition] = useTransition();
   return (
     <div className={styles.shopActions}>
-      <a href={`/butik/${slug}`} target="_blank" rel="noreferrer" className="btn btn--primary">
+      <a href={`/admin/butiker/${slug}`} className="btn btn--primary">
+        Hantera
+      </a>
+      <a href={`/butik/${slug}`} target="_blank" rel="noreferrer" className={styles.ghostButton}>
         Öppna ↗
       </a>
       <button

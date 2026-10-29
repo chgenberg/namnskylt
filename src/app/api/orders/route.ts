@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { shopOrderPricing } from "@/lib/shops/price-list";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
       tenant: OWNER_TENANT,
       source: shop ? "shop" : "web",
       shopSlug: shop?.slug ?? null,
+      pricing: shopOrderPricing(order.badges, shop?.priceList),
       note: shop ? `Beställd i butiken ${shop.profile.name}` : null,
       badgeShot: await normalizeBadgeShot(badgeShot),
     });

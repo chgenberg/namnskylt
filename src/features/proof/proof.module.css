@@ -18,6 +18,29 @@
   height: 24px;
 }
 
+/* Återförsäljarens logga är sällan lika smal som vår. */
+.page[data-branded] .logo {
+  height: 40px;
+  max-width: 220px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.brandName {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.page[data-branded] {
+  background:
+    radial-gradient(60% 40% at 50% 0%, var(--navy-glow), transparent 70%),
+    #f4f4f1;
+}
+
+.page[data-branded] :global(.btn--primary) {
+  --btn-fg: var(--shop-on);
+}
+
 .head {
   display: grid;
   gap: var(--space-2);

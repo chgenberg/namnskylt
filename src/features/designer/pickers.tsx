@@ -12,6 +12,7 @@ import {
   type MaterialId,
 } from "@/engine";
 import styles from "./pickers.module.css";
+import { useFromPrice } from "./shop-price";
 
 const SHAPE_ICON: Record<BadgeShape, ReactNode> = {
   rectangle: <rect x="2" y="5" width="20" height="12" rx="0.6" />,
@@ -62,6 +63,7 @@ interface MaterialPickerProps {
 }
 
 export function MaterialPicker({ value, onChange, layoutId, compact = false }: MaterialPickerProps) {
+  const fromPrice = useFromPrice();
   return (
     <div className={styles.materialGrid} data-compact={compact} role="radiogroup" aria-label="Material">
       {MATERIALS.map((m) => {
@@ -87,7 +89,7 @@ export function MaterialPicker({ value, onChange, layoutId, compact = false }: M
             </span>
             <span className={styles.materialName}>{m.name}</span>
             {!compact && <span className={styles.materialTagline}>{m.tagline}</span>}
-            <span className={styles.materialPrice}>från {m.basePriceSek} kr</span>
+            <span className={styles.materialPrice}>från {fromPrice(m.id, m.basePriceSek)} kr</span>
           </button>
         );
       })}

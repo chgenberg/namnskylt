@@ -8,6 +8,7 @@ import type { BadgeRecorder } from "./three/recorder";
 import { ColorPicker, MaterialPicker, ShapePicker } from "./pickers";
 import styles from "./onboarding-dialog.module.css";
 import type { DesignerAction } from "./state";
+import { useFromPrice } from "./shop-price";
 
 /** Samma 3D-skylt som i skyltmotorn; ritningen syns medan den laddar. */
 const Badge3D = dynamic(() => import("./badge-3d"), { ssr: false, loading: () => null });
@@ -30,6 +31,7 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
   const [canvasReady, setCanvasReady] = useState(false);
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
+  const fromPrice = useFromPrice();
   const shapeName = SHAPES.find((s) => s.id === doc.shape)?.name;
 
   useEffect(() => {
@@ -122,7 +124,7 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
 
         <footer className={styles.footer}>
           <p className={styles.price}>
-            från <strong>{material.basePriceSek} kr</strong> / st
+            från <strong>{fromPrice(material.id, material.basePriceSek)} kr</strong> / st
           </p>
           <button type="button" className="btn btn--ghost" onClick={() => ref.current?.close()}>
             Hoppa över

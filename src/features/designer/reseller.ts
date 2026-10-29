@@ -1,9 +1,12 @@
+import type { ShopPriceList } from "@/lib/shops/price-list";
 import type { PurchaseTerms } from "@/lib/orders/purchase";
 
 /** Skyltmotorn i en återförsäljares demobutik — ordern märks med butiken. */
 export interface ShopContext {
   slug: string;
   name: string;
+  /** Butikens priser mot riktpris; saknas = riktpris. */
+  priceList?: ShopPriceList | null;
 }
 
 /** Designern öppnad av återförsäljaren för att lägga en order eller göra en offert åt en kund. */

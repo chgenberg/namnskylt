@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { companyProfileSchema, readableOn, type CompanyProfile } from "@/lib/company/profile";
+import { companyProfileSchema, MAX_LOGO_DATA_URL_CHARS, readableOn, type CompanyProfile } from "@/lib/company/profile";
+import { SHOP_SLUG } from "./model-slug";
+import { shopPriceListSchema, type ShopPriceList } from "./price-list";
 import { shopTypeface, type ShopFont } from "./typeface";
 
 /**
@@ -16,9 +18,30 @@ export interface Shop {
   font: ShopFont & { body?: ShopFont | null };
   sourceUrl: string;
   createdAt: string;
+  /** Butikens priser mot riktpris; saknas = riktpris. */
+  priceList?: ShopPriceList | null;
+  /** Återförsäljarens egen adress, t.ex. skylt.kontorsprofilen.se. */
+  domain?: string | null;
 }
 
-export const SHOP_SLUG = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
+export { SHOP_SLUG };
+export const MAX_LOGO_OPTIONS = 4;
+export const MAX_COLOR_OPTIONS = 8;
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+/**
+ * Allt skrapningen hittade, att välja bland i panelen. Ligger i en egen kolumn —
+ * fyra loggor per butik gör annars butikslistan tung.
+ */
+export interface ShopOptions {
+  logos: string[];
+  colors: string[];
+}
+
+export const shopOptionsSchema = z.object({
+  logos: z.array(z.string().max(MAX_LOGO_DATA_URL_CHARS)).max(MAX_LOGO_OPTIONS),
+  colors: z.array(z.string().regex(HEX_COLOR)).max(MAX_COLOR_OPTIONS),
+});
+
 const FONT_FAMILY = /^[A-Za-z0-9][A-Za-z0-9 -]{0,39}$/;
 
 export const shopSchema = z.object({
@@ -31,6 +54,8 @@ export const shopSchema = z.object({
   }),
   sourceUrl: z.string().max(300),
   createdAt: z.string(),
+  priceList: shopPriceListSchema.nullish(),
+  domain: z.string().max(253).nullish(),
 });
 
 /** "Åsa & Co Profil AB" → "asa-co-profil" — bolagsformen gör adressen bara längre. */

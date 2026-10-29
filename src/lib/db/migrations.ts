@@ -173,6 +173,20 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
     id: "010_order_project",
     sql: `alter table orders add column project text;`,
   },
+  {
+    id: "011_shop_options_events_domains",
+    sql: `
+      alter table shops add column options jsonb;
+      create unique index shops_domain on shops ((lower(data->>'domain'))) where data->>'domain' is not null;
+      create table shop_events (
+        id bigserial primary key,
+        shop_slug text not null references shops(slug) on delete cascade,
+        kind text not null,
+        at timestamptz not null default now()
+      );
+      create index shop_events_shop on shop_events (shop_slug, at desc);
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

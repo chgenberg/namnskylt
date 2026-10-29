@@ -5,6 +5,7 @@ import { useState, type Dispatch, type FormEvent } from "react";
 import { ProgressBanner } from "@/components/ui/progress-banner";
 import { QUANTITY_TIERS, badgeDocumentSchema, isPartnerMade, priceOrder, type BadgeDocument } from "@/engine";
 import { marginOf, purchasePrice } from "@/lib/orders/purchase";
+import { shopPrice } from "@/lib/shops/price-list";
 import type { ResellerOrderContext, ShopContext } from "../reseller";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
@@ -49,7 +50,9 @@ interface OrderSectionProps {
 
 export function OrderSection({ doc, badges, dispatch, reseller, shop, captureShot }: OrderSectionProps) {
   const [order, setOrder] = useState<OrderState>({ status: "idle" });
-  const price = priceOrder(badges);
+  const listPrice = priceOrder(badges);
+  // Butiken visar sina egna priser; servern sparar ordern med samma tal.
+  const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList) } : listPrice;
   const names = badges.length;
   const discount = Math.round((1 - price.tier.factor) * 100);
   const nextTier = [...QUANTITY_TIERS].reverse().find((t) => t.minQuantity > price.quantity);

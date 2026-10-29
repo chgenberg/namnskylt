@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
+import { ShopPriceProvider } from "@/features/designer/shop-price";
+import { ShopBeacon } from "@/features/shop/shop-beacon";
 import { getShop } from "@/lib/shops/repository";
 import { decodeShareCode } from "@/lib/share/share-link";
 import { engravingFontFor } from "@/lib/shops/typeface";
@@ -19,12 +21,15 @@ export default async function ShopDesignerPage({ params, searchParams }: ShopDes
   const shared = await decodeShareCode(first(query.d));
   return (
     <main>
-      <Designer
-        initialText={first(query.t) ?? ""}
-        initialDoc={shared}
-        shop={{ slug: shop.slug, name: shop.profile.name }}
-        initialFont={engravingFontFor(shop.font)}
-      />
+      <ShopBeacon slug={shop.slug} kind="design" />
+      <ShopPriceProvider priceList={shop.priceList}>
+        <Designer
+          initialText={first(query.t) ?? ""}
+          initialDoc={shared}
+          shop={{ slug: shop.slug, name: shop.profile.name, priceList: shop.priceList ?? null }}
+          initialFont={engravingFontFor(shop.font)}
+        />
+      </ShopPriceProvider>
     </main>
   );
 }
