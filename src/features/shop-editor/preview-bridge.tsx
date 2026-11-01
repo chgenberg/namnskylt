@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useState, type DragEvent, type MouseEvent } from "react";
 import type { FontId } from "@/engine";
 import { ShopFrame } from "@/features/shop/shop-frame";
 import { ShopPageView } from "@/features/shop/shop-page-view";
-import { findPage, type ShopContent } from "@/lib/shops/content";
+import { BLOCK_KINDS, BLOCK_LABEL, findPage, type BlockKind, type ShopContent } from "@/lib/shops/content";
 import type { Shop } from "@/lib/shops/model";
 import { howItWorksHref, shopMenu, type ShopContact } from "@/lib/shops/view";
-import { isMessage, type FromPreview, type ToPreview } from "./messages";
+import { DRAG_BLOCK, DRAG_KIND, isMessage, type FromPreview, type ToPreview } from "./messages";
 
 interface PreviewBridgeProps {
   shop: Shop;
@@ -22,11 +22,24 @@ function post(message: FromPreview) {
   if (window.parent !== window) window.parent.postMessage(message, window.location.origin);
 }
 
+const isDrag = (e: DragEvent) => e.dataTransfer.types.includes(DRAG_KIND) || e.dataTransfer.types.includes(DRAG_BLOCK);
+
+/** Platsen ett släppt block hamnar på: före första blocket vars mitt ligger under pekaren. */
+function dropIndexAt(clientY: number): number {
+  const sections = [...document.querySelectorAll<HTMLElement>("[data-block-index]")];
+  const index = sections.findIndex((el) => {
+    const r = el.getBoundingClientRect();
+    return clientY < r.top + r.height / 2;
+  });
+  return index < 0 ? sections.length : index;
+}
+
 /** Butiken som den ser ut med utkastet, inne i editorns ram. */
 export function PreviewBridge({ shop, logoPlate, initial, badgeFont, contact, today }: PreviewBridgeProps) {
   const [content, setContent] = useState(initial);
   const [path, setPath] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -46,6 +59,7 @@ export function PreviewBridge({ shop, logoPlate, initial, badgeFont, contact, to
   }, [selectedId]);
 
   const page = findPage(content, path) ?? content.pages[0];
+  const isStart = (page?.path ?? "") === "";
   const menu = shopMenu(content);
   const base = `/butik/${shop.slug}`;
 
@@ -62,8 +76,32 @@ export function PreviewBridge({ shop, logoPlate, initial, badgeFont, contact, to
     }
   }
 
+  const dropHandlers = isStart
+    ? {}
+    : {
+        onDragOver: (e: DragEvent) => {
+          if (!isDrag(e)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = e.dataTransfer.types.includes(DRAG_BLOCK) ? "move" : "copy";
+          setDropIndex(dropIndexAt(e.clientY));
+        },
+        onDragLeave: (e: DragEvent) => {
+          if (e.target === e.currentTarget) setDropIndex(null);
+        },
+        onDrop: (e: DragEvent) => {
+          if (!isDrag(e)) return;
+          e.preventDefault();
+          const index = dropIndexAt(e.clientY);
+          setDropIndex(null);
+          const blockId = e.dataTransfer.getData(DRAG_BLOCK);
+          const kind = e.dataTransfer.getData(DRAG_KIND);
+          if (blockId) post({ type: "ns:move", blockId, index });
+          else if ((BLOCK_KINDS as readonly string[]).includes(kind)) post({ type: "ns:drop", kind: kind as BlockKind, index });
+        },
+      };
+
   return (
-    <div onClickCapture={onClickCapture} onSubmitCapture={(e) => e.preventDefault()}>
+    <div onClickCapture={onClickCapture} onSubmitCapture={(e) => e.preventDefault()} onDragEnd={() => setDropIndex(null)} {...dropHandlers}>
       <ShopFrame shop={shop} logoPlate={logoPlate} pages={menu.pages} stepsId={menu.stepsId}>
         <main>
           <ShopPageView
@@ -74,12 +112,23 @@ export function PreviewBridge({ shop, logoPlate, initial, badgeFont, contact, to
             blocks={page?.blocks ?? []}
             today={today}
             howHref={howItWorksHref(content, shop.slug, true)}
-            hero={(page?.path ?? "") === ""}
-            editing={(page?.path ?? "") === "" ? undefined : {
-              selectedId,
-              onSelect: (blockId) => post({ type: "ns:select", blockId }),
-              onText: (blockId, field, value) => post({ type: "ns:text", blockId, path: field, value }),
-            }}
+            hero={isStart}
+            editing={
+              isStart
+                ? undefined
+                : {
+                    selectedId,
+                    dropIndex,
+                    onSelect: (blockId) => post({ type: "ns:select", blockId }),
+                    onText: (blockId, field, value) => post({ type: "ns:text", blockId, path: field, value }),
+                    onAction: (blockId, action) => post({ type: "ns:action", blockId, action }),
+                    onDragBlock: (blockId, event) => {
+                      event.dataTransfer.setData(DRAG_BLOCK, blockId);
+                      event.dataTransfer.effectAllowed = "move";
+                    },
+                    labelOf: (block) => BLOCK_LABEL[block.kind],
+                  }
+            }
           />
         </main>
       </ShopFrame>

@@ -1,14 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  BLOCK_KINDS,
-  BLOCK_LABEL,
-  MAX_PAGES,
-  type Block,
-  type BlockKind,
-  type ShopContent,
-} from "@/lib/shops/content";
+import { BLOCK_LABEL, MAX_PAGES, type BlockKind, type ShopContent } from "@/lib/shops/content";
 import {
   addBlock,
   addPage,
@@ -22,16 +15,19 @@ import {
   updateBlock,
 } from "@/lib/shops/content-ops";
 import type { ContentVersion, ShopImage } from "@/lib/shops/editor-repository";
+import { AiChat, type ChatMessage } from "./ai-chat";
 import { BlockForm } from "./block-form";
+import { BlockList } from "./block-list";
+import { BlockPalette } from "./block-palette";
 import {
-  aiEditAction,
+  aiChatAction,
   deleteImageAction,
   discardDraftAction,
   loadVersionAction,
   publishAction,
   saveDraftAction,
 } from "./editor-actions";
-import { isMessage, type FromPreview, type ToPreview } from "./messages";
+import { isMessage, type BlockAction, type FromPreview, type ToPreview } from "./messages";
 import { useHistory } from "./use-history";
 import styles from "./editor.module.css";
 
@@ -46,126 +42,139 @@ interface ShopEditorProps {
 
 type SaveState = { kind: "saved" } | { kind: "saving" } | { kind: "error"; text: string };
 type Device = "desktop" | "mobile";
-
-const BLOCK_HINT: Record<BlockKind, string> = {
-  header: "Stor rubrik med ingress och bild",
-  text: "Rubrik och text — t.ex. Om oss",
-  imageText: "En bild bredvid text och knapp",
-  gallery: "Bilder på skyltar ni gjort",
-  steps: "Hur det går till, steg för steg",
-  faq: "Frågor och svar som fälls ut",
-  banner: "Kampanj eller nyhet i butikens färg",
-  contact: "Era kontaktuppgifter och en mejlknapp",
-};
+type Tab = "build" | "chat" | "images" | "versions";
 
 const AUTOSAVE_MS = 1200;
 const DESKTOP_PX = 1280;
+const TABS: { id: Tab; label: string }[] = [
+  { id: "build", label: "Bygg" },
+  { id: "chat", label: "Chatt" },
+  { id: "images", label: "Bilder" },
+  { id: "versions", label: "Versioner" },
+];
+
 const formatTime = (iso: string) =>
-  new Date(iso).toLocaleString("sv-SE", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  new Date(iso).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+let messageCounter = 0;
+const messageId = () => `m${Date.now().toString(36)}${(messageCounter++).toString(36)}`;
 
-function blockSummary(block: Block): string {
-  const title =
-    "title" in block && block.title ? block.title : "text" in block && block.text ? block.text : "";
-  return title.split("\n")[0]?.slice(0, 48) ?? "";
-}
-
-export function ShopEditor({
-  slug,
-  shopName,
-  draft,
-  published: initialPublished,
-  versions: initialVersions,
-  images: initialImages,
-}: ShopEditorProps) {
+export function ShopEditor({ slug, shopName, draft, published: initialPublished, versions: initialVersions, images: initialImages }: ShopEditorProps) {
   const history = useHistory(draft);
   const { content } = history;
   const [published, setPublished] = useState(initialPublished);
   const [versions, setVersions] = useState(initialVersions);
   const [images, setImages] = useState(initialImages);
-  const [pageId, setPageId] = useState(draft.pages[0]?.id ?? "start");
+  const [pageId, setPageId] = useState(draft.pages[1]?.id ?? draft.pages[0]?.id ?? "start");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [device, setDevice] = useState<Device>("desktop");
+  const [tab, setTab] = useState<Tab>("build");
   const [save, setSave] = useState<SaveState>({ kind: "saved" });
   const [publishing, setPublishing] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
-  const [adding, setAdding] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [ai, setAi] = useState<{
-    wish: string;
-    pending: boolean;
-    proposal: ShopContent | null;
-    summary: string;
-    error: string | null;
-  }>({
-    wish: "",
-    pending: false,
-    proposal: null,
-    summary: "",
-    error: null,
-  });
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [thinking, setThinking] = useState(false);
+  /** Sidorna före och efter varje AI-ändring, för chattens Ångra. */
+  const aiChanges = useRef(new Map<string, { before: ShopContent; after: ShopContent }>());
   const frame = useRef<HTMLIFrameElement>(null);
   const frameBox = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const firstRender = useRef(true);
 
-  const shown = ai.proposal ?? content;
-  const page = shown.pages.find((p) => p.id === pageId) ?? shown.pages[0];
-  const unpublished = useMemo(
-    () => JSON.stringify(content) !== JSON.stringify(published),
-    [content, published],
+  const page = content.pages.find((p) => p.id === pageId) ?? content.pages[0];
+  const unpublished = useMemo(() => JSON.stringify(content) !== JSON.stringify(published), [content, published]);
+  const isStart = (page?.path ?? "") === "";
+  const change = useCallback((next: ShopContent, key?: string) => history.change(next, key), [history]);
+
+  /* ── Block ── */
+  const addAt = useCallback(
+    (kind: BlockKind, index?: number) => {
+      if (!page) return;
+      const result = addBlock(content, page.id, kind, index);
+      if (result.blockId) {
+        change(result.content);
+        setSelectedId(result.blockId);
+        setTab("build");
+      }
+    },
+    [content, page, change],
+  );
+
+  const act = useCallback(
+    (blockId: string, action: BlockAction) => {
+      const blocks = page?.blocks ?? [];
+      const index = blocks.findIndex((b) => b.id === blockId);
+      if (action === "up") change(moveBlock(content, blockId, index - 1));
+      else if (action === "down") change(moveBlock(content, blockId, index + 1));
+      else if (action === "duplicate") {
+        const result = duplicateBlock(content, blockId);
+        if (result.blockId) {
+          change(result.content);
+          setSelectedId(result.blockId);
+        }
+      } else {
+        change(removeBlock(content, blockId));
+        if (selectedId === blockId) setSelectedId(null);
+      }
+    },
+    [content, page, change, selectedId],
   );
 
   /* ── Förhandsvisningen ── */
   const sendState = useCallback(() => {
-    const message: ToPreview = {
-      type: "ns:state",
-      content: shown,
-      path: page?.path ?? "",
-      selectedId,
-    };
+    const message: ToPreview = { type: "ns:state", content, path: page?.path ?? "", selectedId };
     frame.current?.contentWindow?.postMessage(message, window.location.origin);
-  }, [shown, page?.path, selectedId]);
+  }, [content, page?.path, selectedId]);
 
   useEffect(sendState, [sendState]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.source !== frame.current?.contentWindow)
-        return;
-      if (!isMessage<FromPreview>(event.data, ["ns:ready", "ns:select", "ns:text", "ns:page"]))
-        return;
+      if (event.origin !== window.location.origin || event.source !== frame.current?.contentWindow) return;
+      if (!isMessage<FromPreview>(event.data, ["ns:ready", "ns:select", "ns:text", "ns:page", "ns:drop", "ns:move", "ns:action"])) return;
       const data = event.data;
-      if (data.type === "ns:ready") sendState();
-      else if (data.type === "ns:select") setSelectedId(data.blockId);
-      else if (data.type === "ns:page") {
-        const target = content.pages.find((p) => p.path === data.path);
-        if (target) {
-          setPageId(target.id);
-          setSelectedId(null);
+      switch (data.type) {
+        case "ns:ready":
+          sendState();
+          break;
+        case "ns:select":
+          setSelectedId(data.blockId);
+          setTab("build");
+          break;
+        case "ns:page": {
+          const target = content.pages.find((p) => p.path === data.path);
+          if (target) {
+            setPageId(target.id);
+            setSelectedId(null);
+          }
+          break;
         }
-      } else if (data.type === "ns:text" && !ai.proposal) {
-        history.change(
-          setText(content, data.blockId, data.path, data.value),
-          `${data.blockId}.${data.path}`,
-        );
+        case "ns:text":
+          change(setText(content, data.blockId, data.path, data.value), `${data.blockId}.${data.path}`);
+          break;
+        case "ns:drop":
+          addAt(data.kind, data.index);
+          break;
+        case "ns:move": {
+          const from = page?.blocks.findIndex((b) => b.id === data.blockId) ?? -1;
+          change(moveBlock(content, data.blockId, from >= 0 && from < data.index ? data.index - 1 : data.index));
+          setSelectedId(data.blockId);
+          break;
+        }
+        case "ns:action":
+          act(data.blockId, data.action);
+          break;
       }
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [content, sendState, history, ai.proposal]);
+  }, [content, page, sendState, change, addAt, act]);
 
   /* ── Datorvyn ritas i full bredd och skalas ner, så att den inte faller in i mobilläget ── */
   useEffect(() => {
     const box = frameBox.current;
     if (!box) return;
-    const update = () =>
-      setScale(device === "desktop" ? Math.min(1, box.clientWidth / DESKTOP_PX) : 1);
+    const update = () => setScale(device === "desktop" ? Math.min(1, box.clientWidth / DESKTOP_PX) : 1);
     update();
     const observer = new ResizeObserver(update);
     observer.observe(box);
@@ -180,10 +189,7 @@ export function ShopEditor({
     }
     setSave({ kind: "saving" });
     const timer = setTimeout(async () => {
-      const result = await saveDraftAction(slug, content).catch(() => ({
-        ok: false as const,
-        error: "Ingen kontakt med servern",
-      }));
+      const result = await saveDraftAction(slug, content).catch(() => ({ ok: false as const, error: "Ingen kontakt med servern" }));
       setSave(result.ok ? { kind: "saved" } : { kind: "error", text: result.error });
     }, AUTOSAVE_MS);
     return () => clearTimeout(timer);
@@ -201,12 +207,7 @@ export function ShopEditor({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
-      if (
-        target.closest("input, textarea, [contenteditable]") ||
-        !(event.metaKey || event.ctrlKey) ||
-        event.key.toLowerCase() !== "z"
-      )
-        return;
+      if (target.closest("input, textarea, [contenteditable]") || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "z") return;
       event.preventDefault();
       if (event.shiftKey) history.redo();
       else history.undo();
@@ -214,11 +215,6 @@ export function ShopEditor({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [history]);
-
-  const change = (next: ShopContent, key?: string) => {
-    if (ai.proposal) return;
-    history.change(next, key);
-  };
 
   async function publish() {
     setPublishing(true);
@@ -237,7 +233,7 @@ export function ShopEditor({
     const result = await discardDraftAction(slug);
     if (result.ok) {
       history.reset(result.content);
-      setPageId(result.content.pages[0]?.id ?? "start");
+      setPageId(result.content.pages[1]?.id ?? result.content.pages[0]?.id ?? "start");
       setSelectedId(null);
     }
   }
@@ -255,10 +251,7 @@ export function ShopEditor({
     try {
       const form = new FormData();
       form.set("file", file);
-      const response = await fetch(`/api/admin/shops/${slug}/images`, {
-        method: "POST",
-        body: form,
-      });
+      const response = await fetch(`/api/admin/shops/${slug}/images`, { method: "POST", body: form });
       const body = (await response.json()) as ShopImage & { error?: string };
       if (!response.ok) {
         setNotice({ ok: false, text: body.error ?? "Bilden gick inte att ladda upp" });
@@ -277,36 +270,59 @@ export function ShopEditor({
     else setNotice({ ok: false, text: result.error });
   }
 
-  async function askAi() {
-    setAi((s) => ({ ...s, pending: true, error: null }));
-    const result = await aiEditAction(slug, ai.wish, content).catch(() => ({
-      ok: false as const,
-      error: "Ingen kontakt med servern",
-    }));
-    if (result.ok) {
-      setAi((s) => ({ ...s, pending: false, proposal: result.content, summary: result.summary }));
-      if (!result.content.pages.some((p) => p.id === pageId))
-        setPageId(result.content.pages[0]?.id ?? "start");
-    } else setAi((s) => ({ ...s, pending: false, error: result.error }));
+  /* ── Chatten ── */
+  async function sendChat(text: string) {
+    const user: ChatMessage = { id: messageId(), role: "user", text };
+    const thread = [...chat.filter((m) => !m.error), user];
+    setChat((all) => [...all, user]);
+    setThinking(true);
+    const before = content;
+    const result = await aiChatAction(
+      slug,
+      thread.map((m) => ({ role: m.role, text: m.text })),
+      before,
+      { pagePath: page?.path ?? "", blockId: selectedId },
+    ).catch(() => ({ ok: false as const, error: "Ingen kontakt med servern" }));
+    setThinking(false);
+    if (!result.ok) {
+      setChat((all) => [...all, { id: messageId(), role: "assistant", text: result.error, error: true }]);
+      return;
+    }
+    const reply: ChatMessage = { id: messageId(), role: "assistant", text: result.reply, undoable: Boolean(result.content) };
+    if (result.content) {
+      aiChanges.current.set(reply.id, { before, after: result.content });
+      change(result.content);
+      // En ny sida från AI:n ska synas direkt.
+      const added = result.content.pages.find((p) => !before.pages.some((q) => q.id === p.id));
+      if (added) setPageId(added.id);
+      else if (!result.content.pages.some((p) => p.id === pageId)) setPageId(result.content.pages[0]?.id ?? "start");
+    }
+    setChat((all) => [...all, reply]);
   }
 
-  const acceptAi = () => {
-    if (!ai.proposal) return;
-    history.change(ai.proposal);
-    setAi({ wish: "", pending: false, proposal: null, summary: "", error: null });
-  };
+  function undoChat(id: string) {
+    const entry = aiChanges.current.get(id);
+    if (!entry) return;
+    if (content !== entry.after && !window.confirm("Du har ändrat efter AI:ns ändring. Gå tillbaka till hur det var innan den ändå?")) return;
+    change(entry.before);
+    if (!entry.before.pages.some((p) => p.id === pageId)) setPageId(entry.before.pages[0]?.id ?? "start");
+    setChat((all) => all.map((m) => (m.id === id ? { ...m, undone: true } : m)));
+  }
 
   if (!page) return null;
-  const isStart = page.path === "";
   const selected = page.blocks.find((b) => b.id === selectedId) ?? null;
   const subpages = content.pages.slice(1);
+  const focusLabel = selected ? `${BLOCK_LABEL[selected.kind]} på ${isStart ? "startsidan" : page.label}` : isStart ? "startsidan" : page.label;
+  const suggestions = isStart
+    ? ["Skapa en Om oss-sida om oss", "Lägg till en kontaktsida", "Skapa en sida med vanliga frågor"]
+    : [`Skriv en bättre text för ${page.label}`, "Gör texterna kortare och mer säljande", "Lägg till vanliga frågor"];
 
   return (
     <div className={styles.editor}>
       {/* ── Verktygsrad ── */}
       <div className={styles.toolbar}>
         <div className={styles.tabs} role="tablist" aria-label="Butikens sidor">
-          {shown.pages.map((p) => (
+          {content.pages.map((p) => (
             <button
               key={p.id}
               type="button"
@@ -318,10 +334,10 @@ export function ShopEditor({
                 setSelectedId(null);
               }}
             >
-              {p.path === "" ? "Startsida" : p.label}
+              {p.path === "" ? "🔒 Startsida" : p.label}
             </button>
           ))}
-          {content.pages.length < MAX_PAGES && !ai.proposal && (
+          {content.pages.length < MAX_PAGES && (
             <button
               type="button"
               className={styles.tabAdd}
@@ -341,67 +357,31 @@ export function ShopEditor({
           )}
         </div>
         <div className={styles.tools}>
-          <button
-            type="button"
-            className={styles.icon}
-            onClick={history.undo}
-            disabled={!history.canUndo || Boolean(ai.proposal)}
-            aria-label="Ångra"
-            title="Ångra (⌘Z)"
-          >
+          <button type="button" className={styles.icon} onClick={history.undo} disabled={!history.canUndo} aria-label="Ångra" title="Ångra (⌘Z)">
             ↶
           </button>
-          <button
-            type="button"
-            className={styles.icon}
-            onClick={history.redo}
-            disabled={!history.canRedo || Boolean(ai.proposal)}
-            aria-label="Gör om"
-            title="Gör om (⇧⌘Z)"
-          >
+          <button type="button" className={styles.icon} onClick={history.redo} disabled={!history.canRedo} aria-label="Gör om" title="Gör om (⇧⌘Z)">
             ↷
           </button>
           <div className={styles.segmented} role="radiogroup" aria-label="Förhandsvisning">
             {(["desktop", "mobile"] as const).map((d) => (
-              <button
-                key={d}
-                type="button"
-                role="radio"
-                aria-checked={device === d}
-                onClick={() => setDevice(d)}
-              >
+              <button key={d} type="button" role="radio" aria-checked={device === d} onClick={() => setDevice(d)}>
                 {d === "desktop" ? "Dator" : "Mobil"}
               </button>
             ))}
           </div>
           <span className={styles.saveState} data-kind={save.kind} role="status">
-            {save.kind === "saving"
-              ? "Sparar utkast…"
-              : save.kind === "error"
-                ? save.text
-                : unpublished
-                  ? "Utkast sparat"
-                  : "Publicerat"}
+            {save.kind === "saving" ? "Sparar…" : save.kind === "error" ? save.text : unpublished ? "Utkast sparat" : "Publicerat"}
           </span>
           {unpublished && (
             <button type="button" className={styles.ghost} onClick={discard}>
               Släng utkast
             </button>
           )}
-          <a
-            href={`/butik/${slug}${isStart ? "" : `/${page.path}`}`}
-            target="_blank"
-            rel="noreferrer"
-            className={styles.ghost}
-          >
-            Visa butiken ↗
+          <a href={`/butik/${slug}${isStart ? "" : `/${page.path}`}`} target="_blank" rel="noreferrer" className={styles.ghost}>
+            Visa ↗
           </a>
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={publish}
-            disabled={publishing || !unpublished || Boolean(ai.proposal) || save.kind === "error"}
-          >
+          <button type="button" className="btn btn--primary" onClick={publish} disabled={publishing || !unpublished || save.kind === "error"}>
             {publishing ? "Publicerar…" : "Publicera"}
           </button>
         </div>
@@ -418,289 +398,134 @@ export function ShopEditor({
       <div className={styles.body}>
         {/* ── Panel ── */}
         <aside className={styles.panel} aria-label={`Redigera ${shopName}`}>
-          <section className={styles.ai}>
-            <label className={styles.fieldLabel} htmlFor="ai-wish">
-              Be AI:n ändra sidorna
-            </label>
-            <textarea
-              id="ai-wish"
-              rows={2}
-              value={ai.wish}
-              maxLength={1000}
-              placeholder="T.ex. Lägg till en Om oss-sida och vanliga frågor om leveranstid"
-              disabled={ai.pending || Boolean(ai.proposal)}
-              onChange={(e) => setAi((s) => ({ ...s, wish: e.target.value }))}
-            />
-            {ai.proposal ? (
-              <div className={styles.aiProposal}>
-                <p>
-                  <strong>Förslag:</strong> {ai.summary} Det syns i förhandsvisningen.
-                </p>
-                <div className={styles.row}>
-                  <button type="button" className="btn btn--primary" onClick={acceptAi}>
-                    Använd
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.ghost}
-                    onClick={() => setAi((s) => ({ ...s, proposal: null, summary: "" }))}
-                  >
-                    Släng
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className={styles.row}>
-                <button
-                  type="button"
-                  className={styles.ghost}
-                  onClick={askAi}
-                  disabled={ai.pending || ai.wish.trim().length < 3}
-                >
-                  {ai.pending ? "Tänker…" : "Föreslå ändringar"}
-                </button>
-                {ai.error && <span className={styles.error}>{ai.error}</span>}
-              </div>
-            )}
-          </section>
+          <div className={styles.panelTabs} role="tablist" aria-label="Verktyg">
+            {TABS.map((t) => (
+              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
+                {t.label}
+                {t.id === "images" && images.length > 0 && <small>{images.length}</small>}
+              </button>
+            ))}
+          </div>
 
-          {!isStart && !ai.proposal && (
-            <section className={styles.pageSettings}>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Menytext</span>
-                <input
-                  value={page.label}
-                  maxLength={30}
-                  onChange={(e) =>
-                    change(renamePage(content, page.id, e.target.value), `${page.id}.label`)
-                  }
-                />
-              </label>
-              <p className={styles.hint}>
-                Adress: /butik/{slug}/<strong>{page.path}</strong>
-              </p>
-              <div className={styles.row}>
-                <button
-                  type="button"
-                  className={styles.ghost}
-                  disabled={subpages[0]?.id === page.id}
-                  onClick={() =>
-                    change(
-                      movePage(content, page.id, subpages.findIndex((p) => p.id === page.id) - 1),
-                    )
-                  }
-                >
-                  ← Tidigare i menyn
-                </button>
-                <button
-                  type="button"
-                  className={styles.ghost}
-                  disabled={subpages.at(-1)?.id === page.id}
-                  onClick={() =>
-                    change(
-                      movePage(content, page.id, subpages.findIndex((p) => p.id === page.id) + 1),
-                    )
-                  }
-                >
-                  Senare →
-                </button>
-                <button
-                  type="button"
-                  className={styles.danger}
-                  onClick={() => {
-                    if (!window.confirm(`Ta bort sidan ${page.label}?`)) return;
-                    change(removePage(content, page.id));
-                    setPageId(content.pages[0]?.id ?? "start");
-                  }}
-                >
-                  Ta bort sidan
-                </button>
-              </div>
-            </section>
-          )}
+          <div className={styles.panelBody} data-tab={tab}>
+            {tab === "build" &&
+              (isStart ? (
+                <section className={styles.locked}>
+                  <span aria-hidden="true">🔒</span>
+                  <span>
+                    <strong>Startsidan är densamma i alla butiker</strong>
+                    <br />
+                    Skylten i 3D, rubriken, skrivrutan och stegen följer er färg, logga och typsnitt — men innehållet och skyltmotorn
+                    ändras inte. Bygg egna sidor med <strong>+ Sida</strong>.
+                  </span>
+                </section>
+              ) : (
+                <>
+                  <section className={styles.pageSettings}>
+                    <label className={styles.field}>
+                      <span className={styles.fieldLabel}>Menytext</span>
+                      <input value={page.label} maxLength={30} onChange={(e) => change(renamePage(content, page.id, e.target.value), `${page.id}.label`)} />
+                    </label>
+                    <p className={styles.hint}>
+                      namnskylt.com/butik/{slug}/<strong>{page.path}</strong>
+                    </p>
+                    <div className={styles.row}>
+                      <button
+                        type="button"
+                        className={styles.ghost}
+                        disabled={subpages[0]?.id === page.id}
+                        onClick={() => change(movePage(content, page.id, subpages.findIndex((p) => p.id === page.id) - 1))}
+                      >
+                        ← I menyn
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.ghost}
+                        disabled={subpages.at(-1)?.id === page.id}
+                        onClick={() => change(movePage(content, page.id, subpages.findIndex((p) => p.id === page.id) + 1))}
+                      >
+                        I menyn →
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.danger}
+                        onClick={() => {
+                          if (!window.confirm(`Ta bort sidan ${page.label}?`)) return;
+                          change(removePage(content, page.id));
+                          setPageId(content.pages[0]?.id ?? "start");
+                        }}
+                      >
+                        Ta bort sidan
+                      </button>
+                    </div>
+                  </section>
 
-          {isStart ? (
-            <section className={styles.locked}>
-              <span aria-hidden="true">🔒</span>
-              <span>
-                <strong>Startsidan är densamma i alla butiker</strong>
-                <br />
-                Skylten i 3D, rubriken, skrivrutan och stegen. Den följer er färg, logga och
-                typsnitt — men innehållet ändras inte, och skyltmotorn bakom den är densamma för
-                alla. Lägg egna sidor med + Sida.
-              </span>
-            </section>
-          ) : (
-            <section>
-              <ol className={styles.blocks} aria-label="Sidans block">
-                {page.blocks.map((block, index) => (
-                  <li
-                    key={block.id}
-                    className={styles.blockRow}
-                    data-selected={block.id === selectedId || undefined}
-                    data-dragging={dragId === block.id || undefined}
-                    draggable={!ai.proposal}
-                    onDragStart={() => setDragId(block.id)}
-                    onDragEnd={() => setDragId(null)}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (dragId && dragId !== block.id) change(moveBlock(content, dragId, index));
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className={styles.blockHead}
-                      onClick={() => setSelectedId(block.id === selectedId ? null : block.id)}
-                      aria-expanded={block.id === selectedId}
-                    >
-                      <span className={styles.grip} aria-hidden="true">
-                        ⋮⋮
-                      </span>
-                      <span>
-                        <strong>{BLOCK_LABEL[block.kind]}</strong>
-                        <small>{blockSummary(block)}</small>
-                      </span>
-                    </button>
-                    {!ai.proposal && (
-                      <span className={styles.itemActions}>
-                        <button
-                          type="button"
-                          aria-label="Flytta upp"
-                          disabled={index === 0}
-                          onClick={() => change(moveBlock(content, block.id, index - 1))}
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Flytta ner"
-                          disabled={index === page.blocks.length - 1}
-                          onClick={() => change(moveBlock(content, block.id, index + 1))}
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Kopiera"
-                          onClick={() => {
-                            const result = duplicateBlock(content, block.id);
-                            if (result.blockId) {
-                              change(result.content);
-                              setSelectedId(result.blockId);
-                            }
-                          }}
-                        >
-                          ⧉
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Ta bort"
-                          onClick={() => {
-                            change(removeBlock(content, block.id));
-                            if (selectedId === block.id) setSelectedId(null);
-                          }}
-                        >
-                          ✕
-                        </button>
-                      </span>
-                    )}
-                    {block.id === selectedId && selected && !ai.proposal && (
-                      <div className={styles.blockForm}>
+                  <section>
+                    <h3 className={styles.sectionLabel}>Lägg till — dra in på sidan</h3>
+                    <BlockPalette onAdd={(kind) => addAt(kind)} disabled={false} />
+                  </section>
+
+                  <section>
+                    <h3 className={styles.sectionLabel}>På sidan</h3>
+                    <BlockList
+                      blocks={page.blocks}
+                      selectedId={selectedId}
+                      disabled={false}
+                      onSelect={setSelectedId}
+                      onAction={act}
+                      onMove={(blockId, index) => change(moveBlock(content, blockId, index))}
+                      onDrop={(kind, index) => addAt(kind, index)}
+                      renderForm={(block) => (
                         <BlockForm
                           slug={slug}
-                          block={selected}
+                          block={block}
                           images={images}
                           uploading={uploading}
                           onUpload={upload}
-                          onChange={(next, key) =>
-                            change(
-                              updateBlock(content, block.id, () => next),
-                              key,
-                            )
-                          }
+                          onChange={(next, key) => change(updateBlock(content, block.id, () => next), key)}
                         />
-                      </div>
-                    )}
+                      )}
+                    />
+                  </section>
+                </>
+              ))}
+
+            {tab === "chat" && (
+              <AiChat messages={chat} pending={thinking} suggestions={chat.length === 0 ? suggestions : []} focusLabel={focusLabel} onSend={sendChat} onUndo={undoChat} />
+            )}
+
+            {tab === "images" && (
+              <section>
+                <p className={styles.hint}>Ladda upp i ett bild-, galleri- eller rubrikblock. Bilder som används på en sida går inte att ta bort.</p>
+                <div className={styles.imageList}>
+                  {images.length === 0 && <p className={styles.hint}>Inga bilder än.</p>}
+                  {images.map((image) => (
+                    <figure key={image.id}>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- butikens egna, komprimerade bilder */}
+                      <img src={`/butik/${slug}/bild/${image.id}`} alt="" loading="lazy" />
+                      <button type="button" aria-label="Ta bort bilden" onClick={() => removeImage(image.id)}>
+                        ✕
+                      </button>
+                    </figure>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {tab === "versions" && (
+              <ul className={styles.versions}>
+                {versions.length === 0 && <li className={styles.hint}>Inget publicerat med editorn än.</li>}
+                {versions.map((v) => (
+                  <li key={v.id}>
+                    <span>{formatTime(v.publishedAt)}</span>
+                    <button type="button" className={styles.ghost} onClick={() => openVersion(v.id)}>
+                      Öppna
+                    </button>
                   </li>
                 ))}
-              </ol>
-              {!ai.proposal &&
-                (adding ? (
-                  <div className={styles.addGrid}>
-                    {BLOCK_KINDS.map((kind) => (
-                      <button
-                        key={kind}
-                        type="button"
-                        onClick={() => {
-                          const result = addBlock(content, page.id, kind);
-                          if (result.blockId) {
-                            change(result.content);
-                            setSelectedId(result.blockId);
-                          }
-                          setAdding(false);
-                        }}
-                      >
-                        <strong>{BLOCK_LABEL[kind]}</strong>
-                        <small>{BLOCK_HINT[kind]}</small>
-                      </button>
-                    ))}
-                    <button type="button" className={styles.ghost} onClick={() => setAdding(false)}>
-                      Avbryt
-                    </button>
-                  </div>
-                ) : (
-                  <button type="button" className={styles.add} onClick={() => setAdding(true)}>
-                    + Lägg till block
-                  </button>
-                ))}
-            </section>
-          )}
-
-          <details className={styles.more}>
-            <summary>Bilder ({images.length})</summary>
-            <div className={styles.imageList}>
-              {images.length === 0 && (
-                <p className={styles.hint}>
-                  Inga bilder än. Ladda upp i ett bild- eller galleriblock.
-                </p>
-              )}
-              {images.map((image) => (
-                <figure key={image.id}>
-                  {/* eslint-disable-next-line @next/next/no-img-element -- butikens egna, komprimerade bilder */}
-                  <img src={`/butik/${slug}/bild/${image.id}`} alt="" loading="lazy" />
-                  <button
-                    type="button"
-                    aria-label="Ta bort bilden"
-                    onClick={() => removeImage(image.id)}
-                  >
-                    ✕
-                  </button>
-                </figure>
-              ))}
-            </div>
-          </details>
-
-          <details className={styles.more}>
-            <summary>Tidigare versioner ({versions.length})</summary>
-            <ul className={styles.versions}>
-              {versions.length === 0 && (
-                <li className={styles.hint}>Inget publicerat med editorn än.</li>
-              )}
-              {versions.map((v) => (
-                <li key={v.id}>
-                  <span>{formatTime(v.publishedAt)}</span>
-                  <button
-                    type="button"
-                    className={styles.ghost}
-                    onClick={() => openVersion(v.id)}
-                    disabled={Boolean(ai.proposal)}
-                  >
-                    Öppna
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </details>
+              </ul>
+            )}
+          </div>
         </aside>
 
         {/* ── Förhandsvisning ── */}
@@ -724,21 +549,14 @@ export function ShopEditor({
                 onLoad={sendState}
                 style={
                   device === "desktop"
-                    ? {
-                        width: DESKTOP_PX,
-                        height: `${100 / scale}%`,
-                        transform: `scale(${scale})`,
-                        transformOrigin: "0 0",
-                      }
+                    ? { width: DESKTOP_PX, height: `${100 / scale}%`, transform: `scale(${scale})`, transformOrigin: "0 0" }
                     : undefined
                 }
               />
             </div>
           </div>
           <p className={styles.hint}>
-            {isStart
-              ? "Startsidan går inte att ändra."
-              : "Klicka på ett block för att välja det. Texter går att skriva direkt i sidan."}
+            {isStart ? "Startsidan går inte att ändra." : "Dra block hit från panelen. Klicka på ett block för att välja det — texter skrivs direkt i sidan."}
           </p>
         </div>
       </div>

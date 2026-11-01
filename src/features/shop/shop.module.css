@@ -434,6 +434,82 @@
   outline: 2px solid var(--color-navy);
 }
 
+.blockTools {
+  position: absolute;
+  top: -44px;
+  left: -10px;
+  z-index: 5;
+  display: none;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--color-ink);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  box-shadow: 0 10px 24px -10px rgb(10 10 11 / 0.5);
+  user-select: none;
+}
+
+.blocks[data-editing] .block:hover .blockTools,
+.blocks[data-editing] .block[data-selected] .blockTools {
+  display: flex;
+}
+
+.blockTools button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.blockTools button:hover:not(:disabled) {
+  background: rgb(255 255 255 / 0.14);
+}
+
+.blockTools button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.blockHandle {
+  padding: 0 10px 0 6px;
+  cursor: grab;
+  white-space: nowrap;
+}
+
+.blockHandle:active {
+  cursor: grabbing;
+}
+
+.dropLine {
+  height: 4px;
+  margin: -2rem 0;
+  border-radius: 2px;
+  background: var(--color-navy);
+  box-shadow: 0 0 0 4px var(--navy-ring, rgb(10 10 11 / 0.15));
+}
+
+.dropEmpty {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  border: 2px dashed rgb(10 10 11 / 0.18);
+  border-radius: 20px;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.dropEmpty[data-active] {
+  border-color: var(--color-navy);
+  background: var(--color-navy-tint, #f1eee6);
+  color: var(--color-ink);
+}
+
 .blocks[data-editing] [data-editable] {
   cursor: text;
   border-radius: 4px;

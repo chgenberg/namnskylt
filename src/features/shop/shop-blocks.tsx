@@ -1,17 +1,22 @@
 "use client";
 
-import { useLayoutEffect, useRef, type ElementType, type KeyboardEvent, type MouseEvent } from "react";
+import { Fragment, useLayoutEffect, useRef, type DragEvent, type ElementType, type KeyboardEvent, type MouseEvent } from "react";
 import { isBannerActive, type Block } from "@/lib/shops/content";
 import type { ShopContact } from "@/lib/shops/view";
 import styles from "./shop.module.css";
 
 export type { ShopContact };
 
-/** Redigering i förhandsvisningen: klick väljer blocket, texten skrivs direkt i sidan. */
+/** Redigering i förhandsvisningen: klick väljer blocket, texten skrivs direkt i sidan, block dras och släpps. */
 export interface BlockEditing {
   selectedId: string | null;
   onSelect: (blockId: string) => void;
   onText: (blockId: string, path: string, value: string) => void;
+  /** Var ett draget block hamnar: före blocket med det indexet, eller sist. */
+  dropIndex: number | null;
+  onAction: (blockId: string, action: "up" | "down" | "duplicate" | "remove") => void;
+  onDragBlock: (blockId: string, event: DragEvent<HTMLElement>) => void;
+  labelOf: (block: Block) => string;
 }
 
 interface ShopBlocksProps {
@@ -249,31 +254,71 @@ function BlockView({ slug, block, contact, today, editing }: Omit<ShopBlocksProp
   }
 }
 
-/** Blocken under heroen, i den ordning återförsäljaren valt. */
+function BlockTools({ block, index, count, editing }: { block: Block; index: number; count: number; editing: BlockEditing }) {
+  const act = (action: "up" | "down" | "duplicate" | "remove") => (e: MouseEvent) => {
+    e.stopPropagation();
+    editing.onAction(block.id, action);
+  };
+  return (
+    <div className={styles.blockTools} contentEditable={false} onClick={(e) => e.stopPropagation()}>
+      <span className={styles.blockHandle} draggable onDragStart={(e) => editing.onDragBlock(block.id, e)} title="Dra för att flytta">
+        ⠿ {editing.labelOf(block)}
+      </span>
+      <button type="button" onClick={act("up")} disabled={index === 0} aria-label="Flytta upp">
+        ↑
+      </button>
+      <button type="button" onClick={act("down")} disabled={index === count - 1} aria-label="Flytta ner">
+        ↓
+      </button>
+      <button type="button" onClick={act("duplicate")} aria-label="Kopiera">
+        ⧉
+      </button>
+      <button type="button" onClick={act("remove")} aria-label="Ta bort">
+        ✕
+      </button>
+    </div>
+  );
+}
+
+/** Blocken på sidan, i den ordning återförsäljaren valt. */
 export function ShopBlocks({ slug, blocks, contact, today, editing }: ShopBlocksProps) {
-  if (blocks.length === 0) return null;
+  if (blocks.length === 0) {
+    return editing ? (
+      <div className={styles.blocks} data-editing="">
+        <div className={styles.dropEmpty} data-active={editing.dropIndex !== null || undefined}>
+          Dra in block här — eller välj ett i panelen
+        </div>
+      </div>
+    ) : null;
+  }
+  const marker = (at: number) => editing && editing.dropIndex === at && <div className={styles.dropLine} aria-hidden="true" />;
   return (
     <div className={styles.blocks} data-editing={editing ? "" : undefined}>
-      {blocks.map((block) => (
-        <section
-          key={block.id}
-          id={block.id}
-          className={styles.block}
-          data-kind={block.kind}
-          data-selected={editing?.selectedId === block.id || undefined}
-          onClick={
-            editing
-              ? (e: MouseEvent) => {
-                  // Länkar och knappar ska inte lämna förhandsvisningen.
-                  if ((e.target as HTMLElement).closest("a")) e.preventDefault();
-                  editing.onSelect(block.id);
-                }
-              : undefined
-          }
-        >
-          <BlockView slug={slug} block={block} contact={contact} today={today} editing={editing} />
-        </section>
+      {blocks.map((block, index) => (
+        <Fragment key={block.id}>
+          {marker(index)}
+          <section
+            id={block.id}
+            className={styles.block}
+            data-kind={block.kind}
+            data-block-index={index}
+            data-selected={editing?.selectedId === block.id || undefined}
+            onClick={
+              editing
+                ? (e: MouseEvent) => {
+                    // Länkar och knappar ska inte lämna förhandsvisningen.
+                    if ((e.target as HTMLElement).closest("a")) e.preventDefault();
+                    editing.onSelect(block.id);
+                  }
+                : undefined
+            }
+          >
+            {editing && <BlockTools block={block} index={index} count={blocks.length} editing={editing} />}
+            <BlockView slug={slug} block={block} contact={contact} today={today} editing={editing} />
+          </section>
+        </Fragment>
       ))}
+      {marker(blocks.length)}
     </div>
   );
 }

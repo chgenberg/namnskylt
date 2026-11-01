@@ -86,15 +86,26 @@ export async function deleteImageAction(slug: string, id: string, draft: unknown
   return { ok: true };
 }
 
-export async function aiEditAction(
+const chatSchema = z
+  .array(z.object({ role: z.enum(["user", "assistant"]), text: z.string().trim().min(1).max(1200) }))
+  .min(1)
+  .max(30)
+  .refine((turns) => turns.at(-1)?.role === "user", "Sista meddelandet ska vara ditt");
+const focusSchema = z.object({ pagePath: z.string().max(40), blockId: z.string().max(32).nullable() });
+/** Äldre delar av chatten tar plats utan att hjälpa. */
+const CHAT_TURNS_TO_AI = 12;
+
+export async function aiChatAction(
   slug: string,
-  request: unknown,
+  conversation: unknown,
   content: unknown,
-): Promise<{ ok: true; content: ShopContent; summary: string } | Fail> {
+  focus: unknown,
+): Promise<{ ok: true; content: ShopContent | null; reply: string } | Fail> {
   const tenant = await allowed(slug);
   if (!tenant) return { ok: false, error: "Inte behörig" };
-  const wish = z.string().trim().min(3).max(1000).safeParse(request);
-  if (!wish.success) return { ok: false, error: "Skriv vad du vill ändra" };
+  const turns = chatSchema.safeParse(conversation);
+  if (!turns.success) return { ok: false, error: "Skriv vad du vill ändra" };
+  const where = focusSchema.safeParse(focus);
   const current = parse(content);
   if (!current) return { ok: false, error: firstIssue(content) };
   const ai = openai();
@@ -107,6 +118,7 @@ export async function aiEditAction(
     shop: { name, tagline, website, email, phone, address },
     content: current,
     imageIds: images.map((i) => i.id),
-    request: wish.data,
+    conversation: turns.data.slice(-CHAT_TURNS_TO_AI),
+    focus: where.success ? where.data : { pagePath: "", blockId: null },
   });
 }
