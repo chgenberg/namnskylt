@@ -10,6 +10,8 @@ import { buildShop, refreshShopOptions } from "@/lib/shops/build";
 import { isValidDomain, normalizeHost } from "@/lib/shops/host";
 import { MAX_LOGO_OPTIONS, SHOP_SLUG, type Shop } from "@/lib/shops/model";
 import { isListPrice, MAX_PRICE_PERCENT, MIN_PRICE_PERCENT, shopPriceListSchema } from "@/lib/shops/price-list";
+import { siteOrigin } from "@/lib/http/origin";
+import { canManageShop, createInvite, releaseShop } from "@/lib/shops/editor-repository";
 import { deleteShop, domainTaken, getShop, getShopOptions, saveShop } from "@/lib/shops/repository";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -44,9 +46,11 @@ export async function deleteShopAction(slug: string): Promise<{ ok: boolean }> {
 
 export type ShopSaveResult = { ok: true } | { ok: false; error: string };
 
+/** Butiken om den inloggade får hantera den: namnskylt.com alla, en återförsäljare sin egen. */
 async function ownerShop(slug: string): Promise<Shop | null> {
-  if (!isOwner(await requireReseller())) throw new Error("Bara namnskylt.com har demobutiker");
-  return SHOP_SLUG.test(slug) ? getShop(slug) : null;
+  const tenant = await requireReseller();
+  if (!SHOP_SLUG.test(slug) || !(await canManageShop(tenant, slug))) return null;
+  return getShop(slug);
 }
 
 const hex = z.string().regex(/^#[0-9a-f]{6}$/i);
@@ -101,6 +105,26 @@ export async function saveShopDomainAction(slug: string, input: unknown): Promis
   if (domain && !isValidDomain(domain)) return { ok: false, error: "Skriv en adress som skylt.foretaget.se" };
   if (domain && (await domainTaken(domain, slug))) return { ok: false, error: "Adressen används redan av en annan butik" };
   await saveShop({ ...shop, domain: domain || null });
+  revalidatePath(`/admin/butiker/${slug}`);
+  return { ok: true };
+}
+
+export type InviteResult = { ok: true; url: string; expiresAt: string } | { ok: false; error: string };
+
+/** Länken återförsäljaren tar över butiken med. Skickas av oss — plattformen mejlar inte själv. */
+export async function createInviteAction(slug: string, email: unknown): Promise<InviteResult> {
+  if (!isOwner(await requireReseller())) return { ok: false, error: "Bara namnskylt.com bjuder in" };
+  const parsed = z.email().max(200).safeParse(email);
+  if (!SHOP_SLUG.test(slug) || !parsed.success) return { ok: false, error: "Skriv återförsäljarens e-post" };
+  if (!(await getShop(slug))) return { ok: false, error: "Butiken finns inte" };
+  const invite = await createInvite(slug, parsed.data);
+  return { ok: true, url: `${await siteOrigin()}/aterforsaljare/${invite.token}`, expiresAt: invite.expiresAt };
+}
+
+export async function releaseShopAction(slug: string): Promise<ShopSaveResult> {
+  if (!isOwner(await requireReseller())) return { ok: false, error: "Bara namnskylt.com kan koppla loss butiken" };
+  if (!SHOP_SLUG.test(slug)) return { ok: false, error: "Butiken finns inte" };
+  await releaseShop(slug);
   revalidatePath(`/admin/butiker/${slug}`);
   return { ok: true };
 }

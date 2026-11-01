@@ -187,6 +187,41 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       create index shop_events_shop on shop_events (shop_slug, at desc);
     `,
   },
+  {
+    id: "012_shop_editor",
+    sql: `
+      alter table shops add column owner_id text references reseller_accounts(id) on delete set null;
+      alter table shops add column content jsonb;
+      alter table shops add column draft jsonb;
+      create index shops_owner on shops (owner_id);
+      create table shop_content_versions (
+        id bigserial primary key,
+        shop_slug text not null references shops(slug) on delete cascade,
+        content jsonb not null,
+        published_by text,
+        published_at timestamptz not null default now()
+      );
+      create index shop_content_versions_shop on shop_content_versions (shop_slug, published_at desc);
+      create table shop_images (
+        id text primary key,
+        shop_slug text not null references shops(slug) on delete cascade,
+        mime text not null,
+        bytes bytea not null,
+        width int not null,
+        height int not null,
+        created_at timestamptz not null default now()
+      );
+      create index shop_images_shop on shop_images (shop_slug, created_at desc);
+      create table shop_invites (
+        token text primary key,
+        shop_slug text not null references shops(slug) on delete cascade,
+        email text not null,
+        created_at timestamptz not null default now(),
+        expires_at timestamptz not null,
+        used_at timestamptz
+      );
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

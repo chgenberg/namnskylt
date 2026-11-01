@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { adminTenant } from "@/features/admin/guard";
-import { CopyField, ShopDomainForm, ShopLookForm, ShopPriceForm } from "@/features/admin/shop-settings";
+import { CopyField, ShopDomainForm, ShopInviteForm, ShopLookForm, ShopPriceForm } from "@/features/admin/shop-settings";
 import styles from "@/features/admin/admin.module.css";
 import { formatSek } from "@/features/orders/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { SHOP_ROOT_DOMAIN } from "@/lib/shops/host";
 import { SHOP_SLUG } from "@/lib/shops/model";
+import { canManageShop, shopOwnerAccount } from "@/lib/shops/editor-repository";
 import { getShop, getShopOptions } from "@/lib/shops/repository";
 import { shopStats } from "@/lib/shops/stats";
 import { isOwner } from "@/lib/tenants/model";
@@ -17,10 +18,15 @@ const CNAME_TARGET = `butiker.${SHOP_ROOT_DOMAIN}`;
 
 export default async function ShopDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const tenant = await adminTenant();
-  if (!tenant || !isOwner(tenant)) return null;
   const { slug } = await params;
-  if (!SHOP_SLUG.test(slug)) notFound();
-  const [shop, options, stats, origin] = await Promise.all([getShop(slug), getShopOptions(slug), shopStats(slug, STATS_DAYS), siteOrigin()]);
+  if (!SHOP_SLUG.test(slug) || !(await canManageShop(tenant, slug))) notFound();
+  const [shop, options, stats, origin, owner] = await Promise.all([
+    getShop(slug),
+    getShopOptions(slug),
+    shopStats(slug, STATS_DAYS),
+    siteOrigin(),
+    shopOwnerAccount(slug),
+  ]);
   if (!shop) notFound();
 
   const subdomain = `https://${shop.slug}.${SHOP_ROOT_DOMAIN}`;
@@ -38,9 +44,14 @@ export default async function ShopDetailPage({ params }: { params: Promise<{ slu
           <h1 className={styles.pageTitle}>{shop.profile.name}</h1>
           <p className={styles.pageLead}>Utseende, priser, adress och inbäddning — allt syns i butiken direkt när det sparas.</p>
         </div>
-        <a href={`/butik/${shop.slug}`} target="_blank" rel="noreferrer" className="btn btn--primary">
-          Öppna butiken ↗
-        </a>
+        <div className={styles.headActions}>
+          <a href={`/butik/${shop.slug}`} target="_blank" rel="noreferrer" className={styles.ghostButton}>
+            Öppna butiken ↗
+          </a>
+          <Link href={`/admin/butiker/${shop.slug}/editor`} className="btn btn--primary">
+            Redigera sidorna
+          </Link>
+        </div>
       </header>
 
       <section className={styles.panel} aria-labelledby="statistik">
@@ -81,6 +92,15 @@ export default async function ShopDetailPage({ params }: { params: Promise<{ slu
           ))}
         </div>
       </section>
+
+      {isOwner(tenant ?? "") && (
+        <section className={styles.panel} aria-labelledby="inloggning">
+          <h2 id="inloggning" className={styles.sectionTitle}>
+            Återförsäljarens inloggning
+          </h2>
+          <ShopInviteForm slug={shop.slug} email={shop.profile.email} owner={owner ? { name: owner.name, email: owner.email } : null} />
+        </section>
+      )}
 
       <section className={styles.panel} aria-labelledby="utseende">
         <h2 id="utseende" className={styles.sectionTitle}>

@@ -6,6 +6,7 @@ import { Notice } from "@/features/admin/notice";
 import { ShotBackfill } from "@/features/admin/shot-backfill";
 import { databaseConfigured, getCompanyProfile, listOrders, missingBadgeShots } from "@/lib/orders/repository";
 import { currentTenant, resellerPass } from "@/lib/reseller-auth/session";
+import { shopsOwnedBy } from "@/lib/shops/editor-repository";
 import { isOwner } from "@/lib/tenants/model";
 
 export const metadata: Metadata = {
@@ -48,16 +49,23 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       </main>
     );
   }
-  const [orders, company, missing] = await Promise.all([
+  const [orders, company, missing, ownedShops] = await Promise.all([
     listOrders(tenant),
     getCompanyProfile(tenant),
     missingBadgeShots(tenant, MISSING_SHOTS_PER_VIEW),
+    isOwner(tenant) ? Promise.resolve([]) : shopsOwnedBy(tenant),
   ]);
   const pending = orders.filter((o) => o.status === "received").length;
   const demoCount = orders.filter((o) => o.demo).length;
   return (
     <main>
-      <AdminShell pending={pending} demoCount={demoCount} companyName={company.name} owner={isOwner(tenant)}>
+      <AdminShell
+        pending={pending}
+        demoCount={demoCount}
+        companyName={company.name}
+        owner={isOwner(tenant)}
+        shopSlug={ownedShops[0] ?? null}
+      >
         {children}
       </AdminShell>
       <ShotBackfill items={missing} />

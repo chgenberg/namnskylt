@@ -1,41 +1,28 @@
 import { notFound } from "next/navigation";
-import { HomeHero } from "@/features/home/home-hero";
 import { ShopBeacon } from "@/features/shop/shop-beacon";
-import { shopPath } from "@/features/shop/shop-frame";
-import styles from "@/features/shop/shop.module.css";
+import { ShopPageView } from "@/features/shop/shop-page-view";
+import { getPublishedContent } from "@/lib/shops/editor-repository";
 import { getShop } from "@/lib/shops/repository";
 import { engravingFontFor } from "@/lib/shops/typeface";
-
-const STEPS = [
-  { title: "Skriv namnet", text: "Börja med namn och titel. Hela teamet går att lägga till på en gång — en rad per person." },
-  { title: "Se skylten i 3D", text: "Välj material, färg, form och fäste. Lägg till er logga så graveras den med texten." },
-  { title: "Beställ", text: "Skyltarna graveras och skickas inom fem arbetsdagar. Korrektur innan gravyr ingår." },
-];
+import { howItWorksHref, shopContact, todayInSweden } from "@/lib/shops/view";
 
 export default async function ShopHomePage({ params }: { params: Promise<{ slug: string }> }) {
   const shop = await getShop((await params).slug);
   if (!shop) notFound();
+  const content = await getPublishedContent(shop.slug);
   return (
     <main>
       <ShopBeacon slug={shop.slug} kind="visit" />
-      <div className={styles.heroStage}>
-        <div className={styles.glow} aria-hidden="true" />
-        <HomeHero
-          createPath={shopPath(shop, "/skapa")}
-          eyebrow={`Graverade namnskyltar från ${shop.profile.name}`}
-          branded
-          badgeFont={engravingFontFor(shop.font)}
-        />
-      </div>
-      <section id="sa-funkar-det" className={styles.usps} aria-label="Så funkar det">
-        {STEPS.map((step, i) => (
-          <article key={step.title} className={styles.usp}>
-            <span className={styles.uspNo}>{i + 1}</span>
-            <h2 className={styles.uspTitle}>{step.title}</h2>
-            <p className={styles.uspText}>{step.text}</p>
-          </article>
-        ))}
-      </section>
+      <ShopPageView
+        slug={shop.slug}
+        name={shop.profile.name}
+        badgeFont={engravingFontFor(shop.font)}
+        contact={shopContact(shop)}
+        blocks={content.pages[0]?.blocks ?? []}
+        today={todayInSweden()}
+        howHref={howItWorksHref(content, shop.slug, true)}
+        hero
+      />
     </main>
   );
 }

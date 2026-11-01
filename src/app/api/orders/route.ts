@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getShopOwner } from "@/lib/shops/editor-repository";
 import { shopOrderPricing } from "@/lib/shops/price-list";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
@@ -34,10 +35,11 @@ export async function POST(request: Request) {
     const { badgeShot, shop: shopSlug, ...order } = parsed.data;
     const shop = shopSlug && databaseConfigured() ? await getShop(shopSlug) : null;
     if (shopSlug && !shop) return NextResponse.json({ error: "Butiken finns inte" }, { status: 404 });
-    // Webbshoppen och demobutikerna är namnskylt.coms egna.
+    // Webbshoppen och demobutikerna är namnskylt.coms; en övertagen butik är återförsäljarens.
+    const owner = shop ? await getShopOwner(shop.slug) : null;
     const receipt = await placeOrder({
       ...order,
-      tenant: OWNER_TENANT,
+      tenant: owner ?? OWNER_TENANT,
       source: shop ? "shop" : "web",
       shopSlug: shop?.slug ?? null,
       pricing: shopOrderPricing(order.badges, shop?.priceList),

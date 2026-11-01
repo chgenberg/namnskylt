@@ -47,6 +47,8 @@ interface HomeHeroProps {
   badgeFont?: FontId;
   /** Inbäddad på återförsäljarens sajt: skyltmotorn öppnas i hela fönstret, utan marginaltext. */
   embedded?: boolean;
+  /** Länken "Så funkar det"; `null` döljer den när sidan saknar stegen. */
+  howHref?: string | null;
 }
 
 export function HomeHero({
@@ -55,6 +57,7 @@ export function HomeHero({
   branded = false,
   badgeFont,
   embedded = false,
+  howHref = "#sa-funkar-det",
 }: HomeHeroProps) {
   const router = useRouter();
   const fonts = useFontEngine();
@@ -208,10 +211,10 @@ export function HomeHero({
                 >
                   Separera rader med komma — <kbd>Enter</kbd> öppnar skyltmotorn
                 </motion.p>
-              ) : embedded ? null : (
+              ) : embedded || !howHref ? null : (
                 <motion.a
                   key="how"
-                  href="#sa-funkar-det"
+                  href={howHref}
                   className={styles.secondary}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}

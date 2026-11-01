@@ -6,7 +6,9 @@ import { siteOrigin } from "@/lib/http/origin";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { databaseConfigured } from "@/lib/orders/repository";
 import { SHOP_SLUG } from "@/lib/shops/model";
+import { getPublishedContent } from "@/lib/shops/editor-repository";
 import { getShop } from "@/lib/shops/repository";
+import { shopMenu } from "@/lib/shops/view";
 
 interface ShopLayoutProps {
   children: ReactNode;
@@ -43,9 +45,11 @@ export const dynamic = "force-dynamic";
 export default async function ShopLayout({ children, params }: ShopLayoutProps) {
   const shop = await loadShop((await params).slug);
   if (!shop) notFound();
-  const plate = (await isLightLogo(shop.profile.logo)) ? darkPlate(shop.profile.primaryColor) : null;
+  const [light, content] = await Promise.all([isLightLogo(shop.profile.logo), getPublishedContent(shop.slug)]);
+  const plate = light ? darkPlate(shop.profile.primaryColor) : null;
+  const menu = shopMenu(content);
   return (
-    <ShopFrame shop={shop} logoPlate={plate}>
+    <ShopFrame shop={shop} logoPlate={plate} pages={menu.pages} stepsId={menu.stepsId}>
       {children}
     </ShopFrame>
   );

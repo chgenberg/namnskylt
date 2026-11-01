@@ -49,10 +49,12 @@ interface AdminShellProps {
   companyName?: string;
   /** namnskylt.com själv — bara ägaren har demobutikerna. */
   owner?: boolean;
+  /** Butiken återförsäljaren har tagit över — blir "Min butik" i menyn. */
+  shopSlug?: string | null;
   children: ReactNode;
 }
 
-export function AdminShell({ pending, demoCount = 0, companyName = "namnskylt.com", owner = false, children }: AdminShellProps) {
+export function AdminShell({ pending, demoCount = 0, companyName = "namnskylt.com", owner = false, shopSlug = null, children }: AdminShellProps) {
   const pathname = usePathname();
   const isCurrent = (href: string) => (href === "/admin" ? pathname === href : pathname.startsWith(href));
 
@@ -69,7 +71,10 @@ export function AdminShell({ pending, demoCount = 0, companyName = "namnskylt.co
           <span className={styles.brandName}>{companyName}</span>
         </div>
         <nav className={styles.nav} aria-label="Adminmeny">
-          {NAV.filter((item) => owner || !("ownerOnly" in item)).map((item) => (
+          {[
+            ...NAV.filter((item) => owner || !("ownerOnly" in item)),
+            ...(shopSlug && !owner ? [{ href: `/admin/butiker/${shopSlug}`, label: "Min butik", icon: "shops" } as const] : []),
+          ].map((item) => (
             <Link
               key={item.href}
               href={item.href}

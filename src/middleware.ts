@@ -65,7 +65,13 @@ export async function middleware(request: NextRequest) {
   }
   // Webhooken anropas av leverantörens server, som saknar kakan — den kräver i stället signatur.
   // Statistiken anropas från återförsäljarnas sajter, som saknar kakan.
-  if (requested === "/api/gate" || requested === "/api/supplier/webhook" || requested === "/api/shop-events") {
+  // Panelens inloggning har eget lösenord — återförsäljare känner inte sajtkoden.
+  if (
+    requested === "/api/gate" ||
+    requested === "/api/supplier/webhook" ||
+    requested === "/api/shop-events" ||
+    requested === "/api/admin/session"
+  ) {
     return NextResponse.next();
   }
   if (await isValidGateCookie(request.cookies.get(GATE_COOKIE)?.value)) return NextResponse.next();

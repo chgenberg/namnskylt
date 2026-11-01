@@ -31,3 +31,9 @@ export async function accountExists(id: string): Promise<boolean> {
   const [row] = await sql`select 1 from reseller_accounts where id = ${id}`;
   return Boolean(row);
 }
+
+export async function accountIdByEmail(email: string): Promise<string | null> {
+  const sql = requireDb();
+  const [row] = await sql<{ id: string }[]>`select id from reseller_accounts where email = ${email.trim().toLowerCase()}`;
+  return row?.id ?? null;
+}

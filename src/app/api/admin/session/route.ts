@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { clientKey, createRateLimiter } from "@/lib/ai/rate-limit";
 import { authenticate } from "@/lib/reseller-auth/accounts";
-import { RESELLER_MAX_AGE_SECONDS, resellerPass, sessionToken } from "@/lib/reseller-auth/session";
+import { resellerPass } from "@/lib/reseller-auth/session";
+import { signInCookies } from "@/lib/reseller-auth/sign-in";
 import { OWNER_TENANT } from "@/lib/tenants/model";
 
 export const runtime = "nodejs";
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
       : null;
   if (!tenant) return NextResponse.json({ error: "Fel e-post eller lösenord" }, { status: 401 });
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(resellerPass.cookie, sessionToken(tenant), cookieOptions(RESELLER_MAX_AGE_SECONDS));
+  for (const cookie of await signInCookies(tenant)) response.cookies.set(cookie.name, cookie.value, cookie.options);
   return response;
 }
 

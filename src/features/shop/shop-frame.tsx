@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { companyFooter } from "@/lib/company/profile";
 import { googleFontsHref, shopThemeVars, shopWebFamilies, type Shop } from "@/lib/shops/model";
+import { ShopNav, type NavPage } from "./shop-nav";
 import styles from "./shop.module.css";
 
 export const shopPath = (shop: Pick<Shop, "slug">, rest = "") => `/butik/${shop.slug}${rest}`;
@@ -11,10 +12,13 @@ interface ShopFrameProps {
   shop: Shop;
   /** Vit logga på genomskinlig botten — läggs på en mörk platta så att den syns. */
   logoPlate: string | null;
+  /** Butikens egna sidor efter startsidan. */
+  pages: readonly NavPage[];
+  stepsId: string | null;
   children: ReactNode;
 }
 
-export function ShopFrame({ shop, logoPlate, children }: ShopFrameProps) {
+export function ShopFrame({ shop, logoPlate, pages, stepsId, children }: ShopFrameProps) {
   const { profile } = shop;
   const webFamilies = shopWebFamilies(shop.font);
   return (
@@ -40,18 +44,14 @@ export function ShopFrame({ shop, logoPlate, children }: ShopFrameProps) {
             )}
           </Link>
           <nav className={styles.nav} aria-label="Butiksmeny">
-            <Link href={`${shopPath(shop)}#sa-funkar-det`} className={styles.navLink}>
-              Så funkar det
-            </Link>
-            <a href="#kontakt" className={styles.navLink}>
-              Kontakt
-            </a>
+            <ShopNav base={shopPath(shop)} pages={pages} stepsId={stepsId} variant="header" />
             <Link href={shopPath(shop, "/skapa")} className={`btn btn--primary ${styles.navCta}`}>
               Skapa skylt
             </Link>
           </nav>
         </div>
       </header>
+      <ShopNav base={shopPath(shop)} pages={pages} stepsId={stepsId} variant="strip" />
       {children}
       <footer id="kontakt" className={styles.footer}>
         <div className={styles.footerInner}>

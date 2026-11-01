@@ -5,7 +5,9 @@ import { createBadgeDocument, lineUnitPrices, MATERIALS, type MaterialId } from 
 import { formatSek } from "@/features/orders/format";
 import { MAX_PRICE_PERCENT, MIN_PRICE_PERCENT, shopUnitPrices, type ShopPriceList } from "@/lib/shops/price-list";
 import {
+  createInviteAction,
   refreshShopOptionsAction,
+  releaseShopAction,
   saveShopDomainAction,
   saveShopLookAction,
   saveShopPriceListAction,
@@ -279,6 +281,76 @@ export function ShopDomainForm({ slug, domain }: { slug: string; domain: string 
         </button>
         <Status message={save.message} />
       </div>
+    </form>
+  );
+}
+
+/* ───────── Återförsäljarens inloggning ───────── */
+
+export function ShopInviteForm({ slug, email, owner }: { slug: string; email: string; owner: { name: string; email: string } | null }) {
+  const [value, setValue] = useState(email);
+  const [link, setLink] = useState<{ url: string; expiresAt: string } | null>(null);
+  const [message, setMessage] = useState<Message>(null);
+  const [pending, startTransition] = useTransition();
+  if (owner) {
+    return (
+      <div className={styles.form}>
+        <p>
+          <strong>{owner.name}</strong> ({owner.email}) har tagit över butiken och redigerar den själv. Ordrar från butiken hamnar hos
+          dem.
+        </p>
+        <div className={styles.actionBar}>
+          <button
+            type="button"
+            className={styles.ghostButton}
+            disabled={pending}
+            onClick={() => {
+              if (!window.confirm("Koppla loss butiken? Återförsäljaren kommer inte längre åt den.")) return;
+              startTransition(async () => {
+                const result = await releaseShopAction(slug);
+                setMessage(result.ok ? { ok: true, text: "Butiken är bortkopplad" } : { ok: false, text: result.error });
+              });
+            }}
+          >
+            Koppla loss
+          </button>
+          <Status message={message} />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <form
+      className={styles.form}
+      onSubmit={(event) => {
+        event.preventDefault();
+        setMessage(null);
+        startTransition(async () => {
+          const result = await createInviteAction(slug, value);
+          if (result.ok) setLink({ url: result.url, expiresAt: result.expiresAt });
+          else setMessage({ ok: false, text: result.error });
+        });
+      }}
+    >
+      <label className={styles.formRow}>
+        <span className={styles.formLabel}>Återförsäljarens e-post</span>
+        <input className={styles.input} type="email" value={value} onChange={(e) => setValue(e.target.value)} required />
+      </label>
+      <div className={styles.actionBar}>
+        <button type="submit" className="btn btn--primary" disabled={pending}>
+          {pending ? "Skapar…" : "Skapa inbjudningslänk"}
+        </button>
+        <Status message={message} />
+      </div>
+      {link && (
+        <>
+          <CopyField label="Skicka länken till återförsäljaren" value={link.url} />
+          <p className={styles.muted}>
+            Gäller till {new Date(link.expiresAt).toLocaleDateString("sv-SE")} och kan bara användas en gång. Återförsäljaren skapar sitt
+            konto och tar över butiken.
+          </p>
+        </>
+      )}
     </form>
   );
 }

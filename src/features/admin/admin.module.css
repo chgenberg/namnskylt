@@ -2337,3 +2337,10 @@
 .dayBar[data-order] {
   background: var(--color-brass, #b8934a);
 }
+
+.headActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}

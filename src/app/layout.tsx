@@ -23,12 +23,15 @@ export const viewport: Viewport = {
 };
 
 /** Kunder öppnar korrektur och offerter via en hemlig länk — den är deras behörighet, inte sajtkoden. */
-const OPEN_PATHS = ["/korrektur/", "/offert/", "/butik/", "/inbaddning/"];
+const OPEN_PATHS = ["/korrektur/", "/offert/", "/butik/", "/inbaddning/", "/aterforsaljare/", "/forhandsvisning/"];
+/** Panelen har egen inloggning; den behåller sajtens meny. */
+const SELF_AUTH_PATHS = ["/admin"];
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const pathname = (await headers()).get("x-pathname") ?? "";
   const open = OPEN_PATHS.some((prefix) => pathname.startsWith(prefix));
-  const unlocked = open || (await isValidGateCookie((await cookies()).get(GATE_COOKIE)?.value));
+  const selfAuth = SELF_AUTH_PATHS.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  const unlocked = open || selfAuth || (await isValidGateCookie((await cookies()).get(GATE_COOKIE)?.value));
   return (
     <html lang="sv" className={`${GeistSans.variable} ${GeistMono.variable} ${editorialSerif.variable}`}>
       <body>
