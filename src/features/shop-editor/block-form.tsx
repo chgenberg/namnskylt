@@ -1,18 +1,45 @@
 "use client";
 
-import { MAX_FAQ_ITEMS, MAX_GALLERY_IMAGES, MAX_STEPS, type Block } from "@/lib/shops/content";
+import { imageUrl } from "@/features/shop/shop-blocks";
+import { MAX_FAQ_ITEMS, MAX_GALLERY_IMAGES, MAX_STEPS, videoEmbed, type Block } from "@/lib/shops/content";
 import { limitFor } from "@/lib/shops/content-ops";
-import type { ShopImage } from "@/lib/shops/editor-repository";
-import { ImagePicker } from "./image-picker";
 import styles from "./editor.module.css";
 
 interface BlockFormProps {
   slug: string;
   block: Block;
-  images: readonly ShopImage[];
   onChange: (block: Block, key?: string) => void;
-  onUpload: (file: File) => Promise<ShopImage | null>;
-  uploading: boolean;
+  /** Öppnar bildbiblioteket för blocket. */
+  onOpenLibrary: (blockId: string) => void;
+}
+
+function ImageField({ slug, ids, label, onOpen, onClear }: { slug: string; ids: readonly string[]; label: string; onOpen: () => void; onClear?: () => void }) {
+  return (
+    <div className={styles.imageField}>
+      <span className={styles.fieldLabel}>{label}</span>
+      <div className={styles.imageFieldRow}>
+        {ids.length > 0 ? (
+          ids.slice(0, 6).map((id) => (
+            // eslint-disable-next-line @next/next/no-img-element -- butikens egna, komprimerade bilder
+            <img key={id} src={imageUrl(slug, id)} alt="" />
+          ))
+        ) : (
+          <span className={styles.imageFieldEmpty}>Ingen bild</span>
+        )}
+        {ids.length > 6 && <span className={styles.imageFieldMore}>+{ids.length - 6}</span>}
+      </div>
+      <div className={styles.row}>
+        <button type="button" className={styles.ghost} onClick={onOpen}>
+          {ids.length > 0 ? "Byt eller lägg till…" : "Välj bild…"}
+        </button>
+        {onClear && ids.length > 0 && (
+          <button type="button" className={styles.ghost} onClick={onClear}>
+            Ta bort bilden
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function Field({
@@ -52,7 +79,7 @@ function Field({
 }
 
 /** Fälten för ett block. Samma gränser som när man skriver direkt i sidan. */
-export function BlockForm({ slug, block, images, onChange, onUpload, uploading }: BlockFormProps) {
+export function BlockForm({ slug, block, onChange, onOpenLibrary }: BlockFormProps) {
   const set = (patch: Partial<Block>, field: string) => onChange({ ...block, ...patch } as Block, `${block.id}.${field}`);
   const lim = (path: string) => limitFor(block.kind, path);
 
@@ -69,17 +96,12 @@ export function BlockForm({ slug, block, images, onChange, onUpload, uploading }
               </button>
             ))}
           </div>
-          <span className={styles.fieldLabel}>Bild (valfri)</span>
-          <ImagePicker
+          <ImageField
             slug={slug}
-            images={images}
-            selected={block.imageId ? [block.imageId] : []}
-            onPick={(id) => set({ imageId: block.imageId === id ? null : id }, "imageId")}
-            onUpload={async (file) => {
-              const image = await onUpload(file);
-              if (image) set({ imageId: image.id }, "imageId");
-            }}
-            uploading={uploading}
+            label="Bild (valfri)"
+            ids={block.imageId ? [block.imageId] : []}
+            onOpen={() => onOpenLibrary(block.id)}
+            onClear={() => set({ imageId: null }, "imageId")}
           />
         </div>
       );
@@ -93,16 +115,12 @@ export function BlockForm({ slug, block, images, onChange, onUpload, uploading }
     case "imageText":
       return (
         <div className={styles.form}>
-          <ImagePicker
+          <ImageField
             slug={slug}
-            images={images}
-            selected={block.imageId ? [block.imageId] : []}
-            onPick={(id) => set({ imageId: id }, "imageId")}
-            onUpload={async (file) => {
-              const image = await onUpload(file);
-              if (image) set({ imageId: image.id }, "imageId");
-            }}
-            uploading={uploading}
+            label="Bild"
+            ids={block.imageId ? [block.imageId] : []}
+            onOpen={() => onOpenLibrary(block.id)}
+            onClear={() => set({ imageId: null }, "imageId")}
           />
           <div className={styles.segmented} role="radiogroup" aria-label="Bildens sida">
             {(["left", "right"] as const).map((side) => (
@@ -121,27 +139,21 @@ export function BlockForm({ slug, block, images, onChange, onUpload, uploading }
       return (
         <div className={styles.form}>
           <Field label="Rubrik" value={block.title} max={lim("title")} onChange={(title) => set({ title }, "title")} />
-          <ImagePicker
-            slug={slug}
-            images={images}
-            multiple
-            selected={block.images}
-            onPick={(id) => {
-              const has = block.images.includes(id);
-              if (!has && block.images.length >= MAX_GALLERY_IMAGES) return;
-              set({ images: has ? block.images.filter((i) => i !== id) : [...block.images, id] }, "images");
-            }}
-            onUpload={async (file) => {
-              const image = await onUpload(file);
-              if (image && block.images.length < MAX_GALLERY_IMAGES) set({ images: [...block.images, image.id] }, "images");
-            }}
-            uploading={uploading}
-          />
-          <p className={styles.hint}>
-            {block.images.length} av högst {MAX_GALLERY_IMAGES} bilder. Klicka för att välja eller välja bort.
-          </p>
+          <ImageField slug={slug} label={`Bilder (${block.images.length} av ${MAX_GALLERY_IMAGES})`} ids={block.images} onOpen={() => onOpenLibrary(block.id)} />
         </div>
       );
+    case "video": {
+      const ok = block.url === "" || videoEmbed(block.url) !== null;
+      return (
+        <div className={styles.form}>
+          <Field label="Länk från YouTube eller Vimeo" type="url" value={block.url} max={300} placeholder="https://www.youtube.com/watch?v=…" onChange={(url) => set({ url }, "url")} />
+          {!ok && <p className={styles.error}>Länken känns inte igen. Kopiera adressen från YouTube eller Vimeo.</p>}
+          <Field label="Rubrik (valfri)" value={block.title} max={lim("title")} onChange={(title) => set({ title }, "title")} />
+          <Field label="Bildtext (valfri)" value={block.caption} max={lim("caption")} onChange={(caption) => set({ caption }, "caption")} />
+          <p className={styles.hint}>YouTube visas utan spårningskakor tills besökaren startar filmen.</p>
+        </div>
+      );
+    }
     case "steps":
     case "faq": {
       const isFaq = block.kind === "faq";
@@ -203,6 +215,14 @@ export function BlockForm({ slug, block, images, onChange, onUpload, uploading }
           <Field label="Text" value={block.text} max={lim("text")} onChange={(text) => set({ text }, "text")} />
           <Field label="Länk (valfri)" type="url" value={block.href} max={300} placeholder="https://… eller /butik/…" onChange={(href) => set({ href }, "href")} />
           <Field label="Visas till och med (valfritt)" type="date" value={block.until} max={10} onChange={(until) => set({ until }, "until")} />
+        </div>
+      );
+    case "map":
+      return (
+        <div className={styles.form}>
+          <Field label="Rubrik (valfri)" value={block.title} max={lim("title")} onChange={(title) => set({ title }, "title")} />
+          <Field label="Adress" value={block.address} max={lim("address")} placeholder="Storgatan 1, 123 45 Staden" onChange={(address) => set({ address }, "address")} />
+          <p className={styles.hint}>Kartan söker på adressen. Visas inte på sidan förrän en adress är ifylld.</p>
         </div>
       );
     case "contact":

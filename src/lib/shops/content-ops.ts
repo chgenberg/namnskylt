@@ -25,6 +25,9 @@ const LIMITS: Record<string, number> = {
   "text:banner": 160,
   "text:steps": 280,
   lead: 300,
+  url: 300,
+  address: 160,
+  caption: 160,
   "title:steps-item": 60,
 };
 

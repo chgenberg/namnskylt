@@ -11,7 +11,9 @@ import {
   newPage,
   pathFor,
   lockStartPage,
+  mapEmbedUrl,
   shopContentSchema,
+  videoEmbed,
   type ShopContent,
 } from "./content";
 
@@ -77,6 +79,22 @@ describe("butikens sidor", () => {
     const page = newPage("Kontakt", [""]);
     assert.equal(page.blocks[0]?.kind, "header");
     assert.equal(page.blocks[0]?.kind === "header" ? page.blocks[0].title : "", "Kontakt");
+  });
+
+  it("känner igen YouTube- och Vimeo-länkar, men inget annat", () => {
+    assert.equal(videoEmbed("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10")?.src, "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?rel=0");
+    assert.equal(videoEmbed("https://youtu.be/dQw4w9WgXcQ")?.id, "dQw4w9WgXcQ");
+    assert.equal(videoEmbed("https://youtube.com/shorts/dQw4w9WgXcQ")?.provider, "youtube");
+    assert.equal(videoEmbed("https://vimeo.com/76979871")?.src, "https://player.vimeo.com/video/76979871?dnt=1");
+    assert.equal(videoEmbed("https://evil.example/watch?v=dQw4w9WgXcQ"), null);
+    assert.equal(videoEmbed("javascript:alert(1)"), null);
+    assert.equal(videoEmbed("inte en länk"), null);
+  });
+
+  it("kartan söker på adressen och tål utropstecken", () => {
+    assert.equal(mapEmbedUrl("  "), null);
+    assert.equal(mapEmbedUrl("Storgatan 1, Gävle"), "https://www.google.com/maps/embed?origin=mfe&pb=!1m3!2m1!1sStorgatan+1%2C+G%C3%A4vle!6i15");
+    assert.ok(!mapEmbedUrl("Hej! Gatan 2")?.includes("Hej!"));
   });
 
   it("ger standardsidan för trasigt eller gammalt innehåll", () => {

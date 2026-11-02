@@ -9,10 +9,12 @@ import {
   shopVisitorToken,
 } from "@/lib/site-gate/token";
 import { resolveHost, shopRewritePath } from "@/lib/shops/host";
-import { shopSlugForDomain } from "@/lib/shops/repository";
 
 const PATHNAME_HEADER = "x-pathname";
 const DOMAIN_CACHE_MS = 60_000;
+const DOMAIN_LOOKUP_TIMEOUT_MS = 1_500;
+/** Servern själv — middleware frågar den om egna domäner. Porten är den startskriptet ger `next start`. */
+const SELF_ORIGIN = `http://127.0.0.1:${process.env.INTERNAL_PORT ?? "3100"}`;
 /** Vår egen sajt; allt annat är en butiks underadress eller egna domän. */
 const MAIN_HOSTS = (process.env.SITE_HOSTS ?? "namnskylt.com,www.namnskylt.com,localhost")
   .split(",")
@@ -24,7 +26,12 @@ const domainCache = new Map<string, { slug: string | null; until: number }>();
 async function slugForDomain(host: string): Promise<string | null> {
   const cached = domainCache.get(host);
   if (cached && cached.until > Date.now()) return cached.slug;
-  const slug = await shopSlugForDomain(host).catch(() => null);
+  const slug = await fetch(`${SELF_ORIGIN}/api/shop-domain?host=${encodeURIComponent(host)}`, {
+    signal: AbortSignal.timeout(DOMAIN_LOOKUP_TIMEOUT_MS),
+  })
+    .then((r) => (r.ok ? (r.json() as Promise<{ slug: string | null }>) : { slug: null }))
+    .then((body) => body.slug)
+    .catch(() => null);
   domainCache.set(host, { slug, until: Date.now() + DOMAIN_CACHE_MS });
   return slug;
 }
@@ -70,6 +77,7 @@ export async function middleware(request: NextRequest) {
     requested === "/api/gate" ||
     requested === "/api/supplier/webhook" ||
     requested === "/api/shop-events" ||
+    requested === "/api/shop-domain" ||
     requested === "/api/admin/session"
   ) {
     return NextResponse.next();
@@ -79,8 +87,10 @@ export async function middleware(request: NextRequest) {
   return NextResponse.json({ error: "Sajten är låst" }, { status: 401 });
 }
 
+/*
+ * Edge, inte Node: Node-middleware i Next 15.5 förbrukar förfrågans innehåll
+ * bakom Railways proxy, så att filuppladdningar når routen tomma.
+ */
 export const config = {
-  // Egna domäner slås upp i databasen — det kräver Node, inte edge.
-  runtime: "nodejs",
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|woff2?|ttf|hdr|exr)$).*)"],
 };

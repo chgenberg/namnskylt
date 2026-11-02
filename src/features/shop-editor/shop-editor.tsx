@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BLOCK_LABEL, MAX_PAGES, type BlockKind, type ShopContent } from "@/lib/shops/content";
+import Link from "next/link";
+import { BLOCK_LABEL, MAX_GALLERY_IMAGES, MAX_PAGES, type Block, type BlockKind, type ShopContent } from "@/lib/shops/content";
 import {
   addBlock,
-  addPage,
   duplicateBlock,
   moveBlock,
   movePage,
@@ -19,8 +19,11 @@ import { AiChat, type ChatMessage } from "./ai-chat";
 import { BlockForm } from "./block-form";
 import { BlockList } from "./block-list";
 import { BlockPalette } from "./block-palette";
+import { ImageLibrary, ImageLibraryDialog } from "./image-library";
+import { PageTemplateDialog } from "./page-template-dialog";
 import {
   aiChatAction,
+  createTemplatePageAction,
   deleteImageAction,
   discardDraftAction,
   loadVersionAction,
@@ -74,6 +77,10 @@ export function ShopEditor({ slug, shopName, draft, published: initialPublished,
   const [uploading, setUploading] = useState(false);
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [thinking, setThinking] = useState(false);
+  /** Blocket bildbiblioteket är öppnat för. */
+  const [libraryFor, setLibraryFor] = useState<string | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [creatingPage, setCreatingPage] = useState(false);
   /** Sidorna före och efter varje AI-ändring, för chattens Ångra. */
   const aiChanges = useRef(new Map<string, { before: ShopContent; after: ShopContent }>());
   const frame = useRef<HTMLIFrameElement>(null);
@@ -122,16 +129,17 @@ export function ShopEditor({ slug, shopName, draft, published: initialPublished,
 
   /* ── Förhandsvisningen ── */
   const sendState = useCallback(() => {
-    const message: ToPreview = { type: "ns:state", content, path: page?.path ?? "", selectedId };
+    const message: ToPreview = { type: "ns:state", content, path: page?.path ?? "", selectedId, scale: device === "desktop" ? scale : 1 };
     frame.current?.contentWindow?.postMessage(message, window.location.origin);
-  }, [content, page?.path, selectedId]);
+  }, [content, page?.path, selectedId, device, scale]);
 
   useEffect(sendState, [sendState]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.source !== frame.current?.contentWindow) return;
-      if (!isMessage<FromPreview>(event.data, ["ns:ready", "ns:select", "ns:text", "ns:page", "ns:drop", "ns:move", "ns:action"])) return;
+      if (!isMessage<FromPreview>(event.data, ["ns:ready", "ns:select", "ns:text", "ns:page", "ns:drop", "ns:move", "ns:action", "ns:pickImage"]))
+        return;
       const data = event.data;
       switch (data.type) {
         case "ns:ready":
@@ -164,6 +172,10 @@ export function ShopEditor({ slug, shopName, draft, published: initialPublished,
         case "ns:action":
           act(data.blockId, data.action);
           break;
+        case "ns:pickImage":
+          setSelectedId(data.blockId);
+          setLibraryFor(data.blockId);
+          break;
       }
     };
     window.addEventListener("message", onMessage);
@@ -180,6 +192,15 @@ export function ShopEditor({ slug, shopName, draft, published: initialPublished,
     observer.observe(box);
     return () => observer.disconnect();
   }, [device]);
+
+  /* ── Editorn täcker hela fönstret; sidan bakom ska inte rulla ── */
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
 
   /* ── Utkastet sparas av sig självt ── */
   useEffect(() => {
@@ -246,22 +267,45 @@ export function ShopEditor({ slug, shopName, draft, published: initialPublished,
     }
   }
 
-  async function upload(file: File): Promise<ShopImage | null> {
+  async function upload(files: File[]): Promise<ShopImage[]> {
     setUploading(true);
+    const uploaded: ShopImage[] = [];
     try {
-      const form = new FormData();
-      form.set("file", file);
-      const response = await fetch(`/api/admin/shops/${slug}/images`, { method: "POST", body: form });
-      const body = (await response.json()) as ShopImage & { error?: string };
-      if (!response.ok) {
-        setNotice({ ok: false, text: body.error ?? "Bilden gick inte att ladda upp" });
-        return null;
+      for (const file of files) {
+        const form = new FormData();
+        form.set("file", file);
+        const response = await fetch(`/api/admin/shops/${slug}/images`, { method: "POST", body: form });
+        const body = (await response.json().catch(() => ({ error: "Bilden gick inte att ladda upp" }))) as ShopImage & { error?: string };
+        if (!response.ok) {
+          setNotice({ ok: false, text: body.error ?? "Bilden gick inte att ladda upp" });
+          break;
+        }
+        uploaded.push(body);
+        setImages((all) => [body, ...all]);
       }
-      setImages((all) => [body, ...all]);
-      return body;
     } finally {
       setUploading(false);
     }
+    return uploaded;
+  }
+
+  /** Bilderna blocket använder, och vad ett klick i biblioteket gör med dem. */
+  const libraryBlock = libraryFor ? content.pages.flatMap((p) => p.blocks).find((b) => b.id === libraryFor) ?? null : null;
+  const libraryIds = (block: Block | null): string[] =>
+    !block ? [] : block.kind === "gallery" ? block.images : (block.kind === "imageText" || block.kind === "header") && block.imageId ? [block.imageId] : [];
+  function toggleImage(block: Block, id: string, current: ShopContent = content) {
+    const next = (b: Block): Block => {
+      if (b.kind === "gallery") {
+        const has = b.images.includes(id);
+        if (!has && b.images.length >= MAX_GALLERY_IMAGES) return b;
+        return { ...b, images: has ? b.images.filter((i) => i !== id) : [...b.images, id] };
+      }
+      if (b.kind === "imageText" || b.kind === "header") return { ...b, imageId: b.imageId === id ? null : id };
+      return b;
+    };
+    const updated = updateBlock(current, block.id, next);
+    change(updated);
+    return updated;
   }
 
   async function removeImage(id: string) {
@@ -318,7 +362,16 @@ export function ShopEditor({ slug, shopName, draft, published: initialPublished,
     : [`Skriv en bättre text för ${page.label}`, "Gör texterna kortare och mer säljande", "Lägg till vanliga frågor"];
 
   return (
-    <div className={styles.editor}>
+    <div className={styles.editor} role="dialog" aria-modal="true" aria-label={`Redigera ${shopName}`}>
+      <header className={styles.editorHead}>
+        <Link href={`/admin/butiker/${slug}`} className={styles.close} aria-label="Stäng editorn">
+          ✕
+        </Link>
+        <div>
+          <p className={styles.editorEyebrow}>Redigera butiken</p>
+          <h1 className={styles.editorTitle}>{shopName}</h1>
+        </div>
+      </header>
       {/* ── Verktygsrad ── */}
       <div className={styles.toolbar}>
         <div className={styles.tabs} role="tablist" aria-label="Butikens sidor">
@@ -338,20 +391,7 @@ export function ShopEditor({ slug, shopName, draft, published: initialPublished,
             </button>
           ))}
           {content.pages.length < MAX_PAGES && (
-            <button
-              type="button"
-              className={styles.tabAdd}
-              onClick={() => {
-                const label = window.prompt("Vad ska sidan heta i menyn?", "Om oss");
-                if (!label?.trim()) return;
-                const result = addPage(content, label.trim());
-                if (result.pageId) {
-                  change(result.content);
-                  setPageId(result.pageId);
-                  setSelectedId(null);
-                }
-              }}
-            >
+            <button type="button" className={styles.tabAdd} onClick={() => setTemplatesOpen(true)}>
               + Sida
             </button>
           )}
@@ -393,6 +433,50 @@ export function ShopEditor({ slug, shopName, draft, published: initialPublished,
             ✕
           </button>
         </p>
+      )}
+
+      {templatesOpen && (
+        <PageTemplateDialog
+          creating={creatingPage}
+          onClose={() => setTemplatesOpen(false)}
+          onCreate={async (templateId, label) => {
+            setCreatingPage(true);
+            const result = await createTemplatePageAction(slug, templateId, label, content).catch(() => ({
+              ok: false as const,
+              error: "Ingen kontakt med servern",
+            }));
+            setCreatingPage(false);
+            if (!result.ok) {
+              setNotice({ ok: false, text: result.error });
+              return;
+            }
+            setImages((all) => [...result.images, ...all]);
+            change({ ...content, pages: [...content.pages, result.page] });
+            setPageId(result.page.id);
+            setSelectedId(null);
+            setTab("build");
+            setTemplatesOpen(false);
+          }}
+        />
+      )}
+
+      {libraryBlock && (
+        <ImageLibraryDialog
+          title={libraryBlock.kind === "gallery" ? "Välj bilder till galleriet" : "Välj bild"}
+          slug={slug}
+          images={images}
+          uploading={uploading}
+          multiple={libraryBlock.kind === "gallery"}
+          selected={libraryIds(libraryBlock)}
+          onToggle={(id) => toggleImage(libraryBlock, id)}
+          onUpload={async (files) => {
+            const added = await upload(files);
+            // Nyss uppladdade bilder väljs direkt — en till en bild, alla till ett galleri.
+            let current = content;
+            for (const image of libraryBlock.kind === "gallery" ? added : added.slice(0, 1)) current = toggleImage(libraryBlock, image.id, current);
+          }}
+          onClose={() => setLibraryFor(null)}
+        />
       )}
 
       <div className={styles.body}>
@@ -479,9 +563,7 @@ export function ShopEditor({ slug, shopName, draft, published: initialPublished,
                         <BlockForm
                           slug={slug}
                           block={block}
-                          images={images}
-                          uploading={uploading}
-                          onUpload={upload}
+                          onOpenLibrary={setLibraryFor}
                           onChange={(next, key) => change(updateBlock(content, block.id, () => next), key)}
                         />
                       )}
@@ -496,19 +578,11 @@ export function ShopEditor({ slug, shopName, draft, published: initialPublished,
 
             {tab === "images" && (
               <section>
-                <p className={styles.hint}>Ladda upp i ett bild-, galleri- eller rubrikblock. Bilder som används på en sida går inte att ta bort.</p>
-                <div className={styles.imageList}>
-                  {images.length === 0 && <p className={styles.hint}>Inga bilder än.</p>}
-                  {images.map((image) => (
-                    <figure key={image.id}>
-                      {/* eslint-disable-next-line @next/next/no-img-element -- butikens egna, komprimerade bilder */}
-                      <img src={`/butik/${slug}/bild/${image.id}`} alt="" loading="lazy" />
-                      <button type="button" aria-label="Ta bort bilden" onClick={() => removeImage(image.id)}>
-                        ✕
-                      </button>
-                    </figure>
-                  ))}
-                </div>
+                <p className={styles.hint}>
+                  Alla butikens bilder. Lägg in dem på sidan med blocken Bild och text, Bildgalleri eller Sidrubrik — eller klicka på
+                  Lägg till bild direkt i förhandsvisningen. Bilder som används på en sida går inte att ta bort.
+                </p>
+                <ImageLibrary slug={slug} images={images} uploading={uploading} onUpload={(files) => void upload(files)} onDelete={removeImage} />
               </section>
             )}
 

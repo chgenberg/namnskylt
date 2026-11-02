@@ -7,7 +7,14 @@ export const DRAG_BLOCK = "application/x-namnskylt-block";
 export type BlockAction = "up" | "down" | "duplicate" | "remove";
 
 /** Meddelanden mellan editorn och förhandsvisningen i ramen — samma ursprung, aldrig andra. */
-export type ToPreview = { type: "ns:state"; content: ShopContent; path: string; selectedId: string | null };
+export type ToPreview = {
+  type: "ns:state";
+  content: ShopContent;
+  path: string;
+  selectedId: string | null;
+  /** Hur mycket editorn skalar ner ramen — verktygen räknar upp lika mycket. */
+  scale: number;
+};
 export type FromPreview =
   | { type: "ns:ready" }
   | { type: "ns:select"; blockId: string }
@@ -15,7 +22,8 @@ export type FromPreview =
   | { type: "ns:page"; path: string }
   | { type: "ns:drop"; kind: BlockKind; index: number }
   | { type: "ns:move"; blockId: string; index: number }
-  | { type: "ns:action"; blockId: string; action: BlockAction };
+  | { type: "ns:action"; blockId: string; action: BlockAction }
+  | { type: "ns:pickImage"; blockId: string };
 
 export function isMessage<T extends { type: string }>(data: unknown, types: readonly T["type"][]): data is T {
   return Boolean(data) && typeof data === "object" && types.includes((data as { type: string }).type as T["type"]);

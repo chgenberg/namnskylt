@@ -6,19 +6,24 @@ import { openai } from "@/lib/ai/openai";
 import { createRateLimiter } from "@/lib/ai/rate-limit";
 import { requireReseller } from "@/lib/reseller-auth/session";
 import { editShopContentWithAi } from "@/lib/shops/ai-edit";
-import { imagesIn, lockStartPage, shopContentSchema, type ShopContent } from "@/lib/shops/content";
+import { imagesIn, lockStartPage, MAX_PAGES, shopContentSchema, type ShopContent, type ShopPage } from "@/lib/shops/content";
 import {
   canManageShop,
+  countImages,
   deleteImage,
   discardDraft,
   getShopContent,
   getVersion,
   listImages,
   listVersions,
+  MAX_SHOP_IMAGES,
   publishContent,
   saveDraft,
   type ContentVersion,
+  type ShopImage,
 } from "@/lib/shops/editor-repository";
+import { pageTemplate, templatePage } from "@/lib/shops/page-templates";
+import { createShowcaseImages } from "@/lib/shops/showcase-images";
 import { SHOP_SLUG } from "@/lib/shops/model";
 import { getShop } from "@/lib/shops/repository";
 
@@ -121,4 +126,40 @@ export async function aiChatAction(
     conversation: turns.data.slice(-CHAT_TURNS_TO_AI),
     focus: where.success ? where.data : { pagePath: "", blockId: null },
   });
+}
+
+/**
+ * En ny undersida ur en mall. Mallar med exempelbilder får dem ritade med
+ * butikens namn — så länge butiken har plats för fler bilder.
+ */
+export async function createTemplatePageAction(
+  slug: string,
+  templateId: unknown,
+  label: unknown,
+  content: unknown,
+): Promise<{ ok: true; page: ShopPage; images: ShopImage[] } | Fail> {
+  if (!(await allowed(slug))) return { ok: false, error: "Inte behörig" };
+  const template = pageTemplate(String(templateId));
+  const name = z.string().trim().max(30).safeParse(label);
+  const current = parse(content);
+  if (!template || !name.success || !current) return { ok: false, error: "Mallen finns inte" };
+  if (current.pages.length >= MAX_PAGES) return { ok: false, error: `Butiken har redan ${MAX_PAGES} sidor` };
+  const shop = await getShop(slug);
+  if (!shop) return { ok: false, error: "Butiken finns inte" };
+  const room = MAX_SHOP_IMAGES - (await countImages(slug));
+  const images =
+    template.showcaseImages > 0 && room >= template.showcaseImages
+      ? await createShowcaseImages(slug, shop.profile.name, template.showcaseImages).catch((error) => {
+          console.error("Exempelbilderna kunde inte ritas", error);
+          return [];
+        })
+      : [];
+  const page = templatePage(
+    template.id,
+    name.data || template.label,
+    { slug, name: shop.profile.name, tagline: shop.profile.tagline, address: shop.profile.address.replace(/\s*\n\s*/g, ", ") },
+    current.pages.map((p) => p.path),
+    images.map((i) => i.id),
+  );
+  return { ok: true, page, images };
 }

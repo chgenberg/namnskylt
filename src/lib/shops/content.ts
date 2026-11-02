@@ -7,7 +7,7 @@ import { z } from "zod";
  * block. Bara text och bilder — aldrig HTML — så att ingen sida kan gå sönder
  * eller bära skadlig kod.
  */
-export const BLOCK_KINDS = ["header", "text", "imageText", "gallery", "steps", "faq", "banner", "contact"] as const;
+export const BLOCK_KINDS = ["header", "text", "imageText", "gallery", "video", "steps", "faq", "banner", "contact", "map"] as const;
 export type BlockKind = (typeof BLOCK_KINDS)[number];
 
 export const BLOCK_LABEL: Record<BlockKind, string> = {
@@ -15,10 +15,12 @@ export const BLOCK_LABEL: Record<BlockKind, string> = {
   text: "Text",
   imageText: "Bild och text",
   gallery: "Bildgalleri",
+  video: "Video",
   steps: "Så funkar det",
   faq: "Vanliga frågor",
   banner: "Kampanjremsa",
   contact: "Kontakt",
+  map: "Karta",
 };
 
 export const MAX_PAGES = 8;
@@ -78,6 +80,18 @@ export const blockSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("gallery"), id, title: line(80), images: z.array(imageRef).max(MAX_GALLERY_IMAGES) }),
   z.object({
+    kind: z.literal("video"),
+    id,
+    title: line(80),
+    /** En YouTube- eller Vimeo-länk; tom tills återförsäljaren klistrat in en. */
+    url: z
+      .string()
+      .max(300)
+      .refine((u) => u.trim() === "" || videoEmbed(u) !== null, "Klistra in en länk från YouTube eller Vimeo")
+      .transform((u) => u.trim()),
+    caption: line(160),
+  }),
+  z.object({
     kind: z.literal("steps"),
     id,
     title: line(80),
@@ -98,9 +112,43 @@ export const blockSchema = z.discriminatedUnion("kind", [
     until: z.string().refine((s) => s === "" || DAY.test(s), "Datum som ÅÅÅÅ-MM-DD"),
   }),
   z.object({ kind: z.literal("contact"), id, title: line(80), text: text(400) }),
+  z.object({ kind: z.literal("map"), id, title: line(80), address: line(160) }),
 ]);
 
 export type Block = z.infer<typeof blockSchema>;
+
+export interface VideoEmbed {
+  provider: "youtube" | "vimeo";
+  id: string;
+  /** Spelarens adress — YouTube utan spårningskakor, Vimeo med dnt. */
+  src: string;
+}
+
+/** YouTube- eller Vimeo-länkens spelare, eller `null` för allt annat. */
+export function videoEmbed(url: string): VideoEmbed | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url.trim());
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+  const host = parsed.hostname.replace(/^(www\.|m\.)/, "");
+  const youtubeId =
+    host === "youtu.be"
+      ? parsed.pathname.slice(1)
+      : host === "youtube.com" || host === "youtube-nocookie.com"
+        ? parsed.pathname === "/watch"
+          ? (parsed.searchParams.get("v") ?? "")
+          : (parsed.pathname.match(/^\/(?:embed|shorts|live)\/([^/]+)/)?.[1] ?? "")
+        : "";
+  if (/^[A-Za-z0-9_-]{11}$/.test(youtubeId)) {
+    return { provider: "youtube", id: youtubeId, src: `https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0` };
+  }
+  const vimeoId = host === "vimeo.com" ? parsed.pathname.match(/^\/(\d{6,12})/)?.[1] : host === "player.vimeo.com" ? parsed.pathname.match(/^\/video\/(\d{6,12})/)?.[1] : undefined;
+  if (vimeoId) return { provider: "vimeo", id: vimeoId, src: `https://player.vimeo.com/video/${vimeoId}?dnt=1` };
+  return null;
+}
 export type BlockOf<K extends BlockKind> = Extract<Block, { kind: K }>;
 
 export const pageSchema = z.object({
@@ -166,6 +214,8 @@ export function newBlock(kind: BlockKind, title?: string): Block {
       return { kind, id: blockId, imageId: null, imageSide: "right", title: "Rubrik", text: "Berätta något om er.", buttonLabel: "", buttonHref: "" };
     case "gallery":
       return { kind, id: blockId, title: "Skyltar vi har gjort", images: [] };
+    case "video":
+      return { kind, id: blockId, title: "", url: "", caption: "" };
     case "steps":
       return { kind, id: blockId, title: "Så funkar det", items: DEFAULT_STEPS.map((s) => ({ ...s })) };
     case "faq":
@@ -179,6 +229,8 @@ export function newBlock(kind: BlockKind, title?: string): Block {
       return { kind, id: blockId, text: "Mängdrabatt från 10 skyltar", href: "", until: "" };
     case "contact":
       return { kind, id: blockId, title: "Kontakta oss", text: "Har du frågor om skyltar eller större beställningar? Hör av dig." };
+    case "map":
+      return { kind, id: blockId, title: "Hitta hit", address: "" };
   }
 }
 
@@ -237,6 +289,17 @@ export function imagesIn(content: ShopContent): string[] {
       ),
     ),
   ];
+}
+
+/**
+ * Kartans adress som inbäddad karta — utan nyckel, bara adressen som sökord.
+ * `!` avgränsar fälten i Googles adress och kodas därför.
+ */
+export function mapEmbedUrl(address: string): string | null {
+  const query = address.trim();
+  if (!query) return null;
+  const encoded = encodeURIComponent(query).replace(/%20/g, "+").replace(/!/g, "%21");
+  return `https://www.google.com/maps/embed?origin=mfe&pb=!1m3!2m1!1s${encoded}!6i15`;
 }
 
 /** En kampanjremsa vars sista dag passerat visas inte. */

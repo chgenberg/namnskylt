@@ -47,6 +47,7 @@ export function PreviewBridge({ shop, logoPlate, initial, badgeFont, contact, to
       setContent(event.data.content);
       setPath(event.data.path);
       setSelectedId(event.data.selectedId);
+      document.documentElement.style.setProperty("--ui-scale", String(1 / Math.max(0.3, event.data.scale || 1)));
     };
     window.addEventListener("message", onMessage);
     post({ type: "ns:ready" });
@@ -126,6 +127,7 @@ export function PreviewBridge({ shop, logoPlate, initial, badgeFont, contact, to
                       event.dataTransfer.setData(DRAG_BLOCK, blockId);
                       event.dataTransfer.effectAllowed = "move";
                     },
+                    onPickImage: (blockId) => post({ type: "ns:pickImage", blockId }),
                     labelOf: (block) => BLOCK_LABEL[block.kind],
                   }
             }

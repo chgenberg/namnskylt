@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useLayoutEffect, useRef, type DragEvent, type ElementType, type KeyboardEvent, type MouseEvent } from "react";
-import { isBannerActive, type Block } from "@/lib/shops/content";
+import { isBannerActive, mapEmbedUrl, videoEmbed, type Block } from "@/lib/shops/content";
 import type { ShopContact } from "@/lib/shops/view";
 import styles from "./shop.module.css";
 
@@ -16,6 +16,7 @@ export interface BlockEditing {
   dropIndex: number | null;
   onAction: (blockId: string, action: "up" | "down" | "duplicate" | "remove") => void;
   onDragBlock: (blockId: string, event: DragEvent<HTMLElement>) => void;
+  onPickImage: (blockId: string) => void;
   labelOf: (block: Block) => string;
 }
 
@@ -80,6 +81,24 @@ function Editable({
   );
 }
 
+/** I förhandsvisningen: en tydlig knapp där en bild kan ligga. */
+function AddImage({ blockId, editing, label = "Lägg till bild" }: { blockId: string; editing: BlockEditing; label?: string }) {
+  return (
+    <button
+      type="button"
+      className={styles.addImage}
+      contentEditable={false}
+      onClick={(e) => {
+        e.stopPropagation();
+        editing.onPickImage(blockId);
+      }}
+    >
+      <span aria-hidden="true">＋</span>
+      {label}
+    </button>
+  );
+}
+
 function useText(block: Block, editing?: BlockEditing) {
   return function Text({
     as,
@@ -124,11 +143,18 @@ function BlockView({ slug, block, contact, today, editing }: Omit<ShopBlocksProp
             <Text as="h1" path="title" value={block.title} className={styles.pageHeaderTitle} placeholder="Rubrik" />
             <Text as="p" path="lead" value={block.lead} className={styles.pageHeaderLead} multiline placeholder="Ingress" />
           </div>
-          {block.imageId && (
+          {block.imageId ? (
             <div className={styles.pageHeaderImage}>
               {/* eslint-disable-next-line @next/next/no-img-element -- butikens egen bild, redan komprimerad */}
               <img src={imageUrl(slug, block.imageId)} alt="" />
+              {editing && <AddImage blockId={block.id} editing={editing} label="Byt bild" />}
             </div>
+          ) : (
+            editing && (
+              <div className={styles.imageSlot}>
+                <AddImage blockId={block.id} editing={editing} label="Lägg till en stor bild (valfritt)" />
+              </div>
+            )
           )}
         </div>
       );
@@ -143,12 +169,11 @@ function BlockView({ slug, block, contact, today, editing }: Omit<ShopBlocksProp
       return (
         <div className={styles.imageText} data-side={block.imageSide}>
           <div className={styles.imageFrame}>
-            {block.imageId ? (
+            {block.imageId && (
               // eslint-disable-next-line @next/next/no-img-element -- butikens egen bild, redan komprimerad
               <img src={imageUrl(slug, block.imageId)} alt={block.title} loading="lazy" />
-            ) : (
-              editing && <span className={styles.imageEmpty}>Välj en bild</span>
             )}
+            {editing && <AddImage blockId={block.id} editing={editing} label={block.imageId ? "Byt bild" : "Lägg till bild"} />}
           </div>
           <div className={styles.imageCopy}>
             <Text as="h2" path="title" value={block.title} className={styles.blockTitle} placeholder="Rubrik" />
@@ -165,18 +190,45 @@ function BlockView({ slug, block, contact, today, editing }: Omit<ShopBlocksProp
       return (
         <div className={styles.galleryBlock}>
           <Text as="h2" path="title" value={block.title} className={styles.blockTitle} placeholder="Rubrik" />
-          {block.images.length > 0 ? (
+          {(block.images.length > 0 || editing) && (
             <div className={styles.gallery}>
               {block.images.map((imageId) => (
                 // eslint-disable-next-line @next/next/no-img-element -- butikens egna bilder, redan komprimerade
                 <img key={imageId} src={imageUrl(slug, imageId)} alt="" loading="lazy" />
               ))}
+              {editing && (
+                <div className={styles.galleryAdd}>
+                  <AddImage blockId={block.id} editing={editing} label={block.images.length ? "Fler bilder" : "Lägg till bilder"} />
+                </div>
+              )}
             </div>
-          ) : (
-            editing && <p className={styles.imageEmpty}>Lägg till bilder i panelen</p>
           )}
         </div>
       );
+    case "video": {
+      const embed = videoEmbed(block.url);
+      return (
+        <div className={styles.videoBlock}>
+          <Text as="h2" path="title" value={block.title} className={styles.blockTitle} placeholder="Rubrik (valfri)" />
+          <div className={styles.videoFrame}>
+            {embed ? (
+              <iframe
+                src={embed.src}
+                title={block.title || "Video"}
+                loading="lazy"
+                allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+                style={editing ? { pointerEvents: "none" } : undefined}
+              />
+            ) : (
+              editing && <p className={styles.videoEmpty}>Klistra in en länk från YouTube eller Vimeo i panelen</p>
+            )}
+          </div>
+          <Text as="p" path="caption" value={block.caption} className={styles.videoCaption} placeholder="Bildtext (valfri)" />
+        </div>
+      );
+    }
     case "steps":
       return (
         <div className={styles.stepsBlock}>
@@ -222,6 +274,29 @@ function BlockView({ slug, block, contact, today, editing }: Omit<ShopBlocksProp
         </div>
       );
     }
+    case "map": {
+      const src = mapEmbedUrl(block.address);
+      if (!src && !editing) return null;
+      return (
+        <div className={styles.mapBlock}>
+          <Text as="h2" path="title" value={block.title} className={styles.blockTitle} placeholder="Rubrik (valfri)" />
+          <div className={styles.mapFrame}>
+            {src ? (
+              <iframe
+                src={src}
+                title={`Karta: ${block.address}`}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                style={editing ? { pointerEvents: "none" } : undefined}
+              />
+            ) : (
+              <p className={styles.videoEmpty}>Skriv er adress i panelen så visas kartan här</p>
+            )}
+          </div>
+          {block.address && <p className={styles.videoCaption}>{block.address}</p>}
+        </div>
+      );
+    }
     case "contact": {
       const lines = [contact.phone, contact.email, contact.address].filter(Boolean);
       return (
@@ -264,17 +339,17 @@ function BlockTools({ block, index, count, editing }: { block: Block; index: num
       <span className={styles.blockHandle} draggable onDragStart={(e) => editing.onDragBlock(block.id, e)} title="Dra för att flytta">
         ⠿ {editing.labelOf(block)}
       </span>
-      <button type="button" onClick={act("up")} disabled={index === 0} aria-label="Flytta upp">
+      <button type="button" onClick={act("up")} disabled={index === 0} aria-label="Flytta upp" title="Flytta upp">
         ↑
       </button>
-      <button type="button" onClick={act("down")} disabled={index === count - 1} aria-label="Flytta ner">
+      <button type="button" onClick={act("down")} disabled={index === count - 1} aria-label="Flytta ner" title="Flytta ner">
         ↓
       </button>
-      <button type="button" onClick={act("duplicate")} aria-label="Kopiera">
-        ⧉
+      <button type="button" onClick={act("duplicate")} className={styles.toolText}>
+        Kopiera
       </button>
-      <button type="button" onClick={act("remove")} aria-label="Ta bort">
-        ✕
+      <button type="button" onClick={act("remove")} className={styles.toolDanger}>
+        Ta bort
       </button>
     </div>
   );
