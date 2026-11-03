@@ -18,13 +18,14 @@ export function ShopCardActions({ slug, name, url }: { slug: string; name: strin
       <button
         type="button"
         className={styles.ghostButton}
+        title="Kopiera butikens länk"
         onClick={async () => {
           await navigator.clipboard?.writeText(url).catch(() => undefined);
           setCopied(true);
           window.setTimeout(() => setCopied(false), 1800);
         }}
       >
-        {copied ? "Kopierad ✓" : "Kopiera länk"}
+        {copied ? "Kopierad ✓" : "Kopiera"}
       </button>
       <button
         type="button"

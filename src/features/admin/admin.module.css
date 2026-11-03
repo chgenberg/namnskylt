@@ -2036,8 +2036,25 @@
 
 .shopActions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+.shopActions > a,
+.shopActions > button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.shopActions .ghostButton {
+  padding-inline: 11px;
+}
+
+.shopActions > :first-child {
+  height: 34px;
+  padding-inline: 16px;
+  font-size: var(--text-sm);
 }
 
 .shopActions .iconDanger {
