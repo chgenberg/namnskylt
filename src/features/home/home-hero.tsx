@@ -17,9 +17,15 @@ const Badge3D = dynamic(() => import("@/features/designer/badge-3d"), {
   loading: () => null,
 });
 
-const HERO_CAMERA_Z = 3.3;
+/**
+ * Ritytan är högre än scenen (se `.canvas`) så att skyltens närmaste kant
+ * inte klipps när den står på kant. Kameran flyttas lika mycket bakåt, så
+ * skylten behåller sin storlek.
+ */
+const CANVAS_OVERSCAN = 1.6;
+const HERO_CAMERA_Z = 3.3 * CANVAS_OVERSCAN;
 /** Smal skärm: kameran längre bort så att hela skylten ryms i bredd. */
-const NARROW_CAMERA_Z = 5.4;
+const NARROW_CAMERA_Z = 5.4 * CANVAS_OVERSCAN;
 const NARROW_QUERY = "(max-width: 640px)";
 const HERO_VIEW: SpinFocus["side"] = "hero";
 const noop = () => {};

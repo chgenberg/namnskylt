@@ -32,9 +32,10 @@
   width: min(420px, 62%);
 }
 
+/* 30 % över och under scenen — summan måste motsvara CANVAS_OVERSCAN i home-hero.tsx. */
 .canvas {
   position: absolute;
-  inset: 0;
+  inset: -30% 0;
 }
 
 .canvas canvas {
