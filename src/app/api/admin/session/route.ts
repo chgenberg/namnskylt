@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { clientKey, createRateLimiter } from "@/lib/ai/rate-limit";
-import { authenticate } from "@/lib/reseller-auth/accounts";
 import { resellerPass } from "@/lib/reseller-auth/session";
 import { signInCookies } from "@/lib/reseller-auth/sign-in";
 import { OWNER_TENANT } from "@/lib/tenants/model";
@@ -9,18 +8,10 @@ import { OWNER_TENANT } from "@/lib/tenants/model";
 export const runtime = "nodejs";
 
 const perClient = createRateLimiter({ limit: 10, windowMs: 60 * 60 * 1000 });
-const bodySchema = z.object({ email: z.email().max(200).optional(), password: z.string().min(1).max(200) });
+/** Bara lösenordet. Ett anrop med e-post hör till återförsäljarens inlogg och avvisas här. */
+const bodySchema = z.strictObject({ password: z.string().min(1).max(200) });
 
-function cookieOptions(maxAge: number) {
-  return {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge,
-  };
-}
-
+/** Admin-inlogget: namnskylt.coms eget, med lösenordet i `RESELLER_PASSWORD`. */
 export async function POST(request: Request) {
   if (!resellerPass.configured()) {
     return NextResponse.json({ error: "Inloggningen är inte konfigurerad" }, { status: 503 });
@@ -29,22 +20,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "För många försök. Vänta en stund." }, { status: 429 });
   }
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: "Fyll i e-post och lösenord" }, { status: 400 });
-  const { email, password } = parsed.data;
-  // Med e-post: ett återförsäljarkonto. Utan: ägarens lösenord i miljön (namnskylt.com).
-  const tenant = email
-    ? ((await authenticate(email, password))?.id ?? null)
-    : resellerPass.matches(password)
-      ? OWNER_TENANT
-      : null;
-  if (!tenant) return NextResponse.json({ error: "Fel e-post eller lösenord" }, { status: 401 });
+  if (!parsed.success) return NextResponse.json({ error: "Fyll i lösenordet" }, { status: 400 });
+  if (!resellerPass.matches(parsed.data.password)) return NextResponse.json({ error: "Fel lösenord" }, { status: 401 });
   const response = NextResponse.json({ ok: true });
-  for (const cookie of await signInCookies(tenant)) response.cookies.set(cookie.name, cookie.value, cookie.options);
+  for (const cookie of await signInCookies(OWNER_TENANT)) response.cookies.set(cookie.name, cookie.value, cookie.options);
   return response;
 }
 
+/** Loggar ut, vilket av de två inloggen kakan än kom från. */
 export function DELETE() {
   const response = NextResponse.json({ ok: true });
-  response.cookies.set(resellerPass.cookie, "", cookieOptions(0));
+  response.cookies.set(resellerPass.cookie, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
   return response;
 }

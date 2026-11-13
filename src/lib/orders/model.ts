@@ -1,4 +1,4 @@
-import { isOfferedDocument, type BadgeDocument, type PriceModel } from "@/engine";
+import { isOfferedDocument, type BadgeDocument, type PriceTable } from "@/engine";
 import type { Pricing } from "./pricing";
 
 export const ORDER_STATUSES = [
@@ -81,8 +81,13 @@ export interface StoredOrder {
   badges: BadgeDocument[];
   /** Återförsäljarens egna priser; `null` = listpris. */
   pricing: Pricing | null;
-  /** Prismodellen som gällde när ordern lades — listpris, inköp och minsta ordervärde räknas ur den. */
-  priceModel: PriceModel;
+  /** Slutkundens prislista som gällde när ordern lades — listpris och minsta ordervärde räknas ur den. */
+  priceList: PriceTable;
+  /**
+   * Återförsäljarens prislista från samma tillfälle, för inköp och marginal.
+   * Finns bara när ordern lästs åt den inloggade återförsäljaren — aldrig på kundens sidor.
+   */
+  purchaseList?: PriceTable;
   totalSek: number;
   totalInclVatSek: number;
   supplierOrderNo: string | null;

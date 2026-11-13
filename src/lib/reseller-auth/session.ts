@@ -5,7 +5,10 @@ import { PASS_MAX_AGE_SECONDS, signedPass } from "@/lib/auth/signed-pass";
 import { OWNER_TENANT, TENANT_ID } from "@/lib/tenants/model";
 import { accountExists } from "./accounts";
 
-/** Ägarens inlogg (namnskylt.com). Utan `RESELLER_PASSWORD` går panelen inte att logga in på. */
+/**
+ * Admin-inlogget (namnskylt.com). Lösenordet signerar också återförsäljarnas
+ * kakor, så utan `RESELLER_PASSWORD` går ingen att logga in.
+ */
 export const resellerPass = signedPass({
   envVar: "RESELLER_PASSWORD",
   purpose: "namnskylt-reseller",
@@ -45,10 +48,6 @@ async function tenantFromCookie(value: string | undefined): Promise<string | nul
 
 export async function currentTenant(): Promise<string | null> {
   return tenantFromCookie((await cookies()).get(resellerPass.cookie)?.value);
-}
-
-export async function isResellerSignedIn(): Promise<boolean> {
-  return (await currentTenant()) !== null;
 }
 
 /** Varje server action kontrollerar inloggningen själv — en action är en öppen POST-endpoint. */

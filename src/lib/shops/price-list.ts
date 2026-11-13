@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { lineUnitPrices, MATERIALS, priceOrder, VAT_RATE, type BadgeDocument, type MaterialId, type PriceModel } from "@/engine";
+import { lineUnitPrices, MATERIALS, priceOrder, VAT_RATE, type BadgeDocument, type MaterialId, type PriceTable } from "@/engine";
 import type { Pricing } from "@/lib/orders/pricing";
 
 /**
- * Butikens priser mot riktpriset (slutkundens listpris i prismodellen): ett
+ * Butikens priser mot riktpriset (slutkundens prislista): ett
  * generellt påslag (negativt = rabatt) och egna procent per material.
  * Trappsteget räknas först, påslaget sedan.
  */
@@ -38,9 +38,9 @@ export function isListPrice(list: ShopPriceList | null | undefined): boolean {
 export function shopUnitPrices(
   badges: readonly BadgeDocument[],
   list: ShopPriceList | null | undefined,
-  model: PriceModel,
+  priceList: PriceTable,
 ): number[] {
-  const units = lineUnitPrices(badges, model);
+  const units = lineUnitPrices(badges, priceList);
   if (!list) return units;
   return badges.map((badge, i) => Math.round((units[i] ?? 0) * (1 + percentFor(list, badge.materialId) / 100)));
 }
@@ -60,12 +60,12 @@ export interface ShopPrice {
 export function shopPrice(
   badges: readonly BadgeDocument[],
   list: ShopPriceList | null | undefined,
-  model: PriceModel,
+  priceList: PriceTable,
 ): ShopPrice {
-  const base = priceOrder(badges, model);
-  const units = shopUnitPrices(badges, list, model);
+  const base = priceOrder(badges, priceList);
+  const units = shopUnitPrices(badges, list, priceList);
   const badgesSek = badges.reduce((sum, badge, i) => sum + (units[i] ?? 0) * Math.max(1, Math.floor(badge.quantity)), 0);
-  const minimumTopUpSek = base.quantity > 0 ? Math.max(0, model.endMinOrderSek - badgesSek) : 0;
+  const minimumTopUpSek = base.quantity > 0 ? Math.max(0, priceList.minOrderSek - badgesSek) : 0;
   const totalSek = badgesSek + minimumTopUpSek;
   return {
     unitSek: base.quantity > 0 ? Math.round(badgesSek / base.quantity) : 0,
@@ -82,8 +82,8 @@ export function shopPrice(
 export function shopOrderPricing(
   badges: readonly BadgeDocument[],
   list: ShopPriceList | null | undefined,
-  model: PriceModel,
+  priceList: PriceTable,
 ): Pricing | null {
   if (isListPrice(list)) return null;
-  return { unitOverrides: shopUnitPrices(badges, list, model), discountPercent: 0, extras: [] };
+  return { unitOverrides: shopUnitPrices(badges, list, priceList), discountPercent: 0, extras: [] };
 }

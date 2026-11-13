@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { usePriceModel } from "@/components/price-model-provider";
+import { usePriceList } from "@/components/price-list-provider";
 import { createBadgeDocument, lineUnitPrices, OFFERED_MATERIALS, type MaterialId } from "@/engine";
 import { formatSek } from "@/lib/format";
 import { MAX_PRICE_PERCENT, MIN_PRICE_PERCENT, shopUnitPrices, type ShopPriceList } from "@/lib/shops/price-list";
@@ -154,7 +154,7 @@ export function ShopPriceForm({ slug, priceList }: { slug: string; priceList: Sh
   const [perMaterial, setPerMaterial] = useState<Partial<Record<MaterialId, string>>>(() =>
     Object.fromEntries(Object.entries(priceList?.perMaterial ?? {}).map(([id, pct]) => [id, String(pct)])),
   );
-  const model = usePriceModel();
+  const listPrices = usePriceList();
   const save = useSave("Priserna är sparade — butiken visar dem direkt");
   const draft: ShopPriceList = {
     percent: parsePercent(general) ?? 0,
@@ -211,10 +211,10 @@ export function ShopPriceForm({ slug, priceList }: { slug: string; priceList: Sh
               </label>
             </span>
             <span role="cell" className={`${styles.num} mono`}>
-              {formatSek(lineUnitPrices([badge], model)[0] ?? 0)}
+              {formatSek(lineUnitPrices([badge], listPrices)[0] ?? 0)}
             </span>
             <span role="cell" className={`${styles.num} mono`}>
-              {formatSek(shopUnitPrices([badge], draft, model)[0] ?? 0)}
+              {formatSek(shopUnitPrices([badge], draft, listPrices)[0] ?? 0)}
             </span>
           </div>
         ))}

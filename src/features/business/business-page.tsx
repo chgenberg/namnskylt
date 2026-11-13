@@ -10,7 +10,7 @@ import {
   tierRangeLabel,
   type BadgeDocument,
   type MountingId,
-  type PriceModel,
+  type PriceTable,
 } from "@/engine";
 import {
   HERO,
@@ -48,12 +48,12 @@ interface VolumeRow {
 }
 
 /** Lägsta pris per skylt på varje trappsteg i prismodellen, exkl. moms. */
-function volumeRows(model: PriceModel): VolumeRow[] {
+function volumeRows(priceList: PriceTable): VolumeRow[] {
   const material = OFFERED_MATERIALS[0];
   if (!material) return [];
-  return model.tiers.map((_, i) => ({
-    range: tierRangeLabel(i, model),
-    price: `${fromPriceSek(material.id, model, i)} kr`,
+  return priceList.tiers.map((_, i) => ({
+    range: tierRangeLabel(i, priceList),
+    price: `${fromPriceSek(material.id, priceList, i)} kr`,
   }));
 }
 
@@ -66,10 +66,11 @@ function Arrow() {
 }
 
 interface BusinessPageProps {
-  priceModel: PriceModel;
+  /** Slutkundens prislista. */
+  priceList: PriceTable;
 }
 
-export function BusinessPage({ priceModel }: BusinessPageProps) {
+export function BusinessPage({ priceList }: BusinessPageProps) {
   return (
     <>
       <section className={styles.hero}>
@@ -177,7 +178,7 @@ export function BusinessPage({ priceModel }: BusinessPageProps) {
             <p className={styles.volumeBody}>{VOLUME.body}</p>
           </div>
           <dl className={styles.volumeTable}>
-            {volumeRows(priceModel).map((row, i) => (
+            {volumeRows(priceList).map((row, i) => (
               <div key={row.range} data-base={i === 0}>
                 <dt>{row.range}</dt>
                 <dd>{row.price}</dd>

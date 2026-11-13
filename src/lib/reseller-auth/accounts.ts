@@ -1,6 +1,6 @@
 import "server-only";
 import { requireDb } from "@/lib/db/client";
-import { TENANT_ID } from "@/lib/tenants/model";
+import { isOwner, TENANT_ID } from "@/lib/tenants/model";
 import { hashPassword, verifyPassword } from "./password";
 
 export interface ResellerAccount {
@@ -14,12 +14,14 @@ export async function authenticate(email: string, password: string): Promise<Res
   const sql = requireDb();
   const [row] = await sql<(ResellerAccount & { password_hash: string })[]>`
     select id, name, email, password_hash from reseller_accounts where email = ${email.trim().toLowerCase()}`;
-  if (!row || !(await verifyPassword(password, row.password_hash))) return null;
+  if (!row || isOwner(row.id) || !(await verifyPassword(password, row.password_hash))) return null;
   return { id: row.id, name: row.name, email: row.email };
 }
 
 export async function createAccount(input: { id: string; name: string; email: string; password: string }): Promise<void> {
   if (!TENANT_ID.test(input.id)) throw new Error("Ogiltigt id");
+  // Ägarens id är admin-inlogget. Ett konto med det id:t skulle ge en återförsäljare hela panelen.
+  if (isOwner(input.id)) throw new Error("Id:t är upptaget av namnskylt.com");
   const sql = requireDb();
   await sql`
     insert into reseller_accounts (id, name, email, password_hash)

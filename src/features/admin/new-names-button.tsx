@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { BadgePreview } from "@/components/badge-preview";
-import { usePriceModel } from "@/components/price-model-provider";
+import { usePriceList } from "@/components/price-list-provider";
 import { priceOrder, type BadgeDocument } from "@/engine";
 import { formatSek } from "@/lib/format";
 import { staffBadges } from "@/lib/orders/repeat";
@@ -29,7 +29,7 @@ export function NewNamesButton({ template, title, label, variant = "ghost", subm
   const [pending, startTransition] = useTransition();
   const badges = useMemo(() => staffBadges(template, names, quantity), [template, names, quantity]);
   const preview = badges[0] ?? template;
-  const price = priceOrder(badges, usePriceModel());
+  const price = priceOrder(badges, usePriceList());
 
   const send = () => {
     setError(null);

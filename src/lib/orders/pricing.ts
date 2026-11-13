@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { lineUnitPrices, VAT_RATE, type BadgeDocument, type PriceModel } from "@/engine";
+import { lineUnitPrices, VAT_RATE, type BadgeDocument, type PriceTable } from "@/engine";
 
 /** En egen rad utöver skyltarna, t.ex. framtagning av korrektur eller expressorder. */
 export interface PriceExtra {
@@ -67,11 +67,11 @@ export interface PricedTotals {
 }
 
 /**
- * Orderns pris till kunden. `model` är prismodellen som gällde när ordern eller
- * offerten skapades — listpriserna och minsta ordervärdet kommer därifrån.
+ * Orderns pris till kunden. `priceList` är slutkundens prislista som gällde när
+ * ordern eller offerten skapades — listpriserna och minsta ordervärdet kommer därifrån.
  */
-export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pricing | null, model: PriceModel): PricedTotals {
-  const list = lineUnitPrices(badges, model);
+export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pricing | null, priceList: PriceTable): PricedTotals {
+  const list = lineUnitPrices(badges, priceList);
   const lines = badges.map((badge, i) => {
     const listUnitSek = list[i] ?? 0;
     const override = pricing?.unitOverrides[i];
@@ -87,7 +87,7 @@ export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pric
   const savingsSek = Math.max(0, listTotalSek - badgesSek);
   const extras = pricing?.extras ?? [];
   const extrasSek = extras.reduce((sum, e) => sum + e.amountSek, 0);
-  const minimumTopUpSek = badges.length > 0 ? Math.max(0, model.endMinOrderSek - badgesSek - extrasSek) : 0;
+  const minimumTopUpSek = badges.length > 0 ? Math.max(0, priceList.minOrderSek - badgesSek - extrasSek) : 0;
   const totalSek = badgesSek + extrasSek + minimumTopUpSek;
   const vatSek = Math.round(totalSek * VAT_RATE);
   return {

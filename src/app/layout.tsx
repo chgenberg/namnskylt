@@ -4,11 +4,11 @@ import { GeistSans } from "geist/font/sans";
 import { cookies, headers } from "next/headers";
 import type { ReactNode } from "react";
 import { editorialSerif } from "@/components/fonts";
-import { PriceModelProvider } from "@/components/price-model-provider";
+import { PriceListProvider } from "@/components/price-list-provider";
 import { SiteGate } from "@/components/site-gate";
 import { SiteHeader } from "@/components/site-header";
-import { DEFAULT_PRICE_MODEL, type PriceModel } from "@/engine";
-import { getPriceModel } from "@/lib/orders/repository";
+import { endPriceTable } from "@/engine";
+import { priceModelOrDefault } from "@/lib/orders/repository";
 import { GATE_COOKIE, isValidGateCookie } from "@/lib/site-gate/token";
 import "./globals.css";
 
@@ -36,18 +36,8 @@ const OPEN_PATHS = [
   "/integritet",
   "/for/",
 ];
-/** Panelen har egen inloggning; den behåller sajtens meny. */
-const SELF_AUTH_PATHS = ["/admin"];
-
-/** Sajten ska gå att visa även om databasen är nere — då gäller kalkylens siffror. */
-async function currentPriceModel(): Promise<PriceModel> {
-  try {
-    return await getPriceModel();
-  } catch (error) {
-    console.error("Prismodellen gick inte att läsa", error);
-    return DEFAULT_PRICE_MODEL;
-  }
-}
+/** Panelen och återförsäljarens inloggningssida har egen inloggning; de behåller sajtens meny. */
+const SELF_AUTH_PATHS = ["/admin", "/aterforsaljare"];
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const pathname = (await headers()).get("x-pathname") ?? "";
@@ -59,7 +49,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <body>
         <SiteGate unlocked={unlocked}>
           {!open && <SiteHeader />}
-          <PriceModelProvider model={await currentPriceModel()}>{children}</PriceModelProvider>
+          {/* Bara slutkundens lista går till webbläsaren; inköpspriser och provision stannar på servern. */}
+          <PriceListProvider priceList={endPriceTable(await priceModelOrDefault())}>{children}</PriceListProvider>
         </SiteGate>
       </body>
     </html>

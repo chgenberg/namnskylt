@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type Dispatch, type FormEvent } from "react";
-import { usePriceModel } from "@/components/price-model-provider";
+import { usePriceList } from "@/components/price-list-provider";
 import { ProgressBanner } from "@/components/ui/progress-banner";
 import { badgeDocumentSchema, isPartnerMade, priceOrder, resellerOrder, type BadgeDocument } from "@/engine";
 import { marginOf } from "@/lib/orders/purchase";
@@ -52,18 +52,18 @@ interface OrderSectionProps {
 
 export function OrderSection({ doc, badges, dispatch, reseller, shop, captureShot }: OrderSectionProps) {
   const [order, setOrder] = useState<OrderState>({ status: "idle" });
-  const model = usePriceModel();
-  const listPrice = priceOrder(badges, model);
+  const priceList = usePriceList();
+  const listPrice = priceOrder(badges, priceList);
   // Butiken visar sina egna priser; servern sparar ordern med samma tal.
-  const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, model) } : listPrice;
+  const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, priceList) } : listPrice;
   const names = badges.length;
-  const nextTier = model.tiers[price.tierIndex + 1];
-  const quickQuantities = [...QUICK_QUANTITIES, (model.tiers[1]?.moreThan ?? 100) + 1];
+  const nextTier = priceList.tiers[price.tierIndex + 1];
+  const quickQuantities = [...QUICK_QUANTITIES, (priceList.tiers[1] ?? 100) + 1];
   const priceNote =
     price.minimumTopUpSek > 0
-      ? `Minsta ordervärde ${sek.format(model.endMinOrderSek)}`
-      : nextTier
-        ? `Lägre pris från ${nextTier.moreThan + 1} st`
+      ? `Minsta ordervärde ${sek.format(priceList.minOrderSek)}`
+      : nextTier !== undefined
+        ? `Lägre pris från ${nextTier + 1} st`
         : "Lägsta styckpris";
   const valid = badges.every((badge) => badgeDocumentSchema.safeParse(badge).success);
   const partnerMade = isPartnerMade(doc.materialId);
@@ -274,8 +274,7 @@ interface PurchaseSummaryProps {
 
 /** Bara för återförsäljaren: vad ordern kostar i inköp enligt prismodellen och vad som blir kvar vid listpris. */
 function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
-  const model = usePriceModel();
-  const purchase = resellerOrder(badges, model);
+  const purchase = resellerOrder(badges, reseller.purchaseList);
   const margin = marginOf(saleSek, purchase.totalSek);
   const quantity = badges.reduce((sum, badge) => sum + badge.quantity, 0);
   return (

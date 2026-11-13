@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createBadgeDocument, DEFAULT_PRICE_MODEL, priceOrder, withTexts, type BadgeDocument } from "@/engine";
+import { createBadgeDocument, endPriceTable, priceOrder, withTexts, type BadgeDocument } from "@/engine";
+import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { invoiceCsv, ordersCsv } from "./csv";
 import { demoPlan } from "./demo-data";
 import { DEMO_ORDERS } from "./demo-orders";
@@ -8,6 +9,9 @@ import { allOffered, stepTimes, type StoredOrder } from "./model";
 import { discountForUnits, isCustomPricing, priceWithPricing, pricingSchema, unitsForDiscount } from "./pricing";
 import { repeatBadges, staffBadges } from "./repeat";
 import { orderStats } from "./stats";
+
+/** Kundens prislista enligt kalkylen. */
+const LIST = endPriceTable(DEFAULT_PRICE_MODEL);
 
 const plastic: BadgeDocument = { ...createBadgeDocument(["Anna Lind", "Säljare"]), materialId: "plastic-2-layer", colorId: "white-black" };
 
@@ -33,7 +37,7 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     project: null,
     resellerId: "namnskylt",
     pricing: null,
-    priceModel: DEFAULT_PRICE_MODEL,
+    priceList: LIST,
     demo: false,
     ...patch,
   };
@@ -116,14 +120,14 @@ describe("egna priser", () => {
   ];
 
   it("utan prissättning blir det listpris, samma som motorn", () => {
-    const priced = priceWithPricing(badges, null, DEFAULT_PRICE_MODEL);
-    assert.equal(priced.totalSek, priceOrder(badges, DEFAULT_PRICE_MODEL).totalSek);
+    const priced = priceWithPricing(badges, null, LIST);
+    assert.equal(priced.totalSek, priceOrder(badges, LIST).totalSek);
     assert.equal(priced.discountSek, 0);
     assert.ok(priced.lines.every((l) => !l.overridden));
   });
 
   it("à-pris per skylt och rabatt på summan", () => {
-    const priced = priceWithPricing(badges, { unitOverrides: [50, null], discountPercent: 10, extras: [] }, DEFAULT_PRICE_MODEL);
+    const priced = priceWithPricing(badges, { unitOverrides: [50, null], discountPercent: 10, extras: [] }, LIST);
     const second = priced.lines[1];
     assert.ok(second);
     assert.equal(priced.lines[0]?.totalSek, 100);
@@ -148,7 +152,7 @@ describe("egna priser", () => {
         { label: "Framtagning av korrektur", amountSek: 250 },
         { label: "Expressorder", amountSek: 300 },
       ],
-    }, DEFAULT_PRICE_MODEL);
+    }, LIST);
     assert.equal(priced.extrasSek, 550);
     assert.equal(priced.totalSek, priced.badgesSek + 550);
     assert.equal(priced.totalInclVatSek, priced.totalSek + Math.round(priced.totalSek * 0.25));
@@ -160,24 +164,24 @@ describe("egna priser", () => {
     assert.deepEqual(units, [148, 90]);
     assert.equal(discountForUnits(list, [131, 100], [1, 1]), 12.5);
     assert.equal(discountForUnits(list, list, [1, 1]), 0);
-    const priced = priceWithPricing(badges, { unitOverrides: [40, null], discountPercent: 0, extras: [] }, DEFAULT_PRICE_MODEL);
+    const priced = priceWithPricing(badges, { unitOverrides: [40, null], discountPercent: 0, extras: [] }, LIST);
     assert.equal(priced.savingsSek, priced.listTotalSek - priced.badgesSek);
   });
 
   it("en liten order fylls upp till minsta ordervärde, och extra kostnader räknas in", () => {
     const one = [{ ...plastic, quantity: 1 }];
-    const list = priceWithPricing(one, null, DEFAULT_PRICE_MODEL);
+    const list = priceWithPricing(one, null, LIST);
     assert.equal(list.totalSek, 299);
     assert.equal(list.minimumTopUpSek, 299 - list.badgesSek);
-    const express = priceWithPricing(one, { unitOverrides: [], discountPercent: 0, extras: [{ label: "Express", amountSek: 300 }] }, DEFAULT_PRICE_MODEL);
+    const express = priceWithPricing(one, { unitOverrides: [], discountPercent: 0, extras: [{ label: "Express", amountSek: 300 }] }, LIST);
     assert.equal(express.minimumTopUpSek, 0);
     assert.equal(express.totalSek, express.badgesSek + 300);
   });
 
   it("räknar med modellen ordern sparades med, inte dagens", () => {
-    const cheaper = { ...DEFAULT_PRICE_MODEL, endMarginPercent: 0, endMinOrderSek: 0 };
+    const cheaper = endPriceTable({ ...DEFAULT_PRICE_MODEL, endMarginPercent: 0, endMinOrderSek: 0 });
     const then = priceWithPricing(badges, null, cheaper).totalSek;
-    const now = priceWithPricing(badges, null, DEFAULT_PRICE_MODEL).totalSek;
+    const now = priceWithPricing(badges, null, LIST).totalSek;
     assert.ok(then < now);
   });
 

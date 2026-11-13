@@ -1,4 +1,5 @@
 import { LOGO_LIMITS } from "./catalog";
+import { carveEnclosedDetail } from "./logo-mask";
 
 /**
  * Loggor graveras i en färg, så en uppladdad bild blir en mask (bläck/botten)
@@ -235,12 +236,21 @@ const TRANSPARENT_SHARE = 0.02;
 const ALPHA_INK = 128;
 
 /**
- * Bläck eller botten per pixel. Genomskinlig bild: allt synligt är bläck.
+ * Bläck eller botten per pixel. Genomskinlig bild: allt synligt är loggan.
  * Ogenomskinlig: ljusheten delas med Otsus tröskel, och den klass som
  * dominerar kanten räknas som botten — så både mörk logga på vitt och vit
- * logga på färg blir rätt.
+ * logga på färg blir rätt. Text eller symbol i en annan färg inuti en fylld
+ * form blir urtag (`carveEnclosedDetail`), annars graveras loggan som en klump.
  */
-export function inkMask({ data, width, height }: RgbaPixels, invert = false): Uint8Array {
+export function inkMask(pixels: RgbaPixels, invert = false): Uint8Array {
+  const foreground = foregroundMask(pixels);
+  const mask = carveEnclosedDetail(pixels, foreground) ?? foreground;
+  if (invert) for (let i = 0; i < mask.length; i++) mask[i] = mask[i] ? 0 : 1;
+  return mask;
+}
+
+/** Loggan mot botten, före urtag: allt synligt, eller det som skiljer sig från bildens kant. */
+function foregroundMask({ data, width, height }: RgbaPixels): Uint8Array {
   const count = width * height;
   const mask = new Uint8Array(count);
   let transparent = 0;
@@ -274,7 +284,6 @@ export function inkMask({ data, width, height }: RgbaPixels, invert = false): Ui
       mask[i] = dark === darkIsInk ? 1 : 0;
     }
   }
-  if (invert) for (let i = 0; i < count; i++) mask[i] = mask[i] ? 0 : 1;
   return mask;
 }
 

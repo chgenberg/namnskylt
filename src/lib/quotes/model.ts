@@ -1,4 +1,4 @@
-import type { BadgeDocument, PriceModel } from "@/engine";
+import type { BadgeDocument, PriceTable } from "@/engine";
 import type { Customer } from "@/lib/orders/model";
 import type { Pricing } from "@/lib/orders/pricing";
 
@@ -37,8 +37,10 @@ export interface StoredQuote {
   status: QuoteStatus;
   badges: BadgeDocument[];
   pricing: Pricing | null;
-  /** Prismodellen som gällde när offerten skapades — priset kunden fått ändras inte i efterhand. */
-  priceModel: PriceModel;
+  /** Slutkundens prislista som gällde när offerten skapades — priset kunden fått ändras inte i efterhand. */
+  priceList: PriceTable;
+  /** Återförsäljarens prislista från samma tillfälle. Finns bara i panelen, aldrig på kundens offertsida. */
+  purchaseList?: PriceTable;
   totalSek: number;
   totalInclVatSek: number;
   message: string | null;

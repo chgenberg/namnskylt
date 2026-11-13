@@ -78,7 +78,7 @@ export async function middleware(request: NextRequest) {
   }
   // Webhooken anropas av leverantörens server, som saknar kakan — den kräver i stället signatur.
   // Statistiken anropas från återförsäljarnas sajter, som saknar kakan.
-  // Panelens inloggning har eget lösenord — återförsäljare känner inte sajtkoden.
+  // Panelens två inloggningar har egna lösenord — återförsäljare känner inte sajtkoden.
   // Resend och cron saknar kakan; webhooken kräver Svix-signatur, ticken en hemlighet.
   if (
     requested === "/api/gate" ||
@@ -87,7 +87,8 @@ export async function middleware(request: NextRequest) {
     requested === "/api/outreach/tick" ||
     requested === "/api/shop-events" ||
     requested === "/api/shop-domain" ||
-    requested === "/api/admin/session"
+    requested === "/api/admin/session" ||
+    requested === "/api/reseller/session"
   ) {
     return NextResponse.next();
   }

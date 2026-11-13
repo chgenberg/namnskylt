@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { usePriceModel } from "@/components/price-model-provider";
+import { usePriceList } from "@/components/price-list-provider";
 import { priceOrder } from "@/engine";
 import { packSheets, productionBatches, sheetUtilization } from "@/lib/production";
 import styles from "./dashboard.module.css";
@@ -15,7 +15,7 @@ interface ProductionQueueProps {
 }
 
 export function ProductionQueue({ orders, onOpenBatch }: ProductionQueueProps) {
-  const model = usePriceModel();
+  const priceList = usePriceList();
   const queue = useMemo(() => orders.filter((o) => o.status !== "shipped"), [orders]);
   const batches = useMemo(
     () =>
@@ -29,7 +29,7 @@ export function ProductionQueue({ orders, onOpenBatch }: ProductionQueueProps) {
   );
   const badgeCount = batches.reduce((sum, b) => sum + b.batch.units.length, 0);
   const sheetCount = batches.reduce((sum, b) => sum + b.sheets, 0);
-  const value = queue.reduce((sum, o) => sum + priceOrder(o.badges, model).totalSek, 0);
+  const value = queue.reduce((sum, o) => sum + priceOrder(o.badges, priceList).totalSek, 0);
 
   const stats = [
     { label: "Ordrar i kö", value: String(queue.length) },

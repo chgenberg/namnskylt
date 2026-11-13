@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "@/components/site-footer";
+import { endPriceTable } from "@/engine";
 import { BusinessPage } from "@/features/business/business-page";
 import { getPriceModel } from "@/lib/orders/repository";
 
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
 export default async function ForetagPage() {
   return (
     <main>
-      <BusinessPage priceModel={await getPriceModel()} />
+      <BusinessPage priceList={endPriceTable(await getPriceModel())} />
       <SiteFooter />
     </main>
   );

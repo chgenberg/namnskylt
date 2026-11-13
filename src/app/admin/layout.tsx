@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { AdminLogin } from "@/features/admin/admin-login";
 import { AdminShell } from "@/features/admin/admin-shell";
+import { LoginForm } from "@/features/admin/login-form";
 import { Notice } from "@/features/admin/notice";
 import { ShotBackfill } from "@/features/admin/shot-backfill";
 import { databaseConfigured, getCompanyProfile, listOrders, missingBadgeShots } from "@/lib/orders/repository";
@@ -33,7 +33,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   if (!tenant) {
     return (
       <main>
-        <AdminLogin />
+        <LoginForm kind="admin" />
       </main>
     );
   }

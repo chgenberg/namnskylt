@@ -10,7 +10,7 @@ import { displayStatus, type StoredQuote } from "@/lib/quotes/model";
 import { listQuotes } from "@/lib/quotes/repository";
 
 /** Rabatten mot listpris, oavsett om den kommer från à-pris eller procent. */
-const savings = (quote: StoredQuote) => priceWithPricing(quote.badges, quote.pricing, quote.priceModel).savingsPercent;
+const savings = (quote: StoredQuote) => priceWithPricing(quote.badges, quote.pricing, quote.priceList).savingsPercent;
 
 export default async function QuotesPage() {
   const tenant = await adminTenant();

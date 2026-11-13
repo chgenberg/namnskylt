@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { writeFile, mkdir } from "node:fs/promises";
 import { describe, test } from "node:test";
 import sharp from "sharp";
-import { BLANKS, badgeDocumentSchema, blankOf, getMaterial, isOfferedDocument } from "@/engine";
+import { BLANKS, badgeDocumentSchema, blankOf, getMaterial, inkMask, isOfferedDocument } from "@/engine";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import {
   assetIdFromPath,
@@ -21,7 +21,7 @@ import {
   tileJpeg,
   tileLabel,
 } from "./badge-asset";
-import { dataUrlBytes, enclosedDetailMask, traceLogoBuffer } from "./trace-logo-server";
+import { dataUrlBytes, traceLogoBuffer } from "./trace-logo-server";
 
 const lead = { contactName: "Anna Lindqvist", companyName: "Profilab AB" };
 
@@ -104,8 +104,7 @@ describe("skylten för ett lead", () => {
     const shield = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><path d="M20 20H180V110Q180 170 100 190Q20 170 20 110Z" fill="#003366"/><rect x="60" y="70" width="80" height="20" fill="#ffffff"/><rect x="60" y="110" width="80" height="20" fill="#ffffff"/></svg>`;
     const png = await sharp(Buffer.from(shield)).png().toBuffer();
     const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const mask = enclosedDetailMask({ data, width: info.width, height: info.height });
-    assert.ok(mask);
+    const mask = inkMask({ data, width: info.width, height: info.height });
     assert.equal(mask[80 * info.width + 100], 0, "texten är ett hål");
     assert.equal(mask[40 * info.width + 100], 1, "skölden är bläck");
     const traced = await traceLogoBuffer(png);
@@ -117,7 +116,9 @@ describe("skylten för ett lead", () => {
     const words = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="80"><rect x="10" y="20" width="120" height="40" fill="#003366"/><rect x="160" y="20" width="60" height="40" fill="#dddddd"/></svg>`;
     const png = await sharp(Buffer.from(words)).png().toBuffer();
     const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    assert.equal(enclosedDetailMask({ data, width: info.width, height: info.height }), null);
+    const mask = inkMask({ data, width: info.width, height: info.height });
+    assert.equal(mask[40 * info.width + 70], 1, "det mörka ordet graveras");
+    assert.equal(mask[40 * info.width + 190], 1, "det ljusa ordet graveras också");
   });
 
   test("en trasig bild ger ingen logga", async () => {

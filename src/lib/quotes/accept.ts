@@ -1,7 +1,7 @@
 import "server-only";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
-import { claimForAcceptance, completeAcceptance, getQuote, releaseAcceptance } from "./repository";
+import { claimForAcceptance, completeAcceptance, getQuote, quotePriceModel, releaseAcceptance } from "./repository";
 
 export type AcceptResult = { ok: true; orderNo: string } | { ok: false; error: string };
 
@@ -22,7 +22,7 @@ export async function acceptQuote(tenant: string, quoteNo: string, byReseller: b
       badges: quote.badges,
       pricing: quote.pricing,
       // Ordern får det pris kunden godkände, även om prismodellen ändrats sedan dess.
-      priceModel: quote.priceModel,
+      priceModel: await quotePriceModel(quote.id),
       source: "quote",
       note: `Från offert ${quote.quoteNo}`,
       demo: quote.demo,

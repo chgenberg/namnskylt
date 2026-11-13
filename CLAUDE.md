@@ -32,7 +32,9 @@ Läs dessa när du arbetar i respektive område:
   port 3100, alltså Merchin, när den slår upp butiksdomäner. Ändra inte porten i `start`,
   eftersom driften använder den.
 - **Skriv inte in adminlösenordet i en webbläsare.** Behöver du logga in i ett skript, läs
-  `RESELLER_PASSWORD` ur `.env.local`.
+  `RESELLER_PASSWORD` ur `.env.local` och anropa `POST /api/admin/session` med `{ password }`.
+- **Inköpspriser och provision lämnar aldrig servern** annat än till rätt part. Se avsnitten
+  Prismodellen och Inlogg.
 - **Tillämpade migreringar** i `src/lib/db/migrations.ts` ändras aldrig. Lägg till en ny.
 - **AI-bilder kostar pengar.** Kör inte `pnpm outreach:prepare` utan att fråga, eftersom det
   gör en bildgenerering per kund.
@@ -44,7 +46,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (514 tester, grönt 2026-11-13).
+# Kvalitetsgrinden. Kör den innan något lämnas (592 tester, grönt 2026-11-13).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -134,17 +136,49 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   ett fäste (nål, klämma eller magnet) och loggan som "extra gravyr". Textrader och ram ingår.
   Varje del avrundas för sig till hela kronor.
 - **Minsta ordervärde** gäller både det återförsäljaren betalar och det slutkunden betalar.
-- **Ingen funktion räknar pris utan en modell.** `priceOrder`, `lineUnitPrices`, `resellerOrder`
-  och `priceWithPricing` tar den som argument. Klientkomponenter läser dagens modell med
-  `usePriceModel()` (`PriceModelProvider` i rotlayouten); serverkod anropar `getPriceModel()`.
+- **Hela modellen stannar på servern.** Den innehåller provisionen. Ut går bara prislistor
+  (`PriceTable`) per part: `endPriceTable(model)` är det slutkunden betalar och
+  `resellerPriceTable(model)` det återförsäljaren betalar. Ingen av dem innehåller provision
+  eller marginal. Provisionen räknas med `provisionSplit(model, …)` och visas bara för admin.
+- **Ingen funktion räknar pris utan en prislista.** `priceOrder`, `lineUnitPrices`, `priceBadge`,
+  `resellerOrder` och `priceWithPricing` tar en `PriceTable`. Klientkomponenter läser slutkundens
+  lista med `usePriceList()` (`PriceListProvider` i rotlayouten); serverkod anropar `getPriceModel()`.
+- **Kalkylens siffror** (`DEFAULT_PRICE_MODEL`) ligger i `src/engine/default-price-model.ts`, som
+  inte exporteras från `@/engine`. Bara filer med `import "server-only"`, skript och tester får
+  importera den, annars bakas inköpspriser och provision in i webbläsarens JavaScript. Ett test
+  i `src/lib/orders/price-lists.test.ts` kontrollerar det.
 - **Ordrar och offerter sparar modellen** de skapades med (`price_model`, migrering 016) och
   räknas alltid med den. En ändring i admin rör aldrig befintliga ordrar. Rader från före
-  migreringen saknar modell och räknas med dagens.
+  migreringen saknar modell och räknas med dagens. När raden läses blir modellen prislistor
+  (`priceListsFor` i `src/lib/orders/price-lists.ts`): `priceList` följer alltid med,
+  `purchaseList` bara när raden läses åt den inloggade återförsäljaren (`"reseller"`), aldrig
+  via kundens hemliga länk (`"customer"`).
 - **Återförsäljaren** ser sina inköpspriser i `/admin/inkopspriser` (samma tabell, bara läsning).
-  Den gamla inköpsrabatten i procent finns inte längre.
+  Den gamla inköpsrabatten i procent finns inte längre. Admin når sidan från Prismodell.
 - "Egen design 12 × 12 cm" läggs på varje skylt med egen form. Säkerhetsnålen säljs inte; en
   äldre skylt med den prissätts som nål.
 - Kalkylens "militärklämma" är sajtens fäste "Klämma" (bekräftat av ägaren 2026-11-13).
+
+## Inlogg — läge 2026-11-13
+
+Panelen ligger under `/admin` för båda parter, men det finns två skilda inlogg:
+
+- **Admin** (namnskylt.com): `/admin`, bara lösenord (`RESELLER_PASSWORD`), `POST /api/admin/session`
+  med `{ password }`. Ger hyresgästen `namnskylt` (`OWNER_TENANT`, `isOwner`). Variabelnamnet är
+  historiskt; lösenordet signerar också återförsäljarnas kakor.
+- **Återförsäljare**: `/aterforsaljare`, e-post och lösenord (`reseller_accounts`),
+  `POST /api/reseller/session`. Kontot skapas via inbjudan (`/aterforsaljare/[token]`) eller
+  `pnpm reseller:create`.
+- Vägarna tar bara emot sina egna fält (`z.strictObject`), så det ena formuläret kan aldrig ge det
+  andra inlogget. `authenticate` och `createAccount` vägrar ägarens id.
+- Formuläret är `LoginForm` (`kind: "admin" | "reseller"`) i `src/features/admin/login-form.tsx`.
+  Sajtens meny länkar "Logga in" till `/aterforsaljare` och visar "Admin" eller "Mina sidor".
+- **Bara admin** ser Butiker, Utskick och Prismodell (sidor, actions och API-vägar kontrollerar
+  `isOwner`). Varje adminsida kontrollerar inloggningen själv med `adminTenant()`.
+- Admin ser bara ordrar under hyresgästen `namnskylt`, inte återförsäljarnas ordrar. En samlad
+  vy över alla återförsäljares ordrar och provisionen per order finns inte än.
+- `next dev` skickar med serverns mellanresultat som felsökningsdata i sidan (React), så där syns
+  hela prismodellen i sidkällan. Kontrollera läckor mot `next build` + `next start`.
 
 ## AI i produkten
 

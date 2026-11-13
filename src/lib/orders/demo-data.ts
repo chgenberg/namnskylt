@@ -1,5 +1,5 @@
 import type { Sql } from "postgres";
-import { priceOrder, type BadgeDocument, type PriceModel } from "@/engine";
+import { endPriceTable, priceOrder, type BadgeDocument, type PriceModel } from "@/engine";
 import { DEMO_ORDERS } from "./demo-orders";
 import type { OrderStatus } from "./model";
 
@@ -54,7 +54,7 @@ export async function insertDemoData(sql: Sql, tenant: string, model: PriceModel
   return sql.begin(async (tx) => {
     let created = 0;
     for (const order of demoPlan(now)) {
-      const price = priceOrder(order.badges, model);
+      const price = priceOrder(order.badges, endPriceTable(model));
       const [customer] = await tx<{ id: string }[]>`
         insert into customers (reseller_id, email, name, company, is_demo)
         values (${tenant}, ${order.email}, ${order.customer}, ${order.company}, true)

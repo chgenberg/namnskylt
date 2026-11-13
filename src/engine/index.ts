@@ -14,3 +14,4 @@ export * from "./logo";
 export * from "./render-svg";
 export * from "./pricing";
 export * from "./schema";
+export * from "./logo-mask";

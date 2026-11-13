@@ -5,10 +5,12 @@ import {
   MAX_MARGIN_PERCENT,
   MAX_PRICE_SEK,
   OFFERED_MOUNTINGS,
-  endPriceOf,
   endPriceSek,
+  endPriceTable,
+  priceItems,
   priceModelSchema,
-  resellerPriceOf,
+  provisionSplit,
+  resellerPriceTable,
   tierRangeLabel,
   type MountingId,
   type PriceItem,
@@ -96,8 +98,10 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
   const items: PriceItem[] = [{ signClass, mounting, extraEngraving: logo, customShape, quantity: Math.max(1, quantity) }];
-  const reseller = resellerPriceOf(items, draft);
-  const end = endPriceOf(items, draft);
+  const purchase = resellerPriceTable(draft);
+  const reseller = priceItems(items, purchase);
+  const end = priceItems(items, endPriceTable(draft));
+  const split = provisionSplit(draft, reseller.totalSek, reseller.quantity);
   const margin = marginOf(end.totalSek, reseller.totalSek);
   const perSign = (sek: number) => `${formatSek(Math.round(sek / reseller.quantity))} / st`;
 
@@ -128,7 +132,7 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
           <span className={styles.rowLabel}>Antal i ordern</span>
           {draft.tiers.map((tier, i) => (
             <span key={i} className={styles.columnHead}>
-              {tierRangeLabel(i, draft)}
+              {tierRangeLabel(i, purchase)}
               {i > 0 && (
                 <NumberField
                   label={`Trappsteg ${i + 1} gäller när ordern har fler skyltar än`}
@@ -153,7 +157,7 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
           {draft.tiers.map((tier, i) => (
             <NumberField
               key={i}
-              label={`Provision, ${tierRangeLabel(i, draft)}`}
+              label={`Provision, ${tierRangeLabel(i, purchase)}`}
               value={tier.provisionPercent}
               unit="%"
               max={MAX_MARGIN_PERCENT}
@@ -280,14 +284,14 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
           </div>
           <div className={styles.result}>
             <dt>Skylt &amp; Gravyr netto</dt>
-            <dd>{formatSek(reseller.supplierSek)}</dd>
-            <small>{perSign(reseller.supplierSek)}</small>
+            <dd>{formatSek(split.supplierSek)}</dd>
+            <small>{perSign(split.supplierSek)}</small>
           </div>
           <div className={styles.result}>
             <dt>Merchin netto</dt>
-            <dd>{formatSek(reseller.provisionSek)}</dd>
+            <dd>{formatSek(split.provisionSek)}</dd>
             <small>
-              {String(reseller.provisionPercent).replace(".", ",")} % provision · {tierRangeLabel(reseller.tierIndex, draft)}
+              {String(split.provisionPercent).replace(".", ",")} % provision · {tierRangeLabel(reseller.tierIndex, purchase)}
             </small>
           </div>
           <div className={styles.result}>
@@ -305,7 +309,7 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
           </div>
           <div className={styles.result} data-tone="own">
             <dt>Säljs på namnskylt.com</dt>
-            <dd>{formatSek(reseller.provisionSek + margin.sek)}</dd>
+            <dd>{formatSek(split.provisionSek + margin.sek)}</dd>
             <small>Provision plus marginal när ni säljer själva</small>
           </div>
         </dl>
@@ -356,7 +360,7 @@ function SignRows({ row, draft, onChange }: SignRowsProps) {
       {prices.map((price, i) => (
         <NumberField
           key={i}
-          label={`${row.name}, ${tierRangeLabel(i, draft)}`}
+          label={`${row.name}, ${tierRangeLabel(i, resellerPriceTable(draft))}`}
           value={price}
           unit="kr"
           max={MAX_PRICE_SEK}

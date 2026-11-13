@@ -1,16 +1,27 @@
-import { OFFERED_MATERIALS, OFFERED_MOUNTINGS, endPriceSek, mountingResellerSek, tierRangeLabel, type PriceModel } from "@/engine";
+import { OFFERED_MATERIALS, OFFERED_MOUNTINGS, mountingPriceSek, tierRangeLabel, type PriceTable } from "@/engine";
 import { formatSek } from "@/lib/format";
 import styles from "./price-model.module.css";
 
 interface PurchasePriceTableProps {
-  model: PriceModel;
+  /** Det återförsäljaren betalar. */
+  purchase: PriceTable;
+  /** Det rekommenderade priset till kund. */
+  list: PriceTable;
+  /** Återförsäljarens marginal vid det rekommenderade priset, i procent. */
+  marginPercent: number;
 }
 
-/** Återförsäljarens inköpspriser ur prismodellen, med det rekommenderade priset till kund. Går inte att ändra här. */
-export function PurchasePriceTable({ model }: PurchasePriceTableProps) {
-  const tillval = [
-    ...OFFERED_MOUNTINGS.map((m) => ({ name: m.name, sek: mountingResellerSek(m.id, model) })),
-    { name: "Logga på skylten", sek: model.options.extraEngraving },
+/**
+ * Återförsäljarens inköpspriser med det rekommenderade priset till kund. Går inte att ändra här.
+ * Tar bara emot de två prislistorna — hela prismodellen, med provisionen, når aldrig den här sidan.
+ */
+export function PurchasePriceTable({ purchase, list, marginPercent }: PurchasePriceTableProps) {
+  const options = [
+    ...OFFERED_MOUNTINGS.map((m) => ({ name: m.name, sek: mountingPriceSek(m.id, purchase), listSek: mountingPriceSek(m.id, list) })),
+    { name: "Logga på skylten", sek: purchase.options.extraEngraving, listSek: list.options.extraEngraving },
+    ...(OFFERED_MATERIALS.some((m) => m.customShape)
+      ? [{ name: "Egen form", sek: purchase.options.customShape, listSek: list.options.customShape }]
+      : []),
   ];
   return (
     <div className={styles.layout}>
@@ -24,17 +35,19 @@ export function PurchasePriceTable({ model }: PurchasePriceTableProps) {
         </p>
         <div className={styles.table}>
           <span className={styles.rowLabel}>Antal i ordern</span>
-          {model.tiers.map((_, i) => (
+          {purchase.tiers.map((_, i) => (
             <span key={i} className={styles.columnHead}>
-              {tierRangeLabel(i, model)}
+              {tierRangeLabel(i, purchase)}
             </span>
           ))}
-          {OFFERED_MATERIALS.map((material) => {
-            const prices = model.signs[material.priceClass];
-            return (
-              <PriceRows key={material.id} name={`${material.name}skylt`} prices={prices} model={model} />
-            );
-          })}
+          {OFFERED_MATERIALS.map((material) => (
+            <PriceRows
+              key={material.id}
+              name={`${material.name}skylt`}
+              prices={purchase.signs[material.priceClass]}
+              listPrices={list.signs[material.priceClass]}
+            />
+          ))}
         </div>
       </section>
 
@@ -43,21 +56,21 @@ export function PurchasePriceTable({ model }: PurchasePriceTableProps) {
           Tillval och minsta order
         </h2>
         <dl className={styles.results}>
-          {tillval.map((row) => (
+          {options.map((row) => (
             <div key={row.name} className={styles.result}>
               <dt>{row.name}</dt>
               <dd>{formatSek(row.sek)}</dd>
-              <small>rek. kundpris {formatSek(endPriceSek(row.sek, model))}</small>
+              <small>rek. kundpris {formatSek(row.listSek)}</small>
             </div>
           ))}
           <div className={styles.result} data-tone="own">
             <dt>Minsta ordervärde</dt>
-            <dd>{formatSek(model.minOrderSek)}</dd>
+            <dd>{formatSek(purchase.minOrderSek)}</dd>
             <small>per order, exkl. moms</small>
           </div>
         </dl>
         <p className={styles.muted}>
-          Alla priser är exkl. moms. Det rekommenderade kundpriset ger dig {String(model.endMarginPercent).replace(".", ",")} %
+          Alla priser är exkl. moms. Det rekommenderade kundpriset ger dig {String(marginPercent).replace(".", ",")} %
           marginal; du sätter ditt eget pris på varje order och offert och i din butik.
         </p>
       </section>
@@ -68,10 +81,10 @@ export function PurchasePriceTable({ model }: PurchasePriceTableProps) {
 interface PriceRowsProps {
   name: string;
   prices: readonly number[];
-  model: PriceModel;
+  listPrices: readonly number[];
 }
 
-function PriceRows({ name, prices, model }: PriceRowsProps) {
+function PriceRows({ name, prices, listPrices }: PriceRowsProps) {
   return (
     <>
       <span className={styles.divider} />
@@ -85,9 +98,9 @@ function PriceRows({ name, prices, model }: PriceRowsProps) {
         </span>
       ))}
       <span className={styles.derivedLabel}>Rek. kundpris</span>
-      {prices.map((price, i) => (
+      {listPrices.map((price, i) => (
         <span key={i} className={styles.derived}>
-          {formatSek(endPriceSek(price, model))}
+          {formatSek(price)}
         </span>
       ))}
     </>

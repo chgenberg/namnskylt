@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { isResellerSignedIn } from "@/lib/reseller-auth/session";
+import { currentTenant } from "@/lib/reseller-auth/session";
+import { isOwner } from "@/lib/tenants/model";
 import styles from "./site-header.module.css";
 
 const NAV = [
@@ -9,7 +10,9 @@ const NAV = [
 ] as const;
 
 export async function SiteHeader() {
-  const signedIn = await isResellerSignedIn();
+  const tenant = await currentTenant();
+  // Två skilda inlogg: admin är namnskylt.com, övriga är återförsäljare.
+  const admin = tenant !== null && isOwner(tenant);
   return (
     <header className={styles.header}>
       <div className={styles.inner}>
@@ -30,15 +33,15 @@ export async function SiteHeader() {
               {item.label}
             </Link>
           ))}
-          {signedIn ? (
+          {tenant ? (
             <Link href="/admin" className={`${styles.link} ${styles.admin}`}>
               <span className={styles.avatar} aria-hidden>
-                A
+                {admin ? "A" : "Å"}
               </span>
-              <span className={styles.adminText}>Admin</span>
+              <span className={styles.adminText}>{admin ? "Admin" : "Mina sidor"}</span>
             </Link>
           ) : (
-            <Link href="/admin" className={`${styles.link} ${styles.login}`}>
+            <Link href="/aterforsaljare" className={`${styles.link} ${styles.login}`}>
               Logga in
             </Link>
           )}

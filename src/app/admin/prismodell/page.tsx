@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { adminTenant } from "@/features/admin/guard";
 import { PriceModelEditor } from "@/features/admin/price-model-editor";
 import styles from "@/features/admin/admin.module.css";
@@ -19,6 +20,9 @@ export default async function PriceModelPage() {
             slutkundens pris.
           </p>
         </div>
+        <Link href="/admin/inkopspriser" className="btn btn--ghost">
+          Så ser återförsäljaren priserna
+        </Link>
       </header>
       <PriceModelEditor model={await getPriceModel()} />
     </>

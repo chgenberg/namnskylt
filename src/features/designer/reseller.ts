@@ -1,3 +1,4 @@
+import type { PriceTable } from "@/engine";
 import type { ShopPriceList } from "@/lib/shops/price-list";
 
 /** Skyltmotorn i en återförsäljares demobutik — ordern märks med butiken. */
@@ -16,4 +17,6 @@ export interface ResellerOrderContext {
   mode: "order" | "quote";
   /** Offertens rubrik, satt innan skyltmotorn öppnades. */
   project?: string;
+  /** Återförsäljarens inköpspriser, för inköp och marginal. Skickas bara till en inloggad återförsäljare. */
+  purchaseList: PriceTable;
 }

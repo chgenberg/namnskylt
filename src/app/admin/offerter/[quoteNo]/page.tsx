@@ -94,7 +94,8 @@ export default async function QuotePage({ params }: QuotePageProps) {
               <span className={styles.muted}>{editable ? "Ändra à-pris per skylt eller ge rabatt" : "Låst — offerten är besvarad"}</span>
             </div>
             <PricingEditor
-              priceModel={quote.priceModel}
+              priceList={quote.priceList}
+              purchaseList={quote.purchaseList}
               badges={quote.badges}
               pricing={quote.pricing}
               submit={editable ? updateQuotePricingAction.bind(null, quote.quoteNo) : undefined}

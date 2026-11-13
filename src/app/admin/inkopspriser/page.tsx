@@ -1,3 +1,4 @@
+import { endPriceTable, resellerPriceTable } from "@/engine";
 import { adminTenant } from "@/features/admin/guard";
 import { PurchasePriceTable } from "@/features/admin/purchase-price-table";
 import styles from "@/features/admin/admin.module.css";
@@ -6,6 +7,7 @@ import { getPriceModel } from "@/lib/orders/repository";
 export default async function PurchasePricesPage() {
   const tenant = await adminTenant();
   if (!tenant) return null;
+  const model = await getPriceModel();
   return (
     <>
       <header className={styles.pageHead}>
@@ -18,7 +20,7 @@ export default async function PurchasePricesPage() {
           </p>
         </div>
       </header>
-      <PurchasePriceTable model={await getPriceModel()} />
+      <PurchasePriceTable purchase={resellerPriceTable(model)} list={endPriceTable(model)} marginPercent={model.endMarginPercent} />
     </>
   );
 }

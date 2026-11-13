@@ -1,6 +1,6 @@
 import { db } from "../src/lib/db/client";
 import { migrate } from "../src/lib/db/migrations";
-import { DEFAULT_PRICE_MODEL } from "../src/engine";
+import { DEFAULT_PRICE_MODEL } from "../src/engine/default-price-model";
 import { insertDemoData, removeDemoData } from "../src/lib/orders/demo-data";
 
 /**

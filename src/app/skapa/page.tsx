@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { engravedRows } from "@/engine";
+import { engravedRows, resellerPriceTable } from "@/engine";
 import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
 import { siteOrigin } from "@/lib/http/origin";
-import { databaseConfigured, getCustomer } from "@/lib/orders/repository";
+import { databaseConfigured, getCustomer, getPriceModel } from "@/lib/orders/repository";
 import { currentTenant } from "@/lib/reseller-auth/session";
 import { genitive } from "@/lib/share/genitive";
 import { decodeShareCode } from "@/lib/share/share-link";
@@ -55,6 +55,7 @@ async function resellerContext(customerId: string | undefined, quote: boolean, p
         customerName: customer.company ?? customer.name,
         mode: quote ? ("quote" as const) : ("order" as const),
         project: project?.trim().slice(0, 120) || undefined,
+        purchaseList: resellerPriceTable(await getPriceModel()),
       }
     : undefined;
 }

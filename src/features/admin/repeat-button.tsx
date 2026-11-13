@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { BadgePreview } from "@/components/badge-preview";
-import { usePriceModel } from "@/components/price-model-provider";
+import { usePriceList } from "@/components/price-list-provider";
 import { priceOrder } from "@/engine";
 import { formatSek } from "@/lib/format";
 import { badgeCount, type StoredOrder } from "@/lib/orders/model";
@@ -22,7 +22,7 @@ export function RepeatButton({ order, compact = false }: RepeatButtonProps) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   // En ny order får dagens priser, inte den gamla orderns.
-  const price = priceOrder(order.badges, usePriceModel());
+  const price = priceOrder(order.badges, usePriceList());
   const first = order.badges[0];
 
   const confirm = () => {

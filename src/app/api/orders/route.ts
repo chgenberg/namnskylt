@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getShopOwner } from "@/lib/shops/editor-repository";
 import { shopOrderPricing } from "@/lib/shops/price-list";
 import { z } from "zod";
-import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
+import { MAX_ORDER_BADGES, badgeDocumentSchema, endPriceTable } from "@/engine";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       tenant: owner ?? OWNER_TENANT,
       source: shop ? "shop" : "web",
       shopSlug: shop?.slug ?? null,
-      pricing: shopOrderPricing(order.badges, shop?.priceList, priceModel),
+      pricing: shopOrderPricing(order.badges, shop?.priceList, endPriceTable(priceModel)),
       priceModel,
       note: shop ? `Beställd i butiken ${shop.profile.name}` : null,
       badgeShot: await normalizeBadgeShot(badgeShot),

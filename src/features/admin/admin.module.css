@@ -1618,6 +1618,13 @@
   color: #fff;
 }
 
+.loginFoot {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  text-align: center;
+}
+
 .notice {
   max-width: 560px;
   margin: var(--space-8) auto;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { engravedRows, resellerOrder, type BadgeDocument, type PriceModel } from "@/engine";
+import { engravedRows, resellerOrder, type BadgeDocument, type PriceTable } from "@/engine";
 import { formatSek } from "@/lib/format";
 import {
   discountForUnits,
@@ -20,8 +20,10 @@ import styles from "./admin.module.css";
 interface PricingEditorProps {
   badges: readonly BadgeDocument[];
   pricing: Pricing | null;
-  /** Prismodellen som gällde när ordern eller offerten skapades — listpris, inköp och minsta ordervärde. */
-  priceModel: PriceModel;
+  /** Kundens prislista som gällde när ordern eller offerten skapades — listpris och minsta ordervärde. */
+  priceList: PriceTable;
+  /** Återförsäljarens prislista från samma tillfälle. Med den visas inköp och marginal. */
+  purchaseList?: PriceTable;
   /** Utan `submit` visas priserna bara. */
   submit?: (pricing: Pricing) => Promise<ActionResult>;
 }
@@ -48,11 +50,11 @@ const formatPercent = (value: number) => String(Math.round(value * 10) / 10).rep
  * långt under listpris skyltarna ligger, och en ny rabatt räknar om à-priserna.
  * Extra kostnader läggs till efter rabatten.
  */
-export function PricingEditor({ badges, pricing, priceModel, submit }: PricingEditorProps) {
-  const base = useMemo(() => priceWithPricing(badges, null, priceModel), [badges, priceModel]);
+export function PricingEditor({ badges, pricing, priceList, purchaseList, submit }: PricingEditorProps) {
+  const base = useMemo(() => priceWithPricing(badges, null, priceList), [badges, priceList]);
   const list = useMemo(() => base.lines.map((l) => l.listUnitSek), [base]);
   const quantities = useMemo(() => base.lines.map((l) => l.quantity), [base]);
-  const saved = priceWithPricing(badges, pricing, priceModel);
+  const saved = priceWithPricing(badges, pricing, priceList);
   // Äldre priser kan ha rabatten separat — här blir den en del av à-priserna.
   const savedUnits = saved.lines.map((l) => Math.round(l.unitSek * (1 - saved.discountPercent / 100)));
 
@@ -73,7 +75,7 @@ export function PricingEditor({ badges, pricing, priceModel, submit }: PricingEd
       return e.label.trim() && amountSek !== null ? [{ label: e.label.trim().slice(0, 80), amountSek }] : [];
     }),
   };
-  const priced = priceWithPricing(badges, draft, priceModel);
+  const priced = priceWithPricing(badges, draft, priceList);
   const dirty =
     JSON.stringify(draft) !==
     JSON.stringify({
@@ -81,8 +83,8 @@ export function PricingEditor({ badges, pricing, priceModel, submit }: PricingEd
       discountPercent: 0,
       extras: pricing?.extras ?? [],
     });
-  const cost = useMemo(() => resellerOrder(badges, priceModel), [badges, priceModel]);
-  const margin = marginOf(priced.totalSek, cost.totalSek);
+  const cost = useMemo(() => (purchaseList ? resellerOrder(badges, purchaseList) : null), [badges, purchaseList]);
+  const margin = cost ? marginOf(priced.totalSek, cost.totalSek) : null;
 
   const changeUnit = (index: number, text: string) => {
     const next = units.map((u, j) => (j === index ? text : u));
@@ -132,7 +134,7 @@ export function PricingEditor({ badges, pricing, priceModel, submit }: PricingEd
                 <span className={styles.muted}>
                   {[
                     line?.overridden ? `listpris ${formatSek(line.listUnitSek)}` : null,
-                    `inköp ${formatSek(cost.unitSek[i] ?? 0)}`,
+                    cost ? `inköp ${formatSek(cost.unitSek[i] ?? 0)}` : null,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
@@ -248,13 +250,17 @@ export function PricingEditor({ badges, pricing, priceModel, submit }: PricingEd
           <dd className={styles.summaryTotal}>{formatSek(priced.totalSek)}</dd>
           <dt>Inkl. moms</dt>
           <dd>{formatSek(priced.totalInclVatSek)}</dd>
-          <dt>Ditt inköp{cost.minimumTopUpSek > 0 ? " (minsta ordervärde)" : ""}</dt>
-          <dd>{formatSek(cost.totalSek)}</dd>
-          <dt className={margin.sek < 0 ? styles.marginBad : styles.marginGood}>Marginal</dt>
-          <dd className={margin.sek < 0 ? styles.marginBad : styles.marginGood}>
-            {formatSek(margin.sek)}
-            {margin.percent !== null && ` · ${margin.percent} %`}
-          </dd>
+          {cost && margin && (
+            <>
+              <dt>Ditt inköp{cost.minimumTopUpSek > 0 ? " (minsta ordervärde)" : ""}</dt>
+              <dd>{formatSek(cost.totalSek)}</dd>
+              <dt className={margin.sek < 0 ? styles.marginBad : styles.marginGood}>Marginal</dt>
+              <dd className={margin.sek < 0 ? styles.marginBad : styles.marginGood}>
+                {formatSek(margin.sek)}
+                {margin.percent !== null && ` · ${margin.percent} %`}
+              </dd>
+            </>
+          )}
         </dl>
       </div>
 

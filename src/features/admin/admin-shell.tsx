@@ -28,7 +28,7 @@ const NAV = [
   { href: "/admin/butiker", label: "Butiker", icon: "shops", ownerOnly: true },
   { href: "/admin/utskick", label: "Utskick", icon: "outreach", ownerOnly: true },
   { href: "/admin/prismodell", label: "Prismodell", icon: "purchase", ownerOnly: true },
-  { href: "/admin/inkopspriser", label: "Inköpspriser", icon: "purchase" },
+  { href: "/admin/inkopspriser", label: "Inköpspriser", icon: "purchase", resellerOnly: true },
   { href: "/admin/export", label: "Export", icon: "export" },
   { href: "/admin/installningar", label: "Inställningar", icon: "settings" },
 ] as const;
@@ -48,9 +48,9 @@ interface AdminShellProps {
   pending: number;
   /** Antal demoordrar — visas som en banner över varje sida. */
   demoCount?: number;
-  /** Återförsäljarens namn från inställningarna. */
+  /** Företagets namn från inställningarna. */
   companyName?: string;
-  /** namnskylt.com själv — bara ägaren har demobutikerna. */
+  /** Admin-inlogget, alltså namnskylt.com själv. Annars en återförsäljare. */
   owner?: boolean;
   /** Butiken återförsäljaren har tagit över — blir "Min butik" i menyn. */
   shopSlug?: string | null;
@@ -70,12 +70,12 @@ export function AdminShell({ pending, demoCount = 0, companyName = "namnskylt.co
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
-          <span className={styles.brandEyebrow}>Återförsäljare</span>
+          <span className={styles.brandEyebrow}>{owner ? "Admin" : "Återförsäljare"}</span>
           <span className={styles.brandName}>{companyName}</span>
         </div>
         <nav className={styles.nav} aria-label="Adminmeny">
           {[
-            ...NAV.filter((item) => owner || !("ownerOnly" in item)),
+            ...NAV.filter((item) => (owner ? !("resellerOnly" in item) : !("ownerOnly" in item))),
             ...(shopSlug && !owner ? [{ href: `/admin/butiker/${shopSlug}`, label: "Min butik", icon: "shops" } as const] : []),
           ].map((item) => (
             <Link
@@ -91,7 +91,7 @@ export function AdminShell({ pending, demoCount = 0, companyName = "namnskylt.co
           ))}
         </nav>
         <div className={styles.sidebarFoot}>
-          <span>{owner ? "Inloggad som namnskylt.com (ägare)" : "Inloggad som återförsäljare"}</span>
+          <span>{owner ? "Inloggad som admin" : "Inloggad som återförsäljare"}</span>
           <button type="button" className={styles.logout} onClick={() => void logout()}>
             Logga ut
           </button>

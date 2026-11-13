@@ -5,13 +5,14 @@ import {
   batchLine,
   createBadgeDocument,
   parseBatchInput,
-  DEFAULT_PRICE_MODEL,
+  endPriceTable,
   priceBadge,
   priceOrder,
   removeBatchEntry,
   replaceBatchEntry,
   withTexts,
 } from "./index";
+import { DEFAULT_PRICE_MODEL } from "./default-price-model";
 
 describe("parseBatchInput", () => {
   it("ger en skylt per rad och hoppar över tomma rader", () => {
@@ -70,18 +71,20 @@ describe("withTexts", () => {
   });
 });
 
+const LIST = endPriceTable(DEFAULT_PRICE_MODEL);
+
 describe("priceOrder", () => {
   it("ger lägre pris på orderns totala antal, även för olika namn", () => {
     const template = createBadgeDocument(["Anna"]);
     const names = Array.from({ length: 120 }, (_, i) => withTexts(template, [`Person ${i}`]));
-    const order = priceOrder(names, DEFAULT_PRICE_MODEL);
+    const order = priceOrder(names, LIST);
     assert.equal(order.quantity, 120);
     assert.equal(order.tierIndex, 1);
-    assert.ok(order.unitSek < priceBadge({ ...template, quantity: 10 }, DEFAULT_PRICE_MODEL).unitSek);
+    assert.ok(order.unitSek < priceBadge({ ...template, quantity: 10 }, LIST).unitSek);
   });
 
   it("stämmer med priceBadge för en enda rad", () => {
     const doc = { ...createBadgeDocument(["Anna"]), quantity: 250 };
-    assert.deepEqual(priceOrder([doc], DEFAULT_PRICE_MODEL), priceBadge(doc, DEFAULT_PRICE_MODEL));
+    assert.deepEqual(priceOrder([doc], LIST), priceBadge(doc, LIST));
   });
 });

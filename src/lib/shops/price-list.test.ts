@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createBadgeDocument, DEFAULT_PRICE_MODEL as M, lineUnitPrices, priceOrder } from "@/engine";
+import { createBadgeDocument, endPriceTable, lineUnitPrices, priceOrder } from "@/engine";
+import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { shopOrderPricing, shopPrice, shopPriceListSchema, shopUnitPrices } from "./price-list";
 
+/** Kundens prislista enligt kalkylen. */
+const M = endPriceTable(DEFAULT_PRICE_MODEL);
 const metal = { ...createBadgeDocument(["Anna Berg", "Receptionist"]), quantity: 24 };
 const plastic = { ...createBadgeDocument(["Erik"]), materialId: "plastic-2-layer" as const, colorId: "white-black", quantity: 1 };
 
@@ -31,8 +34,8 @@ describe("butikens prislista", () => {
   it("en liten order i butiken fylls upp till minsta ordervärde", () => {
     const one = [{ ...metal, quantity: 1 }];
     const shown = shopPrice(one, { percent: 10, perMaterial: {} }, M);
-    assert.equal(shown.totalSek, M.endMinOrderSek);
-    assert.equal(shown.minimumTopUpSek, M.endMinOrderSek - shown.badgesSek);
+    assert.equal(shown.totalSek, M.minOrderSek);
+    assert.equal(shown.minimumTopUpSek, M.minOrderSek - shown.badgesSek);
   });
 
   it("validerar procent och material", () => {

@@ -2,8 +2,15 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { Sql } from "postgres";
 import { z } from "zod";
-import { badgeDocumentSchema, DEFAULT_PRICE_MODEL, priceModelSchema, type BadgeDocument, type PriceModel } from "@/engine";
+import {
+  badgeDocumentSchema,
+  endPriceTable,
+  type BadgeDocument,
+  type PriceModel,
+} from "@/engine";
+import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { db, requireDb } from "@/lib/db/client";
+import { priceListsFor, storedPriceModel, type PriceAudience } from "./price-lists";
 import { isCustomPricing, pricingSchema, priceWithPricing, type Pricing } from "./pricing";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
 import { isOwner, OWNER_TENANT, settingsKey } from "@/lib/tenants/model";
@@ -52,7 +59,7 @@ interface OrderRow {
 }
 
 /** Databasen är inte klientdata, men validera ändå — ett trasigt dokument får inte nå produktionen. */
-function toOrder(row: OrderRow, currentModel: PriceModel): StoredOrder {
+function toOrder(row: OrderRow, currentModel: PriceModel, audience: PriceAudience): StoredOrder {
   const badges = badgesSchema.safeParse(row.badges);
   if (!badges.success) console.error(`Ogiltiga skyltar i order ${row.order_no}`);
   const events: OrderEvent[] = (row.events ?? [])
@@ -74,7 +81,7 @@ function toOrder(row: OrderRow, currentModel: PriceModel): StoredOrder {
     status: isOrderStatus(row.status) ? row.status : "received",
     badges: badges.success ? badges.data : [],
     pricing: parsePricing(row.pricing),
-    priceModel: storedPriceModel(row.price_model, currentModel),
+    ...priceListsFor(row.price_model, currentModel, audience),
     totalSek: row.total_sek,
     totalInclVatSek: row.total_incl_vat_sek,
     supplierOrderNo: row.supplier_order_no,
@@ -91,12 +98,6 @@ function toOrder(row: OrderRow, currentModel: PriceModel): StoredOrder {
     resellerId: row.reseller_id,
     demo: row.is_demo,
   };
-}
-
-/** Modellen som sparats på raden. Rader från före prismodellen saknar den och får dagens. */
-export function storedPriceModel(value: unknown, currentModel: PriceModel): PriceModel {
-  const parsed = priceModelSchema.safeParse(value);
-  return parsed.success ? parsed.data : currentModel;
 }
 
 export function parsePricing(value: unknown): Pricing | null {
@@ -133,20 +134,20 @@ export async function listOrders(tenant: string): Promise<StoredOrder[]> {
   const sql = requireDb();
   const rows = await sql<OrderRow[]>`${selectOrders(sql)} where o.reseller_id = ${tenant} order by o.placed_at desc`;
   const model = await getPriceModel();
-  return rows.map((row) => toOrder(row, model));
+  return rows.map((row) => toOrder(row, model, "reseller"));
 }
 
 export async function getOrder(tenant: string, orderNo: string): Promise<StoredOrder | null> {
   const sql = requireDb();
   const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.order_no = ${orderNo} and o.reseller_id = ${tenant}`;
-  return row ? toOrder(row, await getPriceModel()) : null;
+  return row ? toOrder(row, await getPriceModel(), "reseller") : null;
 }
 
 /** Utan hyresgäst — bara för kundens egna länkar (korrektur), där token är behörigheten. */
 async function getOrderAnyTenant(orderNo: string): Promise<StoredOrder | null> {
   const sql = requireDb();
   const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.order_no = ${orderNo}`;
-  return row ? toOrder(row, await getPriceModel()) : null;
+  return row ? toOrder(row, await getPriceModel(), "customer") : null;
 }
 
 export async function listCustomerOrders(tenant: string, customerId: string): Promise<StoredOrder[]> {
@@ -154,7 +155,7 @@ export async function listCustomerOrders(tenant: string, customerId: string): Pr
   const rows = await sql<OrderRow[]>`${selectOrders(sql)}
     where o.customer_id = ${customerId} and o.reseller_id = ${tenant} order by o.placed_at desc`;
   const model = await getPriceModel();
-  return rows.map((row) => toOrder(row, model));
+  return rows.map((row) => toOrder(row, model, "reseller"));
 }
 
 export interface NewOrder {
@@ -183,7 +184,7 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
   const sql = requireDb();
   const pricing = isCustomPricing(order.pricing ?? null) ? (order.pricing ?? null) : null;
   const model = order.priceModel ?? (await getPriceModel());
-  const price = priceWithPricing(order.badges, pricing, model);
+  const price = priceWithPricing(order.badges, pricing, endPriceTable(model));
   const email = order.customer.email.trim().toLowerCase();
   const placedAt = order.placedAt ? new Date(order.placedAt) : new Date();
   const tenant = order.tenant;
@@ -272,12 +273,25 @@ export async function getBadgeShot(tenant: string, orderNo: string): Promise<str
 
 const PRICE_MODEL_KEY = "price_model";
 
-/** Prismodellen som gäller nu. En och samma för alla återförsäljare; kalkylens siffror tills något sparats. */
+/**
+ * Prismodellen som gäller nu. En och samma för alla återförsäljare; kalkylens siffror tills något sparats.
+ * Hela modellen innehåller provisionen — skicka aldrig vidare den till en klientkomponent, bara prislistor ur den.
+ */
 export async function getPriceModel(): Promise<PriceModel> {
   const sql = db();
   if (!sql) return DEFAULT_PRICE_MODEL;
   const [row] = await sql<{ value: unknown }[]>`select value from settings where key = ${settingsKey(OWNER_TENANT, PRICE_MODEL_KEY)}`;
   return storedPriceModel(row?.value, DEFAULT_PRICE_MODEL);
+}
+
+/** Dagens modell, eller kalkylens siffror när databasen inte svarar — sajten ska gå att visa ändå. */
+export async function priceModelOrDefault(): Promise<PriceModel> {
+  try {
+    return await getPriceModel();
+  } catch (error) {
+    console.error("Prismodellen gick inte att läsa", error);
+    return DEFAULT_PRICE_MODEL;
+  }
 }
 
 export async function savePriceModel(model: PriceModel): Promise<void> {
@@ -383,7 +397,7 @@ export async function updateOrderPricing(tenant: string, orderNo: string, pricin
     const badges = badgesSchema.safeParse(row?.badges);
     if (!row || !badges.success) return false;
     const custom = isCustomPricing(pricing) ? pricing : null;
-    const price = priceWithPricing(badges.data, custom, storedPriceModel(row.price_model, currentModel));
+    const price = priceWithPricing(badges.data, custom, endPriceTable(storedPriceModel(row.price_model, currentModel)));
     await tx`
       update orders set pricing = ${custom ? tx.json(custom as unknown as Json) : null},
              total_sek = ${price.totalSek}, total_incl_vat_sek = ${price.totalInclVatSek}

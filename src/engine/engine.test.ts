@@ -7,10 +7,11 @@ import {
   frameBands,
   layoutBadge,
   parseSmartInput,
-  DEFAULT_PRICE_MODEL,
+  endPriceTable,
   priceBadge,
   renderBadgeSvg,
 } from "./index";
+import { DEFAULT_PRICE_MODEL } from "./default-price-model";
 
 describe("parseSmartInput", () => {
   it("delar på komma, pipe och streck med mellanslag", () => {
@@ -112,8 +113,9 @@ describe("renderBadgeSvg", () => {
 
 describe("priceBadge", () => {
   it("ger lägre styckpris vid större antal", () => {
-    const one = priceBadge({ ...createBadgeDocument(["Anna"]), quantity: 10 }, DEFAULT_PRICE_MODEL);
-    const many = priceBadge({ ...createBadgeDocument(["Anna"]), quantity: 250 }, DEFAULT_PRICE_MODEL);
+    const list = endPriceTable(DEFAULT_PRICE_MODEL);
+    const one = priceBadge({ ...createBadgeDocument(["Anna"]), quantity: 10 }, list);
+    const many = priceBadge({ ...createBadgeDocument(["Anna"]), quantity: 250 }, list);
     assert.ok(many.unitSek < one.unitSek);
     assert.equal(many.totalSek, many.unitSek * 250);
   });

@@ -121,7 +121,8 @@ export default async function OrderPage({ params }: OrderPageProps) {
               <span className={styles.muted}>Ditt pris till kunden — påverkar fakturaunderlaget, inte tillverkningen</span>
             </div>
             <PricingEditor
-              priceModel={order.priceModel}
+              priceList={order.priceList}
+              purchaseList={order.purchaseList}
               badges={order.badges}
               pricing={order.pricing}
               submit={order.status === "cancelled" ? undefined : updateOrderPricingAction.bind(null, order.orderNo)}
