@@ -98,19 +98,29 @@ export function toSupplierSignDocument(
             },
             visible: true,
             locked: false,
-            data: {
-              kind: "image",
-              src: assets.logoPng ?? "",
-              widthMm: Number(layout.logo.width.toFixed(3)),
-              heightMm: Number(layout.logo.height.toFixed(3)),
-              renderMode: "engrave",
-              lockAspect: true,
-              vector: {
-                markup: `<path d="${doc.logo.d}" fill="#000000" fill-rule="evenodd"/>`,
-                viewWidth: doc.logo.viewWidth,
-                viewHeight: doc.logo.viewHeight,
-              },
-            },
+            // En logga i färg trycks som den är; en enfärgad graveras efter sina banor.
+            data: doc.logo.image
+              ? {
+                  kind: "image",
+                  src: doc.logo.image.src,
+                  widthMm: Number(layout.logo.width.toFixed(3)),
+                  heightMm: Number(layout.logo.height.toFixed(3)),
+                  renderMode: "print",
+                  lockAspect: true,
+                }
+              : {
+                  kind: "image",
+                  src: assets.logoPng ?? "",
+                  widthMm: Number(layout.logo.width.toFixed(3)),
+                  heightMm: Number(layout.logo.height.toFixed(3)),
+                  renderMode: "engrave",
+                  lockAspect: true,
+                  vector: {
+                    markup: `<path d="${doc.logo.d}" fill="#000000" fill-rule="evenodd"/>`,
+                    viewWidth: doc.logo.viewWidth,
+                    viewHeight: doc.logo.viewHeight,
+                  },
+                },
           },
         ]
       : [];

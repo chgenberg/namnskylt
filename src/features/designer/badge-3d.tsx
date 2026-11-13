@@ -3,11 +3,12 @@
 import { ContactShadows } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import { MathUtils, NeutralToneMapping, type Group } from "three";
+import { MathUtils, NeutralToneMapping, type Group, type Texture } from "three";
 import type { BadgeDocument, FontEngine } from "@/engine";
 import { CAMERA_FOV_DEG, CameraDistance } from "./three/camera-distance";
 import { EngraveSweep, LASER_LAYER, sweepDurationMs, type SweepState } from "./three/engrave-sweep";
 import { plateMetrics, UNITS_PER_MM } from "./three/geometry";
+import { LogoPrint } from "./three/logo-print";
 import { useBadgeMaterials } from "./three/materials";
 import { Mounting } from "./three/mounting";
 import { PathTracer, RASTER_ONLY } from "./three/path-tracer";
@@ -89,6 +90,8 @@ function BadgeMesh({
   const materials = useBadgeMaterials(doc);
   const metrics = plateMetrics(doc);
   const sweepRef = useRef<SweepState | null>(null);
+  /** Trycket av en logga i färg — fotoläget räknar om när bilden kommit. */
+  const [print, setPrint] = useState<Texture | null>(null);
   const hasGeometry = geometry !== null;
   const durationMs = sweepDurationMs(doc);
 
@@ -105,8 +108,8 @@ function BadgeMesh({
   }, [onTarget]);
 
   useEffect(() => {
-    onSceneChange({ geometry, materials, mounting: doc.mounting });
-  }, [geometry, materials, doc.mounting, onSceneChange]);
+    onSceneChange({ geometry, materials, mounting: doc.mounting, print });
+  }, [geometry, materials, doc.mounting, print, onSceneChange]);
 
   const focusRef = useRef<FocusTarget | null>(null);
   const isRecording = useCallback(() => turnRef.current !== null, [turnRef]);
@@ -165,6 +168,7 @@ function BadgeMesh({
   return (
     <group ref={spinRef}>
       {geometry?.map((part, slot) => <mesh key={slot} geometry={part} material={materials[slot]} />)}
+      {geometry && <LogoPrint doc={doc} fonts={fonts} frontZ={metrics.frontZ} onTexture={setPrint} />}
       <EngraveSweep
         doc={doc}
         materials={materials}

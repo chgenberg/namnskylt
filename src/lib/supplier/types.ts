@@ -35,17 +35,27 @@ export type SupplierLayer =
       transform: { position: { x: number; y: number }; rotationDeg: 0 };
       visible: true;
       locked: false;
-      data: {
-        kind: "image";
-        /** PNG-miniatyr för allt hos leverantören som bara läser bilder. */
-        src: string;
-        widthMm: number;
-        heightMm: number;
-        renderMode: "engrave";
-        lockAspect: true;
-        /** Banorna som graveras — samma som i vår produktionsfil. */
-        vector: { markup: string; viewWidth: number; viewHeight: number };
-      };
+      data:
+        | {
+            kind: "image";
+            /** PNG-miniatyr för allt hos leverantören som bara läser bilder. */
+            src: string;
+            widthMm: number;
+            heightMm: number;
+            renderMode: "engrave";
+            lockAspect: true;
+            /** Banorna som graveras — samma som i vår produktionsfil. */
+            vector: { markup: string; viewWidth: number; viewHeight: number };
+          }
+        | {
+            kind: "image";
+            /** Bilden som trycks: loggan i färg som PNG med genomskinlig botten. */
+            src: string;
+            widthMm: number;
+            heightMm: number;
+            renderMode: "print";
+            lockAspect: true;
+          };
     };
 
 export interface SupplierSignDocument {

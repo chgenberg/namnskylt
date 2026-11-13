@@ -58,7 +58,10 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     supplier = await createSupplierClient().placeOrder({
       customer: { name: input.customer.name, email: input.customer.email, company: input.customer.company ?? undefined },
       lines: workshop.map((badge, i) => ({
-        document: toSupplierSignDocument(badge, fonts, { logoPng: badge.logo ? renderLogoPng(badge.logo) : undefined }),
+        // En logga i färg skickas som sin egen bild; bara en graverad behöver en svartvit miniatyr.
+        document: toSupplierSignDocument(badge, fonts, {
+          logoPng: badge.logo && !badge.logo.image ? renderLogoPng(badge.logo) : undefined,
+        }),
         productionSvg: renderBadgeSvg(badge, layoutBadge(badge, fonts), { mode: "production", fonts }),
         quantity: badge.quantity,
         reference: `NS-${i + 1}`,

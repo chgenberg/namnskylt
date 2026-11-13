@@ -1,14 +1,29 @@
-import { inkMask, traceLogoMask, type TracedLogo } from "@/engine";
+import {
+  LOGO_LIMITS,
+  colorLogo,
+  inkMask,
+  traceLogoMask,
+  visibleMask,
+  type LogoImage,
+  type LogoPixels,
+  type TracedLogo,
+} from "@/engine";
 import { isBrandColor, toHex } from "@/lib/brand/color";
 
 /** Längsta sida på bilden som spåras — skarpt nog för en logga på 5–40 mm. */
 const TRACE_MAX_PX = 520;
+/** Längsta sida på bilden som en logga i färg läses i. */
+const COLOR_MAX_PX = 640;
+/** Blir färgbilden för tung krymps den i de här stegen tills den ryms. */
+const SHRINK_STEPS = [1, 0.75, 0.56, 0.42, 0.32];
 /** 4 bitar per kanal räcker för att hitta loggans huvudfärg. */
 const COLOR_BUCKET_SHIFT = 4;
 
 export interface LogoTrace extends TracedLogo {
   /** Loggans mest använda varumärkesfärg, om den har någon. */
   inkColor: string | null;
+  /** Loggan i färg. Finns den trycks loggan som den är, i stället för att graveras. */
+  image?: LogoImage;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -21,22 +36,45 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function pixels(image: HTMLImageElement): ImageData {
-  const naturalW = image.naturalWidth || TRACE_MAX_PX;
-  const naturalH = image.naturalHeight || TRACE_MAX_PX;
-  const scale = TRACE_MAX_PX / Math.max(naturalW, naturalH);
-  const width = Math.max(1, Math.round(naturalW * scale));
-  const height = Math.max(1, Math.round(naturalH * scale));
+function canvasOf(width: number, height: number): { canvas: HTMLCanvasElement; context: CanvasRenderingContext2D } {
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) throw new Error("Webbläsaren kan inte läsa bilden");
+  return { canvas, context };
+}
+
+function pixels(image: HTMLImageElement, maxPx: number): ImageData {
+  const naturalW = image.naturalWidth || maxPx;
+  const naturalH = image.naturalHeight || maxPx;
+  const scale = maxPx / Math.max(naturalW, naturalH);
+  const width = Math.max(1, Math.round(naturalW * scale));
+  const height = Math.max(1, Math.round(naturalH * scale));
+  const { context } = canvasOf(width, height);
   context.drawImage(image, 0, 0, width, height);
   return context.getImageData(0, 0, width, height);
 }
 
-function dominantInkColor({ data }: ImageData, mask: Uint8Array): string | null {
+/** Bilden som PNG i en data-URL, krympt tills den ryms under taket. `null` när den inte gör det. */
+function encodePng(logo: LogoPixels): string | null {
+  const full = canvasOf(logo.width, logo.height);
+  full.context.putImageData(new ImageData(Uint8ClampedArray.from(logo.data), logo.width, logo.height), 0, 0);
+  for (const step of SHRINK_STEPS) {
+    let canvas = full.canvas;
+    if (step < 1) {
+      const scaled = canvasOf(Math.max(1, Math.round(logo.width * step)), Math.max(1, Math.round(logo.height * step)));
+      scaled.context.imageSmoothingQuality = "high";
+      scaled.context.drawImage(full.canvas, 0, 0, scaled.canvas.width, scaled.canvas.height);
+      canvas = scaled.canvas;
+    }
+    const src = canvas.toDataURL("image/png");
+    if (src.length <= LOGO_LIMITS.maxImageChars) return src;
+  }
+  return null;
+}
+
+function dominantInkColor({ data }: { data: ArrayLike<number> }, mask: Uint8Array): string | null {
   const buckets = new Map<number, { count: number; r: number; g: number; b: number }>();
   for (let i = 0; i < mask.length; i++) {
     if (!mask[i]) continue;
@@ -59,10 +97,30 @@ function dominantInkColor({ data }: ImageData, mask: Uint8Array): string | null 
   return toHex([best.r / best.count, best.g / best.count, best.b / best.count]);
 }
 
-/** Spårar en bild (data- eller objekt-URL) till en graverbar logga. `null` = inget att gravera. */
+/**
+ * En bild i färg blir en logga som trycks: bilden frilagd och beskuren, och
+ * dess siluett som banor i samma ruta. `null` när bilden är svartvit, eller
+ * för tung även som minst.
+ */
+function colorTrace(image: HTMLImageElement): LogoTrace | null {
+  const logo = colorLogo(pixels(image, COLOR_MAX_PX));
+  if (!logo) return null;
+  const mask = visibleMask(logo);
+  const traced = traceLogoMask(mask, logo.width, logo.height, { keepFrame: true });
+  const src = traced ? encodePng(logo) : null;
+  return traced && src ? { ...traced, inkColor: dominantInkColor(logo, mask), image: { src } } : null;
+}
+
+/**
+ * Läser en bild (data- eller objekt-URL) till en logga. En bild i färg trycks
+ * som den är; en svartvit spåras till banor som graveras. `invert` vänder
+ * bläck och botten och gäller därför bara gravyr. `null` = ingen logga i bilden.
+ */
 export async function traceImage(src: string, invert = false): Promise<LogoTrace | null> {
   const image = await loadImage(src);
-  const imageData = pixels(image);
+  const colored = invert ? null : colorTrace(image);
+  if (colored) return colored;
+  const imageData = pixels(image, TRACE_MAX_PX);
   const mask = inkMask(imageData, invert);
   const traced = traceLogoMask(mask, imageData.width, imageData.height);
   return traced ? { ...traced, inkColor: dominantInkColor(imageData, mask) } : null;

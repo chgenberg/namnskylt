@@ -26,9 +26,9 @@ export function engravingPaths(layout: BadgeLayout, fonts: FontEngine): Engraved
   const frames = layout.frames.map(
     (frame, i): EngravedPath => ({ id: `frame-${i}`, kind: "frame", d: frame.d, fillRule: "evenodd" }),
   );
-  const logo: EngravedPath[] = layout.logo
-    ? [{ id: "logo", kind: "logo", d: layout.logo.d, fillRule: "evenodd" }]
-    : [];
+  // En logga i färg trycks; bara en enfärgad logga graveras.
+  const logo: EngravedPath[] =
+    layout.logo && !layout.logo.imageSrc ? [{ id: "logo", kind: "logo", d: layout.logo.d, fillRule: "evenodd" }] : [];
   // TrueType-konturer lindas medurs/moturs och fylls med nonzero.
   const rows = layout.rows
     .map(

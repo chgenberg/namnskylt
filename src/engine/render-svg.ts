@@ -6,6 +6,7 @@ import type { BadgeDocument, MaterialFinish } from "./types";
 /**
  * - `preview`: det kunden ser i ritningsvyn och på startsidan.
  * - `production`: leverantörens filkonvention — röd = skär, svart = gravyr.
+ *   En logga i färg trycks och finns därför inte med i den filen.
  */
 export type RenderMode = "preview" | "production";
 
@@ -111,6 +112,14 @@ export function renderBadgeSvg(
     );
   }
 
+  // Trycket ligger på ytan, under gravyren.
+  if (isPreview && layout.logo?.imageSrc) {
+    const { x, y, width, height, imageSrc } = layout.logo;
+    parts.push(
+      `<image href="${escapeXml(imageSrc)}" x="${num(x)}" y="${num(y)}" width="${num(width)}" height="${num(height)}" preserveAspectRatio="none"/>`,
+    );
+  }
+
   const engraving = fonts ? engravingPaths(layout, fonts) : null;
   if (engraving) {
     for (const path of engraving) {
@@ -120,7 +129,7 @@ export function renderBadgeSvg(
     for (const frame of layout.frames) {
       parts.push(`<path d="${frame.d}" fill="${engraveFill}" fill-rule="evenodd"/>`);
     }
-    if (layout.logo) {
+    if (layout.logo && !layout.logo.imageSrc) {
       parts.push(`<path d="${layout.logo.d}" fill="${engraveFill}" fill-rule="evenodd"/>`);
     }
     const family = escapeXml(getFont(doc.font).css);

@@ -46,7 +46,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (635 tester, grönt 2026-11-13).
+# Kvalitetsgrinden. Kör den innan något lämnas (659 tester, grönt 2026-11-13).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -114,6 +114,26 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Kända brister: bara provat i Chrome; en ritad form försvinner om kunden väljer ett ämne och
     sedan "Egen form" igen; fästena i 3D skalar med skylten och blir för stora på en form på
     120 mm (`three/mounting.tsx`, `src/engine/hardware-fit.ts`).
+- **Loggan** graveras eller trycks, och det avgörs automatiskt när filen laddas upp eller hämtas
+  från hemsidan (beslut av ägaren 2026-11-13, gäller både metall och plast):
+  - En **svartvit** logga spåras till banor (`BadgeLogo.d`) och graveras i textens färg, som förut.
+  - En logga **i färg** får dessutom `BadgeLogo.image` (PNG i en data-URL) och trycks som den är i
+    filen. Texten graveras fortfarande. Kunden kan inte välja själv; "Invertera" finns bara för
+    graverade loggor.
+  - Reglerna ligger i `src/engine/logo-color.ts`: bilden är i färg när minst 1 % av det som syns
+    har färg (`hasColor`). En vit botten tas bort (`withoutWhiteBackground`), även vitt inuti
+    loggan; en färgad botten hör till loggan och behålls. Bilden beskärs till det som syns.
+  - Webbläsaren gör bilden (`src/features/designer/logo/trace-image.ts`): högst 640 px på längsta
+    sidan och högst `LOGO_LIMITS.maxImageChars` tecken, annars krymps den. En SVG blir alltså
+    en PNG. Schemat släpper bara igenom `data:image/png;base64,…` (`LOGO_IMAGE_PATTERN`).
+  - En tryckt logga finns inte bland gravyrens banor (`engravingPaths`), alltså inte i 3D-fräsningen,
+    produktionsfilen eller maskinfilerna. Förhandsvisningen ritar bilden (`renderBadgeSvg`, bara
+    `preview`), 3D-vyn lägger den som en yta på framsidan (`three/logo-print.tsx`), och verkstadens
+    arkvy visar siluetten som hjälplinje. Leverantören får ett bildlager med `renderMode: "print"`.
+  - Priset är samma som för en graverad logga ("extra gravyr eller print").
+  - Kända brister: bilden följer med varje skylt i ordern (100 namn ger 100 kopior i `badges`), en
+    delad länk tappar loggan eftersom bilden inte ryms, och fotoläget kan visa en tunn linje vid
+    bildens kant.
 - **Äldre material och former** (mässing, akryl, epoxy, gravyrplast, sexkant m.fl.) ligger kvar
   i motorn så att sparade ordrar, offerter och butiker går att rita. En äldre skylt som öppnas
   i designern flyttas till närmaste yta och ämne (`toOfferedDocument`).
@@ -133,6 +153,8 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Gravyren visas svart på alla tre ytor.
   - Kuddens exponent (`CUSHION_EXPONENT`) är uppskattad från foto.
   - Avståndet mellan ämnena i fixturen (`BLANK_GAP_MM`, 4 mm) och att rubrikerna inte graveras.
+  - Att verkstaden kan trycka i färg på både metall och plast, och vilken tryckfil den behöver.
+    I dag finns bara bilden på 640 px; originalfilen sparas inte.
 
 ## Prismodellen — läge 2026-11-13
 
@@ -317,6 +339,8 @@ Luckor i kontraktet:
   är den bara tillåten för metallskärning. De behöver öppna den för graverad plast.
 - En idempotensnyckel behövs mot dubbla ordrar.
 - Fästet skickas som text i stället för artikelkod.
+- En logga i färg skickas som bildlager med `renderMode: "print"`. Deras format har läget, men
+  ingen har bekräftat att verkstaden trycker namnskyltar eller vilken upplösning som krävs.
 - Lambda tar högst 6 MB per anrop.
 
 Det projektet har egna, strikta regler i `Skyltochgravyr/.cursor/rules/`:

@@ -64,6 +64,30 @@ describe("toSupplierSignDocument", () => {
     assert.match(layer.data.vector.markup, /^<path d="M0 0L10 0L10 10L0 10Z" fill="#000000" fill-rule="evenodd"\/>$/);
   });
 
+  it("skickar en logga i färg som tryckt bildlager med bilden själv, utan banor", () => {
+    const src = "data:image/png;base64,iVBORw0KGgo=";
+    const doc = {
+      ...createBadgeDocument(["Anna"]),
+      logo: {
+        d: "M0 0L10 0L10 10L0 10Z",
+        viewWidth: 10,
+        viewHeight: 10,
+        placement: "left" as const,
+        heightMm: 12,
+        image: { src },
+      },
+    };
+    // Miniatyren för gravyr används inte när loggan trycks.
+    const layer = toSupplierSignDocument(doc, approxFonts, { logoPng: "data:image/png;base64,AA" }).layers.find(
+      (l) => l.data.kind === "image",
+    );
+    assert.ok(layer?.data.kind === "image");
+    assert.equal(layer.data.renderMode, "print");
+    assert.equal(layer.data.src, src);
+    assert.equal(layer.data.widthMm, 12);
+    assert.ok(!("vector" in layer.data));
+  });
+
   it("lägger ramen som eget lager och ovalen som oval", () => {
     const doc = {
       ...createBadgeDocument(["Anna"]),

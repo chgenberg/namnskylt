@@ -30,12 +30,12 @@ const SCRAPE_STEPS = [
   [14, "Letar upp loggan…"],
   [38, "Mäter typsnittet…"],
   [58, "Läser av branschen…"],
-  [82, "Gör loggan graverbar…"],
+  [82, "Lägger loggan på skylten…"],
 ] as const;
 const UPLOAD_EXPECTED_MS = 1_500;
 const UPLOAD_STEPS = [
   [0, "Läser bilden…"],
-  [35, "Gör loggan graverbar…"],
+  [35, "Lägger loggan på skylten…"],
 ] as const;
 
 type Job = "scrape" | "upload";
@@ -93,6 +93,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
         viewHeight: trace.viewHeight,
         placement: nextPlacement,
         heightMm: doc.logo?.heightMm ?? (nextPlacement === "top" ? TOP_LOGO_HEIGHT_MM : LOGO_LIMITS.defaultHeightMm),
+        ...(trace.image && { image: trace.image }),
       },
     });
   };
@@ -126,7 +127,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
       setStatus(
         trace
           ? { kind: "idle" }
-          : { kind: "error", message: "Vi hittade ingen logga att gravera — ladda gärna upp den själv." },
+          : { kind: "error", message: "Vi hittade ingen logga på sidan — ladda gärna upp den själv." },
       );
     } catch (error) {
       if (controller.signal.aborted) return;
@@ -155,7 +156,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
     if (working || source?.src === option) return;
     start("upload");
     const trace = await adoptImage(option).catch(() => null);
-    setStatus(trace ? { kind: "idle" } : { kind: "error", message: "Den loggan gick inte att gravera — prova en annan." });
+    setStatus(trace ? { kind: "idle" } : { kind: "error", message: "Den loggan gick inte att använda — prova en annan." });
   };
 
   const invert = async () => {
@@ -173,7 +174,11 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
   const logoHeight = doc.logo?.heightMm ?? LOGO_LIMITS.defaultHeightMm;
 
   return (
-    <PanelSection step={2} title="Logga & varumärke" aside={doc.logo ? "Graveras med texten" : "Valfritt"}>
+    <PanelSection
+      step={2}
+      title="Logga & varumärke"
+      aside={doc.logo ? (doc.logo.image ? "Trycks i färg" : "Graveras med texten") : "Valfritt"}
+    >
       <p className={styles.batchLead}>
         Skriv in er hemsida, så hämtar vi loggan och väljer typsnitt och färg som liknar er.
       </p>
@@ -200,7 +205,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
         title={job === "scrape" ? "Hämtar från hemsidan" : "Läser in loggan"}
         expectedMs={job === "scrape" ? SCRAPE_EXPECTED_MS : UPLOAD_EXPECTED_MS}
         steps={job === "scrape" ? SCRAPE_STEPS : UPLOAD_STEPS}
-        doneLabel={job === "scrape" ? "Klart — loggan, typsnittet och färgen är på plats" : "Klart — loggan är graverbar"}
+        doneLabel={job === "scrape" ? "Klart — loggan, typsnittet och färgen är på plats" : "Klart — loggan är på plats"}
         onCancel={job === "scrape" ? cancelScrape : undefined}
       />
       {status.kind === "error" && (
@@ -277,7 +282,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
             }}
           />
         </label>
-        {doc.logo && source && (
+        {doc.logo && !doc.logo.image && source && (
           <button type="button" className="chip" aria-pressed={source.invert} disabled={working} onClick={() => void invert()}>
             Invertera
           </button>
@@ -292,9 +297,14 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
       {doc.logo && (
         <>
           <div className={styles.logoPreview} style={{ background: color.surface }}>
-            <svg viewBox={`0 0 ${doc.logo.viewWidth} ${doc.logo.viewHeight}`} role="img" aria-label="Loggan som den graveras">
-              <path d={doc.logo.d} fill={color.engraving} fillRule="evenodd" />
-            </svg>
+            {doc.logo.image ? (
+              // eslint-disable-next-line @next/next/no-img-element -- data-URL från uppladdningen
+              <img src={doc.logo.image.src} alt="Loggan som den trycks" />
+            ) : (
+              <svg viewBox={`0 0 ${doc.logo.viewWidth} ${doc.logo.viewHeight}`} role="img" aria-label="Loggan som den graveras">
+                <path d={doc.logo.d} fill={color.engraving} fillRule="evenodd" />
+              </svg>
+            )}
           </div>
           <Segmented
             label="Placering"
@@ -317,7 +327,9 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
             <span className={`mono ${styles.sliderValue}`}>{logoHeight} mm</span>
           </label>
           <p className={styles.hint}>
-            Loggan graveras i en färg, samma som texten. Får den inte plats krymps den till skylten.
+            {doc.logo.image
+              ? "Loggan är i färg och trycks som den är i filen. Texten graveras. Får loggan inte plats krymps den till skylten."
+              : "Loggan graveras i en färg, samma som texten. Får den inte plats krymps den till skylten."}
           </p>
         </>
       )}

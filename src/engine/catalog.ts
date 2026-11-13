@@ -339,6 +339,11 @@ export const LOGO_LIMITS = {
   /** Större banor än så blir tunga i 3D och i ordern — vektoriseraren förenklar under taket. */
   maxPathChars: 80_000,
   maxViewSize: 4096,
+  /**
+   * Längsta data-URL för en logga i färg, ungefär 150 kB bild. Bilden följer med varje
+   * skylt i ordern, så designern krymper den under taket.
+   */
+  maxImageChars: 200_000,
 } as const;
 
 export const LOGO_PLACEMENTS: readonly { id: LogoPlacement; name: string }[] = [

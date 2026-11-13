@@ -5,7 +5,7 @@ import { computeCutGrid } from "./cut-grid";
 import { sheetToDxf } from "./dxf";
 import { flattenPath } from "./flatten-path";
 import { fitHeader, HEADER_CAP_MIN_MM, orderHeaderText, sheetHeaderText } from "./headers";
-import { CUTTER_OFFSET_MM } from "./ink";
+import { CUTTER_OFFSET_MM, GUIDE_INK } from "./ink";
 import {
   BLANK_GAP_MM,
   DEFAULT_SHEET_SETTINGS,
@@ -310,6 +310,26 @@ describe("färdiga ämnen", () => {
     assert.equal(engraved.length, 4);
     assert.ok(engraved.every((m) => m.placementKey));
     assert.ok(marks.some((m) => m.ink === "guide" && !m.placementKey), "rubrikerna finns kvar som läshjälp");
+  });
+
+  it("en logga i färg graveras inte: siluetten är en hjälplinje som visar var trycket ska sitta", () => {
+    const logo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 10 };
+    const marksFor = (image?: { src: string }) => {
+      const units = productionBatches([order("NS-1", [{ ...metal(), logo: { ...logo, ...(image && { image }) } }])])[0]?.units ?? [];
+      const [sheet] = packSheets(units, "blank").sheets;
+      assert.ok(sheet);
+      return { sheet, marks: sheetMarks(sheet, ctx) };
+    };
+    const engraved = marksFor().marks;
+    const printed = marksFor({ src: "data:image/png;base64,iVBORw0KGgo=" });
+    // Graverad: loggan är en gravyr till. Tryckt: en hjälplinje till, och en gravyr färre.
+    assert.equal(printed.marks.filter((m) => m.ink === "engrave").length, engraved.filter((m) => m.ink === "engrave").length - 1);
+    const guides = (marks: typeof engraved) => marks.filter((m) => m.ink === "guide" && m.placementKey && m.fillRule === "evenodd");
+    assert.equal(guides(engraved).length, 0);
+    assert.equal(guides(printed.marks).length, 1);
+    // Maskinfilen har varken bilden eller siluetten.
+    const machine = renderMachineSvg(printed.sheet, printed.marks);
+    assert.ok(!machine.includes("<image") && !machine.includes(GUIDE_INK));
   });
 
   it("maskinfilerna innehåller varken skärlinjer eller hjälplinjer", () => {

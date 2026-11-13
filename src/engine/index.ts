@@ -15,6 +15,7 @@ export * from "./measure";
 export * from "./engraving";
 export * from "./logo";
 export * from "./logo-mask";
+export * from "./logo-color";
 export * from "./render-svg";
 export * from "./pricing";
 export * from "./schema";

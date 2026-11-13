@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CUSTOM_SHAPE_LIMITS, LOGO_LIMITS, MATERIALS, MATERIAL_IDS, SHAPE_IDS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
 import { CUSTOM_OUTLINE_ISSUE_TEXT, customOutlineIssue } from "./custom-outline";
-import { LOGO_PATH_PATTERN } from "./logo";
+import { LOGO_IMAGE_PATTERN, LOGO_PATH_PATTERN } from "./logo";
 import type { BadgeDocument } from "./types";
 
 /** Förflyttningen hålls inom skylten av layouten; schemat stoppar bara orimliga tal. */
@@ -55,6 +55,7 @@ export const badgeDocumentSchema = z
         placement: z.enum(["left", "right", "top"]),
         heightMm: z.number().min(LOGO_LIMITS.minHeightMm).max(LOGO_LIMITS.maxHeightMm),
         offsetMm: offsetSchema.optional(),
+        image: z.object({ src: z.string().max(LOGO_LIMITS.maxImageChars).regex(LOGO_IMAGE_PATTERN) }).optional(),
       })
       .optional(),
     mounting: z.enum(["pin", "magnet", "clip", "safety-pin"]),

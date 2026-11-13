@@ -2,6 +2,7 @@ import { CUSTOM_SHAPE_LIMITS } from "./catalog";
 import { customOutlineIssue, fitOutline, polygonArea, simplifyOutline } from "./custom-outline";
 import { signedArea } from "./outline-math";
 import { otsuThreshold, traceLogoMask, type RgbaPixels } from "./logo";
+import { edgeColor } from "./pixel-background";
 import type { Point } from "./shape";
 import type { Mm } from "./types";
 
@@ -13,44 +14,12 @@ import type { Mm } from "./types";
 /** Andel genomskinliga pixlar som gör att alfakanalen avgör vad som är form. */
 const TRANSPARENT_SHARE = 0.02;
 const OPAQUE_ALPHA = 128;
-/** 4 bitar per kanal räcker för att hitta kantens vanligaste färg. */
-const COLOR_BUCKET_SHIFT = 4;
 /** Så mycket måste en pixel skilja sig från bottnen för att räknas — under det är det JPEG-brus. */
 const MIN_BACKGROUND_DISTANCE = 24;
 /** Skiljer sig en pixel så här mycket från bottnen är den alltid form, hur mörka figurens övriga delar än är. */
 const MAX_BACKGROUND_DISTANCE = 48;
 /** En bild med så här lite form är en ritad linje, inte en fylld yta. */
 const THIN_INK_SHARE = 0.03;
-
-/** Kantens vanligaste färg — bottnen i en bild utan genomskinlighet. */
-function backgroundColor({ data, width, height }: RgbaPixels): [number, number, number] {
-  const buckets = new Map<number, { count: number; r: number; g: number; b: number }>();
-  const add = (x: number, y: number) => {
-    const i = (y * width + x) * 4;
-    const r = data[i] ?? 0;
-    const g = data[i + 1] ?? 0;
-    const b = data[i + 2] ?? 0;
-    const key = ((r >> COLOR_BUCKET_SHIFT) << 8) | ((g >> COLOR_BUCKET_SHIFT) << 4) | (b >> COLOR_BUCKET_SHIFT);
-    const bucket = buckets.get(key) ?? { count: 0, r: 0, g: 0, b: 0 };
-    bucket.count++;
-    bucket.r += r;
-    bucket.g += g;
-    bucket.b += b;
-    buckets.set(key, bucket);
-  };
-  for (let x = 0; x < width; x++) {
-    add(x, 0);
-    add(x, height - 1);
-  }
-  for (let y = 0; y < height; y++) {
-    add(0, y);
-    add(width - 1, y);
-  }
-  let best = { count: 0, r: 255, g: 255, b: 255 };
-  for (const bucket of buckets.values()) if (bucket.count > best.count) best = bucket;
-  const count = Math.max(1, best.count);
-  return [best.r / count, best.g / count, best.b / count];
-}
 
 /** En tunn linje kan hänga ihop bara diagonalt; en pixel bredare blir den en sluten ring. */
 function thicken(mask: Uint8Array, width: number, height: number): Uint8Array {
@@ -83,7 +52,7 @@ export function silhouetteMask(pixels: RgbaPixels): Uint8Array {
   if (byAlpha) {
     for (let i = 0; i < count; i++) presence[i] = data[i * 4 + 3] ?? 0;
   } else {
-    const [r, g, b] = backgroundColor(pixels);
+    const [r, g, b] = edgeColor(pixels);
     for (let i = 0; i < count; i++) {
       const distance = Math.max(
         Math.abs((data[i * 4] ?? 0) - r),

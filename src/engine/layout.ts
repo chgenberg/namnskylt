@@ -3,7 +3,7 @@ import { engravedRows } from "./document";
 import { availableHalfWidth, isEllipseShape, outlinePath } from "./shape";
 import { placeLogoPath } from "./logo";
 import { ZERO_OFFSET, clampOffset, moveRect, rectsOverlap, unionRect } from "./placement";
-import type { BadgeDocument, FontId, Mm, Offset, Rect, TextAlign } from "./types";
+import type { BadgeDocument, BadgeLogo, FontId, Mm, Offset, Rect, TextAlign } from "./types";
 
 export interface FontFace {
   fontId: FontId;
@@ -66,6 +66,8 @@ export type LayoutIssue =
 /** Loggan placerad på skylten: ruta i mm och banorna flyttade dit. */
 export interface LaidOutLogo extends Rect {
   d: string;
+  /** Loggan i färg. Finns den trycks bilden i rutan, och banorna graveras inte. */
+  imageSrc?: string;
 }
 
 export interface BadgeLayout {
@@ -334,7 +336,7 @@ export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout 
     frames,
     contentInsetMm: inset,
     rows: placedRows,
-    logo: logoBox && doc.logo ? placeLogo(doc.logo.d, doc.logo.viewWidth, logoBox) : null,
+    logo: logoBox && doc.logo ? placeLogo(doc.logo, logoBox) : null,
     issues,
     textOffsetMm,
     logoOffsetMm,
@@ -353,6 +355,10 @@ function moveRow(row: LaidOutRow, offset: Offset): LaidOutRow {
   return { ...row, xMm: row.xMm + offset.xMm, leftMm: row.leftMm + offset.xMm, baselineMm: row.baselineMm + offset.yMm };
 }
 
-function placeLogo(d: string, viewWidth: number, box: Rect): LaidOutLogo {
-  return { ...box, d: placeLogoPath(d, box.width / viewWidth, box.x, box.y) };
+function placeLogo(logo: BadgeLogo, box: Rect): LaidOutLogo {
+  return {
+    ...box,
+    d: placeLogoPath(logo.d, box.width / logo.viewWidth, box.x, box.y),
+    ...(logo.image && { imageSrc: logo.image.src }),
+  };
 }

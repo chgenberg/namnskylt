@@ -52,10 +52,19 @@ export interface Offset {
   yMm: Mm;
 }
 
+/** En logga i färg, som den ska tryckas: PNG i en data-URL, med genomskinlig botten. */
+export interface LogoImage {
+  src: string;
+}
+
 /**
- * Enfärgad logga som graveras i textens färg. Banorna ligger i en egen ruta
- * `viewWidth × viewHeight` (bara absoluta M/L/Z, fylls evenodd) och skalas
- * proportionerligt till `heightMm`.
+ * Loggan på skylten. En enfärgad logga graveras i textens färg. Banorna ligger
+ * i en egen ruta `viewWidth × viewHeight` (bara absoluta M/L/Z, fylls evenodd)
+ * och skalas proportionerligt till `heightMm`.
+ *
+ * En logga i färg har dessutom `image` och trycks då som den är i stället för
+ * att graveras. Banorna är dess siluett och rutan är bildens, så att bild och
+ * banor ligger exakt över varandra.
  */
 export interface BadgeLogo {
   d: string;
@@ -65,6 +74,8 @@ export interface BadgeLogo {
   heightMm: Mm;
   /** Dragen av kunden. Hålls alltid inom säkerhetszonen av layouten. */
   offsetMm?: Offset;
+  /** Finns bilden trycks loggan i färg; saknas den graveras banorna. */
+  image?: LogoImage;
 }
 
 export interface BadgeDocument {

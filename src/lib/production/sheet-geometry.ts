@@ -128,8 +128,14 @@ export function sheetMarks(sheet: PackedSheet, ctx: SheetContext): SheetMark[] {
 
   for (const placement of sheet.placements) {
     const { doc, key } = placement.unit;
-    const paths = engravingPaths(layoutBadge(doc, fonts), fonts);
+    const layout = layoutBadge(doc, fonts);
+    const paths = engravingPaths(layout, fonts);
     for (const path of paths ?? []) engrave(path.d, placement.xMm, placement.yMm, path.fillRule, key);
+    // En logga i färg trycks i stället för att graveras. Siluetten visar var trycket ska sitta
+    // och är en hjälplinje: den skrivs aldrig till maskinfilerna.
+    if (layout.logo?.imageSrc) {
+      marks.push({ ink: "guide", d: layout.logo.d, dx: placement.xMm, dy: placement.yMm, fillRule: "evenodd", placementKey: key });
+    }
     for (const outline of outlineMarks(doc, method)) {
       marks.push({ ...outline, dx: placement.xMm, dy: placement.yMm, placementKey: key });
     }

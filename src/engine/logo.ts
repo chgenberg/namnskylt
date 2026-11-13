@@ -18,6 +18,11 @@ export interface TraceOptions {
   tolerancePx?: number;
   /** Fläckar mindre än så (px²) är brus, inte logga. */
   minAreaPx?: number;
+  /**
+   * Behåll maskens ruta i stället för att beskära till bläcket. För en logga
+   * i färg, där banorna ska ligga exakt över bilden.
+   */
+  keepFrame?: boolean;
 }
 
 type Point = readonly [number, number];
@@ -289,8 +294,8 @@ function foregroundMask({ data, width, height }: RgbaPixels): Uint8Array {
 
 /**
  * Spårar en mask (bredd × höjd, >0 = bläck) till en logga. Rutan beskärs till
- * bläckets utbredning. Förenklingen grovnar tills banan ryms under taket i
- * `LOGO_LIMITS`. `null` = ingen synlig logga i bilden.
+ * bläckets utbredning, om inte `keepFrame` är satt. Förenklingen grovnar tills
+ * banan ryms under taket i `LOGO_LIMITS`. `null` = ingen synlig logga i bilden.
  */
 export function traceLogoMask(
   mask: ArrayLike<number>,
@@ -315,6 +320,13 @@ export function traceLogoMask(
     }
   }
 
+  if (options.keepFrame) {
+    minX = 0;
+    minY = 0;
+    maxX = width;
+    maxY = height;
+  }
+
   let tolerance = options.tolerancePx ?? DEFAULT_TOLERANCE_PX;
   for (let attempt = 0; attempt < MAX_SIMPLIFY_ATTEMPTS; attempt++) {
     const simplified = raw
@@ -337,6 +349,12 @@ const LOGO_PATH_TOKEN = /[MLZ]|-?\d+(?:\.\d+)?/g;
 
 /** Det enda banformat loggan får ha — valideras på servern innan något ritas. */
 export const LOGO_PATH_PATTERN = /^(?:[MLZ]|-?\d+(?:\.\d+)?|\s)+$/;
+
+/**
+ * Det enda format en logga i färg får ha: en PNG som base64 i en data-URL.
+ * Bilden skrivs rakt in i SVG:n, så inget annat än de tecknen släpps igenom.
+ */
+export const LOGO_IMAGE_PATTERN = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
 
 /**
  * Loggans banor flyttade från egen ruta till skyltens mm: skalas `scale` och
