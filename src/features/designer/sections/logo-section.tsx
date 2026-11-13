@@ -14,6 +14,7 @@ import {
 } from "@/engine";
 import { matchColorCombo } from "@/lib/brand/match";
 import { requestBrand, type BrandProfile } from "../logo/brand-api";
+import { storeLogoImage } from "../logo/store-image";
 import { traceImage, type LogoTrace } from "../logo/trace-image";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
@@ -99,8 +100,10 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
   };
 
   const adoptImage = async (src: string, invert = false): Promise<LogoTrace | null> => {
-    const trace = await traceImage(src, invert);
-    if (!trace) return null;
+    const read = await traceImage(src, invert);
+    if (!read) return null;
+    // En logga i färg sparas på servern, så att skylten bara bär bildens adress.
+    const trace = read.image ? { ...read, image: await storeLogoImage(read.image) } : read;
     setSource({ src, invert });
     applyTrace(trace, doc.logo?.placement);
     return trace;

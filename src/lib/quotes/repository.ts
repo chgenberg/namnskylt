@@ -5,6 +5,7 @@ import { z } from "zod";
 import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
 import { endPriceTable, type PriceModel } from "@/engine/price-model";
 import { requireDb } from "@/lib/db/client";
+import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages, withStoredLogoImages } from "@/lib/logo-images/repository";
 import { isCustomPricing, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
 import { priceListsFor, storedPriceModel, type PriceAudience } from "@/lib/orders/price-lists";
 import { getPriceModel, parsePricing } from "@/lib/orders/repository";
@@ -150,13 +151,16 @@ export async function createQuote(input: {
   const sql = requireDb();
   const model = await getPriceModel();
   const price = priceWithPricing(input.badges, null, endPriceTable(model));
+  // En logga i färg sparas en gång; skyltarna pekar på den. En bild som saknas stoppar offerten.
+  if (await missingLogoImages(input.badges)) throw new Error(MISSING_LOGO_IMAGE_ERROR);
+  const badges = await withStoredLogoImages(input.badges);
   const validUntil = addDays(swedishDay(new Date()), QUOTE_VALID_DAYS);
   const token = randomBytes(18).toString("base64url");
   return sql.begin(async (tx) => {
     // Kunden måste tillhöra samma återförsäljare — annars skapas ingen offert.
     const [row] = await tx<{ id: string; quote_no: string }[]>`
       insert into quotes (reseller_id, customer_id, badges, price_model, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project)
-      select ${input.tenant}, ${input.customerId}, ${tx.json(input.badges as unknown as Json)}, ${tx.json(model as unknown as Json)}, ${price.totalSek},
+      select ${input.tenant}, ${input.customerId}, ${tx.json(badges as unknown as Json)}, ${tx.json(model as unknown as Json)}, ${price.totalSek},
              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null}, ${input.project ?? null}
        where exists (select 1 from customers where id = ${input.customerId} and reseller_id = ${input.tenant})
       returning id, quote_no`;

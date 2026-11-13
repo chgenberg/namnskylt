@@ -6,6 +6,7 @@ import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
 import { endPriceTable, type PriceModel } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { db, requireDb } from "@/lib/db/client";
+import { withStoredLogoImages } from "@/lib/logo-images/repository";
 import { priceListsFor, storedPriceModel, type PriceAudience } from "./price-lists";
 import { isCustomPricing, pricingSchema, priceWithPricing, type Pricing } from "./pricing";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
@@ -181,6 +182,8 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
   const pricing = isCustomPricing(order.pricing ?? null) ? (order.pricing ?? null) : null;
   const model = order.priceModel ?? (await getPriceModel());
   const price = priceWithPricing(order.badges, pricing, endPriceTable(model));
+  // En logga i färg sparas en gång; skyltarna pekar på den.
+  const badges = await withStoredLogoImages(order.badges);
   const email = order.customer.email.trim().toLowerCase();
   const placedAt = order.placedAt ? new Date(order.placedAt) : new Date();
   const tenant = order.tenant;
@@ -195,7 +198,7 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
     const [saved] = await tx<{ id: string; order_no: string }[]>`
       insert into orders (customer_id, status, badges, pricing, price_model, total_sek, total_incl_vat_sek,
                           supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug, reseller_id, project)
-      values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Json)},
+      values (${customer.id}, ${order.status}, ${tx.json(badges as unknown as Json)},
               ${pricing ? tx.json(pricing as unknown as Json) : null}, ${tx.json(model as unknown as Json)},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
               ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false},
@@ -507,7 +510,8 @@ export async function getDesign(tenant: string, id: string): Promise<Design | nu
 
 export async function saveDesign(tenant: string, customerId: string, name: string, doc: BadgeDocument): Promise<string> {
   const sql = requireDb();
-  const template = { ...doc, quantity: 1 };
+  const [stored = doc] = await withStoredLogoImages([doc]);
+  const template = { ...stored, quantity: 1 };
   const [row] = await sql<{ id: string }[]>`
     insert into designs (customer_id, name, doc)
     select ${customerId}, ${name}, ${sql.json(template as unknown as Json)}

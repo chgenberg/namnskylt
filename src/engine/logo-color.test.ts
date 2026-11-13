@@ -9,7 +9,7 @@ import {
   renderBadgeSvg,
   type FontEngine,
 } from "./index";
-import { traceLogoMask, type RgbaPixels } from "./logo";
+import { logoImageRef, logoImageRefId, traceLogoMask, type RgbaPixels } from "./logo";
 import { colorLogo, hasColor, visibleMask, withoutWhiteBackground } from "./logo-color";
 import type { BadgeDocument, BadgeLogo } from "./types";
 
@@ -230,5 +230,29 @@ describe("badgeDocumentSchema och loggan i färg", () => {
 
   it("stoppar en bild över taket", () => {
     assert.equal(parse(`data:image/png;base64,${"A".repeat(200_000)}`), false);
+  });
+
+  it("godtar adressen till en bild som sparats på servern", () => {
+    const ref = logoImageRef("9a".repeat(32));
+    assert.equal(ref, `/api/logo-images/${"9a".repeat(32)}`);
+    assert.equal(parse(ref), true);
+    assert.equal(logoImageRefId(ref), "9a".repeat(32));
+    assert.equal(logoImageRefId(PNG), null);
+  });
+
+  it("stoppar adresser som inte är en sparad bild", () => {
+    const id = "9a".repeat(32);
+    for (const src of [
+      `/api/logo-images/${id.slice(2)}`,
+      `/api/logo-images/${id.toUpperCase()}`,
+      `/api/logo-images/${id}/../../admin`,
+      `/api/logo-images/${id}?x=1`,
+      `https://example.se/api/logo-images/${id}`,
+      `//example.se/api/logo-images/${id}`,
+      `/api/orders/${id}`,
+    ]) {
+      assert.equal(parse(src), false, src);
+      assert.equal(logoImageRefId(src), null, src);
+    }
   });
 });

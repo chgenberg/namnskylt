@@ -351,10 +351,29 @@ const LOGO_PATH_TOKEN = /[MLZ]|-?\d+(?:\.\d+)?/g;
 export const LOGO_PATH_PATTERN = /^(?:[MLZ]|-?\d+(?:\.\d+)?|\s)+$/;
 
 /**
- * Det enda format en logga i färg får ha: en PNG som base64 i en data-URL.
+ * En logga i färg som ligger i själva skylten: en PNG som base64 i en data-URL.
  * Bilden skrivs rakt in i SVG:n, så inget annat än de tecknen släpps igenom.
  */
 export const LOGO_IMAGE_PATTERN = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/;
+
+const LOGO_IMAGE_REF_PREFIX = "/api/logo-images/";
+
+/**
+ * En logga i färg som sparats på servern: skylten bär bara bildens adress på
+ * sajten, där namnet är bildens SHA-256. Bilden sparas då en gång, hur många
+ * skyltar som än delar den, och skylten ryms i en delad länk.
+ */
+export const LOGO_IMAGE_REF_PATTERN = /^\/api\/logo-images\/[0-9a-f]{64}$/;
+
+/** Adressen till en sparad bild. */
+export function logoImageRef(id: string): string {
+  return `${LOGO_IMAGE_REF_PREFIX}${id}`;
+}
+
+/** Den sparade bildens id ur adressen, eller `null` när bilden ligger i skylten. */
+export function logoImageRefId(src: string): string | null {
+  return LOGO_IMAGE_REF_PATTERN.test(src) ? src.slice(LOGO_IMAGE_REF_PREFIX.length) : null;
+}
 
 /**
  * Loggans banor flyttade från egen ruta till skyltens mm: skalas `scale` och

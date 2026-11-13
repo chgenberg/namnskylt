@@ -52,7 +52,11 @@ export interface Offset {
   yMm: Mm;
 }
 
-/** En logga i färg, som den ska tryckas: PNG i en data-URL, med genomskinlig botten. */
+/**
+ * En logga i färg, som den ska tryckas: en PNG med genomskinlig botten. `src`
+ * är bildens adress på sajten när den sparats på servern (`logoImageRef`),
+ * annars bilden själv i en data-URL.
+ */
 export interface LogoImage {
   src: string;
 }

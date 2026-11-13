@@ -389,6 +389,17 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
        where key = 'price_model' and not (value ? 'startSek');
     `,
   },
+  {
+    // Loggor i färg. En bild sparas en gång och pekas ut av skyltarna med sitt id (bildens SHA-256).
+    id: "018_logo_images",
+    sql: `
+      create table logo_images (
+        id text primary key check (id ~ '^[0-9a-f]{64}$'),
+        png bytea not null,
+        created_at timestamptz not null default now()
+      );
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

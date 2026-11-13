@@ -2,6 +2,7 @@ import "server-only";
 import { Resvg } from "@resvg/resvg-js";
 import { engravedRows, layoutBadge, renderBadgeSvg, type BadgeDocument, type FontEngine } from "@/engine";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
+import { withInlineLogoImages } from "@/lib/logo-images/repository";
 import { genitive } from "./genitive";
 
 /** Länkförhandsvisningarnas standardformat (Open Graph). */
@@ -25,8 +26,10 @@ function centeredText(fonts: FontEngine, text: string, sizePx: number, bold: boo
 }
 
 /** Skylten på papper med mjuk skugga och avsändare — samma ritning som kunden ser. */
-export async function renderShareImage(doc: BadgeDocument): Promise<Buffer> {
+export async function renderShareImage(source: BadgeDocument): Promise<Buffer> {
   const fonts = await loadNodeFontEngine();
+  // resvg hämtar inga adresser: en logga i färg som ligger på servern läggs in i skylten först.
+  const [doc = source] = await withInlineLogoImages([source]);
   const { widthMm, heightMm } = doc.size;
   const scale = Math.min(BADGE_MAX_WIDTH_PX / widthMm, BADGE_MAX_HEIGHT_PX / heightMm);
   const w = widthMm * scale;

@@ -80,7 +80,10 @@ export async function middleware(request: NextRequest) {
   // Statistiken anropas från återförsäljarnas sajter, som saknar kakan.
   // Panelens två inloggningar har egna lösenord — återförsäljare känner inte sajtkoden.
   // Resend och cron saknar kakan; webhooken kräver Svix-signatur, ticken en hemlighet.
+  // En sparad logga i färg visas på sidor som själva är öppna utan sajtkoden: panelen, offerter
+  // och korrektur. Adressen är bildens SHA-256 och går inte att gissa; uppladdningen är låst.
   if (
+    (request.method === "GET" && requested.startsWith("/api/logo-images/")) ||
     requested === "/api/gate" ||
     requested === "/api/supplier/webhook" ||
     requested === "/api/outreach/webhook" ||

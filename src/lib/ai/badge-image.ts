@@ -2,6 +2,7 @@ import "server-only";
 import { Resvg } from "@resvg/resvg-js";
 import { layoutBadge, renderBadgeSvg, type BadgeDocument, type BadgeLogo } from "@/engine";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
+import { withInlineLogoImages } from "@/lib/logo-images/repository";
 
 /** Upplösning på referensbilden till bildmodellen — 70 mm blir ~1100 px. */
 const REFERENCE_PX_PER_MM = 16;
@@ -10,8 +11,10 @@ const REFERENCE_PX_PER_MM = 16;
  * Skylten som PNG, renderad på servern ur det validerade dokumentet. Glyferna
  * är konturer, så resvg behöver inga systemtypsnitt.
  */
-export async function renderBadgePng(doc: BadgeDocument): Promise<Buffer> {
+export async function renderBadgePng(source: BadgeDocument): Promise<Buffer> {
   const fonts = await loadNodeFontEngine();
+  // resvg hämtar inga adresser: en logga i färg som ligger på servern läggs in i skylten först.
+  const [doc = source] = await withInlineLogoImages([source]);
   const svg = renderBadgeSvg(doc, layoutBadge(doc, fonts), {
     mode: "preview",
     fonts,

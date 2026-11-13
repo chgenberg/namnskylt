@@ -315,7 +315,10 @@ const PATH_TOKEN = /[MLQCZ]|-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi;
  * tolk räcker — och den kräver
  * ingen DOM, så geometrin kan byggas i en worker.
  */
-function glyphShapes(doc: BadgeDocument, paths: readonly EngravedPath[]): Shape[] {
+export function glyphShapes(
+  doc: Pick<BadgeDocument, "size">,
+  paths: readonly Pick<EngravedPath, "d" | "fillRule">[],
+): Shape[] {
   const halfW = doc.size.widthMm / 2;
   const halfH = doc.size.heightMm / 2;
   return paths.flatMap((path) => {

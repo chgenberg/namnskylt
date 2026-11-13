@@ -46,7 +46,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (659 tester, grönt 2026-11-13).
+# Kvalitetsgrinden. Kör den innan något lämnas (672 tester, grönt 2026-11-13).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -117,23 +117,41 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
 - **Loggan** graveras eller trycks, och det avgörs automatiskt när filen laddas upp eller hämtas
   från hemsidan (beslut av ägaren 2026-11-13, gäller både metall och plast):
   - En **svartvit** logga spåras till banor (`BadgeLogo.d`) och graveras i textens färg, som förut.
-  - En logga **i färg** får dessutom `BadgeLogo.image` (PNG i en data-URL) och trycks som den är i
-    filen. Texten graveras fortfarande. Kunden kan inte välja själv; "Invertera" finns bara för
-    graverade loggor.
+  - En logga **i färg** får dessutom `BadgeLogo.image` och trycks som den är i filen. Texten
+    graveras fortfarande. Kunden kan inte välja själv; "Invertera" finns bara för graverade loggor.
   - Reglerna ligger i `src/engine/logo-color.ts`: bilden är i färg när minst 1 % av det som syns
     har färg (`hasColor`). En vit botten tas bort (`withoutWhiteBackground`), även vitt inuti
     loggan; en färgad botten hör till loggan och behålls. Bilden beskärs till det som syns.
   - Webbläsaren gör bilden (`src/features/designer/logo/trace-image.ts`): högst 640 px på längsta
     sidan och högst `LOGO_LIMITS.maxImageChars` tecken, annars krymps den. En SVG blir alltså
-    en PNG. Schemat släpper bara igenom `data:image/png;base64,…` (`LOGO_IMAGE_PATTERN`).
+    en PNG.
+  - **Bilden sparas en gång på servern**, i tabellen `logo_images` (migrering 018) under sin
+    SHA-256, och skylten bär bara adressen: `image.src` är `/api/logo-images/<sha256>`
+    (`logoImageRef`, `LOGO_IMAGE_REF_PATTERN`). Skyltmotorn laddar upp bilden direkt när loggan
+    väljs (`POST /api/logo-images`). Går det inte, till exempel utan databas, ligger bilden kvar i
+    skylten som `data:image/png;base64,…` (`LOGO_IMAGE_PATTERN`). Schemat släpper bara igenom de
+    två formerna.
+  - Koden ligger i `src/lib/logo-images/`. `withStoredLogoImages` flyttar en bild som ligger i
+    skylten till lagret när en order, offert eller mall sparas. `withInlineLogoImages` lägger
+    tillbaka bilden där servern ritar utan webbläsare eller skickar skylten vidare: delningsbilden
+    och AI-bilden (resvg), offertens PDF och verkstadens underlag. `missingLogoImages` stoppar en
+    order eller offert som pekar på en bild som inte finns.
+  - `GET /api/logo-images/<id>` är öppen förbi sajtspärren (`src/middleware.ts`), eftersom bilden
+    visas i panelen, på offerter och på korrektur, som själva är öppna utan sajtkoden.
+    Uppladdningen är låst som övriga API:er.
   - En tryckt logga finns inte bland gravyrens banor (`engravingPaths`), alltså inte i 3D-fräsningen,
     produktionsfilen eller maskinfilerna. Förhandsvisningen ritar bilden (`renderBadgeSvg`, bara
-    `preview`), 3D-vyn lägger den som en yta på framsidan (`three/logo-print.tsx`), och verkstadens
-    arkvy visar siluetten som hjälplinje. Leverantören får ett bildlager med `renderMode: "print"`.
+    `preview`), 3D-vyn lägger den som en yta i loggans egen form på framsidan
+    (`three/logo-print.tsx`; en rektangel med genomskinliga delar syns som en ruta i fotoläget),
+    och verkstadens arkvy visar siluetten som hjälplinje. Leverantören får ett bildlager med
+    `renderMode: "print"`.
+  - En delad länk behåller en logga i färg som ligger på servern. Är siluetten för lång för länken
+    byts den mot bildens ruta (`encodeShareCode`); en graverad logga med mycket detaljer tappas
+    fortfarande ur länken.
   - Priset är samma som för en graverad logga ("extra gravyr eller print").
-  - Kända brister: bilden följer med varje skylt i ordern (100 namn ger 100 kopior i `badges`), en
-    delad länk tappar loggan eftersom bilden inte ryms, och fotoläget kan visa en tunn linje vid
-    bildens kant.
+  - Kända brister: bilder tas aldrig bort ur `logo_images`, även när ingen skylt pekar på dem
+    längre. Mjuka, halvgenomskinliga kanter i en logga (en skugga eller ett sken) klipps i 3D-vyn,
+    eftersom ytan följer siluetten; ritningen visar hela bilden.
 - **Äldre material och former** (mässing, akryl, epoxy, gravyrplast, sexkant m.fl.) ligger kvar
   i motorn så att sparade ordrar, offerter och butiker går att rita. En äldre skylt som öppnas
   i designern flyttas till närmaste yta och ämne (`toOfferedDocument`).

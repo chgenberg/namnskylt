@@ -1,4 +1,4 @@
-import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
+import { badgeDocumentSchema, logoImageRefId, type BadgeDocument } from "@/engine";
 
 /**
  * En design i en länk: dokumentet som komprimerad JSON i base64url. Samma kod
@@ -60,9 +60,23 @@ export interface ShareCode {
   droppedLogo: boolean;
 }
 
+/**
+ * En logga i färg som ligger på servern ritas ur sin bild; banorna är bara dess
+ * siluett. I en länk räcker bildens ruta som siluett, så att loggan ryms.
+ */
+function withFrameSilhouette(doc: BadgeDocument): BadgeDocument | null {
+  const { logo } = doc;
+  if (!logo?.image || logoImageRefId(logo.image.src) === null) return null;
+  const { viewWidth: w, viewHeight: h } = logo;
+  return { ...doc, logo: { ...logo, d: `M0 0L${w} 0L${w} ${h}L0 ${h}Z` } };
+}
+
 export async function encodeShareCode(doc: BadgeDocument): Promise<ShareCode> {
   const code = await pack(doc);
   if (code.length <= SHARE_MAX_CHARS || !doc.logo) return { code, droppedLogo: false };
+  const framed = withFrameSilhouette(doc);
+  const framedCode = framed ? await pack(framed) : null;
+  if (framedCode && framedCode.length <= SHARE_MAX_CHARS) return { code: framedCode, droppedLogo: false };
   const withoutLogo = { ...doc };
   delete withoutLogo.logo;
   return { code: await pack(withoutLogo), droppedLogo: true };

@@ -3,6 +3,7 @@ import { layoutBadge, renderBadgeSvg, type BadgeDocument } from "@/engine";
 import type { PriceModel } from "@/engine/price-model";
 import { renderLogoPng } from "@/lib/ai/badge-image";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
+import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages, withInlineLogoImages } from "@/lib/logo-images/repository";
 import { createSupplierClient } from "@/lib/supplier/client";
 import { toSupplierSignDocument } from "@/lib/supplier/map";
 import { NOT_OFFERED_ERROR, allOffered, type OrderSource } from "./model";
@@ -48,6 +49,8 @@ export interface PlaceOrderResult {
 export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
   // Sista spärren: anroparna kontrollerar själva och svarar med ett begripligt fel.
   if (!allOffered(input.badges)) throw new Error(NOT_OFFERED_ERROR);
+  // En skylt som pekar på en logga som inte finns på servern går inte att trycka.
+  if (await missingLogoImages(input.badges)) throw new Error(MISSING_LOGO_IMAGE_ERROR);
   if (input.demo) return placeDemoOrder(input);
   const { workshop, partner } = splitByProducer(input.badges);
   const partnerRequest = partner.length > 0 ? partnerRequestNumber() : undefined;
@@ -55,9 +58,11 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   let supplier: { orderNumber: string; status: "received" | "mock"; estimatedShipDate: string } | undefined;
   if (workshop.length > 0) {
     const fonts = await loadNodeFontEngine();
+    // Verkstaden får bilden själv, inte adressen till den hos oss.
+    const printable = await withInlineLogoImages(workshop);
     supplier = await createSupplierClient().placeOrder({
       customer: { name: input.customer.name, email: input.customer.email, company: input.customer.company ?? undefined },
-      lines: workshop.map((badge, i) => ({
+      lines: printable.map((badge, i) => ({
         // En logga i färg skickas som sin egen bild; bara en graverad behöver en svartvit miniatyr.
         document: toSupplierSignDocument(badge, fonts, {
           logoPng: badge.logo && !badge.logo.image ? renderLogoPng(badge.logo) : undefined,
