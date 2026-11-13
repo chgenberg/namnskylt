@@ -47,7 +47,7 @@ const GOOGLE_BY_KEY = new Map(GOOGLE_FAMILIES.map((family) => [family.toLowerCas
 const STYLE_WORD = /^(regular|medium|semi ?bold|bold|light|thin|black|book|extra|ultra|heavy|italic|var|vf|flex|webfont|web|font|std|v\d+|w\d+|\d{2,3})$/i;
 
 /** "FordAntennaCond-Light" → "Ford Antenna Cond Light". */
-export function tidyFamily(family: string): string {
+function tidyFamily(family: string): string {
   return family
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/[-_]+/g, " ")

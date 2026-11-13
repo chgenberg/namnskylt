@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { approxFonts, createBadgeDocument, layoutBadge } from "@/engine";
+import { approxFonts, createBadgeDocument, layoutBadge, withBlank } from "@/engine";
 import { toSupplierSignDocument } from "./map";
 
 describe("toSupplierSignDocument", () => {
@@ -11,6 +11,16 @@ describe("toSupplierSignDocument", () => {
     assert.equal(supplier.material, "gravyrplast-2-lager-0-8mm");
     assert.equal(supplier.color, "white-black");
     assert.equal(supplier.cornerRadiusMm, 3);
+  });
+
+  it("skickar metallskylten med sin kod och yta, och kudden som rektangel utan hörnradie", () => {
+    const cushion = withBlank({ ...createBadgeDocument(["Anna"]), colorId: "metal-silver" }, "cushion");
+    const supplier = toSupplierSignDocument(cushion, approxFonts);
+    assert.equal(supplier.material, "namnskylt-metall");
+    assert.equal(supplier.color, "metal-silver");
+    assert.equal(supplier.shape, "rectangular");
+    assert.equal(supplier.cornerRadiusMm, 0);
+    assert.deepEqual(supplier.dimensions, { widthMm: 75, heightMm: 35, autoSize: false });
   });
 
   it("skickar den ritade versalhöjden, inte den önskade", () => {

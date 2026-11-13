@@ -41,7 +41,7 @@ export interface SweepState {
 }
 
 /** Var lasern står (0–1) med mjuk start och inbromsning. */
-export function sweepProgress(sweep: SweepState | null, now: number): number | null {
+function sweepProgress(sweep: SweepState | null, now: number): number | null {
   if (!sweep) return null;
   const t = Math.max(0, (now - sweep.start) / sweep.durationMs);
   if (t >= 1) return null;

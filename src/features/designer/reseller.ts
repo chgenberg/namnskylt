@@ -1,5 +1,4 @@
 import type { ShopPriceList } from "@/lib/shops/price-list";
-import type { PurchaseTerms } from "@/lib/orders/purchase";
 
 /** Skyltmotorn i en återförsäljares demobutik — ordern märks med butiken. */
 export interface ShopContext {
@@ -17,6 +16,4 @@ export interface ResellerOrderContext {
   mode: "order" | "quote";
   /** Offertens rubrik, satt innan skyltmotorn öppnades. */
   project?: string;
-  /** Inköpsvillkoren hos tryckeriet; `null` innan de ställts in. Skickas bara till inloggad återförsäljare. */
-  purchase: PurchaseTerms | null;
 }

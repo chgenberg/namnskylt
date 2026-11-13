@@ -4,7 +4,7 @@ import { collectPage, dismissOverlays, LOGO_ATTRIBUTE, type CollectedLogo, type 
 import { allowBrowserRequest, isPublicHost } from "./request-guard";
 import { FetchBlockedError, parsePublicUrl, withWww } from "./url";
 
-export class BrowserUnavailableError extends Error {}
+class BrowserUnavailableError extends Error {}
 
 export interface RenderedLogo extends CollectedLogo {
   /** Elementet som det ser ut på sidan, med transparent sidbakgrund. */

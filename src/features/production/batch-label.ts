@@ -4,6 +4,7 @@ import type { ProductionBatch, ProductionMethod } from "@/lib/production";
 export const METHOD_LABEL: Record<ProductionMethod, string> = {
   "plastic-sheet": "Gravyr + skär på ark",
   "metal-cut": "Fiberlaser + metallskärning (DXF)",
+  blank: "Gravyr på färdiga ämnen",
 };
 
 export function batchLabel(batch: Pick<ProductionBatch, "materialId" | "colorId">): string {

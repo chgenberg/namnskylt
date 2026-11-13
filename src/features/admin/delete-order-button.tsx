@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState, useTransition } from "react";
-import { formatSek } from "@/features/orders/format";
+import { formatSek } from "@/lib/format";
 import { deleteOrderAction } from "./actions";
 import styles from "./admin.module.css";
 

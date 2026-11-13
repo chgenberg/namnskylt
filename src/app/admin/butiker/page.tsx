@@ -1,10 +1,9 @@
 import { adminTenant } from "@/features/admin/guard";
 import { ShopBuilder } from "@/features/admin/shop-builder";
 import { ShopCardActions } from "@/features/admin/shop-card-actions";
-import { ShopEmailPreview } from "@/features/admin/shop-email-preview";
 import { ShopSearch } from "@/features/admin/shop-search";
 import styles from "@/features/admin/admin.module.css";
-import { formatDate } from "@/features/orders/format";
+import { formatDate } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { listShops } from "@/lib/shops/repository";
@@ -48,7 +47,6 @@ export default async function ShopsPage({ searchParams }: { searchParams: Promis
             skyltmotorn. Ordrarna landar här, märkta med butiken.
           </p>
         </div>
-        <ShopEmailPreview shops={allShops.map(({ shop }) => ({ slug: shop.slug, name: shop.profile.name }))} />
       </header>
 
       <section className={styles.panel} style={{ marginBottom: "var(--space-5)" }}>

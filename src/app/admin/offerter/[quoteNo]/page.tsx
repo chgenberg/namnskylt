@@ -7,10 +7,9 @@ import { updateQuotePricingAction } from "@/features/admin/quote-actions";
 import { QuoteDecisionButtons, QuoteSendPanel, QuoteTermsForm } from "@/features/admin/quote-controls";
 import { QuoteFlow, QuoteStatusPill } from "@/features/admin/quote-parts";
 import styles from "@/features/admin/admin.module.css";
-import { formatDate, formatDay, formatSek } from "@/features/orders/format";
+import { formatDate, formatDay, formatSek } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { badgeCount } from "@/lib/orders/model";
-import { getPurchaseTerms } from "@/lib/orders/repository";
 import { canEditQuote, displayStatus } from "@/lib/quotes/model";
 import { getQuote } from "@/lib/quotes/repository";
 
@@ -26,7 +25,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
   if (!quote) notFound();
   const status = displayStatus(quote);
   const editable = canEditQuote(quote);
-  const [origin, purchase] = await Promise.all([siteOrigin(), getPurchaseTerms(tenant)]);
+  const origin = await siteOrigin();
   const link = quote.status === "sent" || status === "expired" ? `${origin}/offert/${quote.token}` : null;
   const name = quote.customer.company ?? quote.customer.name;
 
@@ -95,7 +94,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
               <span className={styles.muted}>{editable ? "Ändra à-pris per skylt eller ge rabatt" : "Låst — offerten är besvarad"}</span>
             </div>
             <PricingEditor
-              purchase={purchase}
+              priceModel={quote.priceModel}
               badges={quote.badges}
               pricing={quote.pricing}
               submit={editable ? updateQuotePricingAction.bind(null, quote.quoteNo) : undefined}

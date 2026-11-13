@@ -16,6 +16,18 @@ export const UNITS_PER_MM = 0.034;
 /** Riktiga skyltar är 0,8–1 mm; något tjockare i vyn så kanten läses. */
 const MIN_VISUAL_THICKNESS_MM = 1.6;
 const BEVEL_MM = 0.35;
+/** Tunn plåt (under 0,8 mm) ska se tunn ut även i vyn: lägre platta och knappare avfasning. */
+const THIN_SHEET_BELOW_MM = 0.8;
+const THIN_VISUAL_THICKNESS_MM = 0.9;
+const THIN_BEVEL_MM = 0.18;
+
+/** Plattans tjocklek och avfasning i vyn, i mm. */
+function plateProfile(doc: BadgeDocument): { depthMm: number; bevelMm: number } {
+  const thicknessMm = getMaterial(doc.materialId).thicknessMm;
+  return thicknessMm < THIN_SHEET_BELOW_MM
+    ? { depthMm: THIN_VISUAL_THICKNESS_MM, bevelMm: THIN_BEVEL_MM }
+    : { depthMm: Math.max(thicknessMm, MIN_VISUAL_THICKNESS_MM), bevelMm: BEVEL_MM };
+}
 /** Segment per båge: ovalen är en enda ellips, rundade hörn är fyra kvartsbågar. */
 const OUTLINE_CURVE_SEGMENTS: Record<BadgeShape, number> = {
   oval: 128,
@@ -25,6 +37,8 @@ const OUTLINE_CURVE_SEGMENTS: Record<BadgeShape, number> = {
   rectangle: 1,
   hexagon: 1,
   octagon: 1,
+  // Kudden kommer redan som en tät polygon från motorn.
+  cushion: 1,
 };
 const GLYPH_CURVE_SEGMENTS = 6;
 /**
@@ -43,9 +57,9 @@ const ENGRAVE_DEPTH_MM: Record<MaterialFinish, number> = {
 const CUTTER_OVERSHOOT_MM = 0.5;
 
 /** Materialplatser: grupper under bygget, index i `BadgeGeometry` efteråt. */
-export const SURFACE_SLOT = 0;
-export const CORE_SLOT = 1;
-export const ENGRAVING_SLOT = 2;
+const SURFACE_SLOT = 0;
+const CORE_SLOT = 1;
+const ENGRAVING_SLOT = 2;
 
 /** Ytskikt, kärna och gravyr — i den ordningen. */
 export type BadgeGeometry = [surface: BufferGeometry, core: BufferGeometry, engraving: BufferGeometry];
@@ -59,8 +73,8 @@ export interface PlateMetrics {
 }
 
 export function plateMetrics(doc: BadgeDocument): PlateMetrics {
-  const depth = Math.max(getMaterial(doc.materialId).thicknessMm, MIN_VISUAL_THICKNESS_MM);
-  const half = (depth / 2 + BEVEL_MM) * UNITS_PER_MM;
+  const { depthMm, bevelMm } = plateProfile(doc);
+  const half = (depthMm / 2 + bevelMm) * UNITS_PER_MM;
   return {
     widthUnits: doc.size.widthMm * UNITS_PER_MM,
     heightUnits: doc.size.heightMm * UNITS_PER_MM,
@@ -257,7 +271,7 @@ function refineSurface(plate: BufferGeometry, maxEdge: number): BufferGeometry {
 
 function plateGeometry(doc: BadgeDocument): BufferGeometry {
   const { frontZ } = plateMetrics(doc);
-  const bevel = BEVEL_MM * UNITS_PER_MM;
+  const bevel = plateProfile(doc).bevelMm * UNITS_PER_MM;
   const depth = 2 * frontZ - 2 * bevel;
   const outline = outlineShape(doc);
   if (!outline) throw new Error("Skylten saknar yta");

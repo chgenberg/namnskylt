@@ -1,8 +1,8 @@
-import type { BadgeDocument } from "@/engine";
+import type { BadgeDocument, PriceModel } from "@/engine";
 import type { Customer } from "@/lib/orders/model";
 import type { Pricing } from "@/lib/orders/pricing";
 
-export const QUOTE_STATUSES = ["draft", "sent", "accepted", "declined", "cancelled"] as const;
+const QUOTE_STATUSES = ["draft", "sent", "accepted", "declined", "cancelled"] as const;
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
 /** `expired` lagras inte — en skickad offert vars sista dag passerat. */
 export type QuoteDisplayStatus = QuoteStatus | "expired";
@@ -37,6 +37,8 @@ export interface StoredQuote {
   status: QuoteStatus;
   badges: BadgeDocument[];
   pricing: Pricing | null;
+  /** Prismodellen som gällde när offerten skapades — priset kunden fått ändras inte i efterhand. */
+  priceModel: PriceModel;
   totalSek: number;
   totalInclVatSek: number;
   message: string | null;

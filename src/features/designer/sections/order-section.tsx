@@ -2,15 +2,17 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type Dispatch, type FormEvent } from "react";
+import { usePriceModel } from "@/components/price-model-provider";
 import { ProgressBanner } from "@/components/ui/progress-banner";
-import { QUANTITY_TIERS, badgeDocumentSchema, isPartnerMade, priceOrder, type BadgeDocument } from "@/engine";
-import { marginOf, purchasePrice } from "@/lib/orders/purchase";
+import { badgeDocumentSchema, isPartnerMade, priceOrder, resellerOrder, type BadgeDocument } from "@/engine";
+import { marginOf } from "@/lib/orders/purchase";
 import { shopPrice } from "@/lib/shops/price-list";
 import type { ResellerOrderContext, ShopContext } from "../reseller";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
-const QUICK_QUANTITIES = [1, 10, 50, 200] as const;
+/** Snabbval för antal; det sista är första antalet på nästa trappsteg i prismodellen. */
+const QUICK_QUANTITIES = [1, 10, 50] as const;
 const ORDER_EXPECTED_MS = 3_000;
 const ORDER_STEPS = [
   [0, "Kontrollerar skyltarna…"],
@@ -50,12 +52,19 @@ interface OrderSectionProps {
 
 export function OrderSection({ doc, badges, dispatch, reseller, shop, captureShot }: OrderSectionProps) {
   const [order, setOrder] = useState<OrderState>({ status: "idle" });
-  const listPrice = priceOrder(badges);
+  const model = usePriceModel();
+  const listPrice = priceOrder(badges, model);
   // Butiken visar sina egna priser; servern sparar ordern med samma tal.
-  const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList) } : listPrice;
+  const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, model) } : listPrice;
   const names = badges.length;
-  const discount = Math.round((1 - price.tier.factor) * 100);
-  const nextTier = [...QUANTITY_TIERS].reverse().find((t) => t.minQuantity > price.quantity);
+  const nextTier = model.tiers[price.tierIndex + 1];
+  const quickQuantities = [...QUICK_QUANTITIES, (model.tiers[1]?.moreThan ?? 100) + 1];
+  const priceNote =
+    price.minimumTopUpSek > 0
+      ? `Minsta ordervärde ${sek.format(model.endMinOrderSek)}`
+      : nextTier
+        ? `Lägre pris från ${nextTier.moreThan + 1} st`
+        : "Lägsta styckpris";
   const valid = badges.every((badge) => badgeDocumentSchema.safeParse(badge).success);
   const partnerMade = isPartnerMade(doc.materialId);
 
@@ -136,7 +145,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
           </button>
         </div>
         <div className={styles.chips}>
-          {QUICK_QUANTITIES.map((q) => (
+          {quickQuantities.map((q) => (
             <button
               key={q}
               type="button"
@@ -154,7 +163,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
         <div>
           <p className={styles.priceLabel}>
             {names > 1 && `${names} namn × ${doc.quantity} = ${price.quantity} st · `}
-            {sek.format(price.unitSek)} / st{discount > 0 && <span className={styles.discount}>−{discount}%</span>}
+            {sek.format(price.unitSek)} / st
           </p>
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.p
@@ -168,9 +177,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
               {sek.format(price.totalSek)}
             </motion.p>
           </AnimatePresence>
-          <p className={styles.priceNote}>
-            exkl. moms · {nextTier ? `Mängdrabatt från ${nextTier.minQuantity} st` : "Högsta mängdrabatt"}
-          </p>
+          <p className={styles.priceNote}>exkl. moms · {priceNote}</p>
         </div>
         {!reseller && (order.status === "idle" || order.status === "error") ? (
           <button
@@ -265,19 +272,10 @@ interface PurchaseSummaryProps {
   saleSek: number;
 }
 
-/** Bara för återförsäljaren: vad skyltarna kostar hos tryckeriet och vad som blir kvar vid listpris. */
+/** Bara för återförsäljaren: vad ordern kostar i inköp enligt prismodellen och vad som blir kvar vid listpris. */
 function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
-  if (!reseller.purchase) {
-    return (
-      <p className={styles.purchase} data-empty="true">
-        Ditt inköpspris syns här när du ställt in din rabatt hos tryckeriet.{" "}
-        <a href="/admin/inkopspriser" target="_blank" rel="noreferrer">
-          Ställ in inköpspriser ↗
-        </a>
-      </p>
-    );
-  }
-  const purchase = purchasePrice(badges, reseller.purchase);
+  const model = usePriceModel();
+  const purchase = resellerOrder(badges, model);
   const margin = marginOf(saleSek, purchase.totalSek);
   const quantity = badges.reduce((sum, badge) => sum + badge.quantity, 0);
   return (

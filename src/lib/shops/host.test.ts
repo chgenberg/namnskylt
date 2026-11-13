@@ -13,15 +13,15 @@ describe("butikens adress", () => {
   });
 
   it("ger butikens underadress, men inte reserverade namn", () => {
-    assert.deepEqual(resolveHost("Kontorsprofilen.Namnskylt.com:443", MAIN), { kind: "subdomain", slug: "kontorsprofilen" });
+    assert.deepEqual(resolveHost("Exempelbutik.Namnskylt.com:443", MAIN), { kind: "subdomain", slug: "exempelbutik" });
     assert.deepEqual(resolveHost("admin.namnskylt.com", MAIN), { kind: "main" });
     assert.deepEqual(resolveHost("a.b.namnskylt.com", MAIN), { kind: "main" });
   });
 
   it("tar emot återförsäljarens egen domän", () => {
-    assert.deepEqual(resolveHost("skylt.kontorsprofilen.se", MAIN), { kind: "custom", host: "skylt.kontorsprofilen.se" });
+    assert.deepEqual(resolveHost("skylt.exempelbutik.se", MAIN), { kind: "custom", host: "skylt.exempelbutik.se" });
     assert.equal(normalizeHost("Skylt.Example.se., other"), "skylt.example.se");
-    assert.equal(isValidDomain("skylt.kontorsprofilen.se"), true);
+    assert.equal(isValidDomain("skylt.exempelbutik.se"), true);
     assert.equal(isValidDomain("butik.namnskylt.com"), false);
     assert.equal(isValidDomain("inte en domän"), false);
   });

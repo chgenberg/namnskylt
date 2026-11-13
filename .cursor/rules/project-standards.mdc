@@ -18,6 +18,7 @@ Next.js 15 (App Router) · React 19 · TypeScript strict · CSS Modules + `globa
 - `src/features/<feature>/` — en sida/flödes komponenter, state och stil.
 - `src/components/` — delade komponenter; `components/ui/` = primitiver.
 - `src/hooks/` — delade hooks. `src/app/` — bara routes, layout och API-handlers.
+- Lagergränser, var ny kod hör hemma och rotens regler: se `project-structure.mdc`.
 
 ## Principer
 - Dokumentet (`BadgeDocument`, mm) är sanningen. 3D, ritning och order härleds ur det — aldrig parallell state.

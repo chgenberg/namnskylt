@@ -16,7 +16,7 @@ const POSTAL_ADDRESS =
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
-export function pageText(html: string): string {
+function pageText(html: string): string {
   return html
     .replace(/<(script|style|noscript|svg)\b[\s\S]*?<\/\1>/gi, " ")
     .replace(/<br\s*\/?>|<\/(p|div|li|address|h\d)>/gi, "\n")

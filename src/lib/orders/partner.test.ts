@@ -4,14 +4,15 @@ import { createBadgeDocument } from "@/engine";
 import { partnerRequestNumber, splitByProducer } from "./partner";
 
 test("splitByProducer skickar bara verkstadens material till leverantörs-API:t", () => {
-  const brass = createBadgeDocument();
+  const metal = createBadgeDocument();
+  const brass = { ...createBadgeDocument(), materialId: "brass" as const, colorId: "brass-gold" };
   const plastic = { ...createBadgeDocument(), materialId: "plastic-2-layer" as const, colorId: "white-black" };
   const steel = { ...createBadgeDocument(), materialId: "stainless" as const, colorId: "steel-laser" };
 
-  const split = splitByProducer([brass, plastic, steel]);
+  const split = splitByProducer([metal, brass, plastic, steel]);
 
   assert.deepEqual(split.partner, [brass]);
-  assert.deepEqual(split.workshop, [plastic, steel]);
+  assert.deepEqual(split.workshop, [metal, plastic, steel]);
 });
 
 test("partnerRequestNumber är stabilt för en given tidpunkt", () => {

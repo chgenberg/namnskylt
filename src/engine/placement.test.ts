@@ -17,8 +17,14 @@ import {
 const EPS = 1e-6;
 const SQUARE_LOGO = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 10 };
 
+/** Fritt mått 70 × 25 mm, så att talen nedan inte följer med när ämnenas mått ändras. */
 function rectangle(overrides: Partial<BadgeDocument> = {}): BadgeDocument {
-  return { ...createBadgeDocument(["Anna Lindqvist", "Projektledare"]), shape: "rectangle", ...overrides };
+  return {
+    ...createBadgeDocument(["Anna Lindqvist", "Projektledare"]),
+    shape: "rectangle",
+    size: { widthMm: 70, heightMm: 25 },
+    ...overrides,
+  };
 }
 
 function assertInsideZone(doc: BadgeDocument, layout: BadgeLayout, box: Rect | null) {

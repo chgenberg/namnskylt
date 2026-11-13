@@ -82,12 +82,11 @@ export interface TemplateShop {
   address: string;
 }
 
-/** Materialen exempelbilderna visar, i den ordning de ritas. */
+/** Ytorna exempelbilderna visar, i den ordning de ritas. */
 export const SHOWCASE_MATERIALS = [
-  { materialId: "brass", colorId: "brass-gold", name: "Mässing", line: "Klassisk och elegant" },
-  { materialId: "aluminium-anodized", colorId: "alu-natural-black", name: "Borstad aluminium", line: "Diskret och exklusiv" },
-  { materialId: "acrylic", colorId: "acrylic-white", name: "Akryl", line: "Djup och skuggspel" },
-  { materialId: "plastic-2-layer", colorId: "black-white", name: "Gravyrplast", line: "Prisvärd, i 17 färger" },
+  { materialId: "metal", colorId: "metal-gold", name: "Borstat guld", line: "Klassisk och elegant" },
+  { materialId: "metal", colorId: "metal-silver", name: "Borstat silver", line: "Diskret och stilren" },
+  { materialId: "metal", colorId: "metal-white", name: "Vit", line: "Ren och tydlig" },
 ] as const;
 
 const ORDER_STEPS = [
@@ -101,17 +100,17 @@ const FAQ = [
   { question: "Hur lång är leveranstiden?", answer: "Skyltarna graveras och skickas inom fem arbetsdagar efter att korrekturen är godkänd." },
   { question: "Får jag se skylten innan den graveras?", answer: "Ja. Du ser skylten i 3D när du beställer och godkänner en korrektur innan något graveras." },
   { question: "Kan jag beställa till hela teamet på en gång?", answer: "Ja. Skriv ett namn per rad eller ladda upp en Excel-lista — namn och titel hittas automatiskt." },
-  { question: "Vilka material finns?", answer: "Mässing, akryl, massiv och borstad aluminium, rostfritt stål, epoxy och gravyrplast i 17 färger." },
-  { question: "Vilka fästen kan jag välja?", answer: "Nål, magnet, klämma eller säkerhetsnål. Magneten är skonsam mot kläderna." },
+  { question: "Vilka material finns?", answer: "Graverade metallskyltar i vitt, borstat guld och borstat silver, i fyra former." },
+  { question: "Vilka fästen kan jag välja?", answer: "Nål, magnet eller klämma. Magneten är skonsam mot kläderna." },
   { question: "Kan vår logga graveras på skylten?", answer: "Ja. Ladda upp loggan i skyltmotorn så graveras den tillsammans med texten." },
-  { question: "Blir det billigare om vi beställer fler?", answer: "Ja, det finns mängdrabatt från tio skyltar — ju fler, desto lägre pris per skylt." },
+  { question: "Blir det billigare om vi beställer fler?", answer: "Ja. Priset per skylt sjunker vid större beställningar — ju fler, desto lägre pris per skylt." },
   { question: "Kan jag ändra något efter beställningen?", answer: "Säg till innan du godkänt korrekturen, så rättar vi. Efter godkännandet går skyltarna direkt till gravyr." },
 ];
 
 const pick = <T,>(list: readonly T[], indexes: readonly number[]) => indexes.flatMap((i) => (list[i] ? [list[i]] : []));
 
 /** Mallens block, med butikens namn och — för mallar med exempelbilder — bilderna i den ordning de ritades. */
-export function templateBlocks(id: PageTemplateId, shop: TemplateShop, imageIds: readonly string[] = []): Block[] {
+function templateBlocks(id: PageTemplateId, shop: TemplateShop, imageIds: readonly string[] = []): Block[] {
   const b = () => newId();
   const create = `/butik/${shop.slug}/skapa`;
   const image = (i: number) => imageIds[i] ?? null;
@@ -182,7 +181,7 @@ export function templateBlocks(id: PageTemplateId, shop: TemplateShop, imageIds:
           kind: "header",
           id: b(),
           title: "Material och sortiment",
-          lead: "Från klassisk mässing till prisvärd gravyrplast — alla graverade med ert namn.",
+          lead: "Metallskyltar i vitt, borstat guld och borstat silver — alla graverade med ert namn.",
           imageId: null,
           align: "left",
         },

@@ -223,6 +223,61 @@ function loopsToPath(loops: readonly Point[][], offsetX: number, offsetY: number
     .join("");
 }
 
+/** RGBA-pixlar rad för rad, som `ImageData` eller sharps `raw`. */
+export interface RgbaPixels {
+  data: ArrayLike<number>;
+  width: number;
+  height: number;
+}
+
+/** Andel genomskinliga pixlar som gör att alfakanalen avgör vad som är bläck. */
+const TRANSPARENT_SHARE = 0.02;
+const ALPHA_INK = 128;
+
+/**
+ * Bläck eller botten per pixel. Genomskinlig bild: allt synligt är bläck.
+ * Ogenomskinlig: ljusheten delas med Otsus tröskel, och den klass som
+ * dominerar kanten räknas som botten — så både mörk logga på vitt och vit
+ * logga på färg blir rätt.
+ */
+export function inkMask({ data, width, height }: RgbaPixels, invert = false): Uint8Array {
+  const count = width * height;
+  const mask = new Uint8Array(count);
+  let transparent = 0;
+  for (let i = 0; i < count; i++) if ((data[i * 4 + 3] ?? 0) < ALPHA_INK) transparent++;
+
+  if (transparent / count > TRANSPARENT_SHARE) {
+    for (let i = 0; i < count; i++) mask[i] = (data[i * 4 + 3] ?? 0) >= ALPHA_INK ? 1 : 0;
+  } else {
+    const luminance = new Uint8Array(count);
+    for (let i = 0; i < count; i++) {
+      luminance[i] = 0.2126 * (data[i * 4] ?? 0) + 0.7152 * (data[i * 4 + 1] ?? 0) + 0.0722 * (data[i * 4 + 2] ?? 0);
+    }
+    const threshold = otsuThreshold(luminance);
+    let darkEdge = 0;
+    let edge = 0;
+    for (let x = 0; x < width; x++) {
+      for (const y of [0, height - 1]) {
+        edge++;
+        if ((luminance[y * width + x] ?? 0) <= threshold) darkEdge++;
+      }
+    }
+    for (let y = 0; y < height; y++) {
+      for (const x of [0, width - 1]) {
+        edge++;
+        if ((luminance[y * width + x] ?? 0) <= threshold) darkEdge++;
+      }
+    }
+    const darkIsInk = darkEdge <= edge / 2;
+    for (let i = 0; i < count; i++) {
+      const dark = (luminance[i] ?? 0) <= threshold;
+      mask[i] = dark === darkIsInk ? 1 : 0;
+    }
+  }
+  if (invert) for (let i = 0; i < count; i++) mask[i] = mask[i] ? 0 : 1;
+  return mask;
+}
+
 /**
  * Spårar en mask (bredd × höjd, >0 = bläck) till en logga. Rutan beskärs till
  * bläckets utbredning. Förenklingen grovnar tills banan ryms under taket i

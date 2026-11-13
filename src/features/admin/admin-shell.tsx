@@ -15,6 +15,7 @@ const ICON: Record<string, ReactNode> = {
   export: <path d="M10 3v10M6 9l4 4 4-4M4 17h12" />,
   purchase: <path d="M3 10.5V3h7.5l6.5 6.5-7.5 7.5zM7 7h.01" />,
   shops: <path d="M3 7.5 4.5 3h11L17 7.5M3 7.5h14M3 7.5c0 1.4 1.1 2.5 2.3 2.5s2.4-1.1 2.4-2.5c0 1.4 1 2.5 2.3 2.5s2.3-1.1 2.3-2.5c0 1.4 1.1 2.5 2.4 2.5S17 8.9 17 7.5M4.5 10v7h11v-7M8 17v-4h4v4" />,
+  outreach: <path d="M2.5 5.5h15v10h-15zM2.5 5.5l7.5 6 7.5-6" />,
   settings: <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM10 2v2M10 16v2M2 10h2M16 10h2M4.3 4.3l1.4 1.4M14.3 14.3l1.4 1.4M4.3 15.7l1.4-1.4M14.3 5.7l1.4-1.4" />,
 };
 
@@ -25,6 +26,8 @@ const NAV = [
   { href: "/admin/kunder", label: "Kunder", icon: "customers" },
   { href: "/admin/statistik", label: "Statistik", icon: "stats" },
   { href: "/admin/butiker", label: "Butiker", icon: "shops", ownerOnly: true },
+  { href: "/admin/utskick", label: "Utskick", icon: "outreach", ownerOnly: true },
+  { href: "/admin/prismodell", label: "Prismodell", icon: "purchase", ownerOnly: true },
   { href: "/admin/inkopspriser", label: "Inköpspriser", icon: "purchase" },
   { href: "/admin/export", label: "Export", icon: "export" },
   { href: "/admin/installningar", label: "Inställningar", icon: "settings" },

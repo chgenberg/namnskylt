@@ -1,4 +1,4 @@
-import { formatSek } from "@/features/orders/format";
+import { formatSek } from "@/lib/format";
 import type { WeekBucket } from "@/lib/orders/stats";
 import styles from "./admin.module.css";
 

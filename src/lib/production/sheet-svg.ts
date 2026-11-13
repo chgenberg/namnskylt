@@ -1,4 +1,4 @@
-import { HAIRLINE_MM, PRODUCTION_INK, PROOF_STROKE_MM } from "./ink";
+import { GUIDE_INK, HAIRLINE_MM, PRODUCTION_INK, PROOF_STROKE_MM } from "./ink";
 import type { Box, PackedSheet } from "./packing";
 import type { SheetMark } from "./sheet-geometry";
 
@@ -17,6 +17,7 @@ export interface SheetSvgOptions {
 }
 
 const SELECTION = "#2F5DA8";
+const GUIDE_STROKE_MM = 0.25;
 /** Ungefär så långt `[PO#2026-041] Skiva 10/12` blir vid 3 mm versalhöjd. */
 const SHEET_HEADER_TEXT_SPAN_MM = 64;
 const LABEL_INK = "rgba(47,93,168,.75)";
@@ -38,6 +39,12 @@ function markMarkup(mark: SheetMark, strokeMm: number): string {
   const transform = mark.dx || mark.dy ? ` transform="translate(${num(mark.dx)} ${num(mark.dy)})"` : "";
   if (mark.ink === "engrave") {
     return `<path d="${mark.d}" fill="${PRODUCTION_INK.engrave}" fill-rule="${mark.fillRule ?? "nonzero"}"${transform}/>`;
+  }
+  if (mark.ink === "guide") {
+    // Rubriktext är en fylld kontur; ämnets kant är ett streckat streck.
+    return mark.fillRule
+      ? `<path data-screen="1" d="${mark.d}" fill="${GUIDE_INK}" fill-rule="${mark.fillRule}"${transform}/>`
+      : `<path data-screen="1" d="${mark.d}" fill="none" stroke="${GUIDE_INK}" stroke-width="${GUIDE_STROKE_MM}" stroke-dasharray="1.2 0.8"${transform}/>`;
   }
   const color = mark.ink === "cut" ? PRODUCTION_INK.cut : PRODUCTION_INK.throughCut;
   return `<path d="${mark.d}" fill="none" stroke="${color}" stroke-width="${strokeMm}" stroke-linecap="butt"${transform}/>`;
@@ -98,9 +105,12 @@ export function usedArea(sheet: PackedSheet, marginMm = 6): Box {
   return { xMm: x1, yMm: y1, widthMm: x2 - x1, heightMm: y2 - y1 };
 }
 
-/** Maskinfilen: bara det som skärs och graveras, i verkliga mm. */
+/** Maskinfilen: bara det som skärs och graveras, i verkliga mm. Hjälplinjer följer aldrig med. */
 export function renderMachineSvg(sheet: PackedSheet, marks: readonly SheetMark[]): string {
   const { widthMm: w, heightMm: h } = sheet;
-  const body = marks.map((mark) => markMarkup(mark, HAIRLINE_MM)).join("");
+  const body = marks
+    .filter((mark) => mark.ink !== "guide")
+    .map((mark) => markMarkup(mark, HAIRLINE_MM))
+    .join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${num(w)} ${num(h)}" width="${num(w)}mm" height="${num(h)}mm">${body}</svg>`;
 }

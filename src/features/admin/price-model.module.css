@@ -1,0 +1,227 @@
+.layout {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.card {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+/* Tabellen följer kalkylbladet: en etikett och ett tal per trappsteg. */
+.table {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.6fr) repeat(4, minmax(132px, 1fr));
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+  overflow-x: auto;
+}
+
+.rowLabel {
+  display: grid;
+  gap: 2px;
+  font-weight: 500;
+}
+
+.rowLabel small {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.columnHead {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: end;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+.derivedLabel {
+  padding-left: var(--space-3);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.derived {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.divider {
+  grid-column: 1 / -1;
+  height: 1px;
+  background: var(--color-line);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+}
+
+.field:focus-within {
+  border-color: var(--color-ink);
+  box-shadow: var(--focus-ring);
+}
+
+.field input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  outline: none;
+}
+
+.field span {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.optionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-3);
+}
+
+.option {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.option small {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.calcInputs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+.calcField {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.calcField > span {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.calcField select {
+  min-height: 36px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  font-size: var(--text-sm);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  font-size: var(--text-sm);
+}
+
+.narrow {
+  width: 110px;
+}
+
+.results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.result {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-paper-3);
+}
+
+.result dt {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.result dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.result small {
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+}
+
+.result[data-tone="own"] {
+  background: var(--color-navy-tint);
+}
+
+.result[data-tone="bad"] dd {
+  color: var(--color-danger);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.message[data-ok="true"] {
+  color: var(--color-success);
+}
+
+.message[data-ok="false"] {
+  color: var(--color-danger);
+}
+
+@media (max-width: 900px) {
+  .card {
+    padding: var(--space-4);
+  }
+}

@@ -1,5 +1,6 @@
 import { db } from "../src/lib/db/client";
 import { migrate } from "../src/lib/db/migrations";
+import { DEFAULT_PRICE_MODEL } from "../src/engine";
 import { insertDemoData, removeDemoData } from "../src/lib/orders/demo-data";
 
 /**
@@ -11,7 +12,7 @@ async function main() {
   if (!sql) throw new Error("DATABASE_URL saknas");
   await migrate(sql);
   if (process.argv.includes("--reset")) console.warn(`Tog bort ${await removeDemoData(sql, "namnskylt")} demoordrar.`);
-  console.warn(`Lade in ${await insertDemoData(sql, "namnskylt")} demoordrar.`);
+  console.warn(`Lade in ${await insertDemoData(sql, "namnskylt", DEFAULT_PRICE_MODEL)} demoordrar.`);
   await sql.end();
 }
 

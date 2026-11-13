@@ -2,12 +2,11 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { Sql } from "postgres";
 import { z } from "zod";
-import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
+import { badgeDocumentSchema, DEFAULT_PRICE_MODEL, priceModelSchema, type BadgeDocument, type PriceModel } from "@/engine";
 import { db, requireDb } from "@/lib/db/client";
 import { isCustomPricing, pricingSchema, priceWithPricing, type Pricing } from "./pricing";
-import { purchaseTermsSchema, type PurchaseTerms } from "./purchase";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
-import { isOwner, settingsKey } from "@/lib/tenants/model";
+import { isOwner, OWNER_TENANT, settingsKey } from "@/lib/tenants/model";
 import {
   isOrderSource,
   isOrderStatus,
@@ -26,6 +25,7 @@ interface OrderRow {
   status: string;
   badges: unknown;
   pricing: unknown;
+  price_model: unknown;
   total_sek: number;
   total_incl_vat_sek: number;
   supplier_order_no: string | null;
@@ -52,7 +52,7 @@ interface OrderRow {
 }
 
 /** Databasen är inte klientdata, men validera ändå — ett trasigt dokument får inte nå produktionen. */
-function toOrder(row: OrderRow): StoredOrder {
+function toOrder(row: OrderRow, currentModel: PriceModel): StoredOrder {
   const badges = badgesSchema.safeParse(row.badges);
   if (!badges.success) console.error(`Ogiltiga skyltar i order ${row.order_no}`);
   const events: OrderEvent[] = (row.events ?? [])
@@ -74,6 +74,7 @@ function toOrder(row: OrderRow): StoredOrder {
     status: isOrderStatus(row.status) ? row.status : "received",
     badges: badges.success ? badges.data : [],
     pricing: parsePricing(row.pricing),
+    priceModel: storedPriceModel(row.price_model, currentModel),
     totalSek: row.total_sek,
     totalInclVatSek: row.total_incl_vat_sek,
     supplierOrderNo: row.supplier_order_no,
@@ -92,6 +93,12 @@ function toOrder(row: OrderRow): StoredOrder {
   };
 }
 
+/** Modellen som sparats på raden. Rader från före prismodellen saknar den och får dagens. */
+export function storedPriceModel(value: unknown, currentModel: PriceModel): PriceModel {
+  const parsed = priceModelSchema.safeParse(value);
+  return parsed.success ? parsed.data : currentModel;
+}
+
 export function parsePricing(value: unknown): Pricing | null {
   const parsed = pricingSchema.safeParse(value);
   return parsed.success && isCustomPricing(parsed.data) ? parsed.data : null;
@@ -104,7 +111,7 @@ type Json = Parameters<Sql["json"]>[0];
 
 function selectOrders(sql: Sql) {
   return sql`
-    select o.id, o.order_no, o.status, o.badges, o.pricing, o.total_sek, o.total_incl_vat_sek,
+    select o.id, o.order_no, o.status, o.badges, o.pricing, o.price_model, o.total_sek, o.total_incl_vat_sek,
            o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo, o.supplier_synced_at,
            o.badge_shot is not null as has_badge_shot, o.shop_slug, o.project, o.reseller_id,
            r.order_no as repeat_of_order_no,
@@ -125,27 +132,29 @@ export function databaseConfigured(): boolean {
 export async function listOrders(tenant: string): Promise<StoredOrder[]> {
   const sql = requireDb();
   const rows = await sql<OrderRow[]>`${selectOrders(sql)} where o.reseller_id = ${tenant} order by o.placed_at desc`;
-  return rows.map(toOrder);
+  const model = await getPriceModel();
+  return rows.map((row) => toOrder(row, model));
 }
 
 export async function getOrder(tenant: string, orderNo: string): Promise<StoredOrder | null> {
   const sql = requireDb();
   const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.order_no = ${orderNo} and o.reseller_id = ${tenant}`;
-  return row ? toOrder(row) : null;
+  return row ? toOrder(row, await getPriceModel()) : null;
 }
 
 /** Utan hyresgäst — bara för kundens egna länkar (korrektur), där token är behörigheten. */
 async function getOrderAnyTenant(orderNo: string): Promise<StoredOrder | null> {
   const sql = requireDb();
   const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.order_no = ${orderNo}`;
-  return row ? toOrder(row) : null;
+  return row ? toOrder(row, await getPriceModel()) : null;
 }
 
 export async function listCustomerOrders(tenant: string, customerId: string): Promise<StoredOrder[]> {
   const sql = requireDb();
   const rows = await sql<OrderRow[]>`${selectOrders(sql)}
     where o.customer_id = ${customerId} and o.reseller_id = ${tenant} order by o.placed_at desc`;
-  return rows.map(toOrder);
+  const model = await getPriceModel();
+  return rows.map((row) => toOrder(row, model));
 }
 
 export interface NewOrder {
@@ -160,6 +169,8 @@ export interface NewOrder {
   placedAt?: string;
   demo?: boolean;
   pricing?: Pricing | null;
+  /** Modellen ordern prissätts med; utelämnad = dagens. En godkänd offert skickar med sin egen. */
+  priceModel?: PriceModel;
   badgeShot?: string | null;
   shopSlug?: string | null;
   project?: string | null;
@@ -171,7 +182,8 @@ export interface NewOrder {
 export async function createOrder(order: NewOrder): Promise<{ id: string; orderNo: string }> {
   const sql = requireDb();
   const pricing = isCustomPricing(order.pricing ?? null) ? (order.pricing ?? null) : null;
-  const price = priceWithPricing(order.badges, pricing);
+  const model = order.priceModel ?? (await getPriceModel());
+  const price = priceWithPricing(order.badges, pricing, model);
   const email = order.customer.email.trim().toLowerCase();
   const placedAt = order.placedAt ? new Date(order.placedAt) : new Date();
   const tenant = order.tenant;
@@ -184,10 +196,10 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
       returning id`;
     if (!customer) throw new Error("Kunden kunde inte sparas");
     const [saved] = await tx<{ id: string; order_no: string }[]>`
-      insert into orders (customer_id, status, badges, pricing, total_sek, total_incl_vat_sek,
+      insert into orders (customer_id, status, badges, pricing, price_model, total_sek, total_incl_vat_sek,
                           supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug, reseller_id, project)
       values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Json)},
-              ${pricing ? tx.json(pricing as unknown as Json) : null},
+              ${pricing ? tx.json(pricing as unknown as Json) : null}, ${tx.json(model as unknown as Json)},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
               ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false},
               ${order.badgeShot ?? null}, ${order.shopSlug ?? null}, ${tenant}, ${order.project ?? null})
@@ -195,24 +207,6 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
     if (!saved) throw new Error("Ordern kunde inte sparas");
     await tx`insert into order_events (order_id, status, note, at) values (${saved.id}, ${order.status}, ${order.note ?? null}, ${placedAt})`;
     return { id: saved.id, orderNo: saved.order_no };
-  });
-}
-
-export async function updateStatus(
-  orderNo: string,
-  status: OrderStatus,
-  { note, trackingUrl }: { note?: string | null; trackingUrl?: string | null } = {},
-): Promise<boolean> {
-  const sql = requireDb();
-  return sql.begin(async (tx) => {
-    const [order] = await tx<{ id: string }[]>`
-      update orders set status = ${status},
-             tracking_url = coalesce(${trackingUrl ?? null}, tracking_url)
-       where order_no = ${orderNo}
-      returning id`;
-    if (!order) return false;
-    await tx`insert into order_events (order_id, status, note) values (${order.id}, ${status}, ${note ?? null})`;
-    return true;
   });
 }
 
@@ -276,20 +270,20 @@ export async function getBadgeShot(tenant: string, orderNo: string): Promise<str
   return row?.badge_shot ?? null;
 }
 
-const PURCHASE_TERMS_KEY = "purchase_terms";
+const PRICE_MODEL_KEY = "price_model";
 
-/** `null` tills återförsäljaren ställt in sina villkor. */
-export async function getPurchaseTerms(tenant: string): Promise<PurchaseTerms | null> {
-  const sql = requireDb();
-  const [row] = await sql<{ value: unknown }[]>`select value from settings where key = ${settingsKey(tenant, PURCHASE_TERMS_KEY)}`;
-  const parsed = purchaseTermsSchema.safeParse(row?.value);
-  return parsed.success ? parsed.data : null;
+/** Prismodellen som gäller nu. En och samma för alla återförsäljare; kalkylens siffror tills något sparats. */
+export async function getPriceModel(): Promise<PriceModel> {
+  const sql = db();
+  if (!sql) return DEFAULT_PRICE_MODEL;
+  const [row] = await sql<{ value: unknown }[]>`select value from settings where key = ${settingsKey(OWNER_TENANT, PRICE_MODEL_KEY)}`;
+  return storedPriceModel(row?.value, DEFAULT_PRICE_MODEL);
 }
 
-export async function savePurchaseTerms(tenant: string, terms: PurchaseTerms): Promise<void> {
+export async function savePriceModel(model: PriceModel): Promise<void> {
   const sql = requireDb();
   await sql`
-    insert into settings (key, value) values (${settingsKey(tenant, PURCHASE_TERMS_KEY)}, ${sql.json(terms as unknown as Json)})
+    insert into settings (key, value) values (${settingsKey(OWNER_TENANT, PRICE_MODEL_KEY)}, ${sql.json(model as unknown as Json)})
     on conflict (key) do update set value = excluded.value, updated_at = now()`;
 }
 
@@ -382,13 +376,14 @@ export async function upsertCustomer(tenant: string, input: CustomerInput): Prom
 /** Nya priser på en order. Totalerna räknas om och ändringen syns i tidslinjen. */
 export async function updateOrderPricing(tenant: string, orderNo: string, pricing: Pricing): Promise<boolean> {
   const sql = requireDb();
+  const currentModel = await getPriceModel();
   return sql.begin(async (tx) => {
-    const [row] = await tx<{ id: string; badges: unknown; status: string }[]>`
-      select id, badges, status from orders where order_no = ${orderNo} and reseller_id = ${tenant} for update`;
+    const [row] = await tx<{ id: string; badges: unknown; status: string; price_model: unknown }[]>`
+      select id, badges, status, price_model from orders where order_no = ${orderNo} and reseller_id = ${tenant} for update`;
     const badges = badgesSchema.safeParse(row?.badges);
     if (!row || !badges.success) return false;
     const custom = isCustomPricing(pricing) ? pricing : null;
-    const price = priceWithPricing(badges.data, custom);
+    const price = priceWithPricing(badges.data, custom, storedPriceModel(row.price_model, currentModel));
     await tx`
       update orders set pricing = ${custom ? tx.json(custom as unknown as Json) : null},
              total_sek = ${price.totalSek}, total_incl_vat_sek = ${price.totalInclVatSek}

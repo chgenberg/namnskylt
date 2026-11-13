@@ -52,7 +52,7 @@ export function isTrackableSupplierOrder(supplierOrderNo: string | null): suppli
 }
 
 export const SIGNATURE_HEADER = "x-supplier-signature";
-export const SIGNATURE_TOLERANCE_SECONDS = 300;
+const SIGNATURE_TOLERANCE_SECONDS = 300;
 
 /** `t=<unix-sekunder>,v1=<hex HMAC-SHA256 av "t.kropp">` — tiden stoppar återspelning. */
 export function signWebhook(body: string, secret: string, timestampSeconds: number): string {

@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { approxFonts, createBadgeDocument, type BadgeDocument, type FontEngine } from "@/engine";
+import { approxFonts, createBadgeDocument, withBlank, type BadgeDocument, type FontEngine } from "@/engine";
 import { computeCutGrid } from "./cut-grid";
 import { sheetToDxf } from "./dxf";
 import { flattenPath } from "./flatten-path";
 import { fitHeader, HEADER_CAP_MIN_MM, orderHeaderText, sheetHeaderText } from "./headers";
 import { CUTTER_OFFSET_MM } from "./ink";
 import {
+  BLANK_GAP_MM,
   DEFAULT_SHEET_SETTINGS,
   HEADER_TO_PLACEMENT_GAP_MM,
   METAL_GAP_MM,
@@ -29,8 +30,15 @@ const fonts: FontEngine = {
   },
 };
 
+/** Arkpackningen gäller skyltar som skärs ur ark: äldre gravyrplast i 70 × 25 mm. */
 function badge(patch: Partial<BadgeDocument> = {}, texts = ["Anna Lind", "Butikschef"]): BadgeDocument {
-  return { ...createBadgeDocument(texts), materialId: "plastic-2-layer", colorId: "white-black", ...patch };
+  return {
+    ...createBadgeDocument(texts),
+    materialId: "plastic-2-layer",
+    colorId: "white-black",
+    size: { widthMm: 70, heightMm: 25 },
+    ...patch,
+  };
 }
 
 function order(orderNo: string, badges: BadgeDocument[]): ProductionOrder {
@@ -257,5 +265,67 @@ describe("sheetMarks och DXF", () => {
     assert.ok(Math.abs(Math.max(...xs) - (placement.xMm + 70 + o)) < 0.01);
     assert.ok(Math.abs(Math.max(...ys) - (sheet.heightMm - placement.yMm + o)) < 0.01);
     assert.ok(dxf.includes("\n8\nCUT\n"));
+  });
+});
+
+describe("färdiga ämnen", () => {
+  const ctx = { fonts, productionNo: "2026-002", sheetNo: 1, sheetCount: 1, method: "blank" as const };
+  const metal = (patch: Partial<BadgeDocument> = {}): BadgeDocument => ({
+    ...createBadgeDocument(["Anna Lind", "Butikschef"]),
+    ...patch,
+  });
+
+  it("metallskylten blir en egen batch som bara graveras", () => {
+    const batches = productionBatches([order("NS-1", [metal({ quantity: 2 }), badge()])]);
+    assert.deepEqual(
+      batches.map((b) => [b.key, b.method, b.units.length]),
+      [
+        ["metal/metal-gold", "blank", 2],
+        ["plastic-2-layer/white-black", "plastic-sheet", 1],
+      ],
+    );
+  });
+
+  it("ämnena läggs med gods emellan, aldrig kant i kant", () => {
+    const units = productionBatches([order("NS-1", [metal({ quantity: 2 })])])[0]?.units ?? [];
+    const [sheet] = packSheets(units, "blank").sheets;
+    assert.ok(sheet);
+    const [first, second] = sheet.placements;
+    assert.ok(first && second);
+    assert.equal(second.yMm - (first.yMm + first.heightMm), BLANK_GAP_MM);
+  });
+
+  it("inget skärs: kanten och rubrikerna är hjälplinjer, bara skyltens text graveras", () => {
+    const cushion = withBlank(metal(), "cushion");
+    const units = productionBatches([order("NS-1", [metal(), cushion])])[0]?.units ?? [];
+    const [sheet] = packSheets(units, "blank").sheets;
+    assert.ok(sheet);
+    const marks = sheetMarks(sheet, ctx);
+
+    assert.equal(marks.filter((m) => m.ink === "cut" || m.ink === "throughCut").length, 0);
+    const outlines = marks.filter((m) => m.ink === "guide" && m.placementKey);
+    assert.equal(outlines.length, 2);
+    // Två textrader per skylt graveras; rubrikerna hör inte till någon skylt och graveras inte.
+    const engraved = marks.filter((m) => m.ink === "engrave");
+    assert.equal(engraved.length, 4);
+    assert.ok(engraved.every((m) => m.placementKey));
+    assert.ok(marks.some((m) => m.ink === "guide" && !m.placementKey), "rubrikerna finns kvar som läshjälp");
+  });
+
+  it("maskinfilerna innehåller varken skärlinjer eller hjälplinjer", () => {
+    const units = productionBatches([order("NS-1", [metal()])])[0]?.units ?? [];
+    const [sheet] = packSheets(units, "blank").sheets;
+    assert.ok(sheet);
+    const marks = sheetMarks(sheet, ctx);
+
+    const svg = renderMachineSvg(sheet, marks);
+    assert.doesNotMatch(svg, /#FF0000|#0000FF|data-screen|stroke-dasharray/);
+    assert.match(svg, /fill="#000000"/);
+    assert.equal((svg.match(/<path /g) ?? []).length, 2);
+
+    const dxf = sheetToDxf(marks, sheet.heightMm);
+    const entityLayers = [...dxf.matchAll(/\n0\nLINE\n8\n(\w+)\n/g)].map((m) => m[1]);
+    assert.ok(entityLayers.length > 0);
+    assert.ok(entityLayers.every((layer) => layer === "ENGRAVE"));
   });
 });

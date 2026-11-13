@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { adminTenant } from "@/features/admin/guard";
 import { CopyField, ShopDomainForm, ShopInviteForm, ShopLookForm, ShopPriceForm } from "@/features/admin/shop-settings";
 import styles from "@/features/admin/admin.module.css";
-import { formatSek } from "@/features/orders/format";
+import { formatSek } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { SHOP_ROOT_DOMAIN } from "@/lib/shops/host";
 import { SHOP_SLUG } from "@/lib/shops/model";

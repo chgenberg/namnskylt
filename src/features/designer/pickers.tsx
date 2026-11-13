@@ -1,33 +1,45 @@
 "use client";
 
 import { motion } from "motion/react";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import {
-  MATERIALS,
-  SHAPES,
+  BLANKS,
+  OFFERED_MATERIALS,
+  createBadgeDocument,
   getMaterial,
+  outlinePath,
+  withBlank,
+  type BadgeBlank,
   type BadgeMaterial,
-  type BadgeShape,
+  type BlankId,
   type MaterialFinish,
   type MaterialId,
 } from "@/engine";
 import styles from "./pickers.module.css";
-import { useFromPrice } from "./shop-price";
+import { useShopPrices } from "./shop-price";
 
-const SHAPE_ICON: Record<BadgeShape, ReactNode> = {
-  rectangle: <rect x="2" y="5" width="20" height="12" rx="0.6" />,
-  rounded: <rect x="2" y="5" width="20" height="12" rx="3" />,
-  stadium: <rect x="2" y="5" width="20" height="12" rx="6" />,
-  oval: <ellipse cx="12" cy="11" rx="10" ry="6.5" />,
-  round: <circle cx="12" cy="11" r="8" />,
-  hexagon: <path d="M7 5h10l5 6-5 6H7l-5-6z" />,
-  octagon: <path d="M7.8 5h8.4L22 8.5v5L16.2 17H7.8L2 13.5v-5z" />,
+/** Luft runt konturen i ikonens ruta, i mm. */
+const BLANK_ICON_PAD_MM = 2;
+/** Alla ikoner ritas i samma ruta, så att ämnenas storlek går att jämföra. */
+const BLANK_ICON_BOX = {
+  widthMm: Math.max(...BLANKS.map((b) => b.widthMm)) + BLANK_ICON_PAD_MM * 2,
+  heightMm: Math.max(...BLANKS.map((b) => b.heightMm)) + BLANK_ICON_PAD_MM * 2,
 };
 
-export function ShapeIcon({ shape }: { shape: BadgeShape }) {
+/** Ämnets riktiga kontur i skala — samma som ritningen och 3D-vyn använder. */
+function BlankIcon({ blank }: { blank: BadgeBlank }) {
+  const d = outlinePath(withBlank(createBadgeDocument(), blank.id));
+  const x = (BLANK_ICON_BOX.widthMm - blank.widthMm) / 2;
+  const y = (BLANK_ICON_BOX.heightMm - blank.heightMm) / 2;
   return (
-    <svg viewBox="0 0 24 22" width="24" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5">
-      {SHAPE_ICON[shape]}
+    <svg
+      className={styles.blankIcon}
+      viewBox={`0 0 ${BLANK_ICON_BOX.widthMm} ${BLANK_ICON_BOX.heightMm}`}
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+    >
+      <path d={d} transform={`translate(${x} ${y})`} vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -50,7 +62,7 @@ function finishSwatch(finish: MaterialFinish, surface: string): string {
   }
 }
 
-export function materialSwatch(material: BadgeMaterial): string {
+function materialSwatch(material: BadgeMaterial): string {
   return finishSwatch(material.finish, material.colors[0]?.surface ?? "#ccc");
 }
 
@@ -62,11 +74,13 @@ interface MaterialPickerProps {
   compact?: boolean;
 }
 
+/** Visas bara när det finns mer än ett material att välja mellan. */
 export function MaterialPicker({ value, onChange, layoutId, compact = false }: MaterialPickerProps) {
-  const fromPrice = useFromPrice();
+  const { fromPrice } = useShopPrices();
+  if (OFFERED_MATERIALS.length < 2) return null;
   return (
     <div className={styles.materialGrid} data-compact={compact} role="radiogroup" aria-label="Material">
-      {MATERIALS.map((m) => {
+      {OFFERED_MATERIALS.map((m) => {
         const active = m.id === value;
         return (
           <button
@@ -89,7 +103,7 @@ export function MaterialPicker({ value, onChange, layoutId, compact = false }: M
             </span>
             <span className={styles.materialName}>{m.name}</span>
             {!compact && <span className={styles.materialTagline}>{m.tagline}</span>}
-            <span className={styles.materialPrice}>från {fromPrice(m.id, m.basePriceSek)} kr</span>
+            <span className={styles.materialPrice}>från {fromPrice(m.id)} kr</span>
           </button>
         );
       })}
@@ -97,25 +111,29 @@ export function MaterialPicker({ value, onChange, layoutId, compact = false }: M
   );
 }
 
-interface ShapePickerProps {
-  value: BadgeShape;
-  onChange: (shape: BadgeShape) => void;
+interface BlankPickerProps {
+  /** `null` för en äldre skylt som inte ligger på något ämne. */
+  value: BlankId | null;
+  onChange: (blankId: BlankId) => void;
 }
 
-export function ShapePicker({ value, onChange }: ShapePickerProps) {
+export function BlankPicker({ value, onChange }: BlankPickerProps) {
   return (
-    <div className={styles.shapeGrid} role="radiogroup" aria-label="Form">
-      {SHAPES.map((s) => (
+    <div className={styles.blankGrid} role="radiogroup" aria-label="Form">
+      {BLANKS.map((blank) => (
         <button
-          key={s.id}
+          key={blank.id}
           type="button"
           role="radio"
-          aria-checked={s.id === value}
-          className={styles.shapeCard}
-          onClick={() => onChange(s.id)}
+          aria-checked={blank.id === value}
+          className={styles.blankCard}
+          onClick={() => onChange(blank.id)}
         >
-          <ShapeIcon shape={s.id} />
-          <span>{s.name}</span>
+          <BlankIcon blank={blank} />
+          <span>{blank.name}</span>
+          <span className={`mono ${styles.blankSize}`}>
+            {blank.widthMm} × {blank.heightMm} mm
+          </span>
         </button>
       ))}
     </div>
@@ -129,9 +147,11 @@ interface ColorPickerProps {
 }
 
 export function ColorPicker({ materialId, value, onChange }: ColorPickerProps) {
+  const material = getMaterial(materialId);
+  const isMetal = material.finish === "aluminium" || material.finish === "steel" || material.finish === "brass";
   return (
     <div className={styles.swatches} role="radiogroup" aria-label="Färg">
-      {getMaterial(materialId).colors.map((c) => (
+      {material.colors.map((c) => (
         <button
           key={c.id}
           type="button"
@@ -145,6 +165,7 @@ export function ColorPicker({ materialId, value, onChange }: ColorPickerProps) {
           <span
             className={styles.swatchFill}
             data-metallic={c.metallic ?? false}
+            data-brushed={isMetal && !c.lacquered}
             style={{ "--surface": c.surface, "--engraving": c.engraving } as CSSProperties}
           />
         </button>

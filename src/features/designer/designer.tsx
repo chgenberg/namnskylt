@@ -17,6 +17,7 @@ import {
   removeBatchEntry,
   replaceBatchEntry,
   parseSmartInput,
+  toOfferedDocument,
   withTexts,
   type BadgeDocument,
   type FontId,
@@ -104,7 +105,8 @@ interface DesignerProps {
 
 export function Designer({ initialText, initialDoc, reseller, shop, initialFont }: DesignerProps) {
   const [doc, dispatch] = useReducer(designerReducer, initialText, (text) => {
-    if (initialDoc) return initialDoc;
+    // En delad eller äldre skylt kan bära ett material eller mått som inte säljs längre.
+    if (initialDoc) return toOfferedDocument(initialDoc);
     const created = createBadgeDocument(parseSmartInput(text));
     return initialFont ? { ...created, font: initialFont } : created;
   });

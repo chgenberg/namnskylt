@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 import { BadgePreview } from "@/components/badge-preview";
-import { createBadgeDocument, type BadgeDocument, type MaterialId } from "@/engine";
+import { createBadgeDocument, getMaterial, withBlank, type BadgeDocument, type BlankId } from "@/engine";
 import type { HowItWorksFlow } from "./how-it-works-copy";
 import styles from "./how-it-works.module.css";
 
-function badge(texts: string[], materialId: MaterialId = "plastic-2-layer", colorId = "white-black"): BadgeDocument {
-  return { ...createBadgeDocument(texts), materialId, colorId };
+function badge(texts: string[], colorId = "metal-white", blankId: BlankId = "rectangle"): BadgeDocument {
+  return withBlank({ ...createBadgeDocument(texts), colorId }, blankId);
 }
 
 function Node({ children, filled = false, className }: { children: ReactNode; filled?: boolean; className?: string }) {
@@ -100,11 +100,11 @@ function WriteFlow() {
   );
 }
 
-const MATERIAL_SAMPLES = [
-  { label: "Gravyrplast", doc: badge(["Erik Holm", "Överläkare"], "plastic-2-layer", "darkblue-white") },
-  { label: "Aluminium", doc: badge(["Erik Holm", "Överläkare"], "aluminium-anodized", "alu-natural-black") },
-  { label: "Rostfritt", doc: badge(["Erik Holm", "Överläkare"], "stainless", "steel-laser") },
-];
+/** En skylt per yta i sortimentet. */
+const MATERIAL_SAMPLES = getMaterial("metal").colors.map((color) => ({
+  label: color.name,
+  doc: badge(["Erik Holm", "Överläkare"], color.id),
+}));
 
 function DesignFlow() {
   return (
@@ -178,14 +178,14 @@ function TeamFlow() {
         {TEAM.map(([name, title]) => (
           <BadgePreview
             key={name}
-            doc={badge([name, title], "plastic-2-layer", "black-white")}
+            doc={badge([name, title], "metal-silver")}
             className={styles.badgeSmall}
           />
         ))}
       </div>
       <Down />
       <Node filled className={styles.center}>
-        Mängdrabatt på hela ordern · upp till −40 %
+        Lägre pris per skylt på större ordrar
       </Node>
     </div>
   );

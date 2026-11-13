@@ -5,7 +5,7 @@ import { OrderCard } from "@/features/admin/order-card";
 import { RepeatButton } from "@/features/admin/repeat-button";
 import { Sparkline } from "@/features/admin/sparkline";
 import styles from "@/features/admin/admin.module.css";
-import { formatRelative, formatSek } from "@/features/orders/format";
+import { formatRelative, formatSek } from "@/lib/format";
 import { badgeCount, type StoredOrder } from "@/lib/orders/model";
 import { listOrders } from "@/lib/orders/repository";
 import { orderStats } from "@/lib/orders/stats";

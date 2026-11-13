@@ -4,9 +4,9 @@ import OpenAI from "openai";
 import { clientKey, createRateLimiter } from "./rate-limit";
 
 /** Varje bild kostar pengar — en besökare får skapa så här många per timme. */
-export const GENERATIONS_PER_HOUR = 12;
+const GENERATIONS_PER_HOUR = 12;
 /** Tak för hela sajten, så att förfalskade IP-adresser inte ger obegränsat. */
-export const SITE_GENERATIONS_PER_HOUR = 240;
+const SITE_GENERATIONS_PER_HOUR = 240;
 
 const HOUR_MS = 60 * 60 * 1000;
 const perClient = createRateLimiter({ limit: GENERATIONS_PER_HOUR, windowMs: HOUR_MS });

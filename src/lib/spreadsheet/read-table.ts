@@ -3,22 +3,33 @@
  * Körs i webbläsaren — filen lämnar aldrig kundens dator.
  */
 
-export const MAX_SPREADSHEET_BYTES = 5 * 1024 * 1024;
+const MAX_SPREADSHEET_BYTES = 5 * 1024 * 1024;
 const MAX_TABLE_ROWS = 2000;
 
 export class SpreadsheetError extends Error {}
 
 export type Table = string[][];
 
-export async function readTable(fileName: string, bytes: Uint8Array): Promise<Table> {
-  if (bytes.byteLength > MAX_SPREADSHEET_BYTES) throw new SpreadsheetError("Filen är för stor — max 5 MB.");
+export interface ReadTableOptions {
+  /** Bladets namn i en .xlsx; utan namn läses första bladet. */
+  sheet?: string;
+  maxBytes?: number;
+  maxRows?: number;
+}
+
+export async function readTable(fileName: string, bytes: Uint8Array, options: ReadTableOptions = {}): Promise<Table> {
+  const maxBytes = options.maxBytes ?? MAX_SPREADSHEET_BYTES;
+  const maxRows = options.maxRows ?? MAX_TABLE_ROWS;
+  if (bytes.byteLength > maxBytes) {
+    throw new SpreadsheetError(`Filen är för stor — max ${Math.round(maxBytes / 1024 / 1024)} MB.`);
+  }
   const extension = fileName.toLowerCase().split(".").pop() ?? "";
-  if (isZip(bytes)) return readXlsx(bytes);
+  if (isZip(bytes)) return readXlsx(bytes, options.sheet, maxRows);
   if (extension === "xls") throw new SpreadsheetError("Gamla .xls-filer stöds inte — spara som .xlsx eller CSV.");
   if (["numbers", "ods"].includes(extension)) {
     throw new SpreadsheetError("Exportera filen som .xlsx eller CSV först.");
   }
-  return parseDelimited(decodeText(bytes));
+  return parseDelimited(decodeText(bytes), maxRows);
 }
 
 /* ───────────── CSV / TSV ───────────── */
@@ -37,7 +48,7 @@ function detectDelimiter(text: string): string {
   return best.n > 0 ? best.d : ",";
 }
 
-export function parseDelimited(text: string): Table {
+export function parseDelimited(text: string, maxRows: number = MAX_TABLE_ROWS): Table {
   const delimiter = detectDelimiter(text);
   const rows: Table = [];
   let row: string[] = [];
@@ -61,7 +72,7 @@ export function parseDelimited(text: string): Table {
       rows.push(row);
       row = [];
       cell = "";
-      if (rows.length >= MAX_TABLE_ROWS) return rows;
+      if (rows.length >= maxRows) return rows;
     } else cell += ch;
   }
   if (cell !== "" || row.length > 0) rows.push([...row, cell]);
@@ -157,10 +168,22 @@ function columnIndex(ref: string | null, fallback: number): number {
   return [...letters].reduce((n, ch) => n * 26 + (ch.charCodeAt(0) - 64), 0) - 1;
 }
 
-async function firstSheetPath(bytes: Uint8Array, entries: Map<string, ZipEntry>): Promise<string> {
+function sheetRelId(workbook: string, sheetName: string | undefined): string | null {
+  const sheets = [...workbook.matchAll(/<sheet\b([^>]*)\/?>/g)].map((m) => m[1] ?? "");
+  if (sheetName === undefined) return attribute(sheets[0] ?? "", "r:id");
+  const match = sheets.find((attrs) => decodeXml(attribute(attrs, "name") ?? "") === sheetName);
+  if (!match) throw new SpreadsheetError(`Hittade inget blad som heter ${sheetName}.`);
+  return attribute(match, "r:id");
+}
+
+async function sheetPath(
+  bytes: Uint8Array,
+  entries: Map<string, ZipEntry>,
+  sheetName: string | undefined,
+): Promise<string> {
   const workbook = await readEntry(bytes, entries, "xl/workbook.xml");
   const rels = await readEntry(bytes, entries, "xl/_rels/workbook.xml.rels");
-  const relId = workbook && attribute(/<sheet\b([^>]*)\/?>/.exec(workbook)?.[1] ?? "", "r:id");
+  const relId = workbook ? sheetRelId(workbook, sheetName) : null;
   if (rels && relId) {
     for (const match of rels.matchAll(/<Relationship\b([^>]*)\/?>/g)) {
       const attrs = match[1] ?? "";
@@ -175,11 +198,11 @@ async function firstSheetPath(bytes: Uint8Array, entries: Map<string, ZipEntry>)
   return fallback;
 }
 
-async function readXlsx(bytes: Uint8Array): Promise<Table> {
+async function readXlsx(bytes: Uint8Array, sheetName: string | undefined, maxRows: number): Promise<Table> {
   const entries = zipDirectory(bytes);
   const sharedXml = await readEntry(bytes, entries, "xl/sharedStrings.xml");
   const shared = sharedXml ? [...sharedXml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((m) => textRuns(m[1] ?? "")) : [];
-  const sheet = await readEntry(bytes, entries, await firstSheetPath(bytes, entries));
+  const sheet = await readEntry(bytes, entries, await sheetPath(bytes, entries, sheetName));
   if (!sheet) throw new SpreadsheetError("Hittade inget kalkylblad i filen.");
 
   const rows: Table = [];
@@ -203,7 +226,7 @@ async function readXlsx(bytes: Uint8Array): Promise<Table> {
       position = index + 1;
     }
     rows.push(row);
-    if (rows.length >= MAX_TABLE_ROWS) break;
+    if (rows.length >= maxRows) break;
   }
   return rows;
 }

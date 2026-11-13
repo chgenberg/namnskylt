@@ -4,11 +4,15 @@ import { shopOrderPricing } from "@/lib/shops/price-list";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
+import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
-import { databaseConfigured } from "@/lib/orders/repository";
+import { databaseConfigured, getPriceModel } from "@/lib/orders/repository";
 import { SHOP_SLUG } from "@/lib/shops/model";
 import { OWNER_TENANT } from "@/lib/tenants/model";
 import { getShop } from "@/lib/shops/repository";
+import { requireDb } from "@/lib/db/client";
+import { isOutreachPreviewShop, OUTREACH_PREVIEW_ORDER_ERROR } from "@/lib/outreach/demo-source";
+import { shopHasOutreachLead } from "@/lib/outreach/repository";
 
 const orderRequestSchema = z.object({
   customer: z.object({
@@ -31,18 +35,25 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!allOffered(parsed.data.badges)) return NextResponse.json({ error: NOT_OFFERED_ERROR }, { status: 400 });
+
   try {
     const { badgeShot, shop: shopSlug, ...order } = parsed.data;
     const shop = shopSlug && databaseConfigured() ? await getShop(shopSlug) : null;
     if (shopSlug && !shop) return NextResponse.json({ error: "Butiken finns inte" }, { status: 404 });
     // Webbshoppen och demobutikerna är namnskylt.coms; en övertagen butik är återförsäljarens.
     const owner = shop ? await getShopOwner(shop.slug) : null;
+    if (shop && isOutreachPreviewShop({ ownerId: owner, hasOutreachLead: await shopHasOutreachLead(requireDb(), shop.slug) })) {
+      return NextResponse.json({ error: OUTREACH_PREVIEW_ORDER_ERROR }, { status: 409 });
+    }
+    const priceModel = await getPriceModel();
     const receipt = await placeOrder({
       ...order,
       tenant: owner ?? OWNER_TENANT,
       source: shop ? "shop" : "web",
       shopSlug: shop?.slug ?? null,
-      pricing: shopOrderPricing(order.badges, shop?.priceList),
+      pricing: shopOrderPricing(order.badges, shop?.priceList, priceModel),
+      priceModel,
       note: shop ? `Beställd i butiken ${shop.profile.name}` : null,
       badgeShot: await normalizeBadgeShot(badgeShot),
     });

@@ -11,12 +11,18 @@
     "dev": "next dev -p 3100",
     "build": "next build",
     "start": "tsx scripts/db-migrate.ts && next start -p 3100",
-    "lint": "next lint",
+    "lint": "next lint --dir src --dir scripts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/engine/*.test.ts src/lib/**/*.test.ts",
     "format": "prettier --write \"**/*.{ts,tsx,css,md,json}\"",
     "db:migrate": "tsx --env-file-if-exists=.env.local scripts/db-migrate.ts",
-    "db:seed": "tsx --env-file-if-exists=.env.local scripts/db-seed.ts"
+    "db:seed": "tsx --env-file-if-exists=.env.local scripts/db-seed.ts",
+    "reseller:create": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/reseller-create.ts",
+    "shops:build": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/shops-build.ts",
+    "outreach:import": "tsx --env-file-if-exists=.env.local scripts/outreach-import.ts",
+    "outreach:prepare": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/outreach-prepare.ts",
+    "outreach:preview": "tsx scripts/outreach-preview.ts",
+    "outreach:tick": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/outreach-tick.ts"
   },
   "dependencies": {
     "@react-three/drei": "10",

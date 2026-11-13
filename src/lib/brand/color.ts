@@ -33,7 +33,7 @@ export function toHex([r, g, b]: Rgb): string {
 }
 
 /** Mättnad och ljushet i HSL, 0–1. */
-export function saturationLightness([r, g, b]: Rgb): { saturation: number; lightness: number } {
+function saturationLightness([r, g, b]: Rgb): { saturation: number; lightness: number } {
   const max = Math.max(r, g, b) / 255;
   const min = Math.min(r, g, b) / 255;
   const lightness = (max + min) / 2;

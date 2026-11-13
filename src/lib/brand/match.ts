@@ -27,7 +27,7 @@ export function matchFont(families: readonly string[]): FontMatch {
 }
 
 /** Arial Narrow ritar ≈ 0,82 av Arials bredd; under gränsen är typsnittet närmast Narrow. */
-export const NARROW_WIDTH_RATIO = 0.9;
+const NARROW_WIDTH_RATIO = 0.9;
 /** Rubriker bär varumärkets typografi mer än brödtext. */
 const ROLE_WEIGHT = { heading: 3, button: 2, nav: 1, body: 1 } as const;
 

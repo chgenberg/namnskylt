@@ -5,6 +5,7 @@ import {
   batchLine,
   createBadgeDocument,
   parseBatchInput,
+  DEFAULT_PRICE_MODEL,
   priceBadge,
   priceOrder,
   removeBatchEntry,
@@ -70,17 +71,17 @@ describe("withTexts", () => {
 });
 
 describe("priceOrder", () => {
-  it("ger mängdrabatt på orderns totala antal, även för olika namn", () => {
+  it("ger lägre pris på orderns totala antal, även för olika namn", () => {
     const template = createBadgeDocument(["Anna"]);
-    const names = Array.from({ length: 12 }, (_, i) => withTexts(template, [`Person ${i}`]));
-    const order = priceOrder(names);
-    assert.equal(order.quantity, 12);
-    assert.equal(order.tier.minQuantity, 10);
-    assert.ok(order.unitSek < priceBadge(template).unitSek);
+    const names = Array.from({ length: 120 }, (_, i) => withTexts(template, [`Person ${i}`]));
+    const order = priceOrder(names, DEFAULT_PRICE_MODEL);
+    assert.equal(order.quantity, 120);
+    assert.equal(order.tierIndex, 1);
+    assert.ok(order.unitSek < priceBadge({ ...template, quantity: 10 }, DEFAULT_PRICE_MODEL).unitSek);
   });
 
   it("stämmer med priceBadge för en enda rad", () => {
     const doc = { ...createBadgeDocument(["Anna"]), quantity: 250 };
-    assert.deepEqual(priceOrder([doc]), priceBadge(doc));
+    assert.deepEqual(priceOrder([doc], DEFAULT_PRICE_MODEL), priceBadge(doc, DEFAULT_PRICE_MODEL));
   });
 });

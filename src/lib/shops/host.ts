@@ -1,6 +1,6 @@
 import { SHOP_SLUG } from "./model-slug";
 
-/** Butikerna får en egen underadress: kontorsprofilen.namnskylt.com. */
+/** Butikerna får en egen underadress: exempelbutik.namnskylt.com. */
 export const SHOP_ROOT_DOMAIN = "namnskylt.com";
 /** Underadresser som inte är butiker. */
 const RESERVED = new Set(["www", "api", "admin", "app", "mail", "verkstad", "status", "cdn", "static"]);

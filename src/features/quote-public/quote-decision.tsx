@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { formatSek } from "@/features/orders/format";
+import { formatSek } from "@/lib/format";
 import { decideQuoteAction } from "./actions";
 import styles from "./quote-public.module.css";
 

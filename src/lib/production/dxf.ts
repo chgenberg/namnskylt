@@ -9,7 +9,7 @@ import type { MarkInk, SheetMark } from "./sheet-geometry";
  * uppåt, så y speglas mot arkets höjd.
  */
 
-const LAYER_FOR: Record<MarkInk, (typeof DXF_LAYERS)[keyof typeof DXF_LAYERS]> = {
+const LAYER_FOR: Record<Exclude<MarkInk, "guide">, (typeof DXF_LAYERS)[keyof typeof DXF_LAYERS]> = {
   cut: DXF_LAYERS.cut,
   throughCut: DXF_LAYERS.drill,
   engrave: DXF_LAYERS.engrave,
@@ -42,6 +42,8 @@ function layerDef(layer: { name: string; color: number }): string {
 export function sheetToDxf(marks: readonly SheetMark[], sheetHeightMm: number): string {
   const entities: string[] = [];
   for (const mark of marks) {
+    // Hjälplinjer hör inte till maskinfilen.
+    if (mark.ink === "guide") continue;
     const layer = LAYER_FOR[mark.ink];
     const map = (p: Pt): Pt => ({ x: p.x + mark.dx, y: sheetHeightMm - (p.y + mark.dy) });
     for (const polyline of flattenPath(mark.d)) {

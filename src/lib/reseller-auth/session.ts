@@ -29,7 +29,7 @@ export function sessionToken(tenant: string): string {
 }
 
 /** Återförsäljaren kakan gäller, eller `null`. Gamla ägarkakor (bara signatur) gäller fortfarande. */
-export async function tenantFromCookie(value: string | undefined): Promise<string | null> {
+async function tenantFromCookie(value: string | undefined): Promise<string | null> {
   if (!value) return null;
   const dot = value.indexOf(".");
   if (dot < 0) return (await resellerPass.verify(value)) ? OWNER_TENANT : null;

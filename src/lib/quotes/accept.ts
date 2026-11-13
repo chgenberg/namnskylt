@@ -1,4 +1,5 @@
 import "server-only";
+import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import { claimForAcceptance, completeAcceptance, getQuote, releaseAcceptance } from "./repository";
 
@@ -11,6 +12,8 @@ export type AcceptResult = { ok: true; orderNo: string } | { ok: false; error: s
 export async function acceptQuote(tenant: string, quoteNo: string, byReseller: boolean): Promise<AcceptResult> {
   const before = await getQuote(tenant, quoteNo);
   if (!before) return { ok: false, error: "Offerten finns inte" };
+  // En äldre offert kan gälla ett material eller mått som inte säljs längre.
+  if (!allOffered(before.badges)) return { ok: false, error: NOT_OFFERED_ERROR };
   const quote = await claimForAcceptance(tenant, quoteNo, byReseller);
   if (!quote) return { ok: false, error: "Offerten kan inte godkännas längre" };
   try {
@@ -18,6 +21,8 @@ export async function acceptQuote(tenant: string, quoteNo: string, byReseller: b
       customer: quote.customer,
       badges: quote.badges,
       pricing: quote.pricing,
+      // Ordern får det pris kunden godkände, även om prismodellen ändrats sedan dess.
+      priceModel: quote.priceModel,
       source: "quote",
       note: `Från offert ${quote.quoteNo}`,
       demo: quote.demo,

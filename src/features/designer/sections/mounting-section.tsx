@@ -3,7 +3,8 @@
 import { motion } from "motion/react";
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
-import { MOUNTINGS, getMounting, type BadgeDocument, type MountingId } from "@/engine";
+import { OFFERED_MOUNTINGS, getMounting, type BadgeDocument, type MountingId } from "@/engine";
+import { useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
@@ -25,10 +26,11 @@ interface MountingSectionProps {
 }
 
 export function MountingSection({ doc, dispatch }: MountingSectionProps) {
+  const { mountingPrice } = useShopPrices();
   return (
     <PanelSection step={5} title="Fäste" aside={getMounting(doc.mounting).description}>
       <div className={styles.mountingGrid} role="radiogroup" aria-label="Fäste">
-        {MOUNTINGS.map((m) => {
+        {OFFERED_MOUNTINGS.map((m) => {
           const active = m.id === doc.mounting;
           return (
             <button
@@ -50,7 +52,7 @@ export function MountingSection({ doc, dispatch }: MountingSectionProps) {
                 {MOUNTING_ICON[m.id]}
               </svg>
               <span className={styles.materialName}>{m.name}</span>
-              <span className={styles.materialPrice}>{m.priceSek ? `+${m.priceSek} kr` : "Ingår"}</span>
+              <span className={styles.materialPrice}>+{mountingPrice(m.id, doc.materialId)} kr</span>
             </button>
           );
         })}

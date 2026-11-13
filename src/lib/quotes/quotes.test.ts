@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { approxFonts, createBadgeDocument, type BadgeDocument } from "@/engine";
+import { approxFonts, createBadgeDocument, DEFAULT_PRICE_MODEL, type BadgeDocument } from "@/engine";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
 import { quoteHtml } from "./document";
 import { addDays, canCustomerAnswer, canEditQuote, displayStatus, type StoredQuote } from "./model";
@@ -18,6 +18,7 @@ function quote(patch: Partial<StoredQuote> = {}): StoredQuote {
     status: "sent",
     badges: [badge],
     pricing: { unitOverrides: [40], discountPercent: 10, extras: [{ label: "Expressorder", amountSek: 300 }] },
+    priceModel: DEFAULT_PRICE_MODEL,
     totalSek: 144,
     totalInclVatSek: 180,
     message: "Hej Anna!",

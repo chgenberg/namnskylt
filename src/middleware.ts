@@ -21,6 +21,9 @@ const MAIN_HOSTS = (process.env.SITE_HOSTS ?? "namnskylt.com,www.namnskylt.com,l
   .map((h) => h.trim().toLowerCase())
   .filter(Boolean);
 
+/** Personliga länkar och butiker som inte ska indexeras, oavsett vad sidan själv säger. */
+const NOINDEX_PREFIXES = ["/for/", "/butik/", "/aterforsaljare/"];
+
 const domainCache = new Map<string, { slug: string | null; until: number }>();
 
 async function slugForDomain(host: string): Promise<string | null> {
@@ -36,7 +39,7 @@ async function slugForDomain(host: string): Promise<string | null> {
   return slug;
 }
 
-/** Butiken som adressen hör till: kontorsprofilen.namnskylt.com eller skylt.kontorsprofilen.se. */
+/** Butiken som adressen hör till: exempelbutik.namnskylt.com eller skylt.exempelbutik.se. */
 async function shopForHost(request: NextRequest): Promise<string | null> {
   const target = resolveHost(request.headers.get("x-forwarded-host") ?? request.headers.get("host"), MAIN_HOSTS);
   if (target.kind === "subdomain") return target.slug;
@@ -59,6 +62,9 @@ export async function middleware(request: NextRequest) {
     const response = rewrite
       ? NextResponse.rewrite(new URL(rewrite + request.nextUrl.search, request.url), { request: { headers } })
       : NextResponse.next({ request: { headers } });
+    if (NOINDEX_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+      response.headers.set("x-robots-tag", "noindex, nofollow");
+    }
     if (pathname.startsWith("/butik/") && gateEnabled() && !request.cookies.has(SHOP_VISITOR_COOKIE)) {
       response.cookies.set(SHOP_VISITOR_COOKIE, await shopVisitorToken(), {
         httpOnly: true,
@@ -73,9 +79,12 @@ export async function middleware(request: NextRequest) {
   // Webhooken anropas av leverantörens server, som saknar kakan — den kräver i stället signatur.
   // Statistiken anropas från återförsäljarnas sajter, som saknar kakan.
   // Panelens inloggning har eget lösenord — återförsäljare känner inte sajtkoden.
+  // Resend och cron saknar kakan; webhooken kräver Svix-signatur, ticken en hemlighet.
   if (
     requested === "/api/gate" ||
     requested === "/api/supplier/webhook" ||
+    requested === "/api/outreach/webhook" ||
+    requested === "/api/outreach/tick" ||
     requested === "/api/shop-events" ||
     requested === "/api/shop-domain" ||
     requested === "/api/admin/session"

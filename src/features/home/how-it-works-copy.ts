@@ -31,14 +31,14 @@ export const HOW_IT_WORKS = {
     {
       flow: "design",
       short: "Formge",
-      title: "Välj material och känsla",
+      title: "Välj yta och form",
       lead: "Samma motor som leverantören graverar efter.",
       body: [
-        "Välj mellan gravyrplast i tio färger, borstad eloxerad aluminium och rostfritt stål. Vrid skylten i 3D, se gravyren i ljuset och kontrollera måtten i ritningsvyn.",
+        "Välj mellan vitt, borstat guld och borstat silver. Vrid skylten i 3D, se gravyren i ljuset och kontrollera måtten i ritningsvyn.",
       ],
       options: [
-        { title: "Form & storlek", body: "Rak, rundad eller oval — från kompakta 60 × 20 mm till stora 90 × 40 mm." },
-        { title: "Fäste", body: "Nål, magnet utan hål i plagget, klämma eller säkerhetsnål." },
+        { title: "Form", body: "Fyra färdiga former: rektangel, oval, stor rektangel och kudde." },
+        { title: "Fäste", body: "Nål, magnet utan hål i plagget eller klämma." },
       ],
     },
     {
@@ -61,7 +61,7 @@ export const HOW_IT_WORKS = {
       lead: "Ett namn per rad. Samma design på alla.",
       body: [
         "När den första skylten är klar skriver du resten av namnen under Fler namn — eller klistrar in två kolumner direkt från Excel. Varje rad blir en egen skylt med exakt samma design.",
-        "Mängdrabatten räknas på hela ordern: 15 % från 10 skyltar, 28 % från 50 och 40 % från 200.",
+        "Priset per skylt sjunker på större ordrar och räknas på hela ordern, även när alla skyltar har olika namn.",
       ],
       cta: { label: "Börja med första skylten", href: "#borja" },
     },

@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { engravedRows } from "@/engine";
 import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
-import { databaseConfigured, getCustomer, getPurchaseTerms } from "@/lib/orders/repository";
+import { siteOrigin } from "@/lib/http/origin";
+import { databaseConfigured, getCustomer } from "@/lib/orders/repository";
 import { currentTenant } from "@/lib/reseller-auth/session";
 import { genitive } from "@/lib/share/genitive";
 import { decodeShareCode } from "@/lib/share/share-link";
@@ -20,14 +20,6 @@ interface SkapaPageProps {
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
-}
-
-/** Länkförhandsvisningar kräver absolut bildadress — samma värd som sidan hämtades från. */
-async function siteOrigin(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3100";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto.split(",")[0]?.trim() ?? "https"}://${host.split(",")[0]?.trim() ?? host}`;
 }
 
 export async function generateMetadata({ searchParams }: SkapaPageProps): Promise<Metadata> {
@@ -56,14 +48,13 @@ export async function generateMetadata({ searchParams }: SkapaPageProps): Promis
 async function resellerContext(customerId: string | undefined, quote: boolean, project: string | undefined) {
   const tenant = customerId && databaseConfigured() ? await currentTenant() : null;
   if (!customerId || !tenant) return undefined;
-  const [customer, purchase] = await Promise.all([getCustomer(tenant, customerId), getPurchaseTerms(tenant)]);
+  const customer = await getCustomer(tenant, customerId);
   return customer
     ? {
         customerId: customer.id,
         customerName: customer.company ?? customer.name,
         mode: quote ? ("quote" as const) : ("order" as const),
         project: project?.trim().slice(0, 120) || undefined,
-        purchase,
       }
     : undefined;
 }

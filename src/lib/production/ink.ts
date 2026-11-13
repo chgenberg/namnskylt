@@ -10,6 +10,12 @@ export const PRODUCTION_INK = {
   engrave: "#000000",
 } as const;
 
+/**
+ * Hjälplinjer på skärm, korrektur och utskrift — ämnets kant och rubriker när
+ * skyltarna är färdigskurna. Ingen maskinfärg: de skrivs aldrig till maskinfilerna.
+ */
+export const GUIDE_INK = "#8A9099";
+
 /** Hårlinje till maskinen. */
 export const HAIRLINE_MM = 0.03;
 /** Korrekturet ritas tjockt för att kunna granskas på papper och skärm. */

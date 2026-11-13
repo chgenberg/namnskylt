@@ -5,6 +5,8 @@ import { z } from "zod";
 import { createRateLimiter } from "@/lib/ai/rate-limit";
 import { accountExists, accountIdByEmail, authenticate, createAccount } from "@/lib/reseller-auth/accounts";
 import { signInCookies } from "@/lib/reseller-auth/sign-in";
+import { requireDb } from "@/lib/db/client";
+import { attributeLead, leadIdForInvite } from "@/lib/outreach/repository";
 import { acceptInvite, getInvite } from "@/lib/shops/editor-repository";
 import { OWNER_TENANT, TENANT_ID } from "@/lib/tenants/model";
 import { MIN_PASSWORD_CHARS } from "./limits";
@@ -20,7 +22,7 @@ const claimSchema = z.object({
 
 export type ClaimResult = { ok: true; slug: string } | { ok: false; error: string };
 
-/** Ett ledigt konto-id ur butikens adress: kontorsprofilen, kontorsprofilen-2 … */
+/** Ett ledigt konto-id ur butikens adress: exempelbutik, exempelbutik-2 … */
 async function freeTenantId(base: string): Promise<string> {
   const root = TENANT_ID.test(base) && base !== OWNER_TENANT ? base : "aterforsaljare";
   for (let n = 1; n < 100; n++) {
@@ -41,6 +43,10 @@ export async function claimInviteAction(token: string, input: unknown): Promise<
   const parsed = claimSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: `Fyll i namn, e-post och ett lösenord på minst ${MIN_PASSWORD_CHARS} tecken` };
   const { name, email, password } = parsed.data;
+  const outreachLead = await leadIdForInvite(requireDb(), token);
+  if (outreachLead && email.trim().toLowerCase() !== invite.email) {
+    return { ok: false, error: `Använd e-postadressen inbjudan gäller: ${invite.email}` };
+  }
 
   const existing = await accountIdByEmail(email);
   let tenant: string;
@@ -53,6 +59,7 @@ export async function claimInviteAction(token: string, input: unknown): Promise<
     await createAccount({ id: tenant, name, email, password });
   }
   if (!(await acceptInvite(token, tenant))) return { ok: false, error: "Inbjudan är använd eller har gått ut. Be om en ny." };
+  if (outreachLead) await attributeLead(requireDb(), { inviteToken: token, email, resellerId: tenant });
   const jar = await cookies();
   for (const cookie of await signInCookies(tenant)) jar.set(cookie.name, cookie.value, cookie.options);
   return { ok: true, slug: invite.slug };

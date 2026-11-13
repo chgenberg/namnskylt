@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { MAX_ORDER_BADGES } from "@/engine";
+import { MAX_ORDER_BADGES, priceModelSchema, type PriceModel } from "@/engine";
 import { requireDb } from "@/lib/db/client";
 import { insertDemoData, removeDemoData } from "@/lib/orders/demo-data";
 import { pricingSchema, type Pricing } from "@/lib/orders/pricing";
-import { purchaseTermsSchema, type PurchaseTerms } from "@/lib/orders/purchase";
 import { companyProfileSchema, type CompanyProfile } from "@/lib/company/profile";
+import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import { repeatBadges, staffBadges } from "@/lib/orders/repeat";
 import {
@@ -16,7 +16,8 @@ import {
   deleteOrder,
   getBadgeShot,
   saveCompanyProfile,
-  savePurchaseTerms,
+  getPriceModel,
+  savePriceModel,
   getCustomer,
   getDesign,
   getOrder,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/orders/repository";
 import { siteOrigin } from "@/lib/http/origin";
 import { requireReseller } from "@/lib/reseller-auth/session";
+import { isOwner } from "@/lib/tenants/model";
 
 export type ActionResult = { ok: true; orderNo?: string; url?: string } | { ok: false; error: string };
 
@@ -49,6 +51,7 @@ export async function repeatOrderAction(orderNo: string): Promise<ActionResult> 
   try {
     const original = await getOrder(tenant, orderNoSchema.parse(orderNo));
     if (!original || original.badges.length === 0) return { ok: false, error: "Ordern finns inte" };
+    if (!allOffered(original.badges)) return { ok: false, error: NOT_OFFERED_ERROR };
     const placed = await placeOrder({
       tenant,
       customer: original.customer,
@@ -74,6 +77,7 @@ export async function staffOrderAction(orderNo: string, names: string, quantity:
     const badges = staffBadges(template, namesSchema.parse(names), quantitySchema.parse(quantity));
     if (badges.length === 0) return { ok: false, error: "Skriv minst ett namn" };
     if (badges.length > MAX_ORDER_BADGES) return { ok: false, error: `Högst ${MAX_ORDER_BADGES} namn per order` };
+    if (!allOffered(badges)) return { ok: false, error: NOT_OFFERED_ERROR };
     const placed = await placeOrder({
       tenant,
       customer: original.customer,
@@ -98,6 +102,7 @@ export async function orderFromDesignAction(designId: string, names: string, qua
     const badges = staffBadges(design.doc, namesSchema.parse(names), quantitySchema.parse(quantity));
     if (badges.length === 0) return { ok: false, error: "Skriv minst ett namn" };
     if (badges.length > MAX_ORDER_BADGES) return { ok: false, error: `Högst ${MAX_ORDER_BADGES} namn per order` };
+    if (!allOffered(badges)) return { ok: false, error: NOT_OFFERED_ERROR };
     const placed = await placeOrder({
       tenant,
       customer,
@@ -146,13 +151,16 @@ export async function deleteOrderAction(orderNo: string): Promise<ActionResult> 
   }
 }
 
-export async function savePurchaseTermsAction(terms: PurchaseTerms): Promise<ActionResult> {
+/** Prismodellen styr alla priser på sajten — bara ägaren får ändra den. */
+export async function savePriceModelAction(model: PriceModel): Promise<ActionResult> {
   const tenant = await requireReseller();
+  if (!isOwner(tenant)) return { ok: false, error: "Bara namnskylt.com kan ändra prismodellen" };
   try {
-    await savePurchaseTerms(tenant, purchaseTermsSchema.parse(terms));
+    await savePriceModel(priceModelSchema.parse(model));
+    revalidatePath("/", "layout");
     return done();
   } catch (error) {
-    return fail(error, "Inköpspriserna kunde inte sparas");
+    return fail(error, "Prismodellen kunde inte sparas");
   }
 }
 
@@ -181,7 +189,7 @@ export async function deleteDesignAction(designId: string): Promise<ActionResult
 export async function insertDemoDataAction(): Promise<ActionResult> {
   const tenant = await requireReseller();
   try {
-    await insertDemoData(requireDb(), tenant);
+    await insertDemoData(requireDb(), tenant, await getPriceModel());
     return done();
   } catch (error) {
     return fail(error, "Demodatan kunde inte läggas in");

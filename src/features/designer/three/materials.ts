@@ -15,6 +15,15 @@ const METAL_ROUGHNESS: Record<MaterialFinish, number> = {
   epoxy: 0.06,
 };
 
+/** Plåten som syns i kanten på en lackad skylt — mörk nog att teckna konturen mot en ljus scen. */
+const LACQUER_EDGE = "#9EA3A9";
+/**
+ * Ren skärmvit lack bränner ut i studioljuset och försvinner mot den ljusa scenen.
+ * Ytan dras en aning mot grått, som vit lack ser ut i verkligt ljus.
+ */
+const LACQUER_SHADE = "#8E9299";
+const LACQUER_SHADE_AMOUNT = 0.32;
+
 /**
  * Färgad metall (guld, mässing) blir grumlig med metalness 1 och skärmens sRGB-ton —
  * verklig mässing reflekterar mycket ljusare. Lyft mättade metaller mot sin reflektans.
@@ -34,6 +43,7 @@ function isDark(hex: string): boolean {
  * Material i samma ordning som geometrins platser: ytskikt, kärna, gravyr.
  * Plast: blank ytfilm över en kärna i gravyrfärgen; fickan är fräst och matt.
  * Metall: borstad och anisotrop; gravyren är färgfylld eller lasermärkt.
+ * Lackad metall: matt färg utan borstning, med plåten synlig i kanten.
  */
 export function useBadgeMaterials(doc: BadgeDocument): MeshPhysicalMaterial[] {
   const { finish } = getMaterial(doc.materialId);
@@ -49,6 +59,18 @@ export function useBadgeMaterials(doc: BadgeDocument): MeshPhysicalMaterial[] {
         // Kanten är samma tryckta skiva som ytan; bara texten har gravyrfärgen.
         new MeshPhysicalMaterial({ color: color.surface, roughness: gloss + 0.2, metalness }),
         new MeshPhysicalMaterial({ color: color.engraving, roughness: gloss + 0.1, metalness: isDark(color.engraving) ? 0 : 0.6 }),
+      ];
+    }
+    if (color.lacquered) {
+      // Lackad plåt: slät, matt färg på framsidan. Kanten visar metallen under lacken.
+      return [
+        new MeshPhysicalMaterial({
+          color: new Color(color.surface).lerp(new Color(LACQUER_SHADE), LACQUER_SHADE_AMOUNT),
+          roughness: 0.42,
+          specularIntensity: 0.6,
+        }),
+        new MeshPhysicalMaterial({ color: LACQUER_EDGE, metalness: 1, roughness: 0.4 }),
+        new MeshPhysicalMaterial({ color: color.engraving, roughness: 0.6, metalness: 0.1 }),
       ];
     }
     if (finish === "plastic") {
@@ -80,7 +102,7 @@ export function useBadgeMaterials(doc: BadgeDocument): MeshPhysicalMaterial[] {
         roughness: filled ? 0.6 : 0.5,
       }),
     ];
-  }, [finish, color.surface, color.engraving, color.metallic]);
+  }, [finish, color.surface, color.engraving, color.metallic, color.lacquered]);
 
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
   return materials;

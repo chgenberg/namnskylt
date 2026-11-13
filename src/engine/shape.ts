@@ -14,6 +14,13 @@ export type Outline =
 /** Samma avskärningar som leverantörens motor, så formen blir densamma i produktion. */
 const OCTAGON_CUT = 1 - Math.SQRT1_2;
 const HEXAGON_CUT = 0.25;
+/**
+ * Kudden är en superellips: alla fyra sidor buktar svagt utåt och hörnen är
+ * mjukt rundade. Exponenten är uppskattad från foton av ämnet.
+ */
+const CUSHION_EXPONENT = 3.5;
+/** Punkter per kvarts varv. Kurvan ritas som en tät polygon. */
+const CUSHION_QUARTER_POINTS = 32;
 
 export function isEllipseShape(shape: BadgeShape): boolean {
   return shape === "oval" || shape === "round";
@@ -68,6 +75,25 @@ function polygonCorners(shape: BadgeShape, w: Mm, h: Mm): Point[] {
 }
 
 /**
+ * Kuddens kontur med halvaxlarna `rx` och `ry` runt mitten, medurs från högra sidans mitt.
+ * Indragning görs genom att krympa halvaxlarna: avståndet till kanten blir då exakt mitt på
+ * sidorna och ungefär detsamma i hörnen, och konturen kan aldrig vika sig över sig själv.
+ */
+function cushionPoints(cx: Mm, cy: Mm, rx: Mm, ry: Mm): Point[] {
+  const power = 2 / CUSHION_EXPONENT;
+  const total = CUSHION_QUARTER_POINTS * 4;
+  return Array.from({ length: total }, (_, i) => {
+    const angle = (i / total) * Math.PI * 2;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return {
+      x: cx + rx * Math.sign(cos) * Math.abs(cos) ** power,
+      y: cy + ry * Math.sign(sin) * Math.abs(sin) ** power,
+    };
+  });
+}
+
+/**
  * Flyttar varje kant `inset` mm inåt (negativt = utåt) och skär grannkanterna.
  * Ger jämnt kantavstånd även när formen är utdragen; tom lista om formen äts upp.
  */
@@ -114,6 +140,9 @@ export function badgeOutline(doc: BadgeDocument, inset: Mm = 0): Outline | null 
 
   if (isEllipseShape(doc.shape)) {
     return { kind: "ellipse", cx: widthMm / 2, cy: heightMm / 2, rx: w / 2, ry: h / 2 };
+  }
+  if (doc.shape === "cushion") {
+    return { kind: "polygon", points: cushionPoints(widthMm / 2, heightMm / 2, w / 2, h / 2) };
   }
   if (isPolygonShape(doc.shape)) {
     const points = insetConvexPolygon(polygonCorners(doc.shape, widthMm, heightMm), inset);

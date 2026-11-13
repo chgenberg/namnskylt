@@ -1,31 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createBadgeDocument, lineUnitPrices, type BadgeDocument } from "@/engine";
-import { marginOf, purchasePercentFor, purchasePrice, purchaseTermsSchema, type PurchaseTerms } from "./purchase";
-
-const brass: BadgeDocument = { ...createBadgeDocument(["Anna Lind"]), materialId: "brass", colorId: "brass-gold", quantity: 2 };
-const plastic: BadgeDocument = { ...createBadgeDocument(["Bo Ek"]), materialId: "plastic-2-layer", colorId: "white-black" };
-const terms: PurchaseTerms = { generalPercent: 40, perMaterial: { brass: 30 } };
-
-describe("inköpspris", () => {
-  it("använder materialets procent före den generella", () => {
-    assert.equal(purchasePercentFor(terms, "brass"), 30);
-    assert.equal(purchasePercentFor(terms, "plastic-2-layer"), 40);
-  });
-
-  it("räknar rabatten på listpriset efter mängdrabatten", () => {
-    const [brassList = 0, plasticList = 0] = lineUnitPrices([brass, plastic]);
-    const price = purchasePrice([brass, plastic], terms);
-    const [brassUnit = 0, plasticUnit = 0] = price.unitSek;
-    assert.deepEqual(price.unitSek, [Math.round(brassList * 0.7), Math.round(plasticList * 0.6)]);
-    assert.equal(price.totalSek, brassUnit * 2 + plasticUnit);
-  });
-
-  it("utan rabatt är inköpet listpriset", () => {
-    const price = purchasePrice([plastic], { generalPercent: 0, perMaterial: {} });
-    assert.deepEqual(price.unitSek, lineUnitPrices([plastic]));
-  });
-});
+import { createBadgeDocument, DEFAULT_PRICE_MODEL, priceOrder, resellerOrder } from "@/engine";
+import { marginOf } from "./purchase";
 
 describe("marginal", () => {
   it("är andel av försäljningspriset", () => {
@@ -33,13 +9,18 @@ describe("marginal", () => {
     assert.deepEqual(marginOf(100, 130), { sek: -30, percent: -30 });
     assert.deepEqual(marginOf(0, 0), { sek: 0, percent: null });
   });
-});
 
-describe("purchaseTermsSchema", () => {
-  it("avvisar okända material och orimliga procent", () => {
-    assert.equal(purchaseTermsSchema.safeParse({ generalPercent: 40, perMaterial: { brass: 30 } }).success, true);
-    assert.equal(purchaseTermsSchema.safeParse({ generalPercent: 40, perMaterial: { gold: 30 } }).success, false);
-    assert.equal(purchaseTermsSchema.safeParse({ generalPercent: 95, perMaterial: {} }).success, false);
-    assert.equal(purchaseTermsSchema.safeParse({ generalPercent: -1, perMaterial: {} }).success, false);
+  it("vid listpris får återförsäljaren modellens marginal på en order över minsta ordervärde", () => {
+    const badges = [{ ...createBadgeDocument(["Anna Lind"]), quantity: 25 }];
+    const sale = priceOrder(badges, DEFAULT_PRICE_MODEL).totalSek;
+    const purchase = resellerOrder(badges, DEFAULT_PRICE_MODEL).totalSek;
+    assert.equal(marginOf(sale, purchase).percent, DEFAULT_PRICE_MODEL.endMarginPercent);
+  });
+
+  it("på en ensam skylt äter minidebiteringen upp marginalen", () => {
+    const badges = [createBadgeDocument(["Anna Lind"])];
+    const sale = priceOrder(badges, DEFAULT_PRICE_MODEL).totalSek;
+    const purchase = resellerOrder(badges, DEFAULT_PRICE_MODEL).totalSek;
+    assert.deepEqual(marginOf(sale, purchase), { sek: 0, percent: 0 });
   });
 });

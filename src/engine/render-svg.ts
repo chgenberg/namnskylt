@@ -101,7 +101,8 @@ export function renderBadgeSvg(
   const parts: string[] = [];
 
   if (isPreview) {
-    parts.push(`<defs>${surfaceDefs(material.finish, gradientId)}</defs>`);
+    // Lackad metall är slät som plast: mjuk glans i stället för borstade stråk.
+    parts.push(`<defs>${surfaceDefs(color.lacquered ? "plastic" : material.finish, gradientId)}</defs>`);
     parts.push(`<path d="${layout.outline}" fill="${color.surface}"/>`);
     parts.push(`<path d="${layout.outline}" fill="url(#${gradientId})"/>`);
   } else {

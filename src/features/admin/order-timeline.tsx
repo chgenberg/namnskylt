@@ -1,4 +1,4 @@
-import { formatDate } from "@/features/orders/format";
+import { formatDate } from "@/lib/format";
 import { ORDER_STATUS_LABEL, stepTimes, TIMELINE_STEPS, type StoredOrder } from "@/lib/orders/model";
 import styles from "./admin.module.css";
 

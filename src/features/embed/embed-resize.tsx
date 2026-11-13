@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-export const EMBED_MESSAGE = "namnskylt:height";
+const EMBED_MESSAGE = "namnskylt:height";
 export const EMBED_ROOT_ID = "namnskylt-embed";
 
 /**

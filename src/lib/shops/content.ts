@@ -33,7 +33,7 @@ const ID = /^[A-Za-z0-9_-]{4,32}$/;
 export const IMAGE_ID = /^[A-Za-z0-9_-]{10,40}$/;
 export const PAGE_PATH = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 /** Butikens egna adresser — en sida får inte heta som dem. */
-export const RESERVED_PATHS = new Set([
+const RESERVED_PATHS = new Set([
   "skapa", "logo", "ikon", "mejlbild", "bild", "forhandsvisning", "api", "admin", "korrektur", "offert", "inbaddning",
 ]);
 /** Länkar till webbsidor, egna sidor, ankare, mejl och telefon — inget javascript:. */
@@ -58,7 +58,7 @@ const href = z
 const imageRef = z.string().regex(IMAGE_ID);
 const id = z.string().regex(ID);
 
-export const blockSchema = z.discriminatedUnion("kind", [
+const blockSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("header"),
     id,
@@ -151,7 +151,7 @@ export function videoEmbed(url: string): VideoEmbed | null {
 }
 export type BlockOf<K extends BlockKind> = Extract<Block, { kind: K }>;
 
-export const pageSchema = z.object({
+const pageSchema = z.object({
   id,
   /** Tom = startsidan; annars adressen efter butiken, t.ex. "om-oss". */
   path: z.string().refine((p) => p === "" || (PAGE_PATH.test(p) && !RESERVED_PATHS.has(p)), "Ogiltig adress"),
@@ -226,7 +226,7 @@ export function newBlock(kind: BlockKind, title?: string): Block {
         items: [{ question: "Hur lång är leveranstiden?", answer: "Skyltarna graveras och skickas inom fem arbetsdagar." }],
       };
     case "banner":
-      return { kind, id: blockId, text: "Mängdrabatt från 10 skyltar", href: "", until: "" };
+      return { kind, id: blockId, text: "Lägre pris per skylt på större beställningar", href: "", until: "" };
     case "contact":
       return { kind, id: blockId, title: "Kontakta oss", text: "Har du frågor om skyltar eller större beställningar? Hör av dig." };
     case "map":
@@ -257,7 +257,7 @@ export function newPage(label: string, taken: readonly string[]): ShopPage {
 }
 
 /** Startsidan som den är i alla butiker. */
-export function startPage(): ShopPage {
+function startPage(): ShopPage {
   const start = defaultContent().pages[0];
   if (!start) throw new Error("Standardsidan saknar startsida");
   return start;

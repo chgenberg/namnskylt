@@ -5,8 +5,8 @@ import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { genitive } from "./genitive";
 
 /** Länkförhandsvisningarnas standardformat (Open Graph). */
-export const SHARE_IMAGE_WIDTH_PX = 1200;
-export const SHARE_IMAGE_HEIGHT_PX = 630;
+const SHARE_IMAGE_WIDTH_PX = 1200;
+const SHARE_IMAGE_HEIGHT_PX = 630;
 
 const BADGE_MAX_WIDTH_PX = 860;
 const BADGE_MAX_HEIGHT_PX = 330;

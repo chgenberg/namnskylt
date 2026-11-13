@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
-import { engravedRows, getColor, getMaterial, getMounting, SHAPES } from "@/engine";
+import { engravedRows, getColor, getMaterial, getMounting, shapeLabel } from "@/engine";
 import { staffOrderAction, updateOrderPricingAction } from "@/features/admin/actions";
 import { PricingEditor } from "@/features/admin/pricing-editor";
 import { adminTenant } from "@/features/admin/guard";
@@ -13,10 +13,10 @@ import { RepeatButton } from "@/features/admin/repeat-button";
 import { SaveDesignButton } from "@/features/admin/save-design-button";
 import { StatusPill } from "@/features/admin/status-pill";
 import styles from "@/features/admin/admin.module.css";
-import { formatDate, formatSek } from "@/features/orders/format";
+import { formatDate, formatSek } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { badgeCount, ORDER_SOURCE_LABEL } from "@/lib/orders/model";
-import { getOrder, getPurchaseTerms, latestProof } from "@/lib/orders/repository";
+import { getOrder, latestProof } from "@/lib/orders/repository";
 import { atPrinter, refreshFromSupplier, supplierLink, type SupplierLink } from "@/lib/supplier/sync";
 
 const SYNC_NOTE: Record<SupplierLink, string> = {
@@ -39,7 +39,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
   if (!stored) notFound();
   const order = (await refreshFromSupplier(stored)) ? ((await getOrder(tenant, orderNumber)) ?? stored) : stored;
   const link = supplierLink(order);
-  const [proof, origin, purchase] = await Promise.all([latestProof(tenant, order.orderNo), siteOrigin(), getPurchaseTerms(tenant)]);
+  const [proof, origin] = await Promise.all([latestProof(tenant, order.orderNo), siteOrigin()]);
   const template = order.badges[0];
   const customerName = order.customer.company ?? order.customer.name;
 
@@ -121,7 +121,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
               <span className={styles.muted}>Ditt pris till kunden — påverkar fakturaunderlaget, inte tillverkningen</span>
             </div>
             <PricingEditor
-              purchase={purchase}
+              priceModel={order.priceModel}
               badges={order.badges}
               pricing={order.pricing}
               submit={order.status === "cancelled" ? undefined : updateOrderPricingAction.bind(null, order.orderNo)}
@@ -151,7 +151,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
                   </dd>
                   <dt>Form och fäste</dt>
                   <dd>
-                    {SHAPES.find((s) => s.id === template.shape)?.name} · {getMounting(template.mounting).name}
+                    {shapeLabel(template)} · {getMounting(template.mounting).name}
                   </dd>
                 </>
               )}

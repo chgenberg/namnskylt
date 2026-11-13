@@ -20,7 +20,7 @@ export interface Shop {
   createdAt: string;
   /** Butikens priser mot riktpris; saknas = riktpris. */
   priceList?: ShopPriceList | null;
-  /** Återförsäljarens egen adress, t.ex. skylt.kontorsprofilen.se. */
+  /** Återförsäljarens egen adress, t.ex. skylt.exempelbutik.se. */
   domain?: string | null;
 }
 

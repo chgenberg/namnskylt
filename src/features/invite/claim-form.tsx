@@ -5,7 +5,13 @@ import { claimInviteAction } from "./invite-actions";
 import { MIN_PASSWORD_CHARS } from "./limits";
 import styles from "./invite.module.css";
 
-export function ClaimForm({ token, email }: { token: string; email: string }) {
+export interface ClaimFormProps {
+  token: string;
+  email: string;
+  submitLabel?: string;
+}
+
+export function ClaimForm({ token, email, submitLabel = "Ta över butiken" }: ClaimFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   return (
@@ -45,7 +51,7 @@ export function ClaimForm({ token, email }: { token: string; email: string }) {
         </p>
       )}
       <button type="submit" className="btn btn--primary btn--lg" disabled={pending}>
-        {pending ? "Skapar kontot…" : "Ta över butiken"}
+        {pending ? "Skapar kontot…" : submitLabel}
       </button>
     </form>
   );

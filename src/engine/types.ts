@@ -8,10 +8,13 @@ export type Mm = number;
 
 export type FontId = "arial" | "arial-narrow";
 export type TextAlign = "left" | "center" | "right";
-export type BadgeShape = "rectangle" | "rounded" | "stadium" | "oval" | "round" | "hexagon" | "octagon";
+export type BadgeShape = "rectangle" | "rounded" | "stadium" | "oval" | "round" | "hexagon" | "octagon" | "cushion";
+/** Färdigskurna ämnen som skylten graveras på — fast form och fast mått. */
+export type BlankId = "rectangle" | "oval" | "rectangle-large" | "cushion";
 export type FrameStyle = "none" | "solid" | "double";
 export type MountingId = "pin" | "magnet" | "clip" | "safety-pin";
 export type MaterialId =
+  | "metal"
   | "brass"
   | "aluminium-solid"
   | "acrylic"
@@ -19,6 +22,8 @@ export type MaterialId =
   | "aluminium-anodized"
   | "stainless"
   | "plastic-2-layer";
+/** Prisklassen i kalkylen: Premium är metall, Standard är plast. */
+export type SignClass = "premium" | "standard";
 export type MaterialFinish = "plastic" | "aluminium" | "steel" | "brass" | "acrylic" | "epoxy";
 /** Vem som tillverkar: Skylt & Gravyrteknik via API:t, Quickbutton efter bekräftad förfrågan. */
 export type Producer = "skylt-gravyr" | "quickbutton";

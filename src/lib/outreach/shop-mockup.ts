@@ -6,9 +6,9 @@ import { readableOn } from "@/lib/company/profile";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import type { Shop } from "@/lib/shops/model";
 
-/** Dubbel upplösning mot mejlets 552 px bildbredd — skarpt på retinaskärmar. */
-export const MOCKUP_WIDTH_PX = 1104;
-export const MOCKUP_HEIGHT_PX = 610;
+/** Butikens förhandsbild i delade länkar (`/butik/[slug]/mejlbild`); dubbel upplösning för retinaskärmar. */
+const MOCKUP_WIDTH_PX = 1104;
+const MOCKUP_HEIGHT_PX = 610;
 
 const INK = "#0a0a0b";
 const MUTED = "#6b7079";
@@ -60,7 +60,7 @@ export async function renderShopMockup(shop: Shop, logoPlate: string | null): Pr
 
   const ctaW = 170;
   const ctaX = win.x + win.w - ctaW - 32;
-  const badge = { ...createBadgeDocument(["Anna Lindqvist", "Säljare"]), materialId: "brass" as const, colorId: "brass-gold" };
+  const badge = createBadgeDocument(["Anna Lindqvist", "Säljare"]);
   const badgeW = 420;
   const badgeH = (badgeW * badge.size.heightMm) / badge.size.widthMm;
   const badgeX = win.x + win.w - badgeW - 64;
@@ -99,8 +99,8 @@ export async function renderShopMockup(shop: Shop, logoPlate: string | null): Pr
     text(fonts, eyebrow.length > MAX_EYEBROW_CHARS + 27 ? `${eyebrow.slice(0, MAX_EYEBROW_CHARS + 26)}…` : eyebrow, 13, true, textX, win.y + 190, primary),
     text(fonts, "Skriv ditt namn.", 50, true, textX, win.y + 250, INK),
     text(fonts, "Vi graverar resten.", 50, true, textX, win.y + 308, primary),
-    text(fonts, "Se skylten i 3D direkt — i mässing,", 19, false, textX, win.y + 352, MUTED),
-    text(fonts, "aluminium, akryl eller gravyrplast.", 19, false, textX, win.y + 378, MUTED),
+    text(fonts, "Se skylten i 3D direkt — i vitt,", 19, false, textX, win.y + 352, MUTED),
+    text(fonts, "borstat guld eller borstat silver.", 19, false, textX, win.y + 378, MUTED),
     `<rect x="${textX}" y="${inputY}" width="430" height="58" rx="29" fill="#ffffff" stroke="${primary}" stroke-opacity=".5" stroke-width="2"/>`,
     text(fonts, "Anna Lindqvist, Säljare", 18, false, textX + 26, inputY + 36, INK),
     `<rect x="${textX + 278}" y="${inputY + 8}" width="144" height="42" rx="21" fill="${primary}"/>`,

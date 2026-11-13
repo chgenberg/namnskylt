@@ -1,5 +1,6 @@
 import type {
   BadgeShape,
+  BlankId,
   FontId,
   FrameStyle,
   LogoPlacement,
@@ -8,6 +9,7 @@ import type {
   Mm,
   MountingId,
   Producer,
+  SignClass,
 } from "./types";
 
 /**
@@ -15,6 +17,9 @@ import type {
  * koderna i `supplierCode` och färg-id:n är deras egna, så ordern går rakt in
  * i deras API. Quickbutton (QB-katalogen 2023): `supplierCode` är artikelseriens
  * prefix — hela artikelnumret sätts när förfrågan bekräftas.
+ *
+ * Bara material med `offered` säljs på sajten. De övriga ligger kvar så att
+ * sparade ordrar, offerter, butiker och utskickets bilder går att rita.
  */
 
 export interface ColorCombo {
@@ -26,6 +31,8 @@ export interface ColorCombo {
   engraving: string;
   /** Metallicpigment i ytan (Epoxyline Metallic). */
   metallic?: boolean;
+  /** Lackad yta på metall: slät och matt, utan borstning och metallglans. */
+  lacquered?: boolean;
 }
 
 export interface BadgeMaterial {
@@ -38,9 +45,14 @@ export interface BadgeMaterial {
   producer: Producer;
   /** Exklusiva material visas först och får egen etikett. */
   exclusive: boolean;
+  /** Säljs på sajten i dag. */
+  offered: boolean;
+  /** Levereras som färdigskurna ämnen: verkstaden graverar bara, inget skärs. */
+  precut?: boolean;
   supplierCode: string;
   thicknessMm: Mm;
-  basePriceSek: number;
+  /** Raden i prismodellen som materialet prissätts efter. */
+  priceClass: SignClass;
   colors: readonly ColorCombo[];
 }
 
@@ -72,6 +84,26 @@ const PLASTIC_COLORS: readonly ColorCombo[] = [
 
 export const MATERIALS: readonly BadgeMaterial[] = [
   {
+    // Preliminärt tills verkstaden bekräftat: artikelkod, tjocklek och gravyrens färg.
+    id: "metal",
+    name: "Metall",
+    tagline: "Graverad, i tre ytor",
+    description: "Tunn metallskylt med graverad text, i vitt, borstat guld eller borstat silver.",
+    finish: "aluminium",
+    producer: "skylt-gravyr",
+    exclusive: false,
+    offered: true,
+    precut: true,
+    supplierCode: "namnskylt-metall",
+    thicknessMm: 0.5,
+    priceClass: "premium",
+    colors: [
+      { id: "metal-white", name: "Vit", surface: "#F7F7F5", engraving: BLACK, lacquered: true },
+      { id: "metal-gold", name: "Borstat guld", surface: "#C8A440", engraving: BLACK },
+      { id: "metal-silver", name: "Borstat silver", surface: "#B4B6B8", engraving: BLACK },
+    ],
+  },
+  {
     id: "brass",
     name: "Mässing",
     tagline: "Klassisk och elegant",
@@ -79,9 +111,10 @@ export const MATERIALS: readonly BadgeMaterial[] = [
     finish: "brass",
     producer: "quickbutton",
     exclusive: true,
+    offered: false,
     supplierCode: "QB-31-60",
     thicknessMm: 1,
-    basePriceSek: 149,
+    priceClass: "premium",
     colors: [
       { id: "brass-gold", name: "Guld / Svart", surface: GOLD, engraving: BLACK },
       { id: "brass-silver", name: "Silver / Svart", surface: SILVER, engraving: BLACK },
@@ -95,9 +128,10 @@ export const MATERIALS: readonly BadgeMaterial[] = [
     finish: "acrylic",
     producer: "quickbutton",
     exclusive: true,
+    offered: false,
     supplierCode: "QB-31-30",
     thicknessMm: 3,
-    basePriceSek: 159,
+    priceClass: "standard",
     colors: [
       { id: "acrylic-white", name: "Vit botten / Svart", surface: "#F4F5F4", engraving: BLACK },
       { id: "acrylic-silver", name: "Silver botten / Svart", surface: SILVER, engraving: BLACK },
@@ -114,9 +148,10 @@ export const MATERIALS: readonly BadgeMaterial[] = [
     finish: "aluminium",
     producer: "quickbutton",
     exclusive: true,
+    offered: false,
     supplierCode: "QB-31-63",
     thicknessMm: 1.5,
-    basePriceSek: 129,
+    priceClass: "premium",
     colors: [
       { id: "space-silver", name: "Silver / Svart", surface: "#D3D7DC", engraving: BLACK },
       { id: "space-gold", name: "Guld / Svart", surface: "#D6B567", engraving: BLACK },
@@ -130,9 +165,10 @@ export const MATERIALS: readonly BadgeMaterial[] = [
     finish: "aluminium",
     producer: "skylt-gravyr",
     exclusive: true,
+    offered: false,
     supplierCode: "aluminum-1mm",
     thicknessMm: 1,
-    basePriceSek: 69,
+    priceClass: "premium",
     colors: [
       { id: "alu-natural-black", name: "Natur / Svart", surface: "#C7CBD1", engraving: BLACK },
       { id: "alu-natural-raw", name: "Natur / Rå", surface: "#C7CBD1", engraving: "#5A6168" },
@@ -146,9 +182,10 @@ export const MATERIALS: readonly BadgeMaterial[] = [
     finish: "steel",
     producer: "skylt-gravyr",
     exclusive: true,
+    offered: false,
     supplierCode: "stainless-steel-1mm",
     thicknessMm: 1,
-    basePriceSek: 89,
+    priceClass: "premium",
     colors: [{ id: "steel-laser", name: "Stål / Laser", surface: "#D5D9DD", engraving: "#3E464E" }],
   },
   {
@@ -159,9 +196,10 @@ export const MATERIALS: readonly BadgeMaterial[] = [
     finish: "epoxy",
     producer: "quickbutton",
     exclusive: false,
+    offered: false,
     supplierCode: "QB-31-80",
     thicknessMm: 1.6,
-    basePriceSek: 89,
+    priceClass: "standard",
     colors: [
       { id: "epoxy-white", name: "Vit / Svart", surface: WHITE, engraving: BLACK },
       { id: "epoxy-black", name: "Svart / Vit", surface: BLACK, engraving: WHITE },
@@ -184,14 +222,17 @@ export const MATERIALS: readonly BadgeMaterial[] = [
     finish: "plastic",
     producer: "skylt-gravyr",
     exclusive: false,
+    offered: false,
     supplierCode: "gravyrplast-2-lager-0-8mm",
     thicknessMm: 0.8,
-    basePriceSek: 39,
+    priceClass: "standard",
     colors: PLASTIC_COLORS,
   },
 ];
 
 export const MATERIAL_IDS = MATERIALS.map((m) => m.id) as [MaterialId, ...MaterialId[]];
+
+export const OFFERED_MATERIALS: readonly BadgeMaterial[] = MATERIALS.filter((m) => m.offered);
 
 export interface BadgeFont {
   id: FontId;
@@ -222,32 +263,26 @@ export const FONTS: readonly BadgeFont[] = [
   },
 ];
 
-export interface SizePreset {
-  id: string;
+export interface BadgeBlank {
+  id: BlankId;
+  name: string;
+  shape: BadgeShape;
   widthMm: Mm;
   heightMm: Mm;
-  label: string;
+  /** Gäller bara `shape === "rounded"`. */
+  cornerRadiusMm: Mm;
 }
 
-/** Storlekarna i QB-katalogens modeller plus Skylt & Gravyrs vanligaste. */
-export const SIZE_PRESETS: readonly SizePreset[] = [
-  { id: "60x20", widthMm: 60, heightMm: 20, label: "Kompakt" },
-  { id: "68x25", widthMm: 68, heightMm: 25, label: "Smal" },
-  { id: "70x25", widthMm: 70, heightMm: 25, label: "Standard" },
-  { id: "59x34", widthMm: 59, heightMm: 34, label: "Klassisk" },
-  { id: "62x32", widthMm: 62, heightMm: 32, label: "Mellan" },
-  { id: "74x36", widthMm: 74, heightMm: 36, label: "Stor" },
-  { id: "85x30", widthMm: 85, heightMm: 30, label: "Bred" },
+/**
+ * Ämnena som säljs. Måtten är uppskattade från foton och preliminära tills
+ * verkstaden lämnat de riktiga — ändra dem här, ingen annanstans.
+ */
+export const BLANKS: readonly BadgeBlank[] = [
+  { id: "rectangle", name: "Rektangel", shape: "rounded", widthMm: 75, heightMm: 25, cornerRadiusMm: 3 },
+  { id: "oval", name: "Oval", shape: "oval", widthMm: 70, heightMm: 40, cornerRadiusMm: 0 },
+  { id: "rectangle-large", name: "Stor rektangel", shape: "rounded", widthMm: 75, heightMm: 45, cornerRadiusMm: 4 },
+  { id: "cushion", name: "Kudde", shape: "cushion", widthMm: 75, heightMm: 35, cornerRadiusMm: 0 },
 ];
-
-/** Rund skylt: alltid lika bred som hög. */
-export const ROUND_SIZE_PRESETS: readonly SizePreset[] = [
-  { id: "40x40", widthMm: 40, heightMm: 40, label: "Liten" },
-  { id: "45x45", widthMm: 45, heightMm: 45, label: "Mellan" },
-  { id: "55x55", widthMm: 55, heightMm: 55, label: "Stor" },
-];
-
-export const DEFAULT_ROUND_SIZE_MM = 55;
 
 export const SIZE_LIMITS = {
   minWidthMm: 40,
@@ -286,6 +321,7 @@ export const SHAPES: readonly { id: BadgeShape; name: string }[] = [
   { id: "round", name: "Rund" },
   { id: "hexagon", name: "Sexkant" },
   { id: "octagon", name: "Åttkant" },
+  { id: "cushion", name: "Kudde" },
 ];
 
 export const SHAPE_IDS = SHAPES.map((s) => s.id) as [BadgeShape, ...BadgeShape[]];
@@ -300,20 +336,28 @@ export interface Mounting {
   id: MountingId;
   name: string;
   description: string;
-  priceSek: number;
+  /** Säljs på sajten i dag. Priset står i prismodellen. */
+  offered: boolean;
 }
 
 export const MOUNTINGS: readonly Mounting[] = [
-  { id: "pin", name: "Nål", description: "Klassisk nål med lås. Säker på kavaj och skjorta.", priceSek: 0 },
-  { id: "magnet", name: "Magnet", description: "Inga hål i plagget. Stark neodymmagnet.", priceSek: 19 },
-  { id: "clip", name: "Klämma", description: "Fäst på ficka, bälte eller band.", priceSek: 8 },
-  { id: "safety-pin", name: "Säkerhetsnål", description: "Enkel och billig — för event och mässor.", priceSek: 4 },
+  { id: "pin", name: "Nål", description: "Klassisk nål med lås. Säker på kavaj och skjorta.", offered: true },
+  { id: "magnet", name: "Magnet", description: "Inga hål i plagget. Stark neodymmagnet.", offered: true },
+  { id: "clip", name: "Klämma", description: "Fäst på ficka, bälte eller band.", offered: true },
+  // Säljs inte längre; finns kvar så att äldre ordrar går att rita.
+  { id: "safety-pin", name: "Säkerhetsnål", description: "Enkel och billig — för event och mässor.", offered: false },
 ];
+
+export const OFFERED_MOUNTINGS: readonly Mounting[] = MOUNTINGS.filter((m) => m.offered);
 
 export function getMaterial(id: MaterialId): BadgeMaterial {
   const material = MATERIALS.find((m) => m.id === id);
   if (!material) throw new Error(`Okänt material: ${id}`);
   return material;
+}
+
+export function getBlank(id: BlankId): BadgeBlank {
+  return BLANKS.find((b) => b.id === id) ?? BLANKS[0]!;
 }
 
 export function getColor(materialId: MaterialId, colorId: string): ColorCombo {

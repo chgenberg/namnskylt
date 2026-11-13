@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { adminTenant } from "@/features/admin/guard";
 import styles from "@/features/admin/admin.module.css";
-import { formatRelative, formatSek } from "@/features/orders/format";
+import { formatRelative, formatSek } from "@/lib/format";
 import { listCustomers } from "@/lib/orders/repository";
 
 function initials(text: string): string {

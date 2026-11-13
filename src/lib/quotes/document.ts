@@ -5,7 +5,7 @@ import {
   getMounting,
   layoutBadge,
   renderBadgeSvg,
-  SHAPES,
+  shapeLabel,
   type FontEngine,
 } from "@/engine";
 import { companyFooter, DEFAULT_COMPANY, readableOn, type CompanyProfile } from "@/lib/company/profile";
@@ -25,7 +25,7 @@ const day = (iso: string) =>
 function badgeSpec(quote: StoredQuote, index: number): string {
   const badge = quote.badges[index];
   if (!badge) return "";
-  const shape = SHAPES.find((s) => s.id === badge.shape)?.name ?? "";
+  const shape = shapeLabel(badge);
   return [
     `${getMaterial(badge.materialId).name}, ${getColor(badge.materialId, badge.colorId).name}`,
     `${shape} ${badge.size.widthMm}×${badge.size.heightMm} mm`,
@@ -51,7 +51,7 @@ export function quoteHtml(
     ? `<img class="logo${logoPlate ? " plate" : ""}" src="${esc(company.logo)}" alt="${esc(company.name)}"${logoPlate ? ` style="background:${logoPlate}"` : ""}>`
     : `<div class="brand">${esc(company.name)}${company.tagline ? `<small>${esc(company.tagline)}</small>` : ""}</div>`;
   const footer = companyFooter(company);
-  const priced = priceWithPricing(quote.badges, quote.pricing);
+  const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceModel);
   const customer = quote.customer;
   const info: [string, string][] = [
     ["Kund", customer.company ?? customer.name],
@@ -129,6 +129,7 @@ ${
   }
 <div><span>Skyltar</span><span>${esc(sek(priced.badgesSek))}</span></div>
 ${priced.extras.map((e) => `<div><span>${esc(e.label)}</span><span>${esc(sek(e.amountSek))}</span></div>`).join("")}
+${priced.minimumTopUpSek > 0 ? `<div><span>Upp till minsta ordervärde</span><span>${esc(sek(priced.minimumTopUpSek))}</span></div>` : ""}
 <div class="tot"><span>Totalt exkl. moms</span><span>${esc(sek(priced.totalSek))}</span></div>
 <div class="vat"><span>Moms 25 %</span><span>${esc(sek(priced.vatSek))}</span></div>
 <div class="vat"><span>Att betala inkl. moms</span><span>${esc(sek(priced.totalInclVatSek))}</span></div>

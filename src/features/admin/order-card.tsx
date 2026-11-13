@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BadgePreview } from "@/components/badge-preview";
-import { formatRelative, formatSek } from "@/features/orders/format";
+import { formatRelative, formatSek } from "@/lib/format";
 import { badgeCount, ORDER_SOURCE_LABEL, type StoredOrder } from "@/lib/orders/model";
 import { atPrinter } from "@/lib/supplier/sync";
 import { DeleteOrderButton } from "./delete-order-button";

@@ -13,7 +13,7 @@ export async function logoPng(buf: Buffer): Promise<Buffer> {
 }
 
 /** Platt grafik har få färger; `top3` = andel pixlar i de tre vanligaste. */
-export async function flatness(buf: Buffer): Promise<{ colours: number; top3: number }> {
+async function flatness(buf: Buffer): Promise<{ colours: number; top3: number }> {
   const { data, info } = await open(buf)
     .flatten({ background: "#FFFFFF" })
     .resize(48, 48, { fit: "fill" })

@@ -18,8 +18,11 @@ import { CUTTER_OFFSET_MM } from "./ink";
  * Ren modul: editorn, utskriften och maskinfilerna packar exakt likadant.
  */
 
-/** Plast graveras och skärs på arket; metall fiberlasras och skärs ut med verktygsoffset. */
-export type ProductionMethod = "plastic-sheet" | "metal-cut";
+/**
+ * Plast graveras och skärs på arket; metall fiberlasras och skärs ut med verktygsoffset.
+ * Färdiga ämnen (`blank`) är redan skurna: de läggs i en fixtur och bara graveras.
+ */
+export type ProductionMethod = "plastic-sheet" | "metal-cut" | "blank";
 
 export interface ProductionOrder {
   orderNo: string;
@@ -82,6 +85,8 @@ const HEADER_TOP_MARGIN_MM = 2;
 export const ROUND_GAP_MM = 2;
 /** Två utbommade konturer plus luft, så verktyget aldrig går in i grannen. */
 export const METAL_GAP_MM = CUTTER_OFFSET_MM * 2 + 2;
+/** Godset mellan två ämnen i fixturen. */
+export const BLANK_GAP_MM = 4;
 
 /** Ordningen fästena monteras i. */
 const MOUNTING_ORDER: readonly MountingId[] = ["pin", "magnet", "clip", "safety-pin"];
@@ -124,8 +129,10 @@ export interface PackingResult {
 /** Skivmaterial som skärs i ark med delade skärlinjer; metall frässkärs styckvis. */
 const SHEET_FINISHES: ReadonlySet<MaterialFinish> = new Set(["plastic", "acrylic", "epoxy"]);
 
-export function productionMethod(doc: BadgeDocument): ProductionMethod {
-  return SHEET_FINISHES.has(getMaterial(doc.materialId).finish) ? "plastic-sheet" : "metal-cut";
+function productionMethod(doc: BadgeDocument): ProductionMethod {
+  const material = getMaterial(doc.materialId);
+  if (material.precut) return "blank";
+  return SHEET_FINISHES.has(material.finish) ? "plastic-sheet" : "metal-cut";
 }
 
 /** Ordrarnas skyltar uppdelade i batcher: en batch är ett material i en färg. */
@@ -164,6 +171,7 @@ export function sheetCornerRadiusMm(doc: BadgeDocument): number {
 
 function gapFor(doc: BadgeDocument, method: ProductionMethod): number {
   if (method === "metal-cut") return METAL_GAP_MM;
+  if (method === "blank") return BLANK_GAP_MM;
   return hasStraightSides(doc.shape) ? 0 : ROUND_GAP_MM;
 }
 
@@ -175,7 +183,7 @@ function nonNegative(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
-export function normalizeSheetSettings(input: Partial<SheetSettings> = {}): SheetSettings {
+function normalizeSheetSettings(input: Partial<SheetSettings> = {}): SheetSettings {
   const s = { ...DEFAULT_SHEET_SETTINGS, ...input };
   const d = DEFAULT_SHEET_SETTINGS;
   return {
@@ -192,7 +200,7 @@ export function normalizeSheetSettings(input: Partial<SheetSettings> = {}): Shee
 }
 
 /** Skivans rubrikband överst, eller `null` när det är avstängt. */
-export function sheetHeaderBox(settings: SheetSettings): Box | null {
+function sheetHeaderBox(settings: SheetSettings): Box | null {
   if (!settings.showSheetHeader) return null;
   const insetX = 2;
   const widthMm = settings.sheetWidthMm - settings.offsetXMm * 2 - insetX;

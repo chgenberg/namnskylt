@@ -55,6 +55,10 @@ const FINISH_DESCRIPTION: Record<MaterialFinish, string> = {
   epoxy: "printed badge under a clear, glossy domed epoxy enamel that catches the light; the text is printed",
 };
 
+/** Lackad metall har ingen borstning — beskrivs för sig oavsett materialets yta. */
+const LACQUERED_DESCRIPTION =
+  "thin metal with a smooth, matt lacquered surface and no brush lines; the text is engraved and filled";
+
 const SHAPE_DESCRIPTION: Record<BadgeShape, string> = {
   rectangle: "rectangle",
   rounded: "rectangle with rounded corners",
@@ -63,6 +67,7 @@ const SHAPE_DESCRIPTION: Record<BadgeShape, string> = {
   round: "circle",
   hexagon: "elongated hexagon with points left and right",
   octagon: "octagon with cut corners",
+  cushion: "cushion shape: a rectangle whose four sides bow gently outwards, with softly rounded corners",
 };
 
 const LOGO_POSITION: Record<LogoPlacement, string> = {
@@ -72,7 +77,7 @@ const LOGO_POSITION: Record<LogoPlacement, string> = {
 };
 
 /** Det modellen måste återge exakt — text, logga, mått, material och fäste. */
-export function badgeDescription(doc: BadgeDocument): string {
+function badgeDescription(doc: BadgeDocument): string {
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
   const lines = engravedRows(doc)
@@ -82,7 +87,7 @@ export function badgeDescription(doc: BadgeDocument): string {
 
   return [
     `The name badge is shown in the reference image. It is a small ${shape}, exactly ${doc.size.widthMm} × ${doc.size.heightMm} mm in real life (about the width of a credit card or smaller) — keep it that small relative to the body.`,
-    `Material: ${FINISH_DESCRIPTION[material.finish]}. Colours: ${color.name.toLowerCase()} (surface ${color.surface}, text ${color.engraving}).`,
+    `Material: ${color.lacquered ? LACQUERED_DESCRIPTION : FINISH_DESCRIPTION[material.finish]}. Colours: ${color.name.toLowerCase()} (surface ${color.surface}, text ${color.engraving}).`,
     `Text in Arial, reproduced letter for letter including Swedish characters å, ä, ö: ${lines}.`,
     doc.logo
       ? `The badge also carries the engraved single-colour logo exactly as in the reference image, ${LOGO_POSITION[doc.logo.placement]}. Keep its shape exactly; no other text, logos or symbols on the badge.`

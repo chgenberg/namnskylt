@@ -7,6 +7,7 @@ import {
   frameBands,
   layoutBadge,
   parseSmartInput,
+  DEFAULT_PRICE_MODEL,
   priceBadge,
   renderBadgeSvg,
 } from "./index";
@@ -47,8 +48,9 @@ describe("layoutBadge", () => {
 
   it("ger ovalen smalare textyta än en rak skylt", () => {
     const text = ["Anna Lindqvist", "Projektledare", "Avdelningen för kvalitet"];
-    const rect = layoutBadge({ ...createBadgeDocument(text), shape: "rectangle" }, approxFonts);
-    const oval = layoutBadge({ ...createBadgeDocument(text), shape: "oval" }, approxFonts);
+    const size = { widthMm: 70, heightMm: 25 };
+    const rect = layoutBadge({ ...createBadgeDocument(text), shape: "rectangle", size }, approxFonts);
+    const oval = layoutBadge({ ...createBadgeDocument(text), shape: "oval", size }, approxFonts);
     assert.ok(oval.rows[2]!.capHeightMm < rect.rows[2]!.capHeightMm);
   });
 
@@ -110,8 +112,8 @@ describe("renderBadgeSvg", () => {
 
 describe("priceBadge", () => {
   it("ger lägre styckpris vid större antal", () => {
-    const one = priceBadge({ ...createBadgeDocument(["Anna"]), quantity: 1 });
-    const many = priceBadge({ ...createBadgeDocument(["Anna"]), quantity: 250 });
+    const one = priceBadge({ ...createBadgeDocument(["Anna"]), quantity: 10 }, DEFAULT_PRICE_MODEL);
+    const many = priceBadge({ ...createBadgeDocument(["Anna"]), quantity: 250 }, DEFAULT_PRICE_MODEL);
     assert.ok(many.unitSek < one.unitSek);
     assert.equal(many.totalSek, many.unitSek * 250);
   });

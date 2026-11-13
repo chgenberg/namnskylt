@@ -1,7 +1,7 @@
 import { adminTenant } from "@/features/admin/guard";
 import { WeeklyChart } from "@/features/admin/weekly-chart";
 import styles from "@/features/admin/admin.module.css";
-import { formatSek } from "@/features/orders/format";
+import { formatSek } from "@/lib/format";
 import { ORDER_SOURCE_LABEL, ORDER_SOURCES } from "@/lib/orders/model";
 import { listOrders } from "@/lib/orders/repository";
 import { orderStats } from "@/lib/orders/stats";

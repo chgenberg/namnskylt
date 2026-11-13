@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { lineUnitPrices, VAT_RATE, type BadgeDocument } from "@/engine";
+import { lineUnitPrices, VAT_RATE, type BadgeDocument, type PriceModel } from "@/engine";
 
 /** En egen rad utöver skyltarna, t.ex. framtagning av korrektur eller expressorder. */
 export interface PriceExtra {
@@ -22,7 +22,7 @@ export const MAX_DISCOUNT_PERCENT = 100;
 export const MAX_UNIT_SEK = 100_000;
 export const MAX_EXTRAS = 10;
 
-export const priceExtraSchema = z.object({
+const priceExtraSchema = z.object({
   label: z.string().trim().min(1).max(80),
   amountSek: z.number().int().min(0).max(MAX_UNIT_SEK),
 });
@@ -59,13 +59,19 @@ export interface PricedTotals {
   savingsPercent: number;
   extras: PriceExtra[];
   extrasSek: number;
+  /** Påslaget upp till slutkundens minsta ordervärde; 0 när ordern redan når dit. */
+  minimumTopUpSek: number;
   totalSek: number;
   vatSek: number;
   totalInclVatSek: number;
 }
 
-export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pricing | null = null): PricedTotals {
-  const list = lineUnitPrices(badges);
+/**
+ * Orderns pris till kunden. `model` är prismodellen som gällde när ordern eller
+ * offerten skapades — listpriserna och minsta ordervärdet kommer därifrån.
+ */
+export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pricing | null, model: PriceModel): PricedTotals {
+  const list = lineUnitPrices(badges, model);
   const lines = badges.map((badge, i) => {
     const listUnitSek = list[i] ?? 0;
     const override = pricing?.unitOverrides[i];
@@ -81,7 +87,8 @@ export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pric
   const savingsSek = Math.max(0, listTotalSek - badgesSek);
   const extras = pricing?.extras ?? [];
   const extrasSek = extras.reduce((sum, e) => sum + e.amountSek, 0);
-  const totalSek = badgesSek + extrasSek;
+  const minimumTopUpSek = badges.length > 0 ? Math.max(0, model.endMinOrderSek - badgesSek - extrasSek) : 0;
+  const totalSek = badgesSek + extrasSek + minimumTopUpSek;
   const vatSek = Math.round(totalSek * VAT_RATE);
   return {
     lines,
@@ -94,6 +101,7 @@ export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pric
     savingsPercent: listTotalSek > 0 ? Math.round((savingsSek / listTotalSek) * 1000) / 10 : 0,
     extras,
     extrasSek,
+    minimumTopUpSek,
     totalSek,
     vatSek,
     totalInclVatSek: totalSek + vatSek,

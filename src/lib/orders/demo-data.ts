@@ -1,5 +1,5 @@
 import type { Sql } from "postgres";
-import { priceOrder, type BadgeDocument } from "@/engine";
+import { priceOrder, type BadgeDocument, type PriceModel } from "@/engine";
 import { DEMO_ORDERS } from "./demo-orders";
 import type { OrderStatus } from "./model";
 
@@ -50,11 +50,11 @@ export function demoPlan(now: Date): DemoPlan[] {
   return plan.sort((a, b) => a.placedAt.localeCompare(b.placedAt));
 }
 
-export async function insertDemoData(sql: Sql, tenant: string, now: Date = new Date()): Promise<number> {
+export async function insertDemoData(sql: Sql, tenant: string, model: PriceModel, now: Date = new Date()): Promise<number> {
   return sql.begin(async (tx) => {
     let created = 0;
     for (const order of demoPlan(now)) {
-      const price = priceOrder(order.badges);
+      const price = priceOrder(order.badges, model);
       const [customer] = await tx<{ id: string }[]>`
         insert into customers (reseller_id, email, name, company, is_demo)
         values (${tenant}, ${order.email}, ${order.customer}, ${order.company}, true)
@@ -63,9 +63,9 @@ export async function insertDemoData(sql: Sql, tenant: string, now: Date = new D
       if (!customer) continue;
       const shipped = order.status === "shipped" || order.status === "delivered";
       const [saved] = await tx<{ id: string }[]>`
-        insert into orders (customer_id, status, badges, total_sek, total_incl_vat_sek, supplier_order_no,
+        insert into orders (customer_id, status, badges, price_model, total_sek, total_incl_vat_sek, supplier_order_no,
                             source, placed_at, tracking_url, is_demo, reseller_id)
-        values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Json)},
+        values (${customer.id}, ${order.status}, ${tx.json(order.badges as unknown as Json)}, ${tx.json(model as unknown as Json)},
                 ${price.totalSek}, ${price.totalInclVatSek}, 'DEMO', 'web', ${new Date(order.placedAt)},
                 ${shipped ? DEMO_TRACKING_URL : null}, true, ${tenant})
         returning id`;
@@ -101,9 +101,4 @@ export async function removeDemoData(sql: Sql, tenant: string): Promise<number> 
                and not exists (select 1 from orders o where o.customer_id = c.id)`;
     return removed.count;
   });
-}
-
-export async function demoOrderCount(sql: Sql, tenant: string): Promise<number> {
-  const [row] = await sql<{ count: number }[]>`select count(*)::int as count from orders where is_demo and reseller_id = ${tenant}`;
-  return row?.count ?? 0;
 }

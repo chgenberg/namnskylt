@@ -1,4 +1,4 @@
-import { createBadgeDocument, withTexts, type BadgeDocument } from "@/engine";
+import { createBadgeDocument, withBlank, withTexts, type BadgeDocument } from "@/engine";
 import type { ProductionOrder } from "@/lib/production";
 
 /**
@@ -13,12 +13,6 @@ export interface AdminOrder extends ProductionOrder {
   email: string;
 }
 
-export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
-  new: "Ny",
-  "in-production": "I produktion",
-  shipped: "Skickad",
-};
-
 /** Enkel tvåfärgsmarkering (ram med fyrkant) som demologga — bara M/L/Z. */
 const DEMO_LOGO = {
   d: "M0 0L100 0L100 100L0 100Z M18 18L18 82L82 82L82 18Z M34 34L66 34L66 66L34 66Z",
@@ -32,8 +26,8 @@ function team(template: BadgeDocument, people: readonly (readonly string[])[]): 
   return people.map((texts) => withTexts(template, texts));
 }
 
-/** Demoordrarna är gravyrplast om inget annat sägs — färgerna nedan är plastens. */
-const base: BadgeDocument = { ...createBadgeDocument(), materialId: "plastic-2-layer", colorId: "white-black" };
+/** Demoordrarna ligger i dagens sortiment: vit metallskylt på rektangeln om inget annat sägs. */
+const base: BadgeDocument = { ...createBadgeDocument(), colorId: "metal-white" };
 
 export const DEMO_ORDERS: readonly AdminOrder[] = [
   {
@@ -43,7 +37,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     email: "maria.ek@example.se",
     placedAt: "2026-10-27T07:12:00+01:00",
     status: "new",
-    badges: team({ ...base, colorId: "red-white" }, [
+    badges: team(base, [
       ["Maria Ek", "Butikschef"],
       ["Ahmed Yusuf", "Kassa"],
       ["Linnea Berg", "Färskvaror"],
@@ -60,7 +54,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     placedAt: "2026-10-27T08:03:00+01:00",
     status: "new",
     badges: team(
-      { ...base, colorId: "darkblue-white", size: { widthMm: 76, heightMm: 32 }, mounting: "magnet", logo: DEMO_LOGO },
+      { ...withBlank(base, "rectangle-large"), colorId: "metal-silver", mounting: "magnet", logo: DEMO_LOGO },
       [
         ["Gunilla Berg", "Tandhygienist"],
         ["Karim Haddad", "Tandläkare"],
@@ -78,11 +72,8 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     status: "in-production",
     badges: team(
       {
-        ...base,
-        colorId: "gold-black",
-        shape: "rectangle",
-        cornerRadiusMm: 0,
-        size: { widthMm: 90, heightMm: 30 },
+        ...withBlank(base, "cushion"),
+        colorId: "metal-gold",
         mounting: "clip",
         frame: { style: "solid", insetMm: 1.5, thicknessMm: 0.4 },
       },
@@ -99,7 +90,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     email: "klara@example.se",
     placedAt: "2026-10-26T13:21:00+01:00",
     status: "new",
-    badges: [{ ...withTexts(base, ["Personal"]), mounting: "safety-pin", quantity: 12 }],
+    badges: [{ ...withTexts(base, ["Personal"]), mounting: "pin", quantity: 12 }],
   },
   {
     orderNo: "NS-1046",
@@ -109,7 +100,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     placedAt: "2026-10-26T10:05:00+01:00",
     status: "new",
     badges: team(
-      { ...base, materialId: "stainless", colorId: "steel-laser", shape: "rectangle", cornerRadiusMm: 0, mounting: "magnet" },
+      { ...base, colorId: "metal-silver", mounting: "magnet" },
       [
         ["Peter Sund", "Verkstadschef"],
         ["Mikael Öberg", "Mekaniker"],
@@ -126,7 +117,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     placedAt: "2026-10-25T15:48:00+01:00",
     status: "in-production",
     badges: team(
-      { ...base, materialId: "aluminium-anodized", colorId: "alu-natural-black", size: { widthMm: 76, heightMm: 32 } },
+      { ...withBlank(base, "rectangle-large"), colorId: "metal-silver" },
       [
         ["Helena Kraft", "Rådgivare"],
         ["David Lindgren", "Försäkringsspecialist"],
@@ -141,7 +132,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     email: "jonas@example.se",
     placedAt: "2026-10-25T09:30:00+01:00",
     status: "shipped",
-    badges: team({ ...base, shape: "oval", size: { widthMm: 70, heightMm: 35 } }, [
+    badges: team(withBlank(base, "oval"), [
       ["Jonas", "Barista"],
       ["Elsa", "Barista"],
       ["Moa", "Bagare"],
@@ -155,7 +146,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     placedAt: "2026-10-24T11:12:00+01:00",
     status: "new",
     badges: team(
-      { ...base, size: { widthMm: 60, heightMm: 20 }, mounting: "magnet", font: "arial-narrow" },
+      { ...base, colorId: "metal-gold", mounting: "magnet", font: "arial-narrow" },
       [
         ["Ida Norén", "Arkitekt SAR/MSA"],
         ["Leo Brandt", "Arkitekt"],

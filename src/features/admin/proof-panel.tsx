@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { formatDate } from "@/features/orders/format";
+import { formatDate } from "@/lib/format";
 import type { Proof } from "@/lib/orders/repository";
 import { createProofAction } from "./actions";
 import styles from "./admin.module.css";

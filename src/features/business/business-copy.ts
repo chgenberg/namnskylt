@@ -1,4 +1,4 @@
-import type { MaterialId, MountingId } from "@/engine";
+import type { MountingId } from "@/engine";
 
 export interface Scene {
   time: string;
@@ -10,7 +10,8 @@ export interface Scene {
 export interface Workplace {
   title: string;
   body: string;
-  badge: { texts: [string, string]; materialId: MaterialId; colorId: string; mounting?: MountingId };
+  /** `colorId` är en av metallskyltens ytor. */
+  badge: { texts: [string, string]; colorId: string; mounting?: MountingId };
 }
 
 export const HERO = {
@@ -88,7 +89,7 @@ export const HOW = {
 
 export const VOLUME = {
   title: "Ju fler ni är, desto billigare blir varje skylt",
-  body: "Rabatten räknas på hela beställningen, även när alla skyltar har olika namn.",
+  body: "Priset per skylt, exkl. moms, räknas på hela beställningen — även när alla skyltar har olika namn.",
 } as const;
 
 export const WORKPLACES_INTRO = {
@@ -100,32 +101,32 @@ export const WORKPLACES: readonly Workplace[] = [
   {
     title: "Vård och omsorg",
     body: "Patienter och anhöriga ser vem de pratar med, även när alla bär samma kläder.",
-    badge: { texts: ["Sara Nilsson", "Undersköterska"], materialId: "plastic-2-layer", colorId: "white-blue", mounting: "clip" },
+    badge: { texts: ["Sara Nilsson", "Undersköterska"], colorId: "metal-white", mounting: "clip" },
   },
   {
     title: "Butik",
     body: "Kunden ser direkt vem som jobbar där och vem man kan fråga.",
-    badge: { texts: ["Wilma Berg", "Butikssäljare"], materialId: "plastic-2-layer", colorId: "black-white", mounting: "magnet" },
+    badge: { texts: ["Wilma Berg", "Butikssäljare"], colorId: "metal-silver", mounting: "magnet" },
   },
   {
     title: "Hotell och restaurang",
     body: "Gästen kan säga tack med namn, och det brukar man minnas.",
-    badge: { texts: ["Johan Ek", "Hovmästare"], materialId: "plastic-2-layer", colorId: "gold-black", mounting: "magnet" },
+    badge: { texts: ["Johan Ek", "Hovmästare"], colorId: "metal-gold", mounting: "magnet" },
   },
   {
     title: "Skola och förskola",
     body: "Nya föräldrar lär sig vem som är vem redan på första hämtningen.",
-    badge: { texts: ["Elsa Lind", "Förskollärare"], materialId: "plastic-2-layer", colorId: "darkgreen-white", mounting: "safety-pin" },
+    badge: { texts: ["Elsa Lind", "Förskollärare"], colorId: "metal-white", mounting: "pin" },
   },
   {
     title: "Mässa och event",
     body: "Besökaren har läst ert namn innan ni hunnit säga hej.",
-    badge: { texts: ["Ahmed Karimi", "Säljare"], materialId: "plastic-2-layer", colorId: "red-white", mounting: "safety-pin" },
+    badge: { texts: ["Ahmed Karimi", "Säljare"], colorId: "metal-silver", mounting: "pin" },
   },
   {
     title: "Reception och kontor",
     body: "Första intrycket av ett företag börjar ofta vid disken.",
-    badge: { texts: ["Lena Björk", "Reception"], materialId: "stainless", colorId: "steel-laser" },
+    badge: { texts: ["Lena Björk", "Reception"], colorId: "metal-gold" },
   },
 ];
 

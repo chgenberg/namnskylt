@@ -3,9 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
+import { usePriceModel } from "@/components/price-model-provider";
 import { getMaterial, isPartnerMade, priceBadge } from "@/engine";
 import { encodeShareCode } from "@/lib/share/share-link";
-import { INSPIRATION, type InspirationEntry } from "./catalog";
+import { INSPIRATION, type InspirationEntry } from "@/lib/inspiration/catalog";
 import styles from "./inspiration.module.css";
 
 const sek = new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 });
@@ -40,7 +41,7 @@ function Dialog({ entry, onClose }: { entry: InspirationEntry; onClose: () => vo
   const router = useRouter();
   const [opening, setOpening] = useState(false);
   const material = getMaterial(entry.doc.materialId);
-  const price = priceBadge(entry.doc);
+  const price = priceBadge(entry.doc, usePriceModel());
 
   useEffect(() => {
     const dialog = ref.current;

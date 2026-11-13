@@ -2,10 +2,10 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { Sql, TransactionSql } from "postgres";
 import { z } from "zod";
-import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
+import { badgeDocumentSchema, type BadgeDocument, type PriceModel } from "@/engine";
 import { requireDb } from "@/lib/db/client";
 import { isCustomPricing, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
-import { parsePricing } from "@/lib/orders/repository";
+import { getPriceModel, parsePricing, storedPriceModel } from "@/lib/orders/repository";
 import {
   addDays,
   isQuoteStatus,
@@ -25,6 +25,7 @@ interface QuoteRow {
   status: string;
   badges: unknown;
   pricing: unknown;
+  price_model: unknown;
   total_sek: number;
   total_incl_vat_sek: number;
   message: string | null;
@@ -50,7 +51,7 @@ interface QuoteRow {
   reseller_id: string;
 }
 
-function toQuote(row: QuoteRow): StoredQuote {
+function toQuote(row: QuoteRow, currentModel: PriceModel): StoredQuote {
   const badges = badgesSchema.safeParse(row.badges);
   if (!badges.success) console.error(`Ogiltiga skyltar i offert ${row.quote_no}`);
   const events: QuoteEvent[] = (row.events ?? [])
@@ -75,6 +76,7 @@ function toQuote(row: QuoteRow): StoredQuote {
     status: isQuoteStatus(row.status) ? row.status : "draft",
     badges: badges.success ? badges.data : [],
     pricing: parsePricing(row.pricing),
+    priceModel: storedPriceModel(row.price_model, currentModel),
     totalSek: row.total_sek,
     totalInclVatSek: row.total_incl_vat_sek,
     message: row.message,
@@ -93,7 +95,7 @@ function toQuote(row: QuoteRow): StoredQuote {
 /** Stillbilden är den tunga kolumnen — listan klarar sig utan. */
 function selectQuotes(sql: Sql, withShot = false) {
   return sql`
-    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, q.project, q.reseller_id, q.quote_no, q.status, q.badges, q.pricing, q.total_sek, q.total_incl_vat_sek, q.message,
+    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, q.project, q.reseller_id, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
            to_char(q.valid_until, 'YYYY-MM-DD') as valid_until, q.token, q.decline_reason, q.is_demo,
            q.created_at, q.sent_at, q.decided_at, o.order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email,
@@ -109,20 +111,22 @@ function selectQuotes(sql: Sql, withShot = false) {
 
 export async function listQuotes(tenant: string): Promise<StoredQuote[]> {
   const sql = requireDb();
-  return (await sql<QuoteRow[]>`${selectQuotes(sql)} where q.reseller_id = ${tenant} order by q.created_at desc`).map(toQuote);
+  const rows = await sql<QuoteRow[]>`${selectQuotes(sql)} where q.reseller_id = ${tenant} order by q.created_at desc`;
+  const model = await getPriceModel();
+  return rows.map((row) => toQuote(row, model));
 }
 
 export async function getQuote(tenant: string, quoteNo: string): Promise<StoredQuote | null> {
   const sql = requireDb();
   const [row] = await sql<QuoteRow[]>`${selectQuotes(sql, true)} where q.quote_no = ${quoteNo} and q.reseller_id = ${tenant}`;
-  return row ? toQuote(row) : null;
+  return row ? toQuote(row, await getPriceModel()) : null;
 }
 
 export async function getQuoteByToken(token: string): Promise<StoredQuote | null> {
   if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) return null;
   const sql = requireDb();
   const [row] = await sql<QuoteRow[]>`${selectQuotes(sql, true)} where q.token = ${token}`;
-  return row ? toQuote(row) : null;
+  return row ? toQuote(row, await getPriceModel()) : null;
 }
 
 export async function createQuote(input: {
@@ -134,14 +138,15 @@ export async function createQuote(input: {
   project?: string | null;
 }): Promise<{ quoteNo: string }> {
   const sql = requireDb();
-  const price = priceWithPricing(input.badges);
+  const model = await getPriceModel();
+  const price = priceWithPricing(input.badges, null, model);
   const validUntil = addDays(swedishDay(new Date()), QUOTE_VALID_DAYS);
   const token = randomBytes(18).toString("base64url");
   return sql.begin(async (tx) => {
     // Kunden måste tillhöra samma återförsäljare — annars skapas ingen offert.
     const [row] = await tx<{ id: string; quote_no: string }[]>`
-      insert into quotes (reseller_id, customer_id, badges, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project)
-      select ${input.tenant}, ${input.customerId}, ${tx.json(input.badges as unknown as Json)}, ${price.totalSek},
+      insert into quotes (reseller_id, customer_id, badges, price_model, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project)
+      select ${input.tenant}, ${input.customerId}, ${tx.json(input.badges as unknown as Json)}, ${tx.json(model as unknown as Json)}, ${price.totalSek},
              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null}, ${input.project ?? null}
        where exists (select 1 from customers where id = ${input.customerId} and reseller_id = ${input.tenant})
       returning id, quote_no`;
@@ -162,13 +167,14 @@ export async function updateQuote(
   patch: { pricing?: Pricing; message?: string | null; validUntil?: string; project?: string | null },
 ): Promise<boolean> {
   const sql = requireDb();
+  const currentModel = await getPriceModel();
   return sql.begin(async (tx) => {
-    const [row] = await tx<{ id: string; badges: unknown; status: string; pricing: unknown }[]>`
-      select id, badges, status, pricing from quotes where quote_no = ${quoteNo} and reseller_id = ${tenant} for update`;
+    const [row] = await tx<{ id: string; badges: unknown; status: string; pricing: unknown; price_model: unknown }[]>`
+      select id, badges, status, pricing, price_model from quotes where quote_no = ${quoteNo} and reseller_id = ${tenant} for update`;
     const badges = badgesSchema.safeParse(row?.badges);
     if (!row || !badges.success || !["draft", "sent", "declined"].includes(row.status)) return false;
     const pricing = patch.pricing !== undefined ? (isCustomPricing(patch.pricing) ? patch.pricing : null) : parsePricing(row.pricing);
-    const price = priceWithPricing(badges.data, pricing);
+    const price = priceWithPricing(badges.data, pricing, storedPriceModel(row.price_model, currentModel));
     const status: QuoteStatus = row.status === "declined" ? "draft" : (row.status as QuoteStatus);
     await tx`
       update quotes set pricing = ${pricing ? tx.json(pricing as unknown as Json) : null},

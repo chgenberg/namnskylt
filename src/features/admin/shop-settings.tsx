@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createBadgeDocument, lineUnitPrices, MATERIALS, type MaterialId } from "@/engine";
-import { formatSek } from "@/features/orders/format";
+import { usePriceModel } from "@/components/price-model-provider";
+import { createBadgeDocument, lineUnitPrices, OFFERED_MATERIALS, type MaterialId } from "@/engine";
+import { formatSek } from "@/lib/format";
 import { MAX_PRICE_PERCENT, MIN_PRICE_PERCENT, shopUnitPrices, type ShopPriceList } from "@/lib/shops/price-list";
 import {
   createInviteAction,
@@ -143,7 +144,7 @@ function parsePercent(text: string): number | null {
   return text.trim() === "" || !Number.isFinite(value) ? null : Math.min(MAX_PRICE_PERCENT, Math.max(MIN_PRICE_PERCENT, value));
 }
 
-const EXAMPLES = MATERIALS.map((material) => ({
+const EXAMPLES = OFFERED_MATERIALS.map((material) => ({
   material,
   badge: { ...createBadgeDocument(["Anna Lind", "Säljare"]), materialId: material.id, colorId: material.colors[0]?.id ?? "" },
 }));
@@ -153,6 +154,7 @@ export function ShopPriceForm({ slug, priceList }: { slug: string; priceList: Sh
   const [perMaterial, setPerMaterial] = useState<Partial<Record<MaterialId, string>>>(() =>
     Object.fromEntries(Object.entries(priceList?.perMaterial ?? {}).map(([id, pct]) => [id, String(pct)])),
   );
+  const model = usePriceModel();
   const save = useSave("Priserna är sparade — butiken visar dem direkt");
   const draft: ShopPriceList = {
     percent: parsePercent(general) ?? 0,
@@ -209,15 +211,15 @@ export function ShopPriceForm({ slug, priceList }: { slug: string; priceList: Sh
               </label>
             </span>
             <span role="cell" className={`${styles.num} mono`}>
-              {formatSek(lineUnitPrices([badge])[0] ?? 0)}
+              {formatSek(lineUnitPrices([badge], model)[0] ?? 0)}
             </span>
             <span role="cell" className={`${styles.num} mono`}>
-              {formatSek(shopUnitPrices([badge], draft)[0] ?? 0)}
+              {formatSek(shopUnitPrices([badge], draft, model)[0] ?? 0)}
             </span>
           </div>
         ))}
       </div>
-      <p className={styles.muted}>Tomt fält = det generella påslaget. Mängdrabatten räknas först, påslaget sedan. Ordern sparas med samma pris som kunden ser.</p>
+      <p className={styles.muted}>Tomt fält = det generella påslaget. Trappstegets pris räknas först, påslaget sedan. Ordern sparas med samma pris som kunden ser.</p>
       <div className={styles.actionBar}>
         <button type="submit" className="btn btn--primary" disabled={save.pending}>
           {save.pending ? "Sparar…" : "Spara priser"}

@@ -1,13 +1,12 @@
 import {
-  DEFAULT_ROUND_SIZE_MM,
   LOGO_LIMITS,
-  SIZE_LIMITS,
   TEXT_LIMITS,
   createRow,
   getMaterial,
+  withBlank,
   type BadgeDocument,
   type BadgeLogo,
-  type BadgeShape,
+  type BlankId,
   type FontId,
   type FrameStyle,
   type LogoPlacement,
@@ -30,9 +29,7 @@ export type DesignerAction =
   | { type: "align"; align: TextAlign }
   | { type: "material"; materialId: MaterialId }
   | { type: "color"; colorId: string }
-  | { type: "shape"; shape: BadgeShape }
-  | { type: "size"; widthMm?: number; heightMm?: number }
-  | { type: "corner"; cornerRadiusMm: number }
+  | { type: "blank"; blankId: BlankId }
   | { type: "frame"; style: FrameStyle }
   | { type: "logo"; logo: BadgeLogo | null }
   | { type: "logo/placement"; placement: LogoPlacement }
@@ -41,10 +38,6 @@ export type DesignerAction =
   | { type: "move/reset" }
   | { type: "mounting"; mounting: MountingId }
   | { type: "quantity"; quantity: number };
-
-const STANDARD_SIZE = { widthMm: 70, heightMm: 25 };
-const ROUND_MIN_MM = Math.max(SIZE_LIMITS.minWidthMm, SIZE_LIMITS.minHeightMm);
-const ROUND_MAX_MM = Math.min(SIZE_LIMITS.maxWidthMm, SIZE_LIMITS.maxHeightMm);
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -121,33 +114,8 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     }
     case "color":
       return { ...doc, colorId: action.colorId };
-    case "shape": {
-      if (action.shape === "round") {
-        const { widthMm, heightMm } = doc.size;
-        const side = widthMm === heightMm ? widthMm : DEFAULT_ROUND_SIZE_MM;
-        return { ...doc, shape: action.shape, size: { widthMm: side, heightMm: side } };
-      }
-      const leavingRound = doc.shape === "round";
-      return { ...doc, shape: action.shape, ...(leavingRound && { size: STANDARD_SIZE }) };
-    }
-    case "size":
-      if (doc.shape === "round") {
-        const side = clamp(action.widthMm ?? action.heightMm ?? doc.size.widthMm, ROUND_MIN_MM, ROUND_MAX_MM);
-        return { ...doc, size: { widthMm: side, heightMm: side } };
-      }
-      return {
-        ...doc,
-        size: {
-          widthMm: clamp(action.widthMm ?? doc.size.widthMm, SIZE_LIMITS.minWidthMm, SIZE_LIMITS.maxWidthMm),
-          heightMm: clamp(
-            action.heightMm ?? doc.size.heightMm,
-            SIZE_LIMITS.minHeightMm,
-            SIZE_LIMITS.maxHeightMm,
-          ),
-        },
-      };
-    case "corner":
-      return { ...doc, cornerRadiusMm: clamp(action.cornerRadiusMm, 0, 30) };
+    case "blank":
+      return withBlank(doc, action.blankId);
     case "frame":
       return { ...doc, frame: { ...doc.frame, style: action.style } };
     case "logo": {

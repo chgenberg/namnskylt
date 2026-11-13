@@ -5,7 +5,7 @@ import { googleFontsHref, shopThemeVars, shopWebFamilies, type Shop } from "@/li
 import { ShopNav, type NavPage } from "./shop-nav";
 import styles from "./shop.module.css";
 
-export const shopPath = (shop: Pick<Shop, "slug">, rest = "") => `/butik/${shop.slug}${rest}`;
+const shopPath = (shop: Pick<Shop, "slug">, rest = "") => `/butik/${shop.slug}${rest}`;
 
 /** Butikens skal: deras färger och typsnitt över hela sidan, deras logga och uppgifter runt om. */
 interface ShopFrameProps {

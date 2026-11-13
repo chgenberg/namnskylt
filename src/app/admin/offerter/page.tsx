@@ -3,14 +3,14 @@ import { BadgePreview } from "@/components/badge-preview";
 import { adminTenant } from "@/features/admin/guard";
 import { QuoteStatusPill } from "@/features/admin/quote-parts";
 import styles from "@/features/admin/admin.module.css";
-import { formatDay, formatRelative, formatSek } from "@/features/orders/format";
+import { formatDay, formatRelative, formatSek } from "@/lib/format";
 import { badgeCount } from "@/lib/orders/model";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import { displayStatus, type StoredQuote } from "@/lib/quotes/model";
 import { listQuotes } from "@/lib/quotes/repository";
 
 /** Rabatten mot listpris, oavsett om den kommer från à-pris eller procent. */
-const savings = (quote: StoredQuote) => priceWithPricing(quote.badges, quote.pricing).savingsPercent;
+const savings = (quote: StoredQuote) => priceWithPricing(quote.badges, quote.pricing, quote.priceModel).savingsPercent;
 
 export default async function QuotesPage() {
   const tenant = await adminTenant();

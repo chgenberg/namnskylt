@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
+import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { databaseConfigured, getCustomer } from "@/lib/orders/repository";
 import { createQuote } from "@/lib/quotes/repository";
 import { currentTenant } from "@/lib/reseller-auth/session";
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
   if (!databaseConfigured()) return NextResponse.json({ error: "Databasen är inte kopplad" }, { status: 503 });
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Ogiltig offert" }, { status: 400 });
+  if (!allOffered(parsed.data.badges)) return NextResponse.json({ error: NOT_OFFERED_ERROR }, { status: 400 });
 
   const customer = await getCustomer(tenant, parsed.data.customerId);
   if (!customer) return NextResponse.json({ error: "Kunden finns inte" }, { status: 404 });

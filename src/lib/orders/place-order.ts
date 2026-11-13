@@ -1,10 +1,10 @@
 import "server-only";
-import { layoutBadge, renderBadgeSvg, type BadgeDocument } from "@/engine";
+import { layoutBadge, renderBadgeSvg, type BadgeDocument, type PriceModel } from "@/engine";
 import { renderLogoPng } from "@/lib/ai/badge-image";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { createSupplierClient } from "@/lib/supplier/client";
 import { toSupplierSignDocument } from "@/lib/supplier/map";
-import type { OrderSource } from "./model";
+import { NOT_OFFERED_ERROR, allOffered, type OrderSource } from "./model";
 import type { Pricing } from "./pricing";
 import { partnerRequestNumber, splitByProducer } from "./partner";
 import { createOrder, databaseConfigured } from "./repository";
@@ -19,6 +19,8 @@ export interface PlaceOrderInput {
   demo?: boolean;
   /** Återförsäljarens priser till kunden — påverkar inte vad tillverkningen får. */
   pricing?: Pricing | null;
+  /** Prismodellen ordern sparas med; utelämnad = dagens. */
+  priceModel?: PriceModel;
   /** Normaliserad stillbild av 3D-skylten (`normalizeBadgeShot`). */
   badgeShot?: string | null;
   /** Demobutiken ordern kom från. */
@@ -43,6 +45,8 @@ export interface PlaceOrderResult {
  * av återförsäljarens "Beställ igen".
  */
 export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
+  // Sista spärren: anroparna kontrollerar själva och svarar med ett begripligt fel.
+  if (!allOffered(input.badges)) throw new Error(NOT_OFFERED_ERROR);
   if (input.demo) return placeDemoOrder(input);
   const { workshop, partner } = splitByProducer(input.badges);
   const partnerRequest = partner.length > 0 ? partnerRequestNumber() : undefined;
@@ -74,6 +78,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         partnerRequestNo: partnerRequest ?? null,
         note: input.note ?? (partnerRequest ? `Partnerförfrågan ${partnerRequest}` : null),
         pricing: input.pricing,
+        priceModel: input.priceModel,
         badgeShot: input.badgeShot,
         shopSlug: input.shopSlug,
         project: input.project,
@@ -114,6 +119,7 @@ async function placeDemoOrder(input: PlaceOrderInput): Promise<PlaceOrderResult>
     note: input.note ?? "Demoorder — skickas inte till tillverkningen",
     demo: true,
     pricing: input.pricing,
+    priceModel: input.priceModel,
     badgeShot: input.badgeShot,
     project: input.project,
     tenant: input.tenant,

@@ -222,6 +222,163 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       );
     `,
   },
+  {
+    id: "013_outreach",
+    sql: `
+      create table outreach_campaigns (
+        id uuid primary key default gen_random_uuid(),
+        slug text not null unique,
+        name text not null,
+        status text not null default 'draft' check (status in ('draft','active','paused','done')),
+        paused_reason text,
+        from_name text not null,
+        from_email text not null,
+        reply_to text not null,
+        signature jsonb not null default '{}'::jsonb,
+        daily_cap int not null default 40 check (daily_cap between 1 and 200),
+        steps jsonb not null,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      );
+
+      create table outreach_leads (
+        id uuid primary key default gen_random_uuid(),
+        email text not null,
+        contact_name text,
+        company_name text not null,
+        phone text,
+        city text,
+        country text not null check (country in ('se','no','ax')),
+        customer_since date,
+        activated boolean not null default false,
+        known boolean not null default false,
+        website text,
+        up_shop_url text,
+        brand jsonb,
+        wave text check (wave in ('internal','A','B','C','NO')),
+        status text not null default 'draft'
+          check (status in ('draft','blocked','approved','in_sequence','completed','converted','suppressed','expired')),
+        check_reason text,
+        stop_reason text check (stop_reason in ('landed','replied','activated','unsubscribed','bounced','complained','manual')),
+        approved_at timestamptz,
+        approved_by text,
+        shop_slug text unique references shops(slug) on delete set null,
+        invite_token text references shop_invites(token) on delete set null,
+        reseller_id text references reseller_accounts(id) on delete set null,
+        landed_at timestamptz,
+        demo_opened_at timestamptz,
+        replied_at timestamptz,
+        attributed_at timestamptz,
+        first_order_at timestamptz,
+        note text,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      );
+      create unique index outreach_leads_email on outreach_leads (lower(email));
+      create index outreach_leads_wave_status on outreach_leads (wave, status);
+
+      create table outreach_messages (
+        id uuid primary key default gen_random_uuid(),
+        campaign_id uuid not null references outreach_campaigns(id) on delete cascade,
+        lead_id uuid not null references outreach_leads(id) on delete cascade,
+        step smallint not null check (step >= 1),
+        status text not null default 'scheduled'
+          check (status in ('scheduled','ready','sending','sent','delivered','bounced','complained','failed','needs_review','cancelled','skipped')),
+        idempotency_key text not null unique,
+        subject text,
+        not_before timestamptz not null default now(),
+        next_attempt_at timestamptz,
+        attempts int not null default 0,
+        claimed_at timestamptz,
+        sent_at timestamptz,
+        resend_id text,
+        last_error text,
+        cancel_reason text,
+        expires_at timestamptz,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now(),
+        unique (campaign_id, lead_id, step)
+      );
+      create unique index outreach_messages_resend_id on outreach_messages (resend_id) where resend_id is not null;
+      create index outreach_messages_queue on outreach_messages (status, not_before);
+      create index outreach_messages_lead on outreach_messages (lead_id);
+
+      create table outreach_events (
+        id bigserial primary key,
+        provider_event_id text not null unique,
+        message_id uuid references outreach_messages(id) on delete set null,
+        resend_id text,
+        type text not null,
+        payload jsonb not null,
+        occurred_at timestamptz not null,
+        received_at timestamptz not null default now()
+      );
+      create index outreach_events_message on outreach_events (message_id, occurred_at);
+
+      create table outreach_suppressions (
+        email text primary key,
+        reason text not null check (reason in ('unsubscribe','bounce','complaint','manual','erasure')),
+        source text not null check (source in ('link','one_click','webhook','operator','import')),
+        message_id uuid references outreach_messages(id) on delete set null,
+        created_at timestamptz not null default now()
+      );
+
+      create table outreach_assets (
+        id text primary key,
+        lead_id uuid not null references outreach_leads(id) on delete cascade,
+        kind text not null check (kind in ('hero','tile')),
+        material_id text not null,
+        mime text not null,
+        bytes bytea not null,
+        width int not null,
+        height int not null,
+        badge jsonb not null,
+        logo_status text not null check (logo_status in ('logo','text-only')),
+        created_at timestamptz not null default now()
+      );
+      create index outreach_assets_lead on outreach_assets (lead_id, kind);
+
+      create table outreach_control (
+        id boolean primary key default true check (id),
+        paused boolean not null default true,
+        mode text not null default 'dry_run' check (mode in ('dry_run','live')),
+        updated_by text,
+        updated_at timestamptz not null default now()
+      );
+      insert into outreach_control (id) values (true);
+
+      create table outreach_ticks (
+        id bigserial primary key,
+        trigger text not null,
+        started_at timestamptz not null default now(),
+        finished_at timestamptz,
+        result jsonb
+      );
+      create index outreach_ticks_started on outreach_ticks (started_at desc);
+    `,
+  },
+  {
+    id: "014_outreach_persona",
+    sql: `
+      alter table outreach_assets drop constraint outreach_assets_kind_check;
+      alter table outreach_assets add constraint outreach_assets_kind_check check (kind in ('hero','tile','persona'));
+    `,
+  },
+  {
+    id: "015_outreach_asset_review",
+    sql: `
+      alter table outreach_assets add column review text not null default 'pending'
+        check (review in ('pending','approved','rejected'));
+    `,
+  },
+  {
+    // Prismodellen som gällde när ordern eller offerten skapades. Tom = skapad före modellen.
+    id: "016_price_model",
+    sql: `
+      alter table orders add column price_model jsonb;
+      alter table quotes add column price_model jsonb;
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

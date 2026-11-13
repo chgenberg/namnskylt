@@ -23,9 +23,9 @@ import { sharesCutLines, sheetCornerRadiusMm, type Box, type PackedSheet, type P
 /**
  * Allt som skärs och graveras på ett ark, i arkets mm (y nedåt). Skärmen,
  * utskriften och maskinfilen ritar samma lista — operatören granskar exakt
- * det maskinen kör.
+ * det maskinen kör. `guide` är en hjälplinje som maskinen aldrig får.
  */
-export type MarkInk = "cut" | "throughCut" | "engrave";
+export type MarkInk = "cut" | "throughCut" | "engrave" | "guide";
 
 export interface SheetMark {
   ink: MarkInk;
@@ -82,11 +82,13 @@ function cornerArcPaths(w: number, h: number, r0: number): string[] {
 }
 
 /**
- * Skyltens egen kontur. Metall skärs med verktygsoffset: konturen bommas ut
+ * Skyltens egen kontur. Färdiga ämnen får bara en hjälplinje. Metall skärs med verktygsoffset: konturen bommas ut
  * med verktygsradien (en skarp ytterkant får då radien som hörn — så går
  * verktygets centrum). Ovaler, runda och kantiga former genomskärs; raka kanter skärs.
  */
 function outlineMarks(doc: BadgeDocument, method: ProductionMethod): Array<Pick<SheetMark, "ink" | "d">> {
+  // Ett färdigt ämne skärs aldrig: kanten visar bara var det ska ligga i fixturen.
+  if (method === "blank") return [{ ink: "guide", d: outlinePath(doc) }];
   const { widthMm: w, heightMm: h } = doc.size;
   const r = sheetCornerRadiusMm(doc);
   if (!hasStraightSides(doc.shape)) {
@@ -110,10 +112,13 @@ export function sheetMarks(sheet: PackedSheet, ctx: SheetContext): SheetMark[] {
   const engrave = (d: string, dx = 0, dy = 0, fillRule: FillRule = "nonzero", placementKey?: string) => {
     if (d) marks.push({ ink: "engrave", d, dx, dy, fillRule, ...(placementKey ? { placementKey } : {}) });
   };
+  // Rubrikerna graveras i arket mellan skyltarna. Färdiga ämnen har inget ark: där är de bara läshjälp.
+  const headerInk: MarkInk = method === "blank" ? "guide" : "engrave";
   const headerOutline = (text: string, box: Box, maxCap: number) => {
     const fitted = fitHeader(text, box, maxCap, fonts);
     if (!fitted) return;
-    engrave(outline(fitted.text, { ...HEADER_FACE, sizeMm: fitted.fontSizeMm }, fitted.xMm, fitted.baselineMm));
+    const d = outline(fitted.text, { ...HEADER_FACE, sizeMm: fitted.fontSizeMm }, fitted.xMm, fitted.baselineMm);
+    if (d) marks.push({ ink: headerInk, d, dx: 0, dy: 0, fillRule: "nonzero" });
   };
 
   if (sheet.sheetHeader) {

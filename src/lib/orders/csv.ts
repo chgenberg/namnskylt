@@ -46,7 +46,7 @@ export function invoiceCsv(orders: readonly StoredOrder[]): string {
   const rows = orders
     .filter((o) => o.status !== "cancelled")
     .flatMap((o) => {
-      const priced = priceWithPricing(o.badges, o.pricing);
+      const priced = priceWithPricing(o.badges, o.pricing, o.priceModel);
       const rows = o.badges.map((badge, i) => {
         const unit = priced.lines[i]?.unitSek ?? 0;
         const text = engravedRows(badge)
@@ -74,6 +74,9 @@ export function invoiceCsv(orders: readonly StoredOrder[]): string {
           ? [[...customer, `Rabatt ${priced.discountPercent} %`, "", 1, -priced.discountSek, -priced.discountSek, 25]]
           : []),
         ...priced.extras.map((extra) => [...customer, extra.label, "Extra kostnad", 1, extra.amountSek, extra.amountSek, 25]),
+        ...(priced.minimumTopUpSek > 0
+          ? [[...customer, "Upp till minsta ordervärde", "", 1, priced.minimumTopUpSek, priced.minimumTopUpSek, 25]]
+          : []),
       ];
     });
   return toCsv(

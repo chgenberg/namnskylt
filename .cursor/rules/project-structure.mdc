@@ -1,0 +1,54 @@
+---
+description: Projektstruktur — lager, beroenderiktning, var ny kod hör hemma och hur roten hålls ren
+alwaysApply: true
+---
+
+# Projektstruktur
+
+Strukturen är ett kontrakt. `pnpm lint` stoppar importer som bryter lagren (`.eslintrc.js`); resten gäller lika hårt.
+
+## Lager — beroenden går bara nedåt
+
+| Lager | Innehåll | Får importera |
+| --- | --- | --- |
+| `src/app/` | Bara `page`, `layout`, `route`, `robots` + `globals.css` | allt nedanför |
+| `src/features/<feature>/` | En vys komponenter, `actions.ts`, `state.ts`, `*.module.css` | components, hooks, lib, engine |
+| `src/components/`, `src/hooks/` | Det som delas av minst två features | lib, engine |
+| `src/lib/<domän>/` | Regler, SQL, integrationer, formatering | lib, engine |
+| `src/engine/` | Skyltmotorn, ren TS i mm | bara sig själv |
+
+- En feature importerar **inte** en annan feature. Undantagen står i `FEATURE_DEPENDENCIES` i `.eslintrc.js`; en ny rad där kräver användarens ja. Behövs något på två ställen flyttas det ner till `components/` eller `lib/`.
+- Inget importerar från `src/app`. Inga `../../`-importer — använd `@/`.
+
+## Var hör ny kod hemma?
+
+- **Ny sida** → `src/app/<svensk-väg>/page.tsx`, högst ~40 rader: läs params, kontrollera behörighet, rendera en feature-komponent. Datahämtning och markup ligger i featuren.
+- **Ny API-handler** → `src/app/api/<english-path>/route.ts`: behörighet först, zod-validering sedan, arbetet i `lib/`. Fel svaras som `{ error: "…" }` på svenska.
+- **Regel, beräkning, SQL, anrop utåt** → `src/lib/<domän>/`. Ren logik och I/O i olika filer: `model.ts` (typer, zod, rena regler), `store.ts` (SQL som tar `sql` som argument, testbar), `repository.ts` (`server-only`, binder till appen).
+- **Test** → bredvid koden som `<fil>.test.ts`, direkt i `src/engine/` eller `src/lib/<domän>/`. Djupare mappar hittas inte av `pnpm test`.
+- **Kommandoradsverktyg** → `scripts/<område>-<verb>.ts` med ett `package.json`-script och användningen i filhuvudet.
+- **Engångsfiler, utdata, kunddata** → `tmp/` (aldrig i git, aldrig i Docker-bilden).
+
+## Filer och mappar
+
+- kebab-case, en komponent per fil, CSS-modulen bredvid komponenten. Mappar heter efter domänen (`orders`, `outreach`), aldrig efter teknik (`utils`, `helpers`, `types`).
+- Exportera bara det som används utanför filen. Kör `pnpm dlx knip` innan en större ändring lämnas: inga nya oanvända exporter eller filer.
+- Dela en TS-fil som passerar ~400 rader och en CSS-modul som passerar ~600, längs de rubriker som redan finns. Skapa ingen ny mapp för en enda fil om en befintlig domän passar.
+- Flytta filer med import-uppdatering i samma ändring; lämna aldrig en gammal sökväg kvar som vidarexport.
+
+## Roten
+
+- Ny miljövariabel dokumenteras i `.env.example` i samma ändring, med vad som händer när den är tom.
+- Inga lösa filer i roten utöver konfiguration. Planer och beslut i `docs/`, regler i `.cursor/rules/`.
+- Tillämpade migreringar i `src/lib/db/migrations.ts` ändras aldrig — lägg till en ny.
+
+## Känd skuld — kopiera inte mönstret
+
+Tjocka sidor under `src/app/admin/**` och `src/app/offert/[token]`, hex-färger i `admin.module.css` och `editor.module.css`, den platta mappen `src/lib/outreach/`. Rör du en av dem: lämna den bättre, gör den inte större.
+
+```tsx
+// ❌ sidan hämtar, formar och ritar själv
+export default async function Page() { const orders = await listOrders(); return <table>…</table>; }
+// ✅ sidan är en dörr
+export default async function Page() { await requireOwner(); return <OrderList />; }
+```

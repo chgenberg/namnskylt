@@ -1,7 +1,5 @@
 import "server-only";
 import { requireDb } from "@/lib/db/client";
-import { priceWithPricing, pricingSchema } from "@/lib/orders/pricing";
-import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
 import type { ShopEventKind } from "./events";
 
 export async function recordShopEvent(slug: string, kind: ShopEventKind): Promise<void> {
@@ -29,24 +27,14 @@ export interface ShopStats {
 const TIME_ZONE = "Europe/Stockholm";
 const dayKey = (date: Date) => date.toLocaleDateString("sv-SE", { timeZone: TIME_ZONE });
 
-function orderValueSek(badges: unknown, pricing: unknown): number {
-  const docs = Array.isArray(badges)
-    ? badges.flatMap((b) => {
-        const parsed = badgeDocumentSchema.safeParse(b);
-        return parsed.success ? [parsed.data as BadgeDocument] : [];
-      })
-    : [];
-  const parsedPricing = pricingSchema.safeParse(pricing);
-  return priceWithPricing(docs, parsedPricing.success ? parsedPricing.data : null).totalSek;
-}
-
 export async function shopStats(slug: string, days = 30): Promise<ShopStats> {
   const sql = requireDb();
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const [events, orders] = await Promise.all([
     sql<{ kind: string; at: Date }[]>`select kind, at from shop_events where shop_slug = ${slug} and at >= ${since}`,
-    sql<{ placed_at: Date; badges: unknown; pricing: unknown }[]>`
-      select placed_at, badges, pricing from orders where shop_slug = ${slug} and placed_at >= ${since} and not is_demo`,
+    // Summan som sparades med ordern — den räknas aldrig om när prismodellen ändras.
+    sql<{ placed_at: Date; total_sek: number }[]>`
+      select placed_at, total_sek from orders where shop_slug = ${slug} and placed_at >= ${since} and not is_demo`,
   ]);
 
   const byDay = new Map<string, ShopDay>();
@@ -65,7 +53,7 @@ export async function shopStats(slug: string, days = 30): Promise<ShopStats> {
     const day = byDay.get(dayKey(order.placed_at));
     if (!day) continue;
     day.orders++;
-    day.salesSek += orderValueSek(order.badges, order.pricing);
+    day.salesSek += order.total_sek;
   }
 
   const list = [...byDay.values()];

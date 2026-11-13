@@ -79,13 +79,13 @@
   color: var(--color-ink-2);
 }
 
-.shapeGrid {
+.blankGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
   gap: var(--space-2);
 }
 
-.shapeCard {
+.blankCard {
   display: grid;
   justify-items: center;
   gap: 4px;
@@ -101,14 +101,24 @@
     color var(--duration-fast);
 }
 
-.shapeCard:hover {
+.blankCard:hover {
   border-color: var(--color-line-strong);
 }
 
-.shapeCard[aria-checked="true"] {
+.blankCard[aria-checked="true"] {
   border-color: var(--color-navy);
   background: var(--color-navy-tint);
   color: var(--color-navy);
+}
+
+.blankIcon {
+  width: 72px;
+  height: auto;
+  stroke-width: 1.5px;
+}
+
+.blankSize {
+  color: var(--color-muted);
 }
 
 .swatches {
@@ -143,6 +153,13 @@
   border-radius: 50%;
   background: linear-gradient(135deg, var(--surface) 0 55%, var(--engraving) 55% 100%);
   box-shadow: inset 0 0 0 1px var(--color-line-strong);
+}
+
+/* Borstad metall: ljusa stråk längs skylten ovanpå ytfärgen. */
+.swatchFill[data-brushed="true"] {
+  background:
+    linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.55) 38%, transparent 52%),
+    linear-gradient(135deg, var(--surface) 0 55%, var(--engraving) 55% 100%);
 }
 
 .swatchFill[data-metallic="true"] {

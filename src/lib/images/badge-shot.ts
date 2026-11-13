@@ -6,7 +6,7 @@ import { z } from "zod";
  * Den är bara en bild, men kommer från klienten: avkodas och kodas om här, så
  * att inget annat än pixlar sparas.
  */
-export const MAX_SHOT_UPLOAD_CHARS = 6_000_000;
+const MAX_SHOT_UPLOAD_CHARS = 6_000_000;
 const SHOT_WIDTH_PX = 1000;
 /** Luft runt skylten efter beskärningen, andel av bredden. */
 const SHOT_PADDING = 0.06;

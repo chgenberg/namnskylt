@@ -1,4 +1,4 @@
-import type { BadgeDocument } from "@/engine";
+import { isOfferedDocument, type BadgeDocument, type PriceModel } from "@/engine";
 import type { Pricing } from "./pricing";
 
 export const ORDER_STATUSES = [
@@ -32,6 +32,15 @@ export const TIMELINE_STEPS: readonly OrderStatus[] = [
   "shipped",
   "delivered",
 ];
+
+/** Svaret när en order eller offert innehåller en skylt som inte säljs längre. */
+export const NOT_OFFERED_ERROR =
+  "Skylten finns inte längre i sortimentet. Öppna den i skyltmotorn och välj yta och form på nytt.";
+
+/** Sant när alla skyltar går att beställa i dag. Servern litar inte på att klienten bara visar sortimentet. */
+export function allOffered(badges: readonly BadgeDocument[]): boolean {
+  return badges.every(isOfferedDocument);
+}
 
 export const ORDER_SOURCES = ["web", "reseller", "quote", "repeat", "staff", "template", "shop"] as const;
 export type OrderSource = (typeof ORDER_SOURCES)[number];
@@ -72,6 +81,8 @@ export interface StoredOrder {
   badges: BadgeDocument[];
   /** Återförsäljarens egna priser; `null` = listpris. */
   pricing: Pricing | null;
+  /** Prismodellen som gällde när ordern lades — listpris, inköp och minsta ordervärde räknas ur den. */
+  priceModel: PriceModel;
   totalSek: number;
   totalInclVatSek: number;
   supplierOrderNo: string | null;

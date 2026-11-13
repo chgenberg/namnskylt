@@ -3,12 +3,21 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type Dispatch } from "react";
 import { BadgePreview } from "@/components/badge-preview";
-import { SHAPES, getColor, getMaterial, isPartnerMade, type BadgeDocument, type FontEngine } from "@/engine";
+import {
+  OFFERED_MATERIALS,
+  blankOf,
+  getColor,
+  getMaterial,
+  isPartnerMade,
+  shapeLabel,
+  type BadgeDocument,
+  type FontEngine,
+} from "@/engine";
 import type { BadgeRecorder } from "./three/recorder";
-import { ColorPicker, MaterialPicker, ShapePicker } from "./pickers";
+import { BlankPicker, ColorPicker, MaterialPicker } from "./pickers";
 import styles from "./onboarding-dialog.module.css";
 import type { DesignerAction } from "./state";
-import { useFromPrice } from "./shop-price";
+import { useShopPrices } from "./shop-price";
 
 /** Samma 3D-skylt som i skyltmotorn; ritningen syns medan den laddar. */
 const Badge3D = dynamic(() => import("./badge-3d"), { ssr: false, loading: () => null });
@@ -31,8 +40,10 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
   const [canvasReady, setCanvasReady] = useState(false);
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
-  const fromPrice = useFromPrice();
-  const shapeName = SHAPES.find((s) => s.id === doc.shape)?.name;
+  const { fromPrice } = useShopPrices();
+  const blank = blankOf(doc);
+  const shapeName = shapeLabel(doc);
+  const severalMaterials = OFFERED_MATERIALS.length > 1;
 
   useEffect(() => {
     const dialog = ref.current;
@@ -54,7 +65,7 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
           <div>
             <p className={styles.eyebrow}>Innan du börjar</p>
             <h2 id="onboarding-title" className={styles.title}>
-              Välj material och form
+              {severalMaterials ? "Välj material och form" : "Välj yta och form"}
             </h2>
           </div>
           <button type="button" className={styles.close} aria-label="Stäng" onClick={() => ref.current?.close()}>
@@ -88,43 +99,46 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
         </div>
 
         <div className={styles.body}>
-          <section className={styles.group} aria-labelledby="onboarding-material">
-            <h3 id="onboarding-material" className={styles.groupTitle}>
-              Material
-            </h3>
-            <MaterialPicker
-              value={doc.materialId}
-              layoutId="onboarding-material-active"
-              onChange={(materialId) => dispatch({ type: "material", materialId })}
-            />
-            <p className={styles.note}>
-              {material.description}
-              {isPartnerMade(material.id) && " Pris och leveranstid bekräftas via e-post."}
-            </p>
-          </section>
+          {severalMaterials && (
+            <section className={styles.group} aria-labelledby="onboarding-material">
+              <h3 id="onboarding-material" className={styles.groupTitle}>
+                Material
+              </h3>
+              <MaterialPicker
+                value={doc.materialId}
+                layoutId="onboarding-material-active"
+                onChange={(materialId) => dispatch({ type: "material", materialId })}
+              />
+              <p className={styles.note}>
+                {material.description}
+                {isPartnerMade(material.id) && " Pris och leveranstid bekräftas via e-post."}
+              </p>
+            </section>
+          )}
 
           <section className={styles.group} aria-labelledby="onboarding-color">
             <h3 id="onboarding-color" className={styles.groupTitle}>
-              Färg <span className={styles.groupAside}>{color.name}</span>
+              {severalMaterials ? "Färg" : "Yta"} <span className={styles.groupAside}>{color.name}</span>
             </h3>
             <ColorPicker
               materialId={doc.materialId}
               value={doc.colorId}
               onChange={(colorId) => dispatch({ type: "color", colorId })}
             />
+            {!severalMaterials && <p className={styles.note}>{material.description}</p>}
           </section>
 
           <section className={styles.group} aria-labelledby="onboarding-shape">
             <h3 id="onboarding-shape" className={styles.groupTitle}>
               Form
             </h3>
-            <ShapePicker value={doc.shape} onChange={(shape) => dispatch({ type: "shape", shape })} />
+            <BlankPicker value={blank?.id ?? null} onChange={(blankId) => dispatch({ type: "blank", blankId })} />
           </section>
         </div>
 
         <footer className={styles.footer}>
           <p className={styles.price}>
-            från <strong>{fromPrice(material.id, material.basePriceSek)} kr</strong> / st
+            från <strong>{fromPrice(material.id)} kr</strong> / st
           </p>
           <button type="button" className="btn btn--ghost" onClick={() => ref.current?.close()}>
             Hoppa över

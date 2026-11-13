@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
-import { engravedRows, getColor, getMaterial, getMounting, SHAPES } from "@/engine";
-import { formatDay, formatSek } from "@/features/orders/format";
+import { engravedRows, getColor, getMaterial, getMounting, shapeLabel } from "@/engine";
+import { formatDay, formatSek } from "@/lib/format";
 import { QuoteDecision } from "@/features/quote-public/quote-decision";
 import styles from "@/features/quote-public/quote-public.module.css";
 import { companyFooter, readableOn } from "@/lib/company/profile";
@@ -37,7 +37,7 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
     "--brand-accent": company.accentColor,
   } as React.CSSProperties;
   const status = displayStatus(quote);
-  const priced = priceWithPricing(quote.badges, quote.pricing);
+  const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceModel);
   const firstName = quote.customer.name.split(" ")[0] ?? quote.customer.name;
   const saving = priced.savingsSek;
 
@@ -109,7 +109,7 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
                     <div className={styles.lineName}>{text || "Utan text"}</div>
                     <div className={styles.lineSpec}>
                       {getMaterial(badge.materialId).name} · {getColor(badge.materialId, badge.colorId).name} ·{" "}
-                      {SHAPES.find((s) => s.id === badge.shape)?.name} {badge.size.widthMm}×{badge.size.heightMm} mm ·{" "}
+                      {shapeLabel(badge)} {badge.size.widthMm}×{badge.size.heightMm} mm ·{" "}
                       {getMounting(badge.mounting).name}
                     </div>
                   </div>
@@ -152,6 +152,12 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
                 <dd>{formatSek(extra.amountSek)}</dd>
               </span>
             ))}
+            {priced.minimumTopUpSek > 0 && (
+              <>
+                <dt>Upp till minsta ordervärde</dt>
+                <dd>{formatSek(priced.minimumTopUpSek)}</dd>
+              </>
+            )}
             <dt className={styles.grand}>Totalt exkl. moms</dt>
             <dd className={styles.grand}>{formatSek(priced.totalSek)}</dd>
             <dt>Moms 25 %</dt>

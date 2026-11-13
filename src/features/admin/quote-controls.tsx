@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { formatSek } from "@/features/orders/format";
+import { formatSek } from "@/lib/format";
 import { acceptQuoteForCustomerAction, cancelQuoteAction, sendQuoteAction, updateQuoteTermsAction } from "./quote-actions";
 import styles from "./admin.module.css";
 

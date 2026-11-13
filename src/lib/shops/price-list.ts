@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { lineUnitPrices, MATERIALS, priceOrder, VAT_RATE, type BadgeDocument, type MaterialId } from "@/engine";
+import { lineUnitPrices, MATERIALS, priceOrder, VAT_RATE, type BadgeDocument, type MaterialId, type PriceModel } from "@/engine";
 import type { Pricing } from "@/lib/orders/pricing";
 
 /**
- * Butikens priser mot riktpriset: ett generellt påslag (negativt = rabatt)
- * och egna procent per material. Mängdrabatten räknas först, påslaget sedan.
+ * Butikens priser mot riktpriset (slutkundens listpris i prismodellen): ett
+ * generellt påslag (negativt = rabatt) och egna procent per material.
+ * Trappsteget räknas först, påslaget sedan.
  */
 export interface ShopPriceList {
   percent: number;
@@ -34,36 +35,55 @@ export function isListPrice(list: ShopPriceList | null | undefined): boolean {
 }
 
 /** À-pris per skylt i butiken. */
-export function shopUnitPrices(badges: readonly BadgeDocument[], list: ShopPriceList | null | undefined): number[] {
-  const units = lineUnitPrices(badges);
+export function shopUnitPrices(
+  badges: readonly BadgeDocument[],
+  list: ShopPriceList | null | undefined,
+  model: PriceModel,
+): number[] {
+  const units = lineUnitPrices(badges, model);
   if (!list) return units;
   return badges.map((badge, i) => Math.round((units[i] ?? 0) * (1 + percentFor(list, badge.materialId) / 100)));
 }
 
 export interface ShopPrice {
   unitSek: number;
+  badgesSek: number;
+  /** Påslaget upp till slutkundens minsta ordervärde. */
+  minimumTopUpSek: number;
   totalSek: number;
   totalInclVatSek: number;
   quantity: number;
-  tierFactor: number;
+  tierIndex: number;
 }
 
 /** Det kunden ser i butikens skyltmotor — samma tal som ordern sparas med. */
-export function shopPrice(badges: readonly BadgeDocument[], list: ShopPriceList | null | undefined): ShopPrice {
-  const base = priceOrder(badges);
-  const units = shopUnitPrices(badges, list);
-  const totalSek = badges.reduce((sum, badge, i) => sum + (units[i] ?? 0) * Math.max(1, Math.floor(badge.quantity)), 0);
+export function shopPrice(
+  badges: readonly BadgeDocument[],
+  list: ShopPriceList | null | undefined,
+  model: PriceModel,
+): ShopPrice {
+  const base = priceOrder(badges, model);
+  const units = shopUnitPrices(badges, list, model);
+  const badgesSek = badges.reduce((sum, badge, i) => sum + (units[i] ?? 0) * Math.max(1, Math.floor(badge.quantity)), 0);
+  const minimumTopUpSek = base.quantity > 0 ? Math.max(0, model.endMinOrderSek - badgesSek) : 0;
+  const totalSek = badgesSek + minimumTopUpSek;
   return {
-    unitSek: base.quantity > 0 ? Math.round(totalSek / base.quantity) : 0,
+    unitSek: base.quantity > 0 ? Math.round(badgesSek / base.quantity) : 0,
+    badgesSek,
+    minimumTopUpSek,
     totalSek,
     totalInclVatSek: Math.round(totalSek * (1 + VAT_RATE)),
     quantity: base.quantity,
-    tierFactor: base.tier.factor,
+    tierIndex: base.tierIndex,
   };
 }
 
 /** Ordern från butiken får butikens priser som egna à-priser; listpris = ingen prissättning. */
-export function shopOrderPricing(badges: readonly BadgeDocument[], list: ShopPriceList | null | undefined): Pricing | null {
+export function shopOrderPricing(
+  badges: readonly BadgeDocument[],
+  list: ShopPriceList | null | undefined,
+  model: PriceModel,
+): Pricing | null {
   if (isListPrice(list)) return null;
-  return { unitOverrides: shopUnitPrices(badges, list), discountPercent: 0, extras: [] };
+  return { unitOverrides: shopUnitPrices(badges, list, model), discountPercent: 0, extras: [] };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import styles from "@/components/dashboard/dashboard.module.css";
+import styles from "./dashboard.module.css";
 import { Segmented } from "@/components/ui/segmented";
 import { DEMO_ORDERS, type AdminOrder } from "@/lib/orders/demo-orders";
 import { ProductionEditor } from "./production-editor";

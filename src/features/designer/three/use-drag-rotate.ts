@@ -6,7 +6,7 @@ import { MathUtils, type Group } from "three";
 
 const YAW_PER_PX = 0.011;
 const PITCH_PER_PX = 0.006;
-export const MAX_PITCH = 0.45;
+const MAX_PITCH = 0.45;
 /** Hur snabbt trögheten efter ett släpp dör ut (1/s). */
 const INERTIA_DECAY = 3.2;
 const MAX_FLING_RAD_PER_S = 9;

@@ -28,7 +28,7 @@ const MAX_STYLESHEETS = 4;
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
-export function decodeEntities(value: string): string {
+function decodeEntities(value: string): string {
   return value.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (match, code: string) => {
     if (code.startsWith("#x") || code.startsWith("#X")) return String.fromCodePoint(parseInt(code.slice(2), 16));
     if (code.startsWith("#")) return String.fromCodePoint(Number(code.slice(1)));

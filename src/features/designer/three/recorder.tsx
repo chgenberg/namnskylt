@@ -34,7 +34,7 @@ const TAIL_MS = 150;
 const MIME_TYPES = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
 
 /** Mjuk start och landning, som en kamera på ett vridbord. */
-export function easeInOut(k: number): number {
+function easeInOut(k: number): number {
   return k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
 }
 

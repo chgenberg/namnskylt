@@ -11,9 +11,13 @@ import {
 } from "@/engine";
 import type { SupplierLayer, SupplierSignDocument } from "./types";
 
-/** Skyltmotorn har ingen egen kapselform — den är en rektangel med radien h/2. */
+/**
+ * Skyltmotorn har ingen egen kapselform — den är en rektangel med radien h/2.
+ * Kudden saknas också där. Ämnet är färdigskuret, så konturen skärs aldrig:
+ * den skickas som rektangel och bara gravyrens läge används.
+ */
 function supplierShape(shape: BadgeShape): SupplierSignDocument["shape"] {
-  return hasStraightSides(shape) ? "rectangular" : shape;
+  return hasStraightSides(shape) || shape === "cushion" ? "rectangular" : shape;
 }
 
 /** Skyltmotorns standardradhöjd; påverkar inget här eftersom varje lager har en rad. */

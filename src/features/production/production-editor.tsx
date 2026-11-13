@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties, type MouseEvent } from "react";
-import { getColor, getMaterial, getMounting, SHAPES } from "@/engine";
+import { getColor, getMaterial, getMounting, shapeLabel } from "@/engine";
 import { Segmented } from "@/components/ui/segmented";
 import { useFontEngine } from "@/hooks/use-font-engine";
 import {
   CUTTER_OFFSET_MM,
   DEFAULT_SHEET_SETTINGS,
   packSheets,
+  GUIDE_INK,
   PRODUCTION_INK,
   productionBatches,
   renderMachineSvg,
@@ -21,7 +22,7 @@ import {
 import { batchLabel, METHOD_LABEL, productionNumber } from "./batch-label";
 import type { AdminOrder } from "@/lib/orders/demo-orders";
 import { downloadFile, printSheets, type PrintScale } from "./production-files";
-import styles from "@/components/dashboard/dashboard.module.css";
+import styles from "./dashboard.module.css";
 
 type LineMode = "machine" | "proof";
 type ZoomMode = "used" | "sheet";
@@ -130,6 +131,7 @@ export function ProductionEditor({ orders, batchKey, onBatchKey }: ProductionEdi
   const selected = sheet?.placements.find((p) => p.unit.key === selectedKey) ?? null;
   const selectedOrder = selected ? queue.find((o) => o.orderNo === selected.unit.orderNo) : undefined;
   const isMetal = packing.method === "metal-cut";
+  const isBlank = packing.method === "blank";
   const fileBase = `PO-${productionNo}`;
 
   const pick = (event: MouseEvent<HTMLDivElement>) => {
@@ -253,7 +255,18 @@ export function ProductionEditor({ orders, batchKey, onBatchKey }: ProductionEdi
             <li>
               <i style={{ background: PRODUCTION_INK.engrave }} aria-hidden /> Gravyr
             </li>
+            {isBlank && (
+              <li>
+                <i style={{ background: GUIDE_INK }} aria-hidden /> Hjälplinje — ämnets kant och rubriker
+              </li>
+            )}
           </ul>
+          {isBlank && (
+            <p className={styles.hint}>
+              Färdiga ämnen: maskinfilen innehåller bara gravyren. Ämnenas kanter och rubrikerna visar var ämnena ska
+              ligga och körs aldrig.
+            </p>
+          )}
           {isMetal && (
             <p className={styles.hint}>
               Metall: konturen är verktygsbanan, utbommad {String(CUTTER_OFFSET_MM).replace(".", ",")} mm för Ø3-verktyget.
@@ -337,7 +350,7 @@ export function ProductionEditor({ orders, batchKey, onBatchKey }: ProductionEdi
                   {selected.widthMm} × {selected.heightMm} mm
                 </dd>
                 <dt>Form</dt>
-                <dd>{SHAPES.find((s) => s.id === selected.unit.doc.shape)?.name}</dd>
+                <dd>{shapeLabel(selected.unit.doc)}</dd>
                 <dt>Material</dt>
                 <dd>
                   {getMaterial(selected.unit.doc.materialId).name},{" "}

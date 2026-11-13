@@ -4,11 +4,13 @@ import { BadgePreview } from "@/components/badge-preview";
 import { INPUT_ANCHOR } from "@/features/home/smart-input";
 import {
   MAX_ORDER_BADGES,
-  QUANTITY_TIERS,
+  OFFERED_MATERIALS,
   createBadgeDocument,
+  fromPriceSek,
+  tierRangeLabel,
   type BadgeDocument,
-  type MaterialId,
   type MountingId,
+  type PriceModel,
 } from "@/engine";
 import {
   HERO,
@@ -25,39 +27,34 @@ import styles from "./business.module.css";
 
 const VOLUME_ANCHOR = "mangdrabatt";
 
-function badge(
-  texts: readonly string[],
-  materialId: MaterialId = "plastic-2-layer",
-  colorId = "white-black",
-  mounting: MountingId = "pin",
-): BadgeDocument {
-  return { ...createBadgeDocument([...texts]), materialId, colorId, mounting };
+function badge(texts: readonly string[], colorId = "metal-white", mounting: MountingId = "pin"): BadgeDocument {
+  return { ...createBadgeDocument([...texts]), colorId, mounting };
 }
 
 /** Skyltarna på anslagstavlan i toppen — lite snett, som när de ligger framme. */
 const BOARD = [
-  { doc: badge(["Sara Ek", "Butikschef"], "plastic-2-layer", "darkblue-white"), x: "4%", y: "10%", tilt: "-6deg" },
-  { doc: badge(["Johan Nyström", "Kock"], "plastic-2-layer", "black-white"), x: "50%", y: "2%", tilt: "4deg" },
-  { doc: badge(["Lena Björk", "Reception"], "stainless", "steel-laser"), x: "26%", y: "40%", tilt: "-2deg" },
-  { doc: badge(["Ahmed Karimi", "Sjuksköterska"], "plastic-2-layer", "white-blue"), x: "58%", y: "52%", tilt: "7deg" },
-  { doc: badge(["Elsa Lind", "Lärare"], "plastic-2-layer", "darkgreen-white"), x: "2%", y: "70%", tilt: "3deg" },
+  { doc: badge(["Sara Ek", "Butikschef"], "metal-white"), x: "4%", y: "10%", tilt: "-6deg" },
+  { doc: badge(["Johan Nyström", "Kock"], "metal-silver"), x: "50%", y: "2%", tilt: "4deg" },
+  { doc: badge(["Lena Björk", "Reception"], "metal-gold"), x: "26%", y: "40%", tilt: "-2deg" },
+  { doc: badge(["Ahmed Karimi", "Sjuksköterska"], "metal-white"), x: "58%", y: "52%", tilt: "7deg" },
+  { doc: badge(["Elsa Lind", "Lärare"], "metal-silver"), x: "2%", y: "70%", tilt: "3deg" },
 ] as const;
 
 const TEAM_LIST = ["Sara Ek, Butikschef", "Wilma Berg, Butikssäljare", "Johan Nyström, Lager", "Elsa Lind, Kassa"];
 
 interface VolumeRow {
   range: string;
-  discount: string;
+  price: string;
 }
 
-function volumeRows(): VolumeRow[] {
-  const tiers = [...QUANTITY_TIERS].sort((a, b) => a.minQuantity - b.minQuantity);
-  return tiers.map((tier, i) => {
-    const next = tiers[i + 1];
-    const range = next ? `${tier.minQuantity}–${next.minQuantity - 1} st` : `${tier.minQuantity} st eller fler`;
-    const percent = Math.round((1 - tier.factor) * 100);
-    return { range, discount: percent === 0 ? "Ordinarie pris" : `−${percent} %` };
-  });
+/** Lägsta pris per skylt på varje trappsteg i prismodellen, exkl. moms. */
+function volumeRows(model: PriceModel): VolumeRow[] {
+  const material = OFFERED_MATERIALS[0];
+  if (!material) return [];
+  return model.tiers.map((_, i) => ({
+    range: tierRangeLabel(i, model),
+    price: `${fromPriceSek(material.id, model, i)} kr`,
+  }));
 }
 
 function Arrow() {
@@ -68,7 +65,11 @@ function Arrow() {
   );
 }
 
-export function BusinessPage() {
+interface BusinessPageProps {
+  priceModel: PriceModel;
+}
+
+export function BusinessPage({ priceModel }: BusinessPageProps) {
   return (
     <>
       <section className={styles.hero}>
@@ -164,7 +165,7 @@ export function BusinessPage() {
             <span className={styles.sheetArrow} aria-hidden="true" />
             <div className={styles.teamBadges}>
               {TEAM_LIST.map((line) => (
-                <BadgePreview key={line} doc={badge(line.split(", "), "plastic-2-layer", "black-white")} />
+                <BadgePreview key={line} doc={badge(line.split(", "), "metal-silver")} />
               ))}
             </div>
           </div>
@@ -176,10 +177,10 @@ export function BusinessPage() {
             <p className={styles.volumeBody}>{VOLUME.body}</p>
           </div>
           <dl className={styles.volumeTable}>
-            {volumeRows().map((row) => (
-              <div key={row.range} data-base={row.discount === "Ordinarie pris"}>
+            {volumeRows(priceModel).map((row, i) => (
+              <div key={row.range} data-base={i === 0}>
                 <dt>{row.range}</dt>
-                <dd>{row.discount}</dd>
+                <dd>{row.price}</dd>
               </div>
             ))}
           </dl>
@@ -198,7 +199,7 @@ export function BusinessPage() {
             <li key={place.title} className={styles.card}>
               <div className={styles.cardStage}>
                 <BadgePreview
-                  doc={badge(place.badge.texts, place.badge.materialId, place.badge.colorId, place.badge.mounting)}
+                  doc={badge(place.badge.texts, place.badge.colorId, place.badge.mounting)}
                   className={styles.cardBadge}
                 />
               </div>

@@ -80,12 +80,6 @@
   color: var(--color-navy);
 }
 
-.split {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
-}
-
 .typeRow {
   display: grid;
   grid-template-columns: 1.5fr 1fr;
@@ -279,26 +273,6 @@
   gap: var(--space-2);
 }
 
-.chipMuted {
-  color: var(--color-subtle);
-}
-
-.dimension {
-  gap: var(--space-2);
-}
-
-.dimension > input {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.dimensionLabel,
-.unit {
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-}
-
 /* ── Order ── */
 
 .order {
@@ -392,15 +366,6 @@
   color: var(--color-muted);
 }
 
-.discount {
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  background: var(--color-navy-tint);
-  color: var(--color-navy);
-  font-size: var(--text-xs);
-  font-weight: 500;
-}
-
 .priceTotal {
   font-family: var(--font-serif);
   font-size: clamp(2.1rem, 1.7rem + 1.4vw, 2.75rem);
@@ -460,18 +425,6 @@
 .purchase > p {
   grid-column: 1 / -1;
   margin: 0;
-}
-
-.purchase[data-empty="true"] {
-  display: block;
-  line-height: 1.5;
-}
-
-.purchase a {
-  color: var(--color-navy);
-  font-weight: 500;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 .orderForm {
