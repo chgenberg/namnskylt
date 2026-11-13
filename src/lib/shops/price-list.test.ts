@@ -5,8 +5,8 @@ import { endPriceTable } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { shopOrderPricing, shopPrice, shopPriceListSchema, shopUnitPrices } from "./price-list";
 
-/** Kundens prislista enligt kalkylen. */
-const M = endPriceTable(DEFAULT_PRICE_MODEL);
+/** Kundens prislista enligt kalkylen, utan startkostnad: den har egna tester i motorn. */
+const M = endPriceTable({ ...DEFAULT_PRICE_MODEL, startSek: 0 });
 const metal = { ...createBadgeDocument(["Anna Berg", "Receptionist"]), quantity: 24 };
 const plastic = { ...createBadgeDocument(["Erik"]), materialId: "plastic-2-layer" as const, colorId: "white-black", quantity: 1 };
 

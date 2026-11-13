@@ -1,6 +1,6 @@
 import "server-only";
 import type { PriceTable } from "@/engine";
-import { endPriceTable, priceModelSchema, resellerPriceTable, type PriceModel } from "@/engine/price-model";
+import { endPriceTable, parseStoredPriceModel, resellerPriceTable, type PriceModel } from "@/engine/price-model";
 
 /**
  * Vem en order eller offert läses åt.
@@ -18,8 +18,7 @@ export interface PriceLists {
 
 /** Modellen som sparats på raden. Rader från före prismodellen saknar den och får dagens. */
 export function storedPriceModel(value: unknown, currentModel: PriceModel): PriceModel {
-  const parsed = priceModelSchema.safeParse(value);
-  return parsed.success ? parsed.data : currentModel;
+  return parseStoredPriceModel(value) ?? currentModel;
 }
 
 /**

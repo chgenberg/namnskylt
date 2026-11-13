@@ -1,4 +1,12 @@
-import { OFFERED_MATERIALS, OFFERED_MOUNTINGS, mountingPriceSek, tierRangeLabel, type PriceTable } from "@/engine";
+import {
+  OFFERED_MATERIALS,
+  OFFERED_MOUNTINGS,
+  mountingPriceSek,
+  optionPriceSek,
+  tierRangeLabel,
+  type PriceOptionId,
+  type PriceTable,
+} from "@/engine";
 import { formatSek } from "@/lib/format";
 import styles from "./price-model.module.css";
 
@@ -16,13 +24,26 @@ interface PurchasePriceTableProps {
  * Tar bara emot de två prislistorna — hela prismodellen, med provisionen, når aldrig den här sidan.
  */
 export function PurchasePriceTable({ purchase, list, marginPercent }: PurchasePriceTableProps) {
+  const perTier = (price: (table: PriceTable, tierIndex: number) => number) => ({
+    prices: purchase.tiers.map((_, i) => price(purchase, i)),
+    listPrices: list.tiers.map((_, i) => price(list, i)),
+  });
+  const option = (id: PriceOptionId) => perTier((table, i) => optionPriceSek(id, table, i));
   const options = [
-    ...OFFERED_MOUNTINGS.map((m) => ({ name: m.name, sek: mountingPriceSek(m.id, purchase), listSek: mountingPriceSek(m.id, list) })),
-    { name: "Logga på skylten", sek: purchase.options.extraEngraving, listSek: list.options.extraEngraving },
-    ...(OFFERED_MATERIALS.some((m) => m.customShape)
-      ? [{ name: "Egen form", sek: purchase.options.customShape, listSek: list.options.customShape }]
-      : []),
+    ...OFFERED_MOUNTINGS.map((m) => ({ name: `Fäste: ${m.name}`, ...perTier((table, i) => mountingPriceSek(m.id, table, i)) })),
+    { name: "Logga på skylten", ...option("extraEngraving") },
+    ...(OFFERED_MATERIALS.some((m) => m.customShape) ? [{ name: "Egen form", ...option("customShape") }] : []),
   ];
+  const tierHead = (
+    <>
+      <span className={styles.headLabel}>Antal i ordern</span>
+      {purchase.tiers.map((_, i) => (
+        <span key={i} className={styles.columnHead}>
+          {tierRangeLabel(i, purchase)}
+        </span>
+      ))}
+    </>
+  );
   return (
     <div className={styles.layout}>
       <section className={styles.card} aria-labelledby="purchase-signs">
@@ -37,12 +58,7 @@ export function PurchasePriceTable({ purchase, list, marginPercent }: PurchasePr
         </div>
         <div className={styles.scroll}>
           <div className={styles.table}>
-            <span className={styles.headLabel}>Antal i ordern</span>
-            {purchase.tiers.map((_, i) => (
-              <span key={i} className={styles.columnHead}>
-                {tierRangeLabel(i, purchase)}
-              </span>
-            ))}
+            {tierHead}
             {OFFERED_MATERIALS.map((material) => (
               <PriceRows
                 key={material.id}
@@ -56,17 +72,34 @@ export function PurchasePriceTable({ purchase, list, marginPercent }: PurchasePr
       </section>
 
       <section className={styles.card} aria-labelledby="purchase-options">
-        <h2 id="purchase-options" className={styles.cardTitle}>
-          Tillval och minsta order
+        <div className={styles.cardHead}>
+          <h2 id="purchase-options" className={styles.cardTitle}>
+            Fästen och tillval
+          </h2>
+          <p className={styles.muted}>Läggs på skyltpriset, per skylt.</p>
+        </div>
+        <div className={styles.scroll}>
+          <div className={styles.table}>
+            {tierHead}
+            {options.map((row) => (
+              <PriceRows key={row.name} name={row.name} prices={row.prices} listPrices={row.listPrices} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.card} aria-labelledby="purchase-order">
+        <h2 id="purchase-order" className={styles.cardTitle}>
+          Per order
         </h2>
         <dl className={styles.results}>
-          {options.map((row) => (
-            <div key={row.name} className={styles.result}>
-              <dt>{row.name}</dt>
-              <dd>{formatSek(row.sek)}</dd>
-              <small>rek. kundpris {formatSek(row.listSek)}</small>
-            </div>
-          ))}
+          <div className={styles.result}>
+            <dt>Startkostnad</dt>
+            <dd>{formatSek(purchase.startSek)}</dd>
+            <small>
+              per order, delas på antalet skyltar och ingår i priset per skylt · rek. kundpris {formatSek(list.startSek)}
+            </small>
+          </div>
           <div className={styles.result} data-tone="own">
             <dt>Minsta ordervärde</dt>
             <dd>{formatSek(purchase.minOrderSek)}</dd>

@@ -54,6 +54,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
     mounting: `Fäste: ${OFFERED_MOUNTINGS.find((m) => m.id === mounting)?.name ?? ""}`,
     extraEngraving: "Logga (extra gravyr)",
     customShape: "Egen design",
+    start: `Startkostnad, ${formatSek(model.startSek)} delat på ${reseller.quantity} st`,
   };
 
   return (
@@ -135,7 +136,8 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
       <div className={styles.spec}>
         <h3 className={styles.specTitle}>Specifikation per skylt</h3>
         <p className={styles.muted}>
-          Vad varje part får för skylten, fästet och tillvalen. Provisionen är {percentText(split.provisionPercent)} på alla delar vid {tier}.
+          Vad varje part får för skylten, fästet, tillvalen och skyltens del av startkostnaden. Provisionen är{" "}
+          {percentText(split.provisionPercent)} på alla delar vid {tier}.
         </p>
         <ShareTable
           spec={spec}
@@ -145,6 +147,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
         />
         <p className={styles.footnote}>
           Per skylt visas ören. På ordern avrundas provisionen till hela kronor, och resten går till Skylt &amp; Gravyrteknik.
+          Startkostnaden per skylt avrundas till hela kronor, så summan för ordern kan skilja några kronor från startkostnaden.
         </p>
       </div>
     </>

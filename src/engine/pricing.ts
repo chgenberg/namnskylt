@@ -13,26 +13,28 @@ import type { BadgeDocument, MaterialId, MountingId, SignClass } from "./types";
 
 export const VAT_RATE = 0.25;
 
-export interface PriceOptions {
-  /** Egen form upp till 12 × 12 cm. */
-  customShape: number;
-  /** Extra gravyr eller print — i dag loggan. */
-  extraEngraving: number;
-  pin: number;
-  clip: number;
-  magnet: number;
-}
+/**
+ * Tillbehör och tillval som läggs på skyltpriset:
+ * `customShape` är egen form upp till 12 × 12 cm, `extraEngraving` extra
+ * gravyr eller print (i dag loggan), och resten är fästena.
+ */
+export type PriceOptionId = "customShape" | "extraEngraving" | "pin" | "clip" | "magnet";
+
+/** Pris per skylt för varje tillbehör och tillval, ett tal per trappsteg. */
+export type PriceOptions = Record<PriceOptionId, number[]>;
 
 /**
  * En parts prislista: vad den betalar per skylt på varje trappsteg, för
- * tillvalen och som minst för en order. Innehåller ingenting om de andra
- * parterna, så den kan skickas till den partens webbläsare.
+ * tillvalen, i startkostnad och som minst för en order. Innehåller ingenting
+ * om de andra parterna, så den kan skickas till den partens webbläsare.
  */
 export interface PriceTable {
   /** Trappstegens gränser, stigande: steget gäller när ordern har fler skyltar än så. Första är 0. */
   tiers: number[];
   signs: Record<SignClass, number[]>;
   options: PriceOptions;
+  /** Startkostnaden för en order. Den fördelas på orderns skyltar och ingår i priset per skylt. */
+  startSek: number;
   minOrderSek: number;
 }
 
@@ -47,7 +49,7 @@ export interface PriceItem {
 }
 
 /** Säkerhetsnålen säljs inte längre; en äldre skylt med den prissätts som nål. */
-const MOUNTING_OPTION: Record<MountingId, "pin" | "clip" | "magnet"> = {
+const MOUNTING_OPTION: Record<MountingId, PriceOptionId> = {
   pin: "pin",
   clip: "clip",
   magnet: "magnet",
@@ -77,25 +79,48 @@ export function tierIndexFor(quantity: number, table: PriceTable): number {
   return table.tiers.reduce((index, moreThan, i) => (quantity > moreThan ? i : index), 0);
 }
 
-/** Priset för ett fäste i listan — det som läggs på skyltpriset. */
-export function mountingPriceSek(mounting: MountingId, table: PriceTable): number {
-  return table.options[MOUNTING_OPTION[mounting]];
+/** Priset för ett tillbehör eller tillval på ett trappsteg — det som läggs på skyltpriset. */
+export function optionPriceSek(option: PriceOptionId, table: PriceTable, tierIndex = 0): number {
+  return table.options[option][tierIndex] ?? 0;
 }
 
-function unitPriceSek(item: PriceItem, tierIndex: number, table: PriceTable): number {
+/** Priset för ett fäste på ett trappsteg. */
+export function mountingPriceSek(mounting: MountingId, table: PriceTable, tierIndex = 0): number {
+  return optionPriceSek(MOUNTING_OPTION[mounting], table, tierIndex);
+}
+
+/**
+ * Startkostnaden per skylt: orderns startkostnad delad på antalet skyltar, i
+ * hela kronor. 200 kr på 4 skyltar är 50 kr per skylt. Avrundningen gör att
+ * summan kan skilja några kronor från startkostnaden, och på riktigt stora
+ * ordrar blir den noll.
+ */
+export function startShareSek(quantity: number, table: PriceTable): number {
+  return quantity > 0 ? Math.round(table.startSek / quantity) : 0;
+}
+
+/** Samma lista utan startkostnad — för att visa ett listpris per skylt, oberoende av orderns antal. */
+export function withoutStartCost(table: PriceTable): PriceTable {
+  return { ...table, startSek: 0 };
+}
+
+/** Listpriset för skylten med fäste och tillval, före startkostnaden. */
+function listUnitPriceSek(item: PriceItem, tierIndex: number, table: PriceTable): number {
   return (
     (table.signs[item.signClass][tierIndex] ?? 0) +
-    mountingPriceSek(item.mounting, table) +
-    (item.extraEngraving ? table.options.extraEngraving : 0) +
-    (item.customShape ? table.options.customShape : 0)
+    mountingPriceSek(item.mounting, table, tierIndex) +
+    (item.extraEngraving ? optionPriceSek("extraEngraving", table, tierIndex) : 0) +
+    (item.customShape ? optionPriceSek("customShape", table, tierIndex) : 0)
   );
 }
 
 export interface TablePrice {
-  /** À-pris per rad. */
+  /** À-pris per rad, med startkostnaden per skylt inräknad. */
   unitSek: number[];
   quantity: number;
   tierIndex: number;
+  /** Startkostnaden per skylt som ingår i varje à-pris. */
+  startShareSek: number;
   badgesSek: number;
   /** Påslaget upp till minsta ordervärde; 0 när ordern redan når dit. */
   minimumTopUpSek: number;
@@ -104,22 +129,26 @@ export interface TablePrice {
 
 /**
  * Ordern enligt en prislista. Hela ordern prissätts tillsammans: trappsteget
- * gäller orderns totala antal, så 30 olika namn får samma pris som 30 likadana.
+ * och startkostnaden gäller orderns totala antal, så 30 olika namn får samma
+ * pris som 30 likadana.
  */
 export function priceItems(items: readonly PriceItem[], table: PriceTable): TablePrice {
   const quantity = items.reduce((total, item) => total + quantityOf(item), 0);
   const tierIndex = tierIndexFor(quantity, table);
-  const unitSek = items.map((item) => unitPriceSek(item, tierIndex, table));
+  const startShare = startShareSek(quantity, table);
+  const unitSek = items.map((item) => listUnitPriceSek(item, tierIndex, table) + startShare);
   const badgesSek = items.reduce((total, item, i) => total + (unitSek[i] ?? 0) * quantityOf(item), 0);
   const minimumTopUpSek = quantity > 0 ? Math.max(0, table.minOrderSek - badgesSek) : 0;
-  return { unitSek, quantity, tierIndex, badgesSek, minimumTopUpSek, totalSek: badgesSek + minimumTopUpSek };
+  return { unitSek, quantity, tierIndex, startShareSek: startShare, badgesSek, minimumTopUpSek, totalSek: badgesSek + minimumTopUpSek };
 }
 
 export interface PriceBreakdown {
-  /** Snittpris per skylt, före påslaget upp till minsta ordervärde. */
+  /** Snittpris per skylt med startkostnaden inräknad, före påslaget upp till minsta ordervärde. */
   unitSek: number;
   quantity: number;
   tierIndex: number;
+  /** Startkostnaden per skylt som ingår i priset. */
+  startShareSek: number;
   badgesSek: number;
   /** Påslaget upp till minsta ordervärde; 0 när ordern redan når dit. */
   minimumTopUpSek: number;
@@ -134,6 +163,7 @@ export function priceOrder(docs: readonly BadgeDocument[], list: PriceTable): Pr
     unitSek: price.quantity > 0 ? Math.round(price.badgesSek / price.quantity) : 0,
     quantity: price.quantity,
     tierIndex: price.tierIndex,
+    startShareSek: price.startShareSek,
     badgesSek: price.badgesSek,
     minimumTopUpSek: price.minimumTopUpSek,
     totalSek: price.totalSek,
@@ -141,7 +171,7 @@ export function priceOrder(docs: readonly BadgeDocument[], list: PriceTable): Pr
   };
 }
 
-/** Kundens à-pris per skylt i ordern. */
+/** Kundens à-pris per skylt i ordern, med startkostnaden per skylt inräknad. */
 export function lineUnitPrices(docs: readonly BadgeDocument[], list: PriceTable): number[] {
   return priceItems(docs.map(priceItemOf), list).unitSek;
 }
@@ -155,9 +185,13 @@ export function resellerOrder(docs: readonly BadgeDocument[], purchaseList: Pric
   return priceItems(docs.map(priceItemOf), purchaseList);
 }
 
-/** Lägsta pris för en skylt i materialet på ett trappsteg: skylten med det billigaste fästet som säljs. */
+/**
+ * Lägsta listpris för en skylt i materialet på ett trappsteg: skylten med det
+ * billigaste fästet som säljs. Startkostnaden är inte med, eftersom den beror
+ * på orderns antal.
+ */
 export function fromPriceSek(materialId: MaterialId, list: PriceTable, tierIndex = 0): number {
-  const cheapestMounting = Math.min(...MOUNTINGS.filter((m) => m.offered).map((m) => mountingPriceSek(m.id, list)));
+  const cheapestMounting = Math.min(...MOUNTINGS.filter((m) => m.offered).map((m) => mountingPriceSek(m.id, list, tierIndex)));
   return (list.signs[signClassOf(materialId)][tierIndex] ?? 0) + cheapestMounting;
 }
 

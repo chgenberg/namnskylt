@@ -176,6 +176,11 @@ export function BusinessPage({ priceList }: BusinessPageProps) {
           <div>
             <h3 className={styles.volumeTitle}>{VOLUME.title}</h3>
             <p className={styles.volumeBody}>{VOLUME.body}</p>
+            {priceList.startSek > 0 && (
+              <p className={styles.volumeBody}>
+                Till det kommer en startkostnad på {priceList.startSek} kr per beställning, som delas på antalet skyltar.
+              </p>
+            )}
           </div>
           <dl className={styles.volumeTable}>
             {volumeRows(priceList).map((row, i) => (

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
-import { itemBreakdown, partShare, provisionSplit, resellerPriceTable, endPriceTable } from "./price-model";
+import { itemBreakdown, partShare, provisionSplit, resellerPriceTable, endPriceTable, type PriceModel } from "./price-model";
 import { priceItems, type PriceItem } from "./pricing";
 
-const M = DEFAULT_PRICE_MODEL;
+/** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
+const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0 };
 
 const item = (patch: Partial<PriceItem> = {}): PriceItem => ({
   signClass: "premium",
@@ -89,5 +90,38 @@ describe("specifikationen per skylt", () => {
     const split = provisionSplit(M, 299, 1);
     assert.equal(Math.round(spec.perSign.provisionSek + spec.minimum.provisionSek), split.provisionSek);
     assert.equal(Math.round(spec.perSign.supplierSek + spec.minimum.supplierSek), split.supplierSek);
+  });
+});
+
+describe("startkostnaden i specifikationen", () => {
+  const D = DEFAULT_PRICE_MODEL;
+
+  it("är en egen rad per skylt: 200 kr på 4 skyltar ger 50 kr, varav 7,50 kr i provision", () => {
+    const spec = itemBreakdown(D, item({ quantity: 4 }));
+    assert.deepEqual(
+      spec.parts.map(({ part }) => part),
+      ["sign", "mounting", "start"],
+    );
+    assert.deepEqual(spec.parts.at(-1)?.share, { resellerSek: 50, provisionSek: 7.5, supplierSek: 42.5, endSek: 83 });
+    assert.deepEqual(spec.perSign, { resellerSek: 128, provisionSek: 19.2, supplierSek: 108.8, endSek: 213 });
+    assert.equal(spec.minimum.resellerSek, 0);
+  });
+
+  it("stämmer med orderns pris hos båda parter, även när delen avrundas", () => {
+    for (const quantity of [1, 3, 7, 25, 150, 600]) {
+      const spec = itemBreakdown(D, item({ quantity, extraEngraving: true }));
+      const reseller = priceItems([item({ quantity, extraEngraving: true })], resellerPriceTable(D));
+      const end = priceItems([item({ quantity, extraEngraving: true })], endPriceTable(D));
+      assert.equal(spec.perSign.resellerSek, reseller.unitSek[0], `inköp, ${quantity} st`);
+      assert.equal(spec.perSign.endSek, end.unitSek[0], `kund, ${quantity} st`);
+      assert.equal(spec.minimum.resellerSek, reseller.minimumTopUpSek, `minidebitering, ${quantity} st`);
+      assert.equal(spec.minimum.endSek, end.minimumTopUpSek, `minsta order, ${quantity} st`);
+    }
+  });
+
+  it("raden står kvar med 0 kr på en stor order, och saknas när modellen inte har någon startkostnad", () => {
+    const large = itemBreakdown(D, item({ quantity: 600 }));
+    assert.deepEqual(large.parts.at(-1), { part: "start", share: { resellerSek: 0, provisionSek: 0, supplierSek: 0, endSek: 1 } });
+    assert.ok(!itemBreakdown(M, item({ quantity: 4 })).parts.some(({ part }) => part === "start"));
   });
 });

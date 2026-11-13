@@ -1,8 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { tierRangeLabel, type PriceOptions, type SignClass } from "@/engine";
-import { MAX_MARGIN_PERCENT, MAX_PRICE_SEK, priceModelSchema, resellerPriceTable, type PriceModel } from "@/engine/price-model";
+import { tierRangeLabel, type PriceOptionId, type SignClass } from "@/engine";
+import {
+  MAX_MARGIN_PERCENT,
+  MAX_PRICE_SEK,
+  endPriceSek,
+  priceModelSchema,
+  resellerPriceTable,
+  type PriceModel,
+} from "@/engine/price-model";
+import { formatSek } from "@/lib/format";
 import { savePriceModelAction } from "../actions";
 import { NumberField } from "./number-field";
 import { PriceCalculator } from "./price-calculator";
@@ -14,7 +22,7 @@ const SIGN_ROWS: readonly { id: SignClass; name: string; note: string }[] = [
   { id: "standard", name: "Standard", note: "Plastskyltarna" },
 ];
 
-const OPTION_ROWS: readonly { id: keyof PriceOptions; name: string; note: string }[] = [
+const OPTION_ROWS: readonly { id: PriceOptionId; name: string; note: string }[] = [
   { id: "pin", name: "Nål", note: "Fäste" },
   { id: "clip", name: "Militärklämma", note: "Fäste, heter Klämma på sajten" },
   { id: "magnet", name: "Magnet", note: "Fäste" },
@@ -31,10 +39,11 @@ interface PriceModelEditorProps {
 }
 
 /**
- * Prismodellen som i kalkylbladet: trappsteg och provision, återförsäljarens
- * priser på skyltar, fästen och tillval, och under varje pris vad som går till
- * verkstaden, vad som blir provision och vad slutkunden betalar. Kalkylen
- * längst ned räknar på utkastet direkt; först när det sparas gäller siffrorna.
+ * Prismodellen som i kalkylbladet: trappsteg, provision och startkostnad,
+ * återförsäljarens priser på skyltar, fästen och tillval, och under varje pris
+ * vad som går till verkstaden, vad som blir provision och vad slutkunden
+ * betalar. Kalkylen längst ned räknar på utkastet direkt; först när det sparas
+ * gäller siffrorna.
  */
 export function PriceModelEditor({ model }: PriceModelEditorProps) {
   const [saved, setSaved] = useState(model);
@@ -76,14 +85,29 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
   return (
     <div className={styles.layout}>
       <section className={styles.card} aria-labelledby="price-model-tiers">
-        <div className={styles.cardHead}>
-          <h2 id="price-model-tiers" className={styles.cardTitle}>
-            Trappsteg och provision
-          </h2>
-          <p className={styles.muted}>
-            Priset följer orderns totala antal. Provisionen är er andel av allt återförsäljaren betalar: skyltar, fästen och
-            tillval. Resten går till Skylt &amp; Gravyrteknik.
-          </p>
+        <div className={styles.cardTop}>
+          <div className={styles.cardHead}>
+            <h2 id="price-model-tiers" className={styles.cardTitle}>
+              Trappsteg och provision
+            </h2>
+            <p className={styles.muted}>
+              Priset följer orderns totala antal. Provisionen är er andel av allt återförsäljaren betalar: skyltar, fästen,
+              tillval och startkostnad. Resten går till Skylt &amp; Gravyrteknik.
+            </p>
+          </div>
+          <div className={`${styles.orderField} ${styles.startField}`}>
+            <span className={styles.controlLabel}>Startkostnad</span>
+            <NumberField
+              label="Startkostnad per order, det återförsäljaren betalar"
+              value={draft.startSek}
+              unit="kr"
+              max={MAX_PRICE_SEK}
+              onChange={(startSek) => setDraft({ ...draft, startSek })}
+            />
+            <small>
+              Per order, delas på antalet skyltar. Slutkund {formatSek(endPriceSek(draft.startSek, draft))}.
+            </small>
+          </div>
         </div>
         <div className={styles.scroll}>
           <div className={styles.table}>
@@ -145,7 +169,6 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
                 name={row.name}
                 note={row.note}
                 prices={draft.signs[row.id]}
-                perTier
                 model={draft}
                 tierLabels={tierLabels}
                 onChange={(i, value) => setDraft({ ...draft, signs: { ...draft.signs, [row.id]: replaceAt(draft.signs[row.id], i, value) } })}
@@ -160,10 +183,7 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
           <h2 id="price-model-options" className={styles.cardTitle}>
             Tillbehör och tillval
           </h2>
-          <p className={styles.muted}>
-            Återförsäljarens pris per skylt, samma på alla trappsteg. Provisionen följer trappsteget, så fördelningen skiljer sig
-            mellan kolumnerna.
-          </p>
+          <p className={styles.muted}>Det återförsäljaren betalar per skylt på varje trappsteg, och hur beloppet fördelas.</p>
         </div>
         <div className={styles.scroll}>
           <div className={styles.table}>
@@ -173,11 +193,12 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
                 key={row.id}
                 name={row.name}
                 note={row.note}
-                prices={draft.tiers.map(() => draft.options[row.id])}
-                perTier={false}
+                prices={draft.options[row.id]}
                 model={draft}
                 tierLabels={tierLabels}
-                onChange={(_, value) => setDraft({ ...draft, options: { ...draft.options, [row.id]: value } })}
+                onChange={(i, value) =>
+                  setDraft({ ...draft, options: { ...draft.options, [row.id]: replaceAt(draft.options[row.id], i, value) } })
+                }
               />
             ))}
           </div>

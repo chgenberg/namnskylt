@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { usePriceList } from "@/components/price-list-provider";
-import { getMaterial, isPartnerMade, priceBadge } from "@/engine";
+import { getMaterial, isPartnerMade, priceBadge, withoutStartCost } from "@/engine";
 import { encodeShareCode } from "@/lib/share/share-link";
 import { INSPIRATION, type InspirationEntry } from "@/lib/inspiration/catalog";
 import styles from "./inspiration.module.css";
@@ -41,7 +41,8 @@ function Dialog({ entry, onClose }: { entry: InspirationEntry; onClose: () => vo
   const router = useRouter();
   const [opening, setOpening] = useState(false);
   const material = getMaterial(entry.doc.materialId);
-  const price = priceBadge(entry.doc, usePriceList());
+  // "Från"-priset är listpriset per skylt; startkostnaden beror på hur många kunden beställer.
+  const price = priceBadge(entry.doc, withoutStartCost(usePriceList()));
 
   useEffect(() => {
     const dialog = ref.current;

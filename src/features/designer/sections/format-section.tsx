@@ -17,15 +17,17 @@ const FIRST_PRESET_ID = SHAPE_PRESETS[0]?.id ?? "shield";
 interface FormatSectionProps {
   doc: BadgeDocument;
   dispatch: Dispatch<DesignerAction>;
+  /** Trappsteget för orderns antal — tillvalets pris kan skilja mellan trappstegen. */
+  tierIndex: number;
 }
 
 /**
  * Ämnena har fast form och fast mått — kunden väljer ett av dem. Ett material
  * som skärs ur ark kan dessutom få en egen form, som ritas här under.
  */
-export function FormatSection({ doc, dispatch }: FormatSectionProps) {
+export function FormatSection({ doc, dispatch, tierIndex }: FormatSectionProps) {
   const { widthMm, heightMm } = doc.size;
-  const { customShapePrice } = useShopPrices();
+  const { customShapePrice } = useShopPrices(tierIndex);
   const custom = doc.shape === "custom";
 
   return (

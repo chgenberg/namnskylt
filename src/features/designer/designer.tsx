@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useCallback, useMemo, useReducer, useRef, useState } from "react";
 import { withPlaceholders } from "@/components/badge-preview";
+import { usePriceList } from "@/components/price-list-provider";
 import { ProgressBanner } from "@/components/ui/progress-banner";
 import { Segmented } from "@/components/ui/segmented";
 import {
@@ -17,6 +18,7 @@ import {
   removeBatchEntry,
   replaceBatchEntry,
   parseSmartInput,
+  tierIndexFor,
   toOfferedDocument,
   withTexts,
   type BadgeDocument,
@@ -133,6 +135,12 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
     [batchEntries, doc],
   );
   const orderBadges = useMemo(() => [doc, ...batch], [doc, batch]);
+  const priceList = usePriceList();
+  /** Trappsteget för hela ordern: fästen och tillval kan kosta olika på olika trappsteg. */
+  const tierIndex = tierIndexFor(
+    orderBadges.reduce((total, badge) => total + Math.max(1, Math.floor(badge.quantity)), 0),
+    priceList,
+  );
 
 
   const togglePhoto = () => {
@@ -328,6 +336,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
               <span>Vi graverar resten.</span>
             </h2>
             <SmartInput
+              baseDoc={doc}
               onSubmit={(rows) => {
                 update({ type: "texts", texts: rows });
                 setStarting(false);
@@ -463,8 +472,8 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
           />
           <LogoSection doc={doc} dispatch={update} onWorkplace={visualize.setWorkplace} />
           <MaterialSection doc={doc} dispatch={update} />
-          <FormatSection doc={doc} dispatch={update} />
-          <MountingSection doc={doc} dispatch={update} />
+          <FormatSection doc={doc} dispatch={update} tierIndex={tierIndex} />
+          <MountingSection doc={doc} dispatch={update} tierIndex={tierIndex} />
           <BatchSection
             current={doc}
             badges={batch}

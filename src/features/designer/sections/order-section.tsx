@@ -178,6 +178,9 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
             </motion.p>
           </AnimatePresence>
           <p className={styles.priceNote}>exkl. moms · {priceNote}</p>
+          {price.startShareSek > 0 && (
+            <p className={styles.priceNote}>Startkostnaden ingår i priset och delas på antalet skyltar.</p>
+          )}
         </div>
         {!reseller && (order.status === "idle" || order.status === "error") ? (
           <button

@@ -1,5 +1,14 @@
 import { z } from "zod";
-import { mountingPriceSek, tierIndexFor, type PriceItem, type PriceOptions, type PriceTable } from "./pricing";
+import {
+  mountingPriceSek,
+  optionPriceSek,
+  startShareSek,
+  tierIndexFor,
+  type PriceItem,
+  type PriceOptionId,
+  type PriceOptions,
+  type PriceTable,
+} from "./pricing";
 import type { SignClass } from "./types";
 
 /**
@@ -35,8 +44,13 @@ export interface PriceModel {
   tiers: PriceTier[];
   /** Återförsäljarens pris per skylt, ett tal per trappsteg. */
   signs: Record<SignClass, number[]>;
-  /** Tillval per skylt, återförsäljarens pris. */
+  /** Tillbehör och tillval per skylt, återförsäljarens pris, ett tal per trappsteg. */
   options: PriceOptions;
+  /**
+   * Startkostnaden för en order, det återförsäljaren betalar. Den fördelas på
+   * orderns skyltar: 200 kr på 4 skyltar lägger 50 kr på varje skylt.
+   */
+  startSek: number;
   /** Minsta belopp återförsäljaren betalar för en order. */
   minOrderSek: number;
   /** Slutkundens pris = återförsäljarens pris / (1 − marginalen). */
@@ -60,12 +74,13 @@ export const priceModelSchema = z
       .length(PRICE_TIER_COUNT),
     signs: z.object({ premium: tierPricesSchema, standard: tierPricesSchema }),
     options: z.object({
-      customShape: sekSchema,
-      extraEngraving: sekSchema,
-      pin: sekSchema,
-      clip: sekSchema,
-      magnet: sekSchema,
+      customShape: tierPricesSchema,
+      extraEngraving: tierPricesSchema,
+      pin: tierPricesSchema,
+      clip: tierPricesSchema,
+      magnet: tierPricesSchema,
     }),
+    startSek: sekSchema,
     minOrderSek: sekSchema,
     endMarginPercent: percentSchema,
     endMinOrderSek: sekSchema,
@@ -82,9 +97,42 @@ export const priceModelSchema = z
     });
   }) satisfies z.ZodType<PriceModel>;
 
+const OPTION_IDS = ["customShape", "extraEngraving", "pin", "clip", "magnet"] as const satisfies readonly PriceOptionId[];
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * En modell sparad före 2026-11-13 har ett enda pris per tillval och ingen
+ * startkostnad. Den läses som samma pris på alla trappsteg och startkostnad 0,
+ * så att ordrar och offerter från den tiden behåller exakt sina priser.
+ */
+function upgradeStoredModel(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  const options = isRecord(value.options)
+    ? Object.fromEntries(
+        Object.entries(value.options).map(([id, price]) => [id, typeof price === "number" ? Array(PRICE_TIER_COUNT).fill(price) : price]),
+      )
+    : value.options;
+  return { ...value, options, startSek: value.startSek ?? 0 };
+}
+
+/** Läser en sparad modell, även en i det äldre formatet. `null` när värdet inte är en prismodell. */
+export function parseStoredPriceModel(value: unknown): PriceModel | null {
+  const parsed = priceModelSchema.safeParse(upgradeStoredModel(value));
+  return parsed.success ? parsed.data : null;
+}
+
 /** Slutkundens pris för ett belopp hos återförsäljaren. */
 export function endPriceSek(resellerSek: number, model: PriceModel): number {
   return Math.round(resellerSek / (1 - model.endMarginPercent / 100));
+}
+
+function mapOptions(options: PriceOptions, price: (sek: number) => number): PriceOptions {
+  const mapped = {} as PriceOptions;
+  for (const id of OPTION_IDS) mapped[id] = options[id].map(price);
+  return mapped;
 }
 
 /** Det återförsäljaren betalar. */
@@ -92,27 +140,24 @@ export function resellerPriceTable(model: PriceModel): PriceTable {
   return {
     tiers: model.tiers.map((tier) => tier.moreThan),
     signs: { premium: [...model.signs.premium], standard: [...model.signs.standard] },
-    options: { ...model.options },
+    options: mapOptions(model.options, (sek) => sek),
+    startSek: model.startSek,
     minOrderSek: model.minOrderSek,
   };
 }
 
 /**
  * Det slutkunden betalar. Varje belopp avrundas för sig, så att skylt, fäste
- * och logga i gränssnittet summerar till exakt det kunden betalar.
+ * och logga i gränssnittet summerar till exakt det kunden betalar. Marginalen
+ * gäller startkostnaden på samma sätt som priserna per skylt.
  */
 export function endPriceTable(model: PriceModel): PriceTable {
   const end = (sek: number) => endPriceSek(sek, model);
   return {
     tiers: model.tiers.map((tier) => tier.moreThan),
     signs: { premium: model.signs.premium.map(end), standard: model.signs.standard.map(end) },
-    options: {
-      customShape: end(model.options.customShape),
-      extraEngraving: end(model.options.extraEngraving),
-      pin: end(model.options.pin),
-      clip: end(model.options.clip),
-      magnet: end(model.options.magnet),
-    },
+    options: mapOptions(model.options, end),
+    startSek: end(model.startSek),
     minOrderSek: model.endMinOrderSek,
   };
 }
@@ -133,8 +178,8 @@ export function provisionSplit(model: PriceModel, resellerTotalSek: number, quan
   return { provisionPercent, provisionSek, supplierSek: resellerTotalSek - provisionSek };
 }
 
-/** En del av skyltens pris: själva skylten, fästet eller ett tillval. */
-export type PricePart = "sign" | "mounting" | "extraEngraving" | "customShape";
+/** En del av skyltens pris: själva skylten, fästet, ett tillval eller skyltens del av startkostnaden. */
+export type PricePart = "sign" | "mounting" | "extraEngraving" | "customShape" | "start";
 
 /**
  * Hur ett belopp fördelas mellan parterna. Provisionen och verkstadens del har
@@ -158,7 +203,7 @@ function shareOf(resellerSek: number, endSek: number, provisionPercent: number):
   return { resellerSek, provisionSek, supplierSek: toOre(resellerSek - provisionSek), endSek };
 }
 
-/** Fördelningen av ett pris hos återförsäljaren på ett trappsteg — provisionen gäller skyltar, fästen och tillval lika. */
+/** Fördelningen av ett pris hos återförsäljaren på ett trappsteg — provisionen gäller skyltar, fästen, tillval och startkostnad lika. */
 export function partShare(model: PriceModel, resellerSek: number, tierIndex: number): PartShare {
   return shareOf(resellerSek, endPriceSek(resellerSek, model), model.tiers[tierIndex]?.provisionPercent ?? 0);
 }
@@ -182,11 +227,16 @@ export function itemBreakdown(model: PriceModel, item: PriceItem): ItemBreakdown
   const provisionPercent = model.tiers[tierIndex]?.provisionPercent ?? 0;
   const prices: [PricePart, number, boolean][] = [
     ["sign", purchase.signs[item.signClass][tierIndex] ?? 0, true],
-    ["mounting", mountingPriceSek(item.mounting, purchase), true],
-    ["extraEngraving", purchase.options.extraEngraving, item.extraEngraving],
-    ["customShape", purchase.options.customShape, item.customShape],
+    ["mounting", mountingPriceSek(item.mounting, purchase, tierIndex), true],
+    ["extraEngraving", optionPriceSek("extraEngraving", purchase, tierIndex), item.extraEngraving],
+    ["customShape", optionPriceSek("customShape", purchase, tierIndex), item.customShape],
   ];
   const parts = prices.filter(([, , included]) => included).map(([part, sek]) => ({ part, share: partShare(model, sek, tierIndex) }));
+  // Slutkundens del räknas ur slutkundens startkostnad, precis som i prislistan, inte ur återförsäljarens del.
+  if (model.startSek > 0) {
+    const share = shareOf(startShareSek(quantity, purchase), startShareSek(quantity, endPriceTable(model)), provisionPercent);
+    parts.push({ part: "start", share });
+  }
   const sum = (pick: (share: PartShare) => number) => toOre(parts.reduce((total, { share }) => total + pick(share), 0));
   const perSign: PartShare = {
     resellerSek: sum((s) => s.resellerSek),

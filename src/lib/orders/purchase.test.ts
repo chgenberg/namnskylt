@@ -5,8 +5,10 @@ import { endPriceTable, resellerPriceTable } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { marginOf } from "./purchase";
 
-const LIST = endPriceTable(DEFAULT_PRICE_MODEL);
-const PURCHASE = resellerPriceTable(DEFAULT_PRICE_MODEL);
+/** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
+const M = { ...DEFAULT_PRICE_MODEL, startSek: 0 };
+const LIST = endPriceTable(M);
+const PURCHASE = resellerPriceTable(M);
 
 describe("marginal", () => {
   it("är andel av försäljningspriset", () => {
@@ -19,7 +21,7 @@ describe("marginal", () => {
     const badges = [{ ...createBadgeDocument(["Anna Lind"]), quantity: 25 }];
     const sale = priceOrder(badges, LIST).totalSek;
     const purchase = resellerOrder(badges, PURCHASE).totalSek;
-    assert.equal(marginOf(sale, purchase).percent, DEFAULT_PRICE_MODEL.endMarginPercent);
+    assert.equal(marginOf(sale, purchase).percent, M.endMarginPercent);
   });
 
   it("på en ensam skylt äter minidebiteringen upp marginalen", () => {
@@ -27,5 +29,14 @@ describe("marginal", () => {
     const sale = priceOrder(badges, LIST).totalSek;
     const purchase = resellerOrder(badges, PURCHASE).totalSek;
     assert.deepEqual(marginOf(sale, purchase), { sek: 0, percent: 0 });
+  });
+
+  it("med startkostnad får återförsäljaren marginal även på den: 4 skyltar ger 852 kr mot 512 kr i inköp", () => {
+    const badges = [{ ...createBadgeDocument(["Anna Lind"]), quantity: 4 }];
+    const sale = priceOrder(badges, endPriceTable(DEFAULT_PRICE_MODEL)).totalSek;
+    const purchase = resellerOrder(badges, resellerPriceTable(DEFAULT_PRICE_MODEL)).totalSek;
+    assert.equal(sale, 4 * (130 + 83));
+    assert.equal(purchase, 4 * (78 + 50));
+    assert.deepEqual(marginOf(sale, purchase), { sek: 340, percent: 40 });
   });
 });

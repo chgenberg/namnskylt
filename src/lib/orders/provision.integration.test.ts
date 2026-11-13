@@ -12,6 +12,9 @@ import { listResellerOrders } from "./provision-store";
 const url = process.env.DATABASE_URL;
 const ROLLBACK = new Error("rulla tillbaka");
 
+/** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
+const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0 };
+
 describe("återförsäljarnas ordrar i databasen", { skip: !url }, () => {
   let sql: Sql;
   const run = randomUUID().slice(0, 8);
@@ -19,7 +22,7 @@ describe("återförsäljarnas ordrar i databasen", { skip: !url }, () => {
   /** Tio metallskyltar med nål: 780 kr för återförsäljaren på första trappsteget. */
   const badges = [{ ...createBadgeDocument(["Anna Lind"]), quantity: 10 }];
   /** Modellen ordern sparades med: 25 % provision i stället för dagens 15. */
-  const older: PriceModel = { ...DEFAULT_PRICE_MODEL, tiers: DEFAULT_PRICE_MODEL.tiers.map((tier) => ({ ...tier, provisionPercent: 25 })) };
+  const older: PriceModel = { ...M, tiers: M.tiers.map((tier) => ({ ...tier, provisionPercent: 25 })) };
 
   before(() => {
     sql = postgres(url ?? "", { max: 2, onnotice: () => undefined });
@@ -36,7 +39,7 @@ describe("återförsäljarnas ordrar i databasen", { skip: !url }, () => {
     const [order] = await tx<{ order_no: string }[]>`
       insert into orders (customer_id, status, badges, price_model, total_sek, total_incl_vat_sek, source, placed_at, is_demo, reseller_id)
       values (${customer?.id ?? ""}, ${input.status ?? "received"}, ${tx.json(JSON.parse(JSON.stringify(badges)))},
-              ${input.model === null ? null : tx.json(JSON.parse(JSON.stringify(input.model ?? DEFAULT_PRICE_MODEL)))},
+              ${input.model === null ? null : tx.json(JSON.parse(JSON.stringify(input.model ?? M)))},
               1300, 1625, 'reseller', now(), ${input.demo ?? false}, ${input.tenant})
       returning order_no`;
     return order?.order_no ?? "";
@@ -51,7 +54,7 @@ describe("återförsäljarnas ordrar i databasen", { skip: !url }, () => {
         const cancelled = await insertOrder(tx, { tenant: reseller, status: "cancelled" });
         const owners = await insertOrder(tx, { tenant: OWNER_TENANT });
 
-        const all = await listResellerOrders(tx, DEFAULT_PRICE_MODEL);
+        const all = await listResellerOrders(tx, M);
         const numbers = all.map((row) => row.orderNo);
         assert.ok(numbers.includes(kept) && numbers.includes(withoutModel));
         for (const excluded of [demo, cancelled, owners]) assert.ok(!numbers.includes(excluded), excluded);

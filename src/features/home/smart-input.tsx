@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent } from "react";
 import { BadgePreview } from "@/components/badge-preview";
-import { createBadgeDocument, parseSmartInput } from "@/engine";
+import { createBadgeDocument, parseSmartInput, withTexts, type BadgeDocument } from "@/engine";
 import styles from "./smart-input.module.css";
 
 export const EXAMPLES = [
@@ -53,9 +53,14 @@ interface SmartInputProps {
   target?: string;
   /** I stället för att byta sida — rutan sitter redan i skyltmotorn. */
   onSubmit?: (rows: string[]) => void;
+  /**
+   * Skylten som redan är vald i skyltmotorn. Förhandsvisningen ritar texten på
+   * den, så att logga, material, form och fäste som valts i panelen följer med.
+   */
+  baseDoc?: BadgeDocument;
 }
 
-export function SmartInput({ target = "/skapa", onSubmit }: SmartInputProps) {
+export function SmartInput({ target = "/skapa", onSubmit, baseDoc }: SmartInputProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
@@ -64,7 +69,9 @@ export function SmartInput({ target = "/skapa", onSubmit }: SmartInputProps) {
   const [shake, setShake] = useState(0);
 
   const rows = useMemo(() => parseSmartInput(value), [value]);
-  const doc = useMemo(() => createBadgeDocument(rows), [rows]);
+  const doc = useMemo(() => (baseDoc ? withTexts(baseDoc, rows) : createBadgeDocument(rows)), [rows, baseDoc]);
+  /** En logga som valts i panelen ska synas direkt, även innan namnet är skrivet. */
+  const showBadge = rows.length > 0 || Boolean(baseDoc?.logo);
   const placeholder = useTypewriter(value.length === 0);
 
   const pointerX = useMotionValue(0);
@@ -196,7 +203,7 @@ export function SmartInput({ target = "/skapa", onSubmit }: SmartInputProps) {
 
       <div className={styles.stage} aria-live="polite">
         <AnimatePresence>
-          {rows.length > 0 && (
+          {showBadge && (
             <motion.div
               className={styles.badge}
               style={{ rotateX, rotateY }}

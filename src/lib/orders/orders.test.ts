@@ -12,7 +12,9 @@ import { repeatBadges, staffBadges } from "./repeat";
 import { orderStats } from "./stats";
 
 /** Kundens prislista enligt kalkylen. */
-const LIST = endPriceTable(DEFAULT_PRICE_MODEL);
+/** Kalkylens siffror utan startkostnad: den har egna tester i motorn. */
+const MODEL = { ...DEFAULT_PRICE_MODEL, startSek: 0 };
+const LIST = endPriceTable(MODEL);
 
 const plastic: BadgeDocument = { ...createBadgeDocument(["Anna Lind", "Säljare"]), materialId: "plastic-2-layer", colorId: "white-black" };
 
@@ -180,7 +182,7 @@ describe("egna priser", () => {
   });
 
   it("räknar med modellen ordern sparades med, inte dagens", () => {
-    const cheaper = endPriceTable({ ...DEFAULT_PRICE_MODEL, endMarginPercent: 0, endMinOrderSek: 0 });
+    const cheaper = endPriceTable({ ...MODEL, endMarginPercent: 0, endMinOrderSek: 0 });
     const then = priceWithPricing(badges, null, cheaper).totalSek;
     const now = priceWithPricing(badges, null, LIST).totalSek;
     assert.ok(then < now);

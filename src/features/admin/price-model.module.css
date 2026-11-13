@@ -34,6 +34,23 @@
   font-weight: 600;
 }
 
+/* Rubriken till vänster och ett eget fält till höger, i linje med sista kolumnen. */
+.cardTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-6);
+}
+
+.cardTop .cardHead {
+  flex: 1 1 320px;
+}
+
+.startField {
+  flex: 0 0 220px;
+}
+
 .muted {
   max-width: 72ch;
   margin: 0;
@@ -111,7 +128,7 @@
   color: var(--color-navy-3);
 }
 
-/* Samma pris som i fältet till vänster — visas, men går inte att ändra här. */
+/* Ett fast värde i tabellen, som att första trappsteget börjar på 0 — visas, men går inte att ändra. */
 .same {
   color: var(--color-subtle);
 }
@@ -119,6 +136,8 @@
 /* ───────── Fält ───────── */
 
 .field {
+  /* Håller den dolda etiketten inom fältet, så att den följer med när tabellen rullas i sidled. */
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -460,5 +479,9 @@
   .control,
   .narrow {
     width: 100%;
+  }
+
+  .startField {
+    flex-basis: 100%;
   }
 }

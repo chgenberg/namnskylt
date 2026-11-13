@@ -23,10 +23,12 @@ const MOUNTING_ICON: Record<MountingId, React.ReactNode> = {
 interface MountingSectionProps {
   doc: BadgeDocument;
   dispatch: Dispatch<DesignerAction>;
+  /** Trappsteget för orderns antal — fästets pris kan skilja mellan trappstegen. */
+  tierIndex: number;
 }
 
-export function MountingSection({ doc, dispatch }: MountingSectionProps) {
-  const { mountingPrice } = useShopPrices();
+export function MountingSection({ doc, dispatch, tierIndex }: MountingSectionProps) {
+  const { mountingPrice } = useShopPrices(tierIndex);
   return (
     <PanelSection step={5} title="Fäste" aside={getMounting(doc.mounting).description}>
       <div className={styles.mountingGrid} role="radiogroup" aria-label="Fäste">

@@ -379,6 +379,16 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       alter table quotes add column price_model jsonb;
     `,
   },
+  {
+    // Startkostnaden börjar på 200 kr i den sparade prismodellen. Modeller på ordrar och
+    // offerter rörs inte: de saknar fältet och läses som 0, så deras priser står kvar.
+    id: "017_price_model_start_cost",
+    sql: `
+      update settings
+         set value = jsonb_set(value, '{startSek}', '200'::jsonb), updated_at = now()
+       where key = 'price_model' and not (value ? 'startSek');
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

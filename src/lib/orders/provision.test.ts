@@ -5,7 +5,8 @@ import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import type { PriceModel } from "@/engine/price-model";
 import { orderShare, sumShares, totalsByReseller, type ResellerOrderRow } from "./provision";
 
-const M = DEFAULT_PRICE_MODEL;
+/** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
+const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0 };
 /** Metallskylt (Premium) med nål: 73 + 5 kr på första trappsteget. */
 const badges = (quantity: number): BadgeDocument[] => [{ ...createBadgeDocument(["Anna Lind"]), quantity }];
 

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { usePriceList } from "@/components/price-list-provider";
-import { createBadgeDocument, lineUnitPrices, OFFERED_MATERIALS, type MaterialId } from "@/engine";
+import { createBadgeDocument, lineUnitPrices, OFFERED_MATERIALS, withoutStartCost, type MaterialId } from "@/engine";
 import { formatSek } from "@/lib/format";
 import { MAX_PRICE_PERCENT, MIN_PRICE_PERCENT, shopUnitPrices, type ShopPriceList } from "@/lib/shops/price-list";
 import {
@@ -154,7 +154,8 @@ export function ShopPriceForm({ slug, priceList }: { slug: string; priceList: Sh
   const [perMaterial, setPerMaterial] = useState<Partial<Record<MaterialId, string>>>(() =>
     Object.fromEntries(Object.entries(priceList?.perMaterial ?? {}).map(([id, pct]) => [id, String(pct)])),
   );
-  const listPrices = usePriceList();
+  // Exemplen visar listpriset per skylt; startkostnaden beror på hur många kunden beställer.
+  const listPrices = withoutStartCost(usePriceList());
   const save = useSave("Priserna är sparade — butiken visar dem direkt");
   const draft: ShopPriceList = {
     percent: parsePercent(general) ?? 0,

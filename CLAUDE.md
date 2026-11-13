@@ -46,7 +46,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (617 tester, grönt 2026-11-13).
+# Kvalitetsgrinden. Kör den innan något lämnas (635 tester, grönt 2026-11-13).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -60,6 +60,9 @@ pnpm shops:build <sajter.json> <resultat.json> [parallellt]
 pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
 ```
 
+- **Drift:** Railway (projektet `namnskylt`, tjänsten `namnskylt`) bygger och deployar `main`
+  automatiskt vid push. `railway deployment list --service namnskylt` visar läget. Sajten svarar
+  på `www.namnskylt.com` (`namnskylt.com` omdirigerar dit) och är låst med sajtlösenordet.
 - Skript körs med `tsx --conditions=react-server --env-file-if-exists=.env.local` (redan
   inbakat i `package.json`), så att `server-only`-moduler går att importera.
 - `pnpm test` hittar bara tester i `src/engine/*.test.ts` och `src/lib/<domän>/*.test.ts`. Den kör
@@ -147,13 +150,23 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   tabeller: trappsteg och provision, skyltar, tillbehör och tillval. Under varje pris står
   Skylt & Gravyrs netto, provisionen och slutkundens pris per trappsteg. "Vid order" är en
   kalkyl med summor och en specifikation per skylt. Mats på Skylt & Gravyrteknik använder sidan.
-- **"Startkostnad"** i ägarens tal är minidebiteringen (påslaget upp till minsta ordervärde),
-  inte en egen avgift.
+- **Startkostnaden** (`startSek`, 200 kr i kalkylen, ändras uppe till höger i kortet "Trappsteg
+  och provision") är en egen avgift per order, skild från minidebiteringen. Den **fördelas på
+  orderns skyltar** och ingår i priset per skylt: 200 kr på 4 skyltar lägger 50 kr på varje
+  (`startShareSek` i `pricing.ts`). Den följer samma kedja som övriga priser: slutkunden betalar
+  den med marginalen (333 kr) och provisionen gäller den. Delen per skylt avrundas till hela
+  kronor, så orderns summa kan skilja några kronor från startkostnaden, och över 400 skyltar blir
+  den 0 kr för återförsäljaren. "Från"-priser och exempelpriser visas utan startkostnad
+  (`fromPriceSek`, `withoutStartCost`), eftersom den beror på antalet.
 - **Trappsteg** på orderns totala antal: 1–100, 101–300, 301–500 och 501 eller fler.
 - **Per skylt:** skylttypens pris (Premium = metall, Standard = plast, `priceClass` i katalogen),
-  ett fäste (nål, klämma eller magnet) och loggan som "extra gravyr". Textrader och ram ingår.
-  Varje del avrundas för sig till hela kronor.
-- **Minsta ordervärde** gäller både det återförsäljaren betalar och det slutkunden betalar.
+  ett fäste (nål, klämma eller magnet), loggan som "extra gravyr" och skyltens del av
+  startkostnaden. Textrader och ram ingår. Varje del avrundas för sig till hela kronor.
+- **Fästen och tillval har ett pris per trappsteg**, precis som skyltarna (`PriceOptions` är
+  `Record<PriceOptionId, number[]>`; läs med `optionPriceSek` och `mountingPriceSek` och ange
+  trappsteget). I kalkylen är priset samma på alla trappsteg.
+- **Minsta ordervärde** gäller både det återförsäljaren betalar och det slutkunden betalar, och
+  räknas på summan med startkostnaden inräknad.
 - **Hela modellen stannar på servern.** Den innehåller provisionen. Ut går bara prislistor
   (`PriceTable`) per part: `endPriceTable(model)` är det slutkunden betalar och
   `resellerPriceTable(model)` det återförsäljaren betalar. Ingen av dem innehåller provision
@@ -177,7 +190,10 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   `src/lib/orders/price-lists.test.ts` vaktar alla tre reglerna ovan.
 - **Ordrar och offerter sparar modellen** de skapades med (`price_model`, migrering 016) och
   räknas alltid med den. En ändring i admin rör aldrig befintliga ordrar. Rader från före
-  migreringen saknar modell och räknas med dagens. När raden läses blir modellen prislistor
+  migreringen saknar modell och räknas med dagens. En modell sparad före startkostnaden har ett
+  enda pris per tillval och saknar `startSek`; `parseStoredPriceModel` läser den som samma pris
+  på alla trappsteg och startkostnad 0, så att priserna står kvar. Migrering 017 satte
+  startkostnaden till 200 kr i den sparade modellen i `settings`. När raden läses blir modellen prislistor
   (`priceListsFor` i `src/lib/orders/price-lists.ts`): `priceList` följer alltid med,
   `purchaseList` bara när raden läses åt den inloggade återförsäljaren (`"reseller"`), aldrig
   via kundens hemliga länk (`"customer"`).
