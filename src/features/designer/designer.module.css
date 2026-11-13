@@ -147,10 +147,14 @@
   place-items: center;
   height: 100%;
   padding: var(--space-7);
+  /* Ritningen mäts mot scenens höjd också, se bredden nedan. */
+  container-type: size;
 }
 
+/* Bredden hålls inom scenens höjd: en egen form kan vara lika hög som bred och skulle annars klippas. */
 .drawing > * {
   width: min(760px, 100%);
+  width: min(760px, 100%, calc(100cqh * var(--drawing-ratio, 3)));
 }
 
 .spec {

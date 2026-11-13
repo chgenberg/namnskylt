@@ -207,6 +207,16 @@ describe("egen form i dokumentet", () => {
     assert.equal(badgeDocumentSchema.safeParse(tall).success, false);
   });
 
+  it("får vara så smal som gränsen för egen form, men en vanlig form får inte bli smalare än förut", () => {
+    const { minSideMm } = CUSTOM_SHAPE_LIMITS;
+    const small = resizeCustomShape(withShapePreset(plastic(), "diamond"), { widthMm: minSideMm, heightMm: minSideMm });
+    assert.deepEqual(small.size, { widthMm: minSideMm, heightMm: minSideMm });
+    assert.equal(isOfferedDocument(small), true);
+    assert.equal(badgeDocumentSchema.safeParse(small).success, true);
+    const narrow = { ...plastic(), size: { widthMm: minSideMm, heightMm: 25 } };
+    assert.equal(badgeDocumentSchema.safeParse(narrow).success, false);
+  });
+
   it("konturen följer med när måttet ändras", () => {
     const doc = withShapePreset(plastic(), "shield");
     const wide = resizeCustomShape(doc, { widthMm: doc.size.widthMm * 2 });

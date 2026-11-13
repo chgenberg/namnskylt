@@ -367,7 +367,8 @@ p {
   color: var(--color-ink);
 }
 
-.segmented__thumb {
+/* Tummen är själv en span i knappen; väljaren måste väga tyngre än regeln för knappens text nedan. */
+.segmented > button > .segmented__thumb {
   position: absolute;
   inset: 0;
   z-index: 0;

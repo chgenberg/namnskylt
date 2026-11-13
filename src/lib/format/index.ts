@@ -4,6 +4,16 @@ export function formatSek(value: number): string {
   return `${new Intl.NumberFormat("sv-SE").format(value)} kr`;
 }
 
+/** Millimeter med en decimal, som i måttangivelser: `43,5`. */
+export function formatMm(value: number): string {
+  return value.toLocaleString("sv-SE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+/** Kronor med ören, för belopp som inte är avrundade än: `59,84 kr`. */
+export function formatSekExact(value: number): string {
+  return `${new Intl.NumberFormat("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} kr`;
+}
+
 export function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("sv-SE", {
     day: "numeric",

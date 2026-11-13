@@ -7,10 +7,10 @@ import {
   frameBands,
   layoutBadge,
   parseSmartInput,
-  endPriceTable,
   priceBadge,
   renderBadgeSvg,
 } from "./index";
+import { endPriceTable } from "./price-model";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
 
 describe("parseSmartInput", () => {

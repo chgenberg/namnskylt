@@ -46,7 +46,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (592 tester, grönt 2026-11-13).
+# Kvalitetsgrinden. Kör den innan något lämnas (617 tester, grönt 2026-11-13).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -62,7 +62,8 @@ pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
 
 - Skript körs med `tsx --conditions=react-server --env-file-if-exists=.env.local` (redan
   inbakat i `package.json`), så att `server-only`-moduler går att importera.
-- `pnpm test` hittar bara tester i `src/engine/*.test.ts` och `src/lib/<domän>/*.test.ts`.
+- `pnpm test` hittar bara tester i `src/engine/*.test.ts` och `src/lib/<domän>/*.test.ts`. Den kör
+  också med `--conditions=react-server`, så att tester kan importera `server-only`-moduler.
 - Lagergränserna kontrolleras av `pnpm lint` via `.eslintrc.js` (`FEATURE_DEPENDENCIES`).
 - Alla miljövariabler beskrivs i `.env.example`.
 - psql: `-Atc` med flera satser visar bara sista resultatet, så kör en fråga i taget.
@@ -101,7 +102,15 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Geometrin ligger i `src/engine/custom-outline.ts`: kontroller (självkorsning, kortaste kant,
     minsta yta), rundning, indragning och textytan i former med inbuktningar (`clearHalfWidth`).
   - Formförslagen ligger i `src/engine/shape-presets.ts`.
-  - Ritverktyget ligger i `src/features/designer/custom-shape/`.
+  - Ritverktyget ligger i `src/features/designer/custom-shape/`: formförslag, punkter som dras,
+    mått och rundning, och uppladdning av SVG, PNG, JPG eller PDF som spåras till en kontur
+    (`src/engine/outline-trace.ts`, `outline-edit.ts`). Valet "Egen form" visas bara på material
+    med `customShape`.
+  - PDF läses med `pdfjs-dist`, låst till `~5.4.624` eftersom nyare kräver Node 22. Bara första
+    sidan läses.
+  - Kända brister: bara provat i Chrome; en ritad form försvinner om kunden väljer ett ämne och
+    sedan "Egen form" igen; fästena i 3D skalar med skylten och blir för stora på en form på
+    120 mm (`three/mounting.tsx`, `src/engine/hardware-fit.ts`).
 - **Äldre material och former** (mässing, akryl, epoxy, gravyrplast, sexkant m.fl.) ligger kvar
   i motorn så att sparade ordrar, offerter och butiker går att rita. En äldre skylt som öppnas
   i designern flyttas till närmaste yta och ämne (`toOfferedDocument`).
@@ -124,13 +133,22 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
 
 ## Prismodellen — läge 2026-11-13
 
-Alla priser kommer ur en prismodell (`PriceModel` i `src/engine/pricing.ts`) som ägaren ändrar
+Alla priser kommer ur en prismodell (`PriceModel` i `src/engine/price-model.ts`) som ägaren ändrar
 i `/admin/prismodell`. Den sparas i `settings` under nyckeln `price_model`; utan sparad modell
 gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
 
 - **Tre parter:** tabellen anger vad återförsäljaren betalar. Provisionen är plattformens andel
   av det beloppet och resten går till Skylt & Gravyrteknik. Slutkundens pris är återförsäljarens
   pris delat med (1 − marginalen), alltså marginal och inte påslag.
+- **Provisionen gäller allt återförsäljaren betalar**: skyltar, fästen, tillval och minidebitering.
+  `partShare` och `itemBreakdown` i `price-model.ts` delar upp ett pris eller en orderrad per
+  del, med ören; på ordern avrundas provisionen till hela kronor (`provisionSplit`).
+- **Sidan `/admin/prismodell`** (`src/features/admin/price-model/`) har samma kolumner i alla
+  tabeller: trappsteg och provision, skyltar, tillbehör och tillval. Under varje pris står
+  Skylt & Gravyrs netto, provisionen och slutkundens pris per trappsteg. "Vid order" är en
+  kalkyl med summor och en specifikation per skylt. Mats på Skylt & Gravyrteknik använder sidan.
+- **"Startkostnad"** i ägarens tal är minidebiteringen (påslaget upp till minsta ordervärde),
+  inte en egen avgift.
 - **Trappsteg** på orderns totala antal: 1–100, 101–300, 301–500 och 501 eller fler.
 - **Per skylt:** skylttypens pris (Premium = metall, Standard = plast, `priceClass` i katalogen),
   ett fäste (nål, klämma eller magnet) och loggan som "extra gravyr". Textrader och ram ingår.
@@ -140,13 +158,23 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   (`PriceTable`) per part: `endPriceTable(model)` är det slutkunden betalar och
   `resellerPriceTable(model)` det återförsäljaren betalar. Ingen av dem innehåller provision
   eller marginal. Provisionen räknas med `provisionSplit(model, …)` och visas bara för admin.
+- **Motorn är delad i två filer.** `src/engine/pricing.ts` räknar ur en `PriceTable` och får
+  användas överallt. `src/engine/price-model.ts` har modellen, dess schema, `endPriceTable`,
+  `resellerPriceTable` och `provisionSplit`. Den exporteras inte från `@/engine` och importeras
+  bara av filer med `import "server-only"` eller `"use server"`, av sidor, layouter och API-vägar
+  under `src/app`, och av adminverktyget `price-model-editor.tsx`.
+- **Ordet "provision" får inte finnas i kod som en besökare eller återförsäljare laddar**, varken
+  som fältnamn eller text. Adminverktyget laddas därför separat (`price-model-editor-lazy.tsx`),
+  panelens meny byggs på servern (`adminNav` i `src/features/admin/nav.ts`), och
+  serverkomponenter som nämner provisionen märks med `import "server-only"`. Undvik ordet i
+  CSS-klassnamn och filnamn på CSS-moduler, eftersom de syns i byggets CSS.
 - **Ingen funktion räknar pris utan en prislista.** `priceOrder`, `lineUnitPrices`, `priceBadge`,
   `resellerOrder` och `priceWithPricing` tar en `PriceTable`. Klientkomponenter läser slutkundens
   lista med `usePriceList()` (`PriceListProvider` i rotlayouten); serverkod anropar `getPriceModel()`.
 - **Kalkylens siffror** (`DEFAULT_PRICE_MODEL`) ligger i `src/engine/default-price-model.ts`, som
   inte exporteras från `@/engine`. Bara filer med `import "server-only"`, skript och tester får
-  importera den, annars bakas inköpspriser och provision in i webbläsarens JavaScript. Ett test
-  i `src/lib/orders/price-lists.test.ts` kontrollerar det.
+  importera den, annars bakas inköpspriser och provision in i webbläsarens JavaScript.
+  `src/lib/orders/price-lists.test.ts` vaktar alla tre reglerna ovan.
 - **Ordrar och offerter sparar modellen** de skapades med (`price_model`, migrering 016) och
   räknas alltid med den. En ändring i admin rör aldrig befintliga ordrar. Rader från före
   migreringen saknar modell och räknas med dagens. När raden läses blir modellen prislistor
@@ -173,10 +201,14 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
   andra inlogget. `authenticate` och `createAccount` vägrar ägarens id.
 - Formuläret är `LoginForm` (`kind: "admin" | "reseller"`) i `src/features/admin/login-form.tsx`.
   Sajtens meny länkar "Logga in" till `/aterforsaljare` och visar "Admin" eller "Mina sidor".
-- **Bara admin** ser Butiker, Utskick och Prismodell (sidor, actions och API-vägar kontrollerar
-  `isOwner`). Varje adminsida kontrollerar inloggningen själv med `adminTenant()`.
-- Admin ser bara ordrar under hyresgästen `namnskylt`, inte återförsäljarnas ordrar. En samlad
-  vy över alla återförsäljares ordrar och provisionen per order finns inte än.
+- **Bara admin** ser Butiker, Utskick, Prismodell och Provision (sidor, actions och API-vägar
+  kontrollerar `isOwner`). Varje adminsida kontrollerar inloggningen själv med `adminTenant()`.
+- **Provision** (`/admin/provision`) är adminens samlade vy över återförsäljarnas ordrar: vad
+  återförsäljaren betalar, provisionen och verkstadens del, per order och per återförsäljare
+  (rena regler i `src/lib/orders/provision.ts`, frågan i `provision-store.ts`). Ägarens egna
+  ordrar, demoordrar och avbrutna ordrar är inte med. Vyn saknar periodfilter och länk till
+  orderns detaljer, och läser alla ordrar varje gång, vilket håller så länge de är få. Under
+  Ordrar ser admin fortfarande bara ordrar under hyresgästen `namnskylt`.
 - `next dev` skickar med serverns mellanresultat som felsökningsdata i sidan (React), så där syns
   hela prismodellen i sidkällan. Kontrollera läckor mot `next build` + `next start`.
 

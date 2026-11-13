@@ -121,6 +121,15 @@
   color: var(--color-muted);
 }
 
+/* Punkterna i ikonen för egen form täcker linjen under sig. */
+.blankIconPoint {
+  fill: var(--color-white);
+}
+
+.blankCard[aria-checked="true"] .blankIconPoint {
+  fill: var(--color-navy-tint);
+}
+
 .swatches {
   display: flex;
   flex-wrap: wrap;

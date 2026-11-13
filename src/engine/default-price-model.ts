@@ -1,4 +1,4 @@
-import type { PriceModel } from "./pricing";
+import type { PriceModel } from "./price-model";
 
 /**
  * Kalkylen från 2026-11-13. Gäller tills något annat sparats i admin.

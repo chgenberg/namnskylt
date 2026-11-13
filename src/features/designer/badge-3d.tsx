@@ -5,6 +5,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { MathUtils, NeutralToneMapping, type Group } from "three";
 import type { BadgeDocument, FontEngine } from "@/engine";
+import { CAMERA_FOV_DEG, CameraDistance } from "./three/camera-distance";
 import { EngraveSweep, LASER_LAYER, sweepDurationMs, type SweepState } from "./three/engrave-sweep";
 import { plateMetrics, UNITS_PER_MM } from "./three/geometry";
 import { useBadgeMaterials } from "./three/materials";
@@ -172,7 +173,7 @@ function BadgeMesh({
         onDone={onEngraveDone}
       />
       <Mounting
-        mounting={doc.mounting}
+        doc={doc}
         widthUnits={metrics.widthUnits}
         heightUnits={metrics.heightUnits}
         backZ={metrics.backZ}
@@ -220,12 +221,13 @@ export default function Badge3D({
   const [target, setTarget] = useState<Group | null>(null);
   const turnRef = useRef<RecordingTurn | null>(null);
   const [sceneVersion, setSceneVersion] = useState<object>({});
+  const restartPhoto = useCallback(() => setSceneVersion({}), []);
   const shadowY = -(doc.size.heightMm * UNITS_PER_MM) / 2 - 0.45;
 
   return (
     <Canvas
       dpr={[1, 2]}
-      camera={{ position: [0, 0, cameraZ], fov: 30 }}
+      camera={{ position: [0, 0, cameraZ], fov: CAMERA_FOV_DEG }}
       gl={{ antialias: true, alpha: true, toneMapping: NeutralToneMapping }}
       onCreated={({ gl, camera }) => {
         gl.localClippingEnabled = true;
@@ -233,6 +235,7 @@ export default function Badge3D({
         onReady?.();
       }}
     >
+      <CameraDistance doc={doc} baseZ={cameraZ} onSettled={restartPhoto} />
       <StudioEnvironment intensity={1.35} />
       <directionalLight position={[2.5, 4, 5]} intensity={1.1} />
       <BadgeMesh

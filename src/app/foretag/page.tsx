@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "@/components/site-footer";
-import { endPriceTable } from "@/engine";
+import { endPriceTable } from "@/engine/price-model";
 import { BusinessPage } from "@/features/business/business-page";
 import { getPriceModel } from "@/lib/orders/repository";
 

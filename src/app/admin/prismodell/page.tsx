@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { adminTenant } from "@/features/admin/guard";
-import { PriceModelEditor } from "@/features/admin/price-model-editor";
+import { LazyPriceModelEditor } from "@/features/admin/price-model-editor-lazy";
 import styles from "@/features/admin/admin.module.css";
 import { getPriceModel } from "@/lib/orders/repository";
 import { isOwner } from "@/lib/tenants/model";
@@ -24,7 +24,7 @@ export default async function PriceModelPage() {
           Så ser återförsäljaren priserna
         </Link>
       </header>
-      <PriceModelEditor model={await getPriceModel()} />
+      <LazyPriceModelEditor model={await getPriceModel()} />
     </>
   );
 }

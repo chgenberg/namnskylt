@@ -1,5 +1,6 @@
 import "server-only";
-import { layoutBadge, renderBadgeSvg, type BadgeDocument, type PriceModel } from "@/engine";
+import { layoutBadge, renderBadgeSvg, type BadgeDocument } from "@/engine";
+import type { PriceModel } from "@/engine/price-model";
 import { renderLogoPng } from "@/lib/ai/badge-image";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { createSupplierClient } from "@/lib/supplier/client";

@@ -1,0 +1,551 @@
+/* ── Egen form: ram och rubriker ── */
+
+.editor {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper);
+}
+
+.block {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.blockTitle {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.note {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.fieldLabel {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+/* ── Formförslag ── */
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+  gap: var(--space-2);
+}
+
+.preset {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  color: var(--color-ink-2);
+  font-size: var(--text-xs);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.preset:hover {
+  border-color: var(--color-line-strong);
+}
+
+.preset:active {
+  transform: scale(0.97);
+}
+
+.preset[aria-pressed="true"] {
+  border-color: var(--color-navy);
+  background: var(--color-navy-tint);
+  color: var(--color-navy);
+}
+
+.presetIcon {
+  width: 52px;
+  height: auto;
+  fill: var(--color-white);
+  stroke: currentColor;
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+}
+
+/* ── Uppladdning ── */
+
+.uploadBlock {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* `relative`: den dolda filväljaren är absolut och ska räknas mot rutan, inte mot panelen. */
+.upload {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+/* Innehållet släpper igenom pekaren, så att en fil som dras över texten inte räknas som att den lämnar rutan. */
+.upload > * {
+  pointer-events: none;
+}
+
+.upload:hover,
+.upload[data-dragging] {
+  border-color: var(--color-ink);
+}
+
+.upload[data-dragging] {
+  background: var(--color-paper-3);
+}
+
+.upload:focus-within {
+  border-color: var(--color-navy-3);
+  box-shadow: var(--focus-ring);
+}
+
+.upload[aria-busy="true"] {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.uploadIcon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.uploadText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.uploadTitle {
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.uploadStatus {
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.uploadStatus[data-severity="error"] {
+  color: var(--color-danger);
+}
+
+/* ── Ritverktyget ── */
+
+.canvas {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/*
+ * Ytan har fast höjd så att panelen inte hoppar när formen byts. Måttrutan
+ * (.sheet) fyller den med skyltens proportioner: samma skala i x och y.
+ */
+.stage {
+  --stage-height: 300px;
+  --stage-pad: var(--space-6);
+
+  display: grid;
+  place-items: center;
+  height: var(--stage-height);
+  padding: var(--stage-pad);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background-color: var(--color-paper-3);
+  /* Dragningen ska inte bli sidans scrollning på en pekskärm. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/*
+ * På mobil står skylten fast överst och prisraden fast nederst (designer.module.css);
+ * ytan får den höjd som blir kvar emellan, så att hela formen syns medan den ritas.
+ */
+@media (max-width: 900px) {
+  .stage {
+    --stage-height: clamp(180px, calc(52dvh - var(--header-height) - 190px), 300px);
+    --stage-pad: var(--space-5);
+  }
+}
+
+.stage[data-hover="point"] {
+  cursor: grab;
+}
+
+.stage[data-hover="edge"] {
+  cursor: copy;
+}
+
+.stage[data-dragging] {
+  cursor: grabbing;
+}
+
+.sheet {
+  position: relative;
+  width: min(100%, calc((var(--stage-height) - 2 * var(--stage-pad)) * var(--ratio)));
+  aspect-ratio: var(--ratio);
+}
+
+.art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.art > * {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.box {
+  stroke: var(--color-subtle);
+  stroke-width: 1px;
+  stroke-dasharray: 4 3;
+}
+
+/* Formen ritas i tre lager: ytan, de raka kanterna mellan punkterna och sist den rundade konturen som skärs. */
+.art > .fill {
+  fill: var(--color-white);
+}
+
+/* Syns bara där hörnrundningen går innanför punkterna. */
+.skeleton {
+  stroke: var(--color-subtle);
+  stroke-width: 1px;
+}
+
+.shape {
+  stroke: var(--color-ink);
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+}
+
+.shape[data-invalid] {
+  stroke: var(--color-danger);
+}
+
+/* Den valda punktens två kanter: heldragen före, streckad efter. Samma stil i avläsningen under ytan. */
+.edgeBefore,
+.edgeAfter {
+  fill: none;
+  stroke: var(--color-ink);
+  stroke-width: 3px;
+}
+
+.edgeAfter {
+  stroke-dasharray: 4 3;
+}
+
+.edgeProblem {
+  stroke: var(--color-danger);
+  stroke-width: 4px;
+  stroke-linecap: round;
+}
+
+.dimension {
+  position: absolute;
+  font-size: var(--text-xs);
+  line-height: 1;
+  color: var(--color-muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.dimension[data-side="top"] {
+  bottom: calc(100% + var(--space-3));
+  left: 50%;
+  translate: -50% 0;
+}
+
+.dimension[data-side="left"] {
+  top: 50%;
+  right: calc(100% + var(--space-3));
+  writing-mode: vertical-rl;
+  translate: 0 -50%;
+  rotate: 180deg;
+}
+
+/*
+ * Handtagen ligger som knappar ovanpå ritningen, placerade i andelar av
+ * måttrutan. Pekaren träffar dem genom ytan (närmaste handtag vinner), så de
+ * tar inte emot pekhändelser själva.
+ */
+.point,
+.edgeHandle {
+  position: absolute;
+  top: calc(var(--y) * 100%);
+  left: calc(var(--x) * 100%);
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: var(--color-white);
+  pointer-events: none;
+  transition:
+    scale var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.point {
+  z-index: 2;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--color-ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.point[data-hover] {
+  scale: 1.3;
+}
+
+.point[aria-pressed="true"] {
+  z-index: 3;
+  scale: 1.2;
+  background: var(--color-ink);
+  box-shadow: 0 0 0 4px var(--navy-ring);
+}
+
+.point:focus-visible {
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px var(--color-white),
+    0 0 0 4px var(--color-ink);
+}
+
+.edgeHandle {
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--color-line-strong);
+  color: var(--color-muted);
+}
+
+.edgeHandle::before,
+.edgeHandle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  translate: -50% -50%;
+}
+
+.edgeHandle::after {
+  rotate: 90deg;
+}
+
+.edgeHandle[data-hover] {
+  scale: 1.35;
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-white);
+}
+
+.readout {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-height: 20px;
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+}
+
+.readoutTitle {
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.metric {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.angleIcon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tool {
+  height: 36px;
+  padding-inline: var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.tool > svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.count {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.count[data-full] {
+  color: var(--color-warning);
+}
+
+.issue {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+}
+
+.issue strong {
+  color: var(--color-danger);
+}
+
+.issueIcon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--color-danger);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Mått och rundning ── */
+
+.sizeFields {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sizeRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.mmField {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.mmField input {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.mmField input::-webkit-inner-spin-button,
+.mmField input::-webkit-outer-spin-button {
+  appearance: none;
+}
+
+.unit {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.lock {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 44px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-subtle);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.lock:hover {
+  border-color: var(--color-line-strong);
+  color: var(--color-ink);
+}
+
+.lock[aria-pressed="true"] {
+  border-color: var(--color-line-strong);
+  background: var(--color-white);
+  color: var(--color-ink);
+}
+
+.lock > svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sliderRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.sliderValue {
+  font-size: var(--text-xs);
+  text-align: right;
+  color: var(--color-ink-2);
+}

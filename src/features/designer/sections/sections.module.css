@@ -267,6 +267,11 @@
 
 /* ── Format ── */
 
+/* Redigeraren för egen form fälls ut under ämnena; klipps bara medan höjden animeras. */
+.customShape {
+  overflow: hidden;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;

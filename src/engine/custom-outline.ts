@@ -1,6 +1,7 @@
 import { CUSTOM_SHAPE_LIMITS } from "./catalog";
 import type { Point } from "./shape";
 import type { Mm } from "./types";
+import { edgeLength, round2, signedArea } from "./outline-math";
 
 /**
  * Egen form: en sluten polygon som kunden ritat, i mm inom skyltens mått
@@ -8,22 +9,8 @@ import type { Mm } from "./types";
  * inte korsa sig själv. Hörnen rundas med en gemensam radie.
  */
 
-/** Arean med tecken: positiv när punkterna går medurs på skärmen (y nedåt). */
-function signedArea(points: readonly Point[]): number {
-  return (
-    points.reduce((sum, a, i) => {
-      const b = points[(i + 1) % points.length] ?? a;
-      return sum + a.x * b.y - b.x * a.y;
-    }, 0) / 2
-  );
-}
-
 export function polygonArea(points: readonly Point[]): number {
   return Math.abs(signedArea(points));
-}
-
-function edgeLength(a: Point, b: Point): Mm {
-  return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
 function orientation(a: Point, b: Point, c: Point): number {
@@ -31,7 +18,7 @@ function orientation(a: Point, b: Point, c: Point): number {
 }
 
 /** Korsar eller nuddar sträckorna varandra någon annanstans än i en delad ändpunkt? */
-function segmentsTouch(a: Point, b: Point, c: Point, d: Point): boolean {
+export function segmentsTouch(a: Point, b: Point, c: Point, d: Point): boolean {
   const o1 = orientation(a, b, c);
   const o2 = orientation(a, b, d);
   const o3 = orientation(c, d, a);
@@ -42,8 +29,11 @@ function segmentsTouch(a: Point, b: Point, c: Point, d: Point): boolean {
   return (o1 === 0 && within(a, b, c)) || (o2 === 0 && within(a, b, d)) || (o3 === 0 && within(c, d, a)) || (o4 === 0 && within(c, d, b));
 }
 
-/** En enkel polygon korsar inte sig själv — det enda en skärmaskin kan följa. */
-export function isSimplePolygon(points: readonly Point[]): boolean {
+/**
+ * Kantparen som korsar eller nuddar varandra; kant `i` går från punkt `i` till nästa.
+ * Samma regel avgör om formen är giltig och vilka kanter ritverktyget pekar ut.
+ */
+export function* crossingEdgePairs(points: readonly Point[]): Generator<[number, number]> {
   const n = points.length;
   for (let i = 0; i < n; i++) {
     for (let j = i + 1; j < n; j++) {
@@ -53,10 +43,14 @@ export function isSimplePolygon(points: readonly Point[]): boolean {
       const b = points[(i + 1) % n];
       const c = points[j];
       const d = points[(j + 1) % n];
-      if (a && b && c && d && segmentsTouch(a, b, c, d)) return false;
+      if (a && b && c && d && segmentsTouch(a, b, c, d)) yield [i, j];
     }
   }
-  return true;
+}
+
+/** En enkel polygon korsar inte sig själv — det enda en skärmaskin kan följa. */
+export function isSimplePolygon(points: readonly Point[]): boolean {
+  return crossingEdgePairs(points).next().done === true;
 }
 
 export type CustomOutlineIssue = "points" | "outside" | "short-edge" | "crossing" | "area";
@@ -257,10 +251,6 @@ export function clearHalfWidth(outline: readonly Point[], centerX: Mm, inset: Mm
     if (half <= 0) return 0;
   }
   return half;
-}
-
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
 }
 
 /** Skalar konturen när skyltens mått ändras, så att formen följer med. */

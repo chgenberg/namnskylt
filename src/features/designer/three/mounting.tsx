@@ -1,24 +1,58 @@
-import type { MountingId } from "@/engine";
+import { useMemo } from "react";
+import { fitHardware, type BadgeDocument, type HardwareFootprint, type MountingId } from "@/engine";
 import { UNITS_PER_MM } from "./geometry";
 
 const HARDWARE_STEEL = "#c9ced4";
 const MAGNET_BLACK = "#24272c";
+/** Hur högt över skyltens mitt fästet sitter, som andel av höjden. */
+const HARDWARE_RISE: Record<MountingId, number> = { pin: 0.14, magnet: 0, clip: 0.2, "safety-pin": 0.12 };
+
+/** Ytan fästet täcker på baksidan, i mm — samma mått som geometrin nedan. Klämmans arm sticker upp över kanten med flit. */
+function footprint(mounting: MountingId, widthMm: number, heightMm: number): HardwareFootprint {
+  const centerYMm = heightMm * (0.5 - HARDWARE_RISE[mounting]);
+  switch (mounting) {
+    case "pin":
+      return { widthMm: Math.max(widthMm * 0.66, widthMm * 0.62 + 3.6), heightMm: 4, centerYMm };
+    case "magnet":
+      return { widthMm: widthMm * 0.6, heightMm: heightMm * 0.5, centerYMm };
+    case "clip":
+      return { widthMm: 14, heightMm: heightMm * 0.5, centerYMm };
+    case "safety-pin":
+      return { widthMm: widthMm * 0.56 + 4, heightMm: 3, centerYMm };
+  }
+}
 
 interface MountingProps {
-  mounting: MountingId;
+  doc: BadgeDocument;
   widthUnits: number;
   heightUnits: number;
   backZ: number;
 }
 
-export function Mounting({ mounting, widthUnits: w, heightUnits: h, backZ }: MountingProps) {
+/**
+ * Fästet på baksidan. På en egen form flyttas det i höjdled och förminskas vid
+ * behov, så att det inte sticker ut bakom en udd eller ett smalt parti.
+ */
+export function Mounting({ doc, widthUnits, heightUnits, backZ }: MountingProps) {
+  const { mounting } = doc;
+  const fit = useMemo(() => fitHardware(doc, footprint(doc.mounting, doc.size.widthMm, doc.size.heightMm)), [doc]);
+  const lift = (doc.size.heightMm / 2 - fit.centerYMm) * UNITS_PER_MM - HARDWARE_RISE[mounting] * heightUnits * fit.scale;
+  return (
+    <group position={[0, lift, 0]} scale={[fit.scale, fit.scale, 1]}>
+      {hardware(mounting, widthUnits, heightUnits, backZ)}
+    </group>
+  );
+}
+
+/** Fästets delar på sin vanliga plats på en skylt med bredden `w` och höjden `h`. */
+function hardware(mounting: MountingId, w: number, h: number, backZ: number) {
   const mm = UNITS_PER_MM;
   const steel = <meshStandardMaterial color={HARDWARE_STEEL} metalness={1} roughness={0.28} />;
 
   switch (mounting) {
     case "pin":
       return (
-        <group position={[0, h * 0.14, backZ]}>
+        <group position={[0, h * HARDWARE_RISE.pin, backZ]}>
           <mesh position={[0, 0, -0.9 * mm]}>
             <boxGeometry args={[w * 0.62, 3.2 * mm, 0.6 * mm]} />
             {steel}
@@ -50,7 +84,7 @@ export function Mounting({ mounting, widthUnits: w, heightUnits: h, backZ }: Mou
       );
     case "clip":
       return (
-        <group position={[0, h * 0.2, backZ]}>
+        <group position={[0, h * HARDWARE_RISE.clip, backZ]}>
           <mesh position={[0, 0, -0.5 * mm]}>
             <boxGeometry args={[14 * mm, h * 0.5, 0.8 * mm]} />
             {steel}
@@ -67,7 +101,7 @@ export function Mounting({ mounting, widthUnits: w, heightUnits: h, backZ }: Mou
       );
     case "safety-pin":
       return (
-        <group position={[0, h * 0.12, backZ - 1 * mm]}>
+        <group position={[0, h * HARDWARE_RISE["safety-pin"], backZ - 1 * mm]}>
           <mesh rotation={[0, 0, Math.PI / 2]}>
             <cylinderGeometry args={[0.3 * mm, 0.3 * mm, w * 0.56, 10]} />
             {steel}

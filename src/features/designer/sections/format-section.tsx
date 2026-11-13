@@ -1,25 +1,65 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Segmented } from "@/components/ui/segmented";
-import { FRAME_STYLES, blankOf, type BadgeDocument } from "@/engine";
+import { FRAME_STYLES, SHAPE_PRESETS, blankOf, getMaterial, type BadgeDocument } from "@/engine";
+import { CustomShapeEditor } from "../custom-shape/custom-shape-editor";
 import { BlankPicker } from "../pickers";
+import { useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
+
+/** Förslaget en egen form börjar från. */
+const FIRST_PRESET_ID = SHAPE_PRESETS[0]?.id ?? "shield";
 
 interface FormatSectionProps {
   doc: BadgeDocument;
   dispatch: Dispatch<DesignerAction>;
 }
 
-/** Ämnena har fast form och fast mått — kunden väljer ett av dem. */
+/**
+ * Ämnena har fast form och fast mått — kunden väljer ett av dem. Ett material
+ * som skärs ur ark kan dessutom få en egen form, som ritas här under.
+ */
 export function FormatSection({ doc, dispatch }: FormatSectionProps) {
   const { widthMm, heightMm } = doc.size;
+  const { customShapePrice } = useShopPrices();
+  const custom = doc.shape === "custom";
 
   return (
     <PanelSection step={4} title="Form" aside={`${widthMm} × ${heightMm} mm`}>
-      <BlankPicker value={blankOf(doc)?.id ?? null} onChange={(blankId) => dispatch({ type: "blank", blankId })} />
+      <BlankPicker
+        value={blankOf(doc)?.id ?? null}
+        onChange={(blankId) => dispatch({ type: "blank", blankId })}
+        custom={
+          getMaterial(doc.materialId).customShape
+            ? {
+                checked: custom,
+                priceSek: customShapePrice(doc.materialId),
+                onSelect: () => {
+                  if (!custom) dispatch({ type: "custom/preset", presetId: FIRST_PRESET_ID });
+                },
+              }
+            : undefined
+        }
+      />
+
+      <AnimatePresence initial={false}>
+        {custom && (
+          <motion.div
+            key="custom-shape"
+            className={styles.customShape}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <CustomShapeEditor doc={doc} dispatch={dispatch} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className={styles.labelled}>
         <span className={styles.sliderLabel}>Graverad ram</span>

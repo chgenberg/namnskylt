@@ -4,22 +4,24 @@ import { createBadgeDocument, withBlank, withShapePreset } from "./document";
 import { BLANKS } from "./catalog";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
 import {
-  endPriceSek,
-  endPriceTable,
   fromPriceSek,
   lineUnitPrices,
   mountingPriceSek,
   priceItems,
-  priceModelSchema,
   priceOrder,
-  provisionSplit,
   resellerOrder,
-  resellerPriceTable,
   tierIndexFor,
   tierRangeLabel,
   type PriceItem,
-  type PriceModel,
 } from "./pricing";
+import {
+  endPriceSek,
+  endPriceTable,
+  priceModelSchema,
+  provisionSplit,
+  resellerPriceTable,
+  type PriceModel,
+} from "./price-model";
 import type { BadgeDocument } from "./types";
 
 const M = DEFAULT_PRICE_MODEL;

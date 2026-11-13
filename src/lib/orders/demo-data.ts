@@ -1,5 +1,7 @@
+import "server-only";
 import type { Sql } from "postgres";
-import { endPriceTable, priceOrder, type BadgeDocument, type PriceModel } from "@/engine";
+import { priceOrder, type BadgeDocument } from "@/engine";
+import { endPriceTable, type PriceModel } from "@/engine/price-model";
 import { DEMO_ORDERS } from "./demo-orders";
 import type { OrderStatus } from "./model";
 

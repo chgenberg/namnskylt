@@ -1,4 +1,6 @@
-import { endPriceTable, priceModelSchema, resellerPriceTable, type PriceModel, type PriceTable } from "@/engine";
+import "server-only";
+import type { PriceTable } from "@/engine";
+import { endPriceTable, priceModelSchema, resellerPriceTable, type PriceModel } from "@/engine/price-model";
 
 /**
  * Vem en order eller offert läses åt.

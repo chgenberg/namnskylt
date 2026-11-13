@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createBadgeDocument, endPriceTable, priceOrder, resellerOrder, resellerPriceTable } from "@/engine";
+import { createBadgeDocument, priceOrder, resellerOrder } from "@/engine";
+import { endPriceTable, resellerPriceTable } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { marginOf } from "./purchase";
 

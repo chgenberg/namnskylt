@@ -131,12 +131,14 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     case "blank":
       return withBlank(doc, action.blankId);
     case "custom/preset":
-      return withShapePreset(doc, action.presetId);
+      return getMaterial(doc.materialId).customShape ? withShapePreset(doc, action.presetId) : doc;
     case "custom/outline":
       return doc.shape === "custom" ? { ...doc, customOutline: action.points } : doc;
     case "custom/size":
       return resizeCustomShape(doc, action);
     case "custom/replace":
+      // En fil som lästs klart efter att kunden bytt till metall får inte ge en ogiltig skylt.
+      if (!getMaterial(doc.materialId).customShape) return doc;
       return resizeCustomShape(
         { ...doc, shape: "custom", size: { widthMm: action.widthMm, heightMm: action.heightMm }, customOutline: action.points },
         {},

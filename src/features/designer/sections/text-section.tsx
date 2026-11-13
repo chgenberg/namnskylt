@@ -5,6 +5,7 @@ import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Segmented } from "@/components/ui/segmented";
 import { FONTS, TEXT_LIMITS, type BadgeDocument, type BadgeLayout, type TextAlign } from "@/engine";
+import { formatMm } from "@/lib/format";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
@@ -26,10 +27,6 @@ function AlignIcon({ lines, anchor }: { lines: number[]; anchor: TextAlign }) {
       })}
     </svg>
   );
-}
-
-function formatMm(value: number): string {
-  return value.toLocaleString("sv-SE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
 interface TextSectionProps {

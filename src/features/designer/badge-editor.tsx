@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { withPlaceholders } from "@/components/badge-preview";
 import {
   layoutBadge,
@@ -169,11 +169,14 @@ export function BadgeEditor({ doc, fonts, dispatch }: BadgeEditorProps) {
   };
 
   const { widthMm: w, heightMm: h } = layout;
+  const viewBox = previewViewBox(layout, true);
+  const [, , viewWidth = 1, viewHeight = 1] = viewBox.split(" ").map(Number);
 
   return (
-    <div className={styles.editor} data-dragging={dragging}>
+    // Proportionerna låter scenen hålla ritningen inom sin höjd — en egen form kan vara lika hög som bred.
+    <div className={styles.editor} data-dragging={dragging} style={{ "--drawing-ratio": viewWidth / viewHeight } as CSSProperties}>
       <div className={styles.art} aria-hidden="true" dangerouslySetInnerHTML={{ __html: markup }} />
-      <svg ref={svgRef} className={styles.overlay} viewBox={previewViewBox(layout, true)} aria-label="Skylten — dra text och logga">
+      <svg ref={svgRef} className={styles.overlay} viewBox={viewBox} aria-label="Skylten — dra text och logga">
         <path className={styles.safeZone} d={outlinePath(drawn, layout.contentInsetMm)} />
         {guides.centerX && <line className={styles.guide} x1={w / 2} x2={w / 2} y1={0} y2={h} />}
         {guides.centerY && <line className={styles.guide} x1={0} x2={w} y1={h / 2} y2={h / 2} />}

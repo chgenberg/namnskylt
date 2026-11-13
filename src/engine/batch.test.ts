@@ -5,13 +5,13 @@ import {
   batchLine,
   createBadgeDocument,
   parseBatchInput,
-  endPriceTable,
   priceBadge,
   priceOrder,
   removeBatchEntry,
   replaceBatchEntry,
   withTexts,
 } from "./index";
+import { endPriceTable } from "./price-model";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
 
 describe("parseBatchInput", () => {

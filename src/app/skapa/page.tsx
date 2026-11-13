@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { engravedRows, resellerPriceTable } from "@/engine";
+import { engravedRows } from "@/engine";
+import { resellerPriceTable } from "@/engine/price-model";
 import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
 import { siteOrigin } from "@/lib/http/origin";

@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import * as engine from "@/engine";
-import { endPriceTable, resellerPriceTable, type PriceModel } from "@/engine";
+import { endPriceTable, resellerPriceTable, type PriceModel } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { priceListsFor, storedPriceModel } from "./price-lists";
 
@@ -50,20 +50,62 @@ describe("prislistor per part", () => {
   });
 });
 
-describe("kalkylens siffror stannar på servern", () => {
-  it("motorns export innehåller inte standardmodellen", () => {
-    assert.equal("DEFAULT_PRICE_MODEL" in engine, false);
+/** Källfilerna under src, utom tester. */
+function sourceFiles(): { file: string; source: string }[] {
+  const root = join(process.cwd(), "src");
+  return readdirSync(root, { recursive: true, encoding: "utf8" })
+    .filter((file) => /\.tsx?$/.test(file) && !file.endsWith(".test.ts"))
+    .map((file) => ({ file: file.split("\\").join("/"), source: readFileSync(join(root, file), "utf8") }));
+}
+
+const SERVER_ONLY = /^import "server-only";$/m;
+const SERVER_ACTIONS = /^"use server";$/m;
+/** Sidor, layouter och API-vägar körs bara på servern och kan inte importeras av en klientkomponent. */
+const APP_SERVER_FILE = /^app\/(.*\/)?(page|layout)\.tsx$|^app\/(.*\/)?route\.ts$/;
+/** Adminverktyget för prismodellen: laddas bara när admin öppnar sidan (se price-model-editor-lazy.tsx). */
+const MODEL_EDITOR = /^features\/admin\/price-model\//;
+
+describe("prismodellen stannar på servern", () => {
+  it("motorns export innehåller varken modellen, dess schema eller provisionen", () => {
+    for (const name of ["DEFAULT_PRICE_MODEL", "priceModelSchema", "provisionSplit", "endPriceTable", "resellerPriceTable"]) {
+      assert.equal(name in engine, false, name);
+    }
   });
 
-  it("bara serverkod och tester importerar standardmodellen", () => {
-    const root = join(process.cwd(), "src");
-    const offenders = readdirSync(root, { recursive: true, encoding: "utf8" })
-      .filter((file) => /\.tsx?$/.test(file) && !file.endsWith(".test.ts") && file !== join("engine", "default-price-model.ts"))
-      .filter((file) => {
-        const source = readFileSync(join(root, file), "utf8");
-        // Utan `server-only` kan filen dras in i en klientkomponent, och då hamnar siffrorna i webbläsaren.
-        return source.includes("default-price-model") && !/^import "server-only";$/m.test(source);
-      });
+  it("bara serverkod och tester importerar kalkylens siffror", () => {
+    const offenders = sourceFiles()
+      .filter(({ file }) => file !== "engine/default-price-model.ts")
+      // Utan `server-only` kan filen dras in i en klientkomponent, och då hamnar siffrorna i webbläsaren.
+      .filter(({ source }) => source.includes("default-price-model") && !SERVER_ONLY.test(source))
+      .map(({ file }) => file);
+    assert.deepEqual(offenders, []);
+  });
+
+  it("bara serverkod och adminverktyget importerar prismodellens kod", () => {
+    // `import type` försvinner vid bygget och räknas inte.
+    const valueImport = /^import (?!type )[^;]*from "[^"]*\/price-model";$/m;
+    const offenders = sourceFiles()
+      .filter(({ source }) => valueImport.test(source))
+      .filter(({ file, source }) => !SERVER_ONLY.test(source) && !SERVER_ACTIONS.test(source) && !APP_SERVER_FILE.test(file) && !MODEL_EDITOR.test(file))
+      .map(({ file }) => file);
+    assert.deepEqual(offenders, []);
+  });
+
+  it("ordet provision finns bara i serverkod och i adminverktyget", () => {
+    // Kommentarer följer inte med i bygget; sök i koden utan dem.
+    const code = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const offenders = sourceFiles()
+      .filter(({ source }) => /provision/i.test(code(source)))
+      .filter(
+        ({ file, source }) =>
+          !SERVER_ONLY.test(source) &&
+          !SERVER_ACTIONS.test(source) &&
+          !APP_SERVER_FILE.test(file) &&
+          !MODEL_EDITOR.test(file) &&
+          file !== "engine/price-model.ts" &&
+          file !== "engine/default-price-model.ts",
+      )
+      .map(({ file }) => file);
     assert.deepEqual(offenders, []);
   });
 });

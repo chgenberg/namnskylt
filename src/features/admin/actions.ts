@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { MAX_ORDER_BADGES, priceModelSchema, type PriceModel } from "@/engine";
+import { MAX_ORDER_BADGES } from "@/engine";
+import { priceModelSchema, type PriceModel } from "@/engine/price-model";
 import { requireDb } from "@/lib/db/client";
 import { insertDemoData, removeDemoData } from "@/lib/orders/demo-data";
 import { pricingSchema, type Pricing } from "@/lib/orders/pricing";

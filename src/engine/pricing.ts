@@ -1,33 +1,17 @@
-import { z } from "zod";
 import { MOUNTINGS, getMaterial } from "./catalog";
 import type { BadgeDocument, MaterialId, MountingId, SignClass } from "./types";
 
 /**
- * Prismodellen. Alla belopp är exkl. moms, i hela kronor.
+ * Prisräkning ur en prislista. Alla belopp är exkl. moms, i hela kronor.
  *
- * Tre parter delar på en order: Skylt & Gravyrteknik tillverkar, plattformen
- * tar provision och återförsäljaren säljer till slutkund. Tabellen anger vad
- * återförsäljaren betalar. Provisionen är plattformens andel av det beloppet
- * och resten går till verkstaden. Slutkundens pris räknas ur återförsäljarens
- * med en marginal.
- *
- * Siffrorna ändras i admin. Varje order och offert sparar modellen som gällde,
- * så en senare ändring räknar aldrig om något som redan är beställt.
- *
- * Hela modellen stannar på servern. Ur den härleds en prislista per part
- * (`PriceTable`): slutkundens lista får alla besökare, återförsäljarens lista
- * får bara en inloggad återförsäljare, och provisionen ser bara ägaren.
+ * En prislista (`PriceTable`) är vad en part betalar: slutkundens lista får
+ * alla besökare, återförsäljarens lista får bara en inloggad återförsäljare.
+ * Listorna härleds på servern ur prismodellen i `price-model.ts`. Den filen
+ * exporteras inte härifrån och hör inte hemma i kod som en besökares eller
+ * återförsäljares webbläsare laddar.
  */
 
-const PRICE_TIER_COUNT = 4;
 export const VAT_RATE = 0.25;
-
-export interface PriceTier {
-  /** Trappsteget gäller när ordern har fler skyltar än så. Första steget är alltid 0. */
-  moreThan: number;
-  /** Plattformens andel av det återförsäljaren betalar, i procent. */
-  provisionPercent: number;
-}
 
 export interface PriceOptions {
   /** Egen form upp till 12 × 12 cm. */
@@ -38,58 +22,6 @@ export interface PriceOptions {
   clip: number;
   magnet: number;
 }
-
-export interface PriceModel {
-  /** Trappsteg på orderns totala antal, stigande. */
-  tiers: PriceTier[];
-  /** Återförsäljarens pris per skylt, ett tal per trappsteg. */
-  signs: Record<SignClass, number[]>;
-  /** Tillval per skylt, återförsäljarens pris. */
-  options: PriceOptions;
-  /** Minsta belopp återförsäljaren betalar för en order. */
-  minOrderSek: number;
-  /** Slutkundens pris = återförsäljarens pris / (1 − marginalen). */
-  endMarginPercent: number;
-  /** Minsta belopp slutkunden betalar för en order. */
-  endMinOrderSek: number;
-}
-
-export const MAX_PRICE_SEK = 100_000;
-/** Vid 100 % går priset mot oändligheten. */
-export const MAX_MARGIN_PERCENT = 90;
-
-const sekSchema = z.number().int().min(0).max(MAX_PRICE_SEK);
-const percentSchema = z.number().min(0).max(MAX_MARGIN_PERCENT);
-const tierPricesSchema = z.array(sekSchema).length(PRICE_TIER_COUNT);
-
-export const priceModelSchema = z
-  .object({
-    tiers: z
-      .array(z.object({ moreThan: z.number().int().min(0).max(1_000_000), provisionPercent: percentSchema }))
-      .length(PRICE_TIER_COUNT),
-    signs: z.object({ premium: tierPricesSchema, standard: tierPricesSchema }),
-    options: z.object({
-      customShape: sekSchema,
-      extraEngraving: sekSchema,
-      pin: sekSchema,
-      clip: sekSchema,
-      magnet: sekSchema,
-    }),
-    minOrderSek: sekSchema,
-    endMarginPercent: percentSchema,
-    endMinOrderSek: sekSchema,
-  })
-  .superRefine((model, ctx) => {
-    if (model.tiers[0]?.moreThan !== 0) {
-      ctx.addIssue({ code: "custom", path: ["tiers", 0, "moreThan"], message: "Första trappsteget börjar på 0" });
-    }
-    model.tiers.forEach((tier, i) => {
-      const previous = model.tiers[i - 1];
-      if (previous && tier.moreThan <= previous.moreThan) {
-        ctx.addIssue({ code: "custom", path: ["tiers", i, "moreThan"], message: "Trappstegen ska stiga" });
-      }
-    });
-  }) satisfies z.ZodType<PriceModel>;
 
 /**
  * En parts prislista: vad den betalar per skylt på varje trappsteg, för
@@ -102,41 +34,6 @@ export interface PriceTable {
   signs: Record<SignClass, number[]>;
   options: PriceOptions;
   minOrderSek: number;
-}
-
-/** Slutkundens pris för ett belopp hos återförsäljaren. */
-export function endPriceSek(resellerSek: number, model: PriceModel): number {
-  return Math.round(resellerSek / (1 - model.endMarginPercent / 100));
-}
-
-/** Det återförsäljaren betalar. */
-export function resellerPriceTable(model: PriceModel): PriceTable {
-  return {
-    tiers: model.tiers.map((tier) => tier.moreThan),
-    signs: { premium: [...model.signs.premium], standard: [...model.signs.standard] },
-    options: { ...model.options },
-    minOrderSek: model.minOrderSek,
-  };
-}
-
-/**
- * Det slutkunden betalar. Varje belopp avrundas för sig, så att skylt, fäste
- * och logga i gränssnittet summerar till exakt det kunden betalar.
- */
-export function endPriceTable(model: PriceModel): PriceTable {
-  const end = (sek: number) => endPriceSek(sek, model);
-  return {
-    tiers: model.tiers.map((tier) => tier.moreThan),
-    signs: { premium: model.signs.premium.map(end), standard: model.signs.standard.map(end) },
-    options: {
-      customShape: end(model.options.customShape),
-      extraEngraving: end(model.options.extraEngraving),
-      pin: end(model.options.pin),
-      clip: end(model.options.clip),
-      magnet: end(model.options.magnet),
-    },
-    minOrderSek: model.endMinOrderSek,
-  };
 }
 
 /** Det som avgör en skylts pris. Kalkylen i admin räknar på samma underlag som en order. */
@@ -256,22 +153,6 @@ export function priceBadge(doc: BadgeDocument, list: PriceTable): PriceBreakdown
 /** Vad återförsäljaren betalar för skyltarna, enligt återförsäljarens lista. */
 export function resellerOrder(docs: readonly BadgeDocument[], purchaseList: PriceTable): TablePrice {
   return priceItems(docs.map(priceItemOf), purchaseList);
-}
-
-export interface ProvisionSplit {
-  provisionPercent: number;
-  /** Plattformens del av det återförsäljaren betalar. */
-  provisionSek: number;
-  /** Skylt & Gravyrtekniks del. */
-  supplierSek: number;
-}
-
-/** Hur det återförsäljaren betalar delas mellan plattformen och verkstaden. Bara för ägaren. */
-export function provisionSplit(model: PriceModel, resellerTotalSek: number, quantity: number): ProvisionSplit {
-  const tierIndex = tierIndexFor(quantity, resellerPriceTable(model));
-  const provisionPercent = model.tiers[tierIndex]?.provisionPercent ?? 0;
-  const provisionSek = Math.round((resellerTotalSek * provisionPercent) / 100);
-  return { provisionPercent, provisionSek, supplierSek: resellerTotalSek - provisionSek };
 }
 
 /** Lägsta pris för en skylt i materialet på ett trappsteg: skylten med det billigaste fästet som säljs. */

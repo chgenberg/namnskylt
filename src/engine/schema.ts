@@ -18,8 +18,8 @@ export const badgeDocumentSchema = z
     colorId: z.string().min(1),
     shape: z.enum(SHAPE_IDS),
     size: z.object({
-      widthMm: z.number().min(SIZE_LIMITS.minWidthMm).max(SIZE_LIMITS.maxWidthMm),
-      // En egen form får vara lika hög som bred; övriga former hålls till sin gräns nedan.
+      // En egen form får vara smalare och högre än ämnena; övriga former hålls till sina gränser nedan.
+      widthMm: z.number().min(CUSTOM_SHAPE_LIMITS.minSideMm).max(SIZE_LIMITS.maxWidthMm),
       heightMm: z.number().min(SIZE_LIMITS.minHeightMm).max(CUSTOM_SHAPE_LIMITS.maxSideMm),
     }),
     cornerRadiusMm: z.number().min(0).max(30),
@@ -74,6 +74,9 @@ export const badgeDocumentSchema = z
     } else {
       if (doc.customOutline) {
         ctx.addIssue({ code: "custom", path: ["customOutline"], message: "Bara egen form har en egen kontur" });
+      }
+      if (doc.size.widthMm < SIZE_LIMITS.minWidthMm) {
+        ctx.addIssue({ code: "custom", path: ["size", "widthMm"], message: `Minst ${SIZE_LIMITS.minWidthMm} mm` });
       }
       if (doc.size.heightMm > SIZE_LIMITS.maxHeightMm) {
         ctx.addIssue({ code: "custom", path: ["size", "heightMm"], message: `Högst ${SIZE_LIMITS.maxHeightMm} mm` });

@@ -1,4 +1,4 @@
-import { endPriceTable, resellerPriceTable } from "@/engine";
+import { endPriceTable, resellerPriceTable } from "@/engine/price-model";
 import { adminTenant } from "@/features/admin/guard";
 import { PurchasePriceTable } from "@/features/admin/purchase-price-table";
 import styles from "@/features/admin/admin.module.css";

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AdminShell } from "@/features/admin/admin-shell";
 import { LoginForm } from "@/features/admin/login-form";
+import { adminNav } from "@/features/admin/nav";
 import { Notice } from "@/features/admin/notice";
 import { ShotBackfill } from "@/features/admin/shot-backfill";
 import { databaseConfigured, getCompanyProfile, listOrders, missingBadgeShots } from "@/lib/orders/repository";
@@ -40,7 +41,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   if (!databaseConfigured()) {
     return (
       <main>
-        <AdminShell pending={0} owner={isOwner(tenant)}>
+        <AdminShell nav={adminNav({ owner: isOwner(tenant), shopSlug: null })} pending={0} owner={isOwner(tenant)}>
           <Notice title="Databasen är inte kopplad">
             Ordrar skickas fortfarande till tillverkningen men sparas inte. Lägg till en Postgres-databas och sätt{" "}
             <code>DATABASE_URL</code>.
@@ -60,11 +61,11 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   return (
     <main>
       <AdminShell
+        nav={adminNav({ owner: isOwner(tenant), shopSlug: ownedShops[0] ?? null })}
         pending={pending}
         demoCount={demoCount}
         companyName={company.name}
         owner={isOwner(tenant)}
-        shopSlug={ownedShops[0] ?? null}
       >
         {children}
       </AdminShell>

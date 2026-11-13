@@ -7,7 +7,7 @@ import { editorialSerif } from "@/components/fonts";
 import { PriceListProvider } from "@/components/price-list-provider";
 import { SiteGate } from "@/components/site-gate";
 import { SiteHeader } from "@/components/site-header";
-import { endPriceTable } from "@/engine";
+import { endPriceTable } from "@/engine/price-model";
 import { priceModelOrDefault } from "@/lib/orders/repository";
 import { GATE_COOKIE, isValidGateCookie } from "@/lib/site-gate/token";
 import "./globals.css";

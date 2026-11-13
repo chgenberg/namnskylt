@@ -2,12 +2,8 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { Sql } from "postgres";
 import { z } from "zod";
-import {
-  badgeDocumentSchema,
-  endPriceTable,
-  type BadgeDocument,
-  type PriceModel,
-} from "@/engine";
+import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
+import { endPriceTable, type PriceModel } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { db, requireDb } from "@/lib/db/client";
 import { priceListsFor, storedPriceModel, type PriceAudience } from "./price-lists";

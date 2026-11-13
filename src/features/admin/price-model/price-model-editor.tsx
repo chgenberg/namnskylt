@@ -1,0 +1,253 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { tierRangeLabel, type PriceOptions, type SignClass } from "@/engine";
+import { MAX_MARGIN_PERCENT, MAX_PRICE_SEK, priceModelSchema, resellerPriceTable, type PriceModel } from "@/engine/price-model";
+import { savePriceModelAction } from "../actions";
+import { NumberField } from "./number-field";
+import { PriceCalculator } from "./price-calculator";
+import { PriceGroup } from "./price-group";
+import styles from "../price-model.module.css";
+
+const SIGN_ROWS: readonly { id: SignClass; name: string; note: string }[] = [
+  { id: "premium", name: "Premium", note: "Metallskyltarna" },
+  { id: "standard", name: "Standard", note: "Plastskyltarna" },
+];
+
+const OPTION_ROWS: readonly { id: keyof PriceOptions; name: string; note: string }[] = [
+  { id: "pin", name: "Nål", note: "Fäste" },
+  { id: "clip", name: "Militärklämma", note: "Fäste, heter Klämma på sajten" },
+  { id: "magnet", name: "Magnet", note: "Fäste" },
+  { id: "extraEngraving", name: "Extra gravyr eller print", note: "Loggan på skylten" },
+  { id: "customShape", name: "Egen design, max 12 × 12 cm", note: "Plast i egen form" },
+];
+
+function replaceAt<T>(list: readonly T[], index: number, value: T): T[] {
+  return list.map((item, i) => (i === index ? value : item));
+}
+
+interface PriceModelEditorProps {
+  model: PriceModel;
+}
+
+/**
+ * Prismodellen som i kalkylbladet: trappsteg och provision, återförsäljarens
+ * priser på skyltar, fästen och tillval, och under varje pris vad som går till
+ * verkstaden, vad som blir provision och vad slutkunden betalar. Kalkylen
+ * längst ned räknar på utkastet direkt; först när det sparas gäller siffrorna.
+ */
+export function PriceModelEditor({ model }: PriceModelEditorProps) {
+  const [saved, setSaved] = useState(model);
+  const [draft, setDraft] = useState(model);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const parsed = priceModelSchema.safeParse(draft);
+  const problem = parsed.success ? null : (parsed.error.issues[0]?.message ?? "Ogiltiga siffror");
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const purchase = resellerPriceTable(draft);
+  const tierLabels = draft.tiers.map((_, i) => tierRangeLabel(i, purchase));
+
+  const save = () => {
+    if (!parsed.success) return;
+    setMessage(null);
+    startTransition(async () => {
+      const result = await savePriceModelAction(parsed.data);
+      if (result.ok) setSaved(parsed.data);
+      setMessage(
+        result.ok
+          ? { ok: true, text: "Sparat. Siffrorna gäller nu på sajten och för nya ordrar och offerter." }
+          : { ok: false, text: result.error },
+      );
+    });
+  };
+
+  const tierHead = (
+    <>
+      <span className={styles.headLabel}>Antal i ordern</span>
+      {tierLabels.map((label, i) => (
+        <span key={i} className={styles.columnHead}>
+          {label}
+        </span>
+      ))}
+    </>
+  );
+
+  return (
+    <div className={styles.layout}>
+      <section className={styles.card} aria-labelledby="price-model-tiers">
+        <div className={styles.cardHead}>
+          <h2 id="price-model-tiers" className={styles.cardTitle}>
+            Trappsteg och provision
+          </h2>
+          <p className={styles.muted}>
+            Priset följer orderns totala antal. Provisionen är er andel av allt återförsäljaren betalar: skyltar, fästen och
+            tillval. Resten går till Skylt &amp; Gravyrteknik.
+          </p>
+        </div>
+        <div className={styles.scroll}>
+          <div className={styles.table}>
+            {tierHead}
+            <span className={styles.divider} />
+            <span className={styles.rowLabel}>
+              Gäller över
+              <small>Trappsteget börjar när ordern har fler skyltar än så</small>
+            </span>
+            {draft.tiers.map((tier, i) =>
+              i === 0 ? (
+                <span key={i} className={styles.same}>
+                  0 st
+                </span>
+              ) : (
+                <NumberField
+                  key={i}
+                  label={`Trappsteg ${i + 1} gäller när ordern har fler skyltar än`}
+                  value={tier.moreThan}
+                  unit="st"
+                  max={1_000_000}
+                  onChange={(moreThan) => setDraft({ ...draft, tiers: replaceAt(draft.tiers, i, { ...tier, moreThan }) })}
+                />
+              ),
+            )}
+            <span className={styles.divider} />
+            <span className={styles.rowLabel}>
+              Provision
+              <small>Merchins andel</small>
+            </span>
+            {draft.tiers.map((tier, i) => (
+              <NumberField
+                key={i}
+                label={`Provision, ${tierLabels[i] ?? ""}`}
+                value={tier.provisionPercent}
+                unit="%"
+                max={MAX_MARGIN_PERCENT}
+                decimals
+                onChange={(provisionPercent) => setDraft({ ...draft, tiers: replaceAt(draft.tiers, i, { ...tier, provisionPercent }) })}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.card} aria-labelledby="price-model-signs">
+        <div className={styles.cardHead}>
+          <h2 id="price-model-signs" className={styles.cardTitle}>
+            Typ av skylt
+          </h2>
+          <p className={styles.muted}>Det återförsäljaren betalar per skylt, och hur beloppet fördelas.</p>
+        </div>
+        <div className={styles.scroll}>
+          <div className={styles.table}>
+            {tierHead}
+            {SIGN_ROWS.map((row) => (
+              <PriceGroup
+                key={row.id}
+                name={row.name}
+                note={row.note}
+                prices={draft.signs[row.id]}
+                perTier
+                model={draft}
+                tierLabels={tierLabels}
+                onChange={(i, value) => setDraft({ ...draft, signs: { ...draft.signs, [row.id]: replaceAt(draft.signs[row.id], i, value) } })}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.card} aria-labelledby="price-model-options">
+        <div className={styles.cardHead}>
+          <h2 id="price-model-options" className={styles.cardTitle}>
+            Tillbehör och tillval
+          </h2>
+          <p className={styles.muted}>
+            Återförsäljarens pris per skylt, samma på alla trappsteg. Provisionen följer trappsteget, så fördelningen skiljer sig
+            mellan kolumnerna.
+          </p>
+        </div>
+        <div className={styles.scroll}>
+          <div className={styles.table}>
+            {tierHead}
+            {OPTION_ROWS.map((row) => (
+              <PriceGroup
+                key={row.id}
+                name={row.name}
+                note={row.note}
+                prices={draft.tiers.map(() => draft.options[row.id])}
+                perTier={false}
+                model={draft}
+                tierLabels={tierLabels}
+                onChange={(_, value) => setDraft({ ...draft, options: { ...draft.options, [row.id]: value } })}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.card} aria-labelledby="price-model-order">
+        <div className={styles.cardHead}>
+          <h2 id="price-model-order" className={styles.cardTitle}>
+            Per order
+          </h2>
+        </div>
+        <div className={styles.orderGrid}>
+          <div className={styles.orderField}>
+            <span className={styles.controlLabel}>Minidebitering</span>
+            <NumberField label="Minidebitering" value={draft.minOrderSek} unit="kr" max={MAX_PRICE_SEK} onChange={(minOrderSek) => setDraft({ ...draft, minOrderSek })} />
+            <small>Minsta belopp återförsäljaren betalar för en order</small>
+          </div>
+          <div className={styles.orderField}>
+            <span className={styles.controlLabel}>Slutkundens marginal</span>
+            <NumberField
+              label="Slutkundens marginal"
+              value={draft.endMarginPercent}
+              unit="%"
+              max={MAX_MARGIN_PERCENT}
+              decimals
+              onChange={(endMarginPercent) => setDraft({ ...draft, endMarginPercent })}
+            />
+            <small>Slutkundens pris = återförsäljarens pris / (1 − marginalen)</small>
+          </div>
+          <div className={styles.orderField}>
+            <span className={styles.controlLabel}>Slutkundens minsta order</span>
+            <NumberField label="Slutkundens minsta order" value={draft.endMinOrderSek} unit="kr" max={MAX_PRICE_SEK} onChange={(endMinOrderSek) => setDraft({ ...draft, endMinOrderSek })} />
+            <small>Minsta belopp slutkunden betalar för en order</small>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.card} aria-labelledby="price-model-calc">
+        <div className={styles.cardHead}>
+          <h2 id="price-model-calc" className={styles.cardTitle}>
+            Vid order
+          </h2>
+          <p className={styles.muted}>Räknar på siffrorna ovan direkt, även innan de är sparade.</p>
+        </div>
+        <PriceCalculator model={draft} onMarginChange={(endMarginPercent) => setDraft({ ...draft, endMarginPercent })} />
+      </section>
+
+      <div className={styles.actions}>
+        <button type="button" className="btn btn--primary" disabled={pending || !dirty || !parsed.success} onClick={save}>
+          {pending ? "Sparar…" : "Spara prismodellen"}
+        </button>
+        <button type="button" className="btn btn--ghost" disabled={pending || !dirty} onClick={() => setDraft(saved)}>
+          Ångra ändringar
+        </button>
+        {problem && (
+          <span className={styles.message} data-ok="false" role="alert">
+            {problem}
+          </span>
+        )}
+        {!problem && message && (
+          <span className={styles.message} data-ok={message.ok} role="status">
+            {message.text}
+          </span>
+        )}
+      </div>
+      <p className={styles.muted}>
+        Sparade siffror styr priserna på sajten, i butikerna och för nya ordrar och offerter. Ordrar och offerter som redan finns
+        behåller priserna de skapades med.
+      </p>
+    </div>
+  );
+}

@@ -26,28 +26,32 @@ export function PurchasePriceTable({ purchase, list, marginPercent }: PurchasePr
   return (
     <div className={styles.layout}>
       <section className={styles.card} aria-labelledby="purchase-signs">
-        <h2 id="purchase-signs" className={styles.cardTitle}>
-          Per skylt
-        </h2>
-        <p className={styles.muted}>
-          Priset följer orderns totala antal, även när alla skyltar har olika namn. Varje skylt får ett fäste, som läggs till
-          skyltpriset.
-        </p>
-        <div className={styles.table}>
-          <span className={styles.rowLabel}>Antal i ordern</span>
-          {purchase.tiers.map((_, i) => (
-            <span key={i} className={styles.columnHead}>
-              {tierRangeLabel(i, purchase)}
-            </span>
-          ))}
-          {OFFERED_MATERIALS.map((material) => (
-            <PriceRows
-              key={material.id}
-              name={`${material.name}skylt`}
-              prices={purchase.signs[material.priceClass]}
-              listPrices={list.signs[material.priceClass]}
-            />
-          ))}
+        <div className={styles.cardHead}>
+          <h2 id="purchase-signs" className={styles.cardTitle}>
+            Per skylt
+          </h2>
+          <p className={styles.muted}>
+            Priset följer orderns totala antal, även när alla skyltar har olika namn. Varje skylt får ett fäste, som läggs till
+            skyltpriset.
+          </p>
+        </div>
+        <div className={styles.scroll}>
+          <div className={styles.table}>
+            <span className={styles.headLabel}>Antal i ordern</span>
+            {purchase.tiers.map((_, i) => (
+              <span key={i} className={styles.columnHead}>
+                {tierRangeLabel(i, purchase)}
+              </span>
+            ))}
+            {OFFERED_MATERIALS.map((material) => (
+              <PriceRows
+                key={material.id}
+                name={`${material.name}skylt`}
+                prices={purchase.signs[material.priceClass]}
+                listPrices={list.signs[material.priceClass]}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
