@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { approxFonts, createBadgeDocument, withBlank, type BadgeDocument, type FontEngine } from "@/engine";
+import { approxFonts, createBadgeDocument, withBlank, withShapePreset, type BadgeDocument, type FontEngine } from "@/engine";
 import { computeCutGrid } from "./cut-grid";
 import { sheetToDxf } from "./dxf";
 import { flattenPath } from "./flatten-path";
@@ -327,5 +327,40 @@ describe("färdiga ämnen", () => {
     const entityLayers = [...dxf.matchAll(/\n0\nLINE\n8\n(\w+)\n/g)].map((m) => m[1]);
     assert.ok(entityLayers.length > 0);
     assert.ok(entityLayers.every((layer) => layer === "ENGRAVE"));
+  });
+});
+
+describe("plast i egen form", () => {
+  const ctx = { fonts, productionNo: "2026-003", sheetNo: 1, sheetCount: 1, method: "plastic-sheet" as const };
+  const star = withShapePreset({ ...createBadgeDocument(["Anna Lind"]), materialId: "plastic", colorId: "white-black" }, "star");
+
+  it("skärs ur ark: egen batch per färg, genomskärning längs konturen och luft till grannen", () => {
+    const batches = productionBatches([order("NS-1", [{ ...star, quantity: 2 }])]);
+    assert.deepEqual(
+      batches.map((b) => [b.key, b.method, b.units.length]),
+      [["plastic/white-black", "plastic-sheet", 2]],
+    );
+    const [sheet] = packSheets(batches[0]?.units ?? [], "plastic-sheet").sheets;
+    assert.ok(sheet);
+    const [first, second] = sheet.placements;
+    assert.ok(first && second);
+    assert.equal(second.yMm - (first.yMm + first.heightMm), ROUND_GAP_MM);
+
+    const marks = sheetMarks(sheet, ctx);
+    const contours = marks.filter((m) => m.ink === "throughCut");
+    assert.equal(contours.length, 2);
+    assert.ok(contours.every((m) => m.d.startsWith("M") && m.d.endsWith("Z")));
+    // Stjärnan delar inga raka skärlinjer med grannen.
+    assert.equal(marks.filter((m) => m.ink === "cut").length, 0);
+    assert.match(renderMachineSvg(sheet, marks), /stroke="#0000FF"/);
+  });
+
+  it("plast på ett ämne skärs som förut: rektangeln delar skärlinjer", () => {
+    const plain = { ...createBadgeDocument(["Anna Lind"]), materialId: "plastic" as const, colorId: "black-white", quantity: 2 };
+    const batches = productionBatches([order("NS-2", [plain])]);
+    assert.equal(batches[0]?.method, "plastic-sheet");
+    const [sheet] = packSheets(batches[0]?.units ?? [], "plastic-sheet").sheets;
+    assert.ok(sheet);
+    assert.ok(sheetMarks(sheet, ctx).some((m) => m.ink === "cut"));
   });
 });

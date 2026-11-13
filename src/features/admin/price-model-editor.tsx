@@ -31,7 +31,7 @@ const OPTION_ROWS: readonly { id: keyof PriceOptions; name: string; note: string
   { id: "pin", name: "Nål", note: "Fäste" },
   { id: "clip", name: "Militärklämma", note: "Fäste, heter Klämma på sajten" },
   { id: "magnet", name: "Magnet", note: "Fäste" },
-  { id: "customShape", name: "Egen design, max 12 × 12 cm", note: "Används när fri form går att beställa" },
+  { id: "customShape", name: "Egen design, max 12 × 12 cm", note: "Plast i egen form" },
 ];
 
 interface NumberFieldProps {
@@ -89,12 +89,13 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
   const [quantity, setQuantity] = useState(25);
   const [mounting, setMounting] = useState<MountingId>("pin");
   const [logo, setLogo] = useState(false);
+  const [customShape, setCustomShape] = useState(false);
 
   const parsed = priceModelSchema.safeParse(draft);
   const problem = parsed.success ? null : (parsed.error.issues[0]?.message ?? "Ogiltiga siffror");
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
-  const items: PriceItem[] = [{ signClass, mounting, extraEngraving: logo, quantity: Math.max(1, quantity) }];
+  const items: PriceItem[] = [{ signClass, mounting, extraEngraving: logo, customShape, quantity: Math.max(1, quantity) }];
   const reseller = resellerPriceOf(items, draft);
   const end = endPriceOf(items, draft);
   const margin = marginOf(end.totalSek, reseller.totalSek);
@@ -250,6 +251,10 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
           <label className={styles.check}>
             <input type="checkbox" checked={logo} onChange={(event) => setLogo(event.target.checked)} />
             Logga (extra gravyr)
+          </label>
+          <label className={styles.check}>
+            <input type="checkbox" checked={customShape} onChange={(event) => setCustomShape(event.target.checked)} />
+            Egen design
           </label>
           <div className={`${styles.calcField} ${styles.narrow}`}>
             <span>Välj %</span>

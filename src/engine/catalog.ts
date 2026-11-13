@@ -49,6 +49,8 @@ export interface BadgeMaterial {
   offered: boolean;
   /** Levereras som färdigskurna ämnen: verkstaden graverar bara, inget skärs. */
   precut?: boolean;
+  /** Skärs ur ark och kan därför få en egen form. */
+  customShape?: boolean;
   supplierCode: string;
   thicknessMm: Mm;
   /** Raden i prismodellen som materialet prissätts efter. */
@@ -101,6 +103,27 @@ export const MATERIALS: readonly BadgeMaterial[] = [
       { id: "metal-white", name: "Vit", surface: "#F7F7F5", engraving: BLACK, lacquered: true },
       { id: "metal-gold", name: "Borstat guld", surface: "#C8A440", engraving: BLACK },
       { id: "metal-silver", name: "Borstat silver", surface: "#B4B6B8", engraving: BLACK },
+    ],
+  },
+  {
+    // Tvålagers gravyrplast i verkstadens 1,5 mm. Färg-id:na är deras egna.
+    id: "plastic",
+    name: "Plast",
+    tagline: "Prisvärd, i egen form",
+    description: "Tvålagers gravyrplast. Gravyren friläger kärnans färg, och skylten kan skäras i en egen form.",
+    finish: "plastic",
+    producer: "skylt-gravyr",
+    exclusive: false,
+    offered: true,
+    customShape: true,
+    supplierCode: "plastic-1.5mm",
+    thicknessMm: 1.5,
+    priceClass: "standard",
+    colors: [
+      { id: "white-black", name: "Vit / Svart", surface: WHITE, engraving: BLACK },
+      { id: "black-white", name: "Svart / Vit", surface: BLACK, engraving: WHITE },
+      { id: "gold-black", name: "Guld / Svart", surface: "#D4A017", engraving: BLACK },
+      { id: "silver-black", name: "Silver / Svart", surface: "#C5CDD4", engraving: BLACK },
     ],
   },
   {
@@ -291,6 +314,17 @@ export const SIZE_LIMITS = {
   maxHeightMm: 60,
 } as const;
 
+/** Egen form: måttet kunden får rita inom, och vad en skärmaskin klarar. */
+export const CUSTOM_SHAPE_LIMITS = {
+  minSideMm: 25,
+  maxSideMm: 120,
+  minPoints: 3,
+  maxPoints: 64,
+  minEdgeMm: 2,
+  minAreaMm2: 300,
+  maxCornerRadiusMm: 20,
+} as const;
+
 export const TEXT_LIMITS = {
   maxRows: 3,
   maxChars: 40,
@@ -322,6 +356,7 @@ export const SHAPES: readonly { id: BadgeShape; name: string }[] = [
   { id: "hexagon", name: "Sexkant" },
   { id: "octagon", name: "Åttkant" },
   { id: "cushion", name: "Kudde" },
+  { id: "custom", name: "Egen form" },
 ];
 
 export const SHAPE_IDS = SHAPES.map((s) => s.id) as [BadgeShape, ...BadgeShape[]];

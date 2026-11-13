@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createBadgeDocument, withBlank } from "./document";
+import { createBadgeDocument, withBlank, withShapePreset } from "./document";
 import { BLANKS } from "./catalog";
 import {
   DEFAULT_PRICE_MODEL,
@@ -25,6 +25,7 @@ const premium = (quantity: number, patch: Partial<PriceItem> = {}): PriceItem =>
   signClass: "premium",
   mounting: "pin",
   extraEngraving: false,
+  customShape: false,
   quantity,
   ...patch,
 });
@@ -71,6 +72,15 @@ describe("kalkylens siffror", () => {
     assert.equal(unit({ mounting: "clip" }), 68 + 9);
     assert.equal(unit({ mounting: "magnet" }), 68 + 11);
     assert.equal(unit({ mounting: "magnet", extraEngraving: true }), 68 + 11 + 19);
+  });
+
+  it("egen form kostar 19 kr extra per skylt, och slutkunden betalar 32 kr", () => {
+    const plain = resellerPriceOf([premium(200, { signClass: "standard" })], M).unitSek[0];
+    const custom = resellerPriceOf([premium(200, { signClass: "standard", customShape: true })], M).unitSek[0];
+    assert.equal(plain, 50 + 5);
+    assert.equal(custom, 50 + 5 + 19);
+    const doc = { ...withShapePreset({ ...createBadgeDocument(["Anna"]), materialId: "plastic" as const, colorId: "white-black" }, "star"), quantity: 10 };
+    assert.equal(priceOrder([doc], M).unitSek, endPriceSek(54, M) + 8 + endPriceSek(19, M));
   });
 
   it("en äldre skylt med säkerhetsnål prissätts som nål", () => {

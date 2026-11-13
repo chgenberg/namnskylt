@@ -48,6 +48,7 @@ export function useBadgeGeometry(doc: BadgeDocument, fonts: FontEngine): BadgeGe
         doc.shape,
         doc.size,
         doc.cornerRadiusMm,
+        doc.customOutline,
         thicknessMm,
         finish,
         doc.frame,

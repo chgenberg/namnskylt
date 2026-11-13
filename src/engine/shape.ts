@@ -1,3 +1,4 @@
+import { clearHalfWidth, offsetPolygon, roundPolygon } from "./custom-outline";
 import type { BadgeDocument, BadgeShape, Mm } from "./types";
 
 export interface Point {
@@ -131,6 +132,18 @@ export function insetConvexPolygon(points: readonly Point[], inset: Mm): Point[]
   return collapsed ? [] : result;
 }
 
+/**
+ * Den egna formens kontur som tät polygon, med hörnen rundade. Indragen `inset`
+ * mm (negativt = utåt); tom lista när inget finns kvar.
+ */
+function customOutlinePoints(doc: BadgeDocument, inset: Mm): Point[] {
+  const drawn = doc.customOutline ?? [];
+  if (drawn.length < 3) return [];
+  const moved = inset === 0 ? drawn : offsetPolygon(drawn, inset);
+  if (moved.length < 3) return [];
+  return roundPolygon(moved, Math.max(0, doc.cornerRadiusMm - inset));
+}
+
 /** Konturen indragen `inset` mm från skyltkanten (negativt = utåt), eller `null` om inget finns kvar. */
 export function badgeOutline(doc: BadgeDocument, inset: Mm = 0): Outline | null {
   const { widthMm, heightMm } = doc.size;
@@ -140,6 +153,10 @@ export function badgeOutline(doc: BadgeDocument, inset: Mm = 0): Outline | null 
 
   if (isEllipseShape(doc.shape)) {
     return { kind: "ellipse", cx: widthMm / 2, cy: heightMm / 2, rx: w / 2, ry: h / 2 };
+  }
+  if (doc.shape === "custom") {
+    const points = customOutlinePoints(doc, inset);
+    return points.length >= 3 ? { kind: "polygon", points } : null;
   }
   if (doc.shape === "cushion") {
     return { kind: "polygon", points: cushionPoints(widthMm / 2, heightMm / 2, w / 2, h / 2) };
@@ -214,9 +231,13 @@ function halfWidthAt(outline: Outline, y: Mm, centerX: Mm): Mm {
 
 /**
  * Tillgänglig halvbredd på höjden `y0…y1` inuti konturen indragen `inset`.
- * Alla former är konvexa, så den smalaste punkten ligger i bandets kant.
+ * De fasta formerna är konvexa, så den smalaste punkten ligger i bandets kant.
+ * En egen form kan ha inbuktningar och avsöks därför rad för rad.
  */
 export function availableHalfWidth(doc: BadgeDocument, inset: Mm, y0: Mm, y1: Mm): Mm {
+  if (doc.shape === "custom") {
+    return clearHalfWidth(customOutlinePoints(doc, 0), doc.size.widthMm / 2, inset, y0, y1);
+  }
   const outline = badgeOutline(doc, inset);
   if (!outline) return 0;
   const centerX = doc.size.widthMm / 2;

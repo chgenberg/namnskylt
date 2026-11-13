@@ -4,6 +4,8 @@ export * from "./document";
 export * from "./batch";
 export * from "./roster";
 export * from "./shape";
+export * from "./custom-outline";
+export * from "./shape-presets";
 export * from "./layout";
 export * from "./placement";
 export * from "./measure";

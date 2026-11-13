@@ -37,8 +37,9 @@ const OUTLINE_CURVE_SEGMENTS: Record<BadgeShape, number> = {
   rectangle: 1,
   hexagon: 1,
   octagon: 1,
-  // Kudden kommer redan som en tät polygon från motorn.
+  // Kudden och den egna formen kommer redan som täta polygoner från motorn.
   cushion: 1,
+  custom: 1,
 };
 const GLYPH_CURVE_SEGMENTS = 6;
 /**

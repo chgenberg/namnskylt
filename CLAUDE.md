@@ -85,12 +85,21 @@ pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
 
 ## Sortimentet — läge 2026-11-13
 
-Sajten säljer bara graverade metallskyltar. Plastskyltar kommer senare.
+Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
 
-- **Material:** `metal` i `src/engine/catalog.ts`, med tre ytor: `metal-white` (lackad),
-  `metal-gold` och `metal-silver` (borstade). Bara material med `offered: true` går att välja.
+- **Material:** bara material med `offered: true` i `src/engine/catalog.ts` går att välja.
+  - `metal`: tre ytor, `metal-white` (lackad), `metal-gold` och `metal-silver` (borstade).
+    Färdiga ämnen (`precut`), så verkstaden graverar bara.
+  - `plastic`: tvålagers gravyrplast 1,5 mm (verkstadens kod `plastic-1.5mm`) i vit/svart,
+    svart/vit, guld/svart och silver/svart. Skärs ur ark och får därför ha egen form (`customShape`).
 - **Ämnen:** `BLANKS` har fyra färdiga former med fast mått: rektangel, oval, stor rektangel
-  och kudde (formen `cushion`, en superellips). Kunden väljer ämne och kan inte ändra mått.
+  och kudde (formen `cushion`, en superellips). De gäller både metall och plast.
+- **Egen form** (bara plast, tillägg i prismodellen): `shape: "custom"` med `customOutline`,
+  hörnpunkter i mm inom måttet, högst 120 × 120 mm och 64 punkter, rundade med `cornerRadiusMm`.
+  - Geometrin ligger i `src/engine/custom-outline.ts`: kontroller (självkorsning, kortaste kant,
+    minsta yta), rundning, indragning och textytan i former med inbuktningar (`clearHalfWidth`).
+  - Formförslagen ligger i `src/engine/shape-presets.ts`.
+  - Ritverktyget ligger i `src/features/designer/custom-shape/`.
 - **Äldre material och former** (mässing, akryl, epoxy, gravyrplast, sexkant m.fl.) ligger kvar
   i motorn så att sparade ordrar, offerter och butiker går att rita. En äldre skylt som öppnas
   i designern flyttas till närmaste yta och ämne (`toOfferedDocument`).
@@ -133,9 +142,9 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   migreringen saknar modell och räknas med dagens.
 - **Återförsäljaren** ser sina inköpspriser i `/admin/inkopspriser` (samma tabell, bara läsning).
   Den gamla inköpsrabatten i procent finns inte längre.
-- **Inte kopplat än:** "egen design 12 × 12 cm" finns i modellen men används inte, eftersom fri
-  form inte går att beställa. Säkerhetsnålen säljs inte; en äldre skylt med den prissätts som nål.
-- **Oklart:** kalkylens "militärklämma" är kopplad till sajtens fäste "Klämma".
+- "Egen design 12 × 12 cm" läggs på varje skylt med egen form. Säkerhetsnålen säljs inte; en
+  äldre skylt med den prissätts som nål.
+- Kalkylens "militärklämma" är sajtens fäste "Klämma" (bekräftat av ägaren 2026-11-13).
 
 ## AI i produkten
 
@@ -222,6 +231,8 @@ Deras sajt har ännu inget API som tar emot ordrar. Planen för det:
 Luckor i kontraktet:
 - Leveransadress saknas i ordern.
 - Metallämnena och kuddformen finns inte i deras katalog. Kudden skickas som rektangel.
+- Egen form skickas som deras fria polygon (`shape: "freeform"`, `customShapePoints`), men hos dem
+  är den bara tillåten för metallskärning. De behöver öppna den för graverad plast.
 - En idempotensnyckel behövs mot dubbla ordrar.
 - Fästet skickas som text i stället för artikelkod.
 - Lambda tar högst 6 MB per anrop.

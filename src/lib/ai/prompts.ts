@@ -68,6 +68,7 @@ const SHAPE_DESCRIPTION: Record<BadgeShape, string> = {
   hexagon: "elongated hexagon with points left and right",
   octagon: "octagon with cut corners",
   cushion: "cushion shape: a rectangle whose four sides bow gently outwards, with softly rounded corners",
+  custom: "custom outline, exactly as in the reference image",
 };
 
 const LOGO_POSITION: Record<LogoPlacement, string> = {

@@ -8,13 +8,14 @@ export type Mm = number;
 
 export type FontId = "arial" | "arial-narrow";
 export type TextAlign = "left" | "center" | "right";
-export type BadgeShape = "rectangle" | "rounded" | "stadium" | "oval" | "round" | "hexagon" | "octagon" | "cushion";
+export type BadgeShape = "rectangle" | "rounded" | "stadium" | "oval" | "round" | "hexagon" | "octagon" | "cushion" | "custom";
 /** Färdigskurna ämnen som skylten graveras på — fast form och fast mått. */
 export type BlankId = "rectangle" | "oval" | "rectangle-large" | "cushion";
 export type FrameStyle = "none" | "solid" | "double";
 export type MountingId = "pin" | "magnet" | "clip" | "safety-pin";
 export type MaterialId =
   | "metal"
+  | "plastic"
   | "brass"
   | "aluminium-solid"
   | "acrylic"
@@ -72,8 +73,13 @@ export interface BadgeDocument {
   colorId: string;
   shape: BadgeShape;
   size: { widthMm: Mm; heightMm: Mm };
-  /** Gäller bara `shape === "rounded"`; kapseln har alltid halva höjden. */
+  /** Gäller `shape === "rounded"` och egen form; kapseln har alltid halva höjden. */
   cornerRadiusMm: Mm;
+  /**
+   * Egen form (`shape === "custom"`): konturens hörn i mm inom måttet, y nedåt.
+   * Sluts från sista punkten till den första. Hörnen rundas med `cornerRadiusMm`.
+   */
+  customOutline?: { x: Mm; y: Mm }[];
   frame: BadgeFrame;
   font: FontId;
   align: TextAlign;

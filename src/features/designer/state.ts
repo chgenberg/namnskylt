@@ -1,9 +1,12 @@
 import {
+  CUSTOM_SHAPE_LIMITS,
   LOGO_LIMITS,
   TEXT_LIMITS,
   createRow,
   getMaterial,
+  resizeCustomShape,
   withBlank,
+  withShapePreset,
   type BadgeDocument,
   type BadgeLogo,
   type BlankId,
@@ -30,6 +33,15 @@ export type DesignerAction =
   | { type: "material"; materialId: MaterialId }
   | { type: "color"; colorId: string }
   | { type: "blank"; blankId: BlankId }
+  /** Egen form: börja från ett formförslag, i förslagets mått. */
+  | { type: "custom/preset"; presetId: string }
+  /** Egen form: konturens punkter efter att kunden dragit, lagt till eller tagit bort en punkt. */
+  | { type: "custom/outline"; points: { x: number; y: number }[] }
+  /** Egen form: nytt mått; konturen skalas med. */
+  | { type: "custom/size"; widthMm?: number; heightMm?: number }
+  /** Egen form från en uppladdad fil: kontur och mått på en gång. */
+  | { type: "custom/replace"; points: { x: number; y: number }[]; widthMm: number; heightMm: number }
+  | { type: "corner"; cornerRadiusMm: number }
   | { type: "frame"; style: FrameStyle }
   | { type: "logo"; logo: BadgeLogo | null }
   | { type: "logo/placement"; placement: LogoPlacement }
@@ -108,14 +120,29 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     case "move/reset":
       return withoutOffsets(doc);
     case "material": {
-      const { colors } = getMaterial(action.materialId);
-      const colorId = colors.some((c) => c.id === doc.colorId) ? doc.colorId : colors[0]!.id;
-      return { ...doc, materialId: action.materialId, colorId };
+      const material = getMaterial(action.materialId);
+      const colorId = material.colors.some((c) => c.id === doc.colorId) ? doc.colorId : material.colors[0]!.id;
+      const next = { ...doc, materialId: action.materialId, colorId };
+      // Bara material som skärs ur ark kan ha en egen form; annars tillbaka till ett ämne.
+      return next.shape === "custom" && !material.customShape ? withBlank(next, "rectangle") : next;
     }
     case "color":
       return { ...doc, colorId: action.colorId };
     case "blank":
       return withBlank(doc, action.blankId);
+    case "custom/preset":
+      return withShapePreset(doc, action.presetId);
+    case "custom/outline":
+      return doc.shape === "custom" ? { ...doc, customOutline: action.points } : doc;
+    case "custom/size":
+      return resizeCustomShape(doc, action);
+    case "custom/replace":
+      return resizeCustomShape(
+        { ...doc, shape: "custom", size: { widthMm: action.widthMm, heightMm: action.heightMm }, customOutline: action.points },
+        {},
+      );
+    case "corner":
+      return { ...doc, cornerRadiusMm: clamp(action.cornerRadiusMm, 0, CUSTOM_SHAPE_LIMITS.maxCornerRadiusMm) };
     case "frame":
       return { ...doc, frame: { ...doc.frame, style: action.style } };
     case "logo": {

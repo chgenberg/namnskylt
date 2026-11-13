@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { approxFonts, createBadgeDocument, layoutBadge, withBlank } from "@/engine";
+import { approxFonts, createBadgeDocument, layoutBadge, withBlank, withShapePreset } from "@/engine";
 import { toSupplierSignDocument } from "./map";
 
 describe("toSupplierSignDocument", () => {
@@ -21,6 +21,17 @@ describe("toSupplierSignDocument", () => {
     assert.equal(supplier.shape, "rectangular");
     assert.equal(supplier.cornerRadiusMm, 0);
     assert.deepEqual(supplier.dimensions, { widthMm: 75, heightMm: 35, autoSize: false });
+  });
+
+  it("skickar en egen form som fri polygon med punkterna, i verkstadens plastkod", () => {
+    const star = withShapePreset({ ...createBadgeDocument(["Anna"]), materialId: "plastic" as const, colorId: "gold-black" }, "star");
+    const supplier = toSupplierSignDocument(star, approxFonts);
+    assert.equal(supplier.material, "plastic-1.5mm");
+    assert.equal(supplier.color, "gold-black");
+    assert.equal(supplier.shape, "freeform");
+    assert.deepEqual(supplier.customShapePoints, star.customOutline);
+    assert.equal(supplier.cornerRadiusMm, star.cornerRadiusMm);
+    assert.equal(toSupplierSignDocument(createBadgeDocument(["Anna"]), approxFonts).customShapePoints, undefined);
   });
 
   it("skickar den ritade versalhöjden, inte den önskade", () => {

@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { LOGO_LIMITS, MATERIALS, MATERIAL_IDS, SHAPE_IDS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
+import { CUSTOM_SHAPE_LIMITS, LOGO_LIMITS, MATERIALS, MATERIAL_IDS, SHAPE_IDS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
+import { CUSTOM_OUTLINE_ISSUE_TEXT, customOutlineIssue } from "./custom-outline";
 import { LOGO_PATH_PATTERN } from "./logo";
 import type { BadgeDocument } from "./types";
 
 /** Förflyttningen hålls inom skylten av layouten; schemat stoppar bara orimliga tal. */
 const offsetSchema = z.object({
   xMm: z.number().finite().min(-SIZE_LIMITS.maxWidthMm).max(SIZE_LIMITS.maxWidthMm),
-  yMm: z.number().finite().min(-SIZE_LIMITS.maxHeightMm).max(SIZE_LIMITS.maxHeightMm),
+  yMm: z.number().finite().min(-CUSTOM_SHAPE_LIMITS.maxSideMm).max(CUSTOM_SHAPE_LIMITS.maxSideMm),
 });
 
 /** Körs både i designern och i API:t — servern litar aldrig på klientens dokument. */
@@ -18,9 +19,15 @@ export const badgeDocumentSchema = z
     shape: z.enum(SHAPE_IDS),
     size: z.object({
       widthMm: z.number().min(SIZE_LIMITS.minWidthMm).max(SIZE_LIMITS.maxWidthMm),
-      heightMm: z.number().min(SIZE_LIMITS.minHeightMm).max(SIZE_LIMITS.maxHeightMm),
+      // En egen form får vara lika hög som bred; övriga former hålls till sin gräns nedan.
+      heightMm: z.number().min(SIZE_LIMITS.minHeightMm).max(CUSTOM_SHAPE_LIMITS.maxSideMm),
     }),
     cornerRadiusMm: z.number().min(0).max(30),
+    customOutline: z
+      .array(z.object({ x: z.number().finite(), y: z.number().finite() }))
+      .min(CUSTOM_SHAPE_LIMITS.minPoints)
+      .max(CUSTOM_SHAPE_LIMITS.maxPoints)
+      .optional(),
     frame: z.object({
       style: z.enum(["none", "solid", "double"]),
       insetMm: z.number().min(0.5).max(6),
@@ -57,6 +64,20 @@ export const badgeDocumentSchema = z
     const material = MATERIALS.find((m) => m.id === doc.materialId);
     if (material && !material.colors.some((c) => c.id === doc.colorId)) {
       ctx.addIssue({ code: "custom", path: ["colorId"], message: "Färgen finns inte i materialet" });
+    }
+    if (doc.shape === "custom") {
+      const issue = customOutlineIssue(doc.customOutline ?? [], doc.size);
+      if (issue) ctx.addIssue({ code: "custom", path: ["customOutline"], message: CUSTOM_OUTLINE_ISSUE_TEXT[issue] });
+      if (!material?.customShape) {
+        ctx.addIssue({ code: "custom", path: ["shape"], message: "Materialet går inte att skära i egen form" });
+      }
+    } else {
+      if (doc.customOutline) {
+        ctx.addIssue({ code: "custom", path: ["customOutline"], message: "Bara egen form har en egen kontur" });
+      }
+      if (doc.size.heightMm > SIZE_LIMITS.maxHeightMm) {
+        ctx.addIssue({ code: "custom", path: ["size", "heightMm"], message: `Högst ${SIZE_LIMITS.maxHeightMm} mm` });
+      }
     }
     if (doc.shape === "round" && doc.size.widthMm !== doc.size.heightMm) {
       ctx.addIssue({ code: "custom", path: ["size"], message: "En rund skylt är lika bred som hög" });

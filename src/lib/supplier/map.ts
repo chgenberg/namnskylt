@@ -14,9 +14,11 @@ import type { SupplierLayer, SupplierSignDocument } from "./types";
 /**
  * Skyltmotorn har ingen egen kapselform — den är en rektangel med radien h/2.
  * Kudden saknas också där. Ämnet är färdigskuret, så konturen skärs aldrig:
- * den skickas som rektangel och bara gravyrens läge används.
+ * den skickas som rektangel och bara gravyrens läge används. En egen form
+ * skickas som skyltmotorns fria polygon ("freeform") med sina punkter.
  */
 function supplierShape(shape: BadgeShape): SupplierSignDocument["shape"] {
+  if (shape === "custom") return "freeform";
   return hasStraightSides(shape) || shape === "cushion" ? "rectangular" : shape;
 }
 
@@ -119,7 +121,12 @@ export function toSupplierSignDocument(
     color: doc.colorId,
     shape: supplierShape(doc.shape),
     dimensions: { widthMm, heightMm, autoSize: false },
-    cornerRadiusMm: hasStraightSides(doc.shape) ? Number(effectiveCornerRadius(doc).toFixed(2)) : 0,
+    cornerRadiusMm: hasStraightSides(doc.shape)
+      ? Number(effectiveCornerRadius(doc).toFixed(2))
+      : doc.shape === "custom"
+        ? doc.cornerRadiusMm
+        : 0,
+    ...(doc.shape === "custom" && { customShapePoints: doc.customOutline ?? [] }),
     // Fästet ligger inte i skyltmotorns hålmodell — det skickas som namn tills
     // leverantören har en artikelkod per fäste.
     mounting: getMounting(doc.mounting).name,

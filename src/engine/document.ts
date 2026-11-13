@@ -1,5 +1,6 @@
 import {
   BLANKS,
+  CUSTOM_SHAPE_LIMITS,
   OFFERED_MATERIALS,
   SHAPES,
   TEXT_LIMITS,
@@ -8,7 +9,11 @@ import {
   getMaterial,
   getMounting,
   type BadgeBlank,
+  type BadgeMaterial,
+  type ColorCombo,
 } from "./catalog";
+import { customOutlineIssue, scaleOutline } from "./custom-outline";
+import { getShapePreset, presetOutline } from "./shape-presets";
 import type { BadgeDocument, BadgeTextRow, BlankId, MaterialFinish, Mm } from "./types";
 
 /** Versalhöjd per rad i ett nytt dokument: namn stort, titel mindre. */
@@ -75,14 +80,55 @@ export function blankOf(doc: Pick<BadgeDocument, "shape" | "size" | "cornerRadiu
   );
 }
 
-/** Formens namn så som kunden valde den: ämnets namn, eller formens för en äldre skylt med fritt mått. */
+/** Formens namn så som kunden valde den: ämnets namn, "Egen form", eller formens för en äldre skylt med fritt mått. */
 export function shapeLabel(doc: Pick<BadgeDocument, "shape" | "size" | "cornerRadiusMm">): string {
   return blankOf(doc)?.name ?? SHAPES.find((s) => s.id === doc.shape)?.name ?? doc.shape;
 }
 
-/** Byter ämne: form, mått och hörnradie följer med, allt annat ligger kvar. */
+/** Byter ämne: form, mått och hörnradie följer med, allt annat ligger kvar. En egen kontur släpps. */
 export function withBlank(doc: BadgeDocument, blankId: BlankId): BadgeDocument {
-  return { ...doc, ...blankGeometry(getBlank(blankId)) };
+  const rest = { ...doc };
+  delete rest.customOutline;
+  return { ...rest, ...blankGeometry(getBlank(blankId)) };
+}
+
+/** Byter till egen form utifrån ett formförslag, i förslagets mått. */
+export function withShapePreset(doc: BadgeDocument, presetId: string): BadgeDocument {
+  const preset = getShapePreset(presetId);
+  return {
+    ...doc,
+    shape: "custom",
+    size: { widthMm: preset.widthMm, heightMm: preset.heightMm },
+    cornerRadiusMm: preset.cornerRadiusMm,
+    customOutline: presetOutline(preset),
+  };
+}
+
+function clampSide(value: Mm): Mm {
+  return Math.min(CUSTOM_SHAPE_LIMITS.maxSideMm, Math.max(CUSTOM_SHAPE_LIMITS.minSideMm, Math.round(value)));
+}
+
+/** Nytt mått på en egen form: konturen skalas med, så att formen behåller sitt utseende. */
+export function resizeCustomShape(doc: BadgeDocument, size: { widthMm?: Mm; heightMm?: Mm }): BadgeDocument {
+  if (doc.shape !== "custom") return doc;
+  const next = { widthMm: clampSide(size.widthMm ?? doc.size.widthMm), heightMm: clampSide(size.heightMm ?? doc.size.heightMm) };
+  return { ...doc, size: next, customOutline: scaleOutline(doc.customOutline ?? [], doc.size, next) };
+}
+
+/** En egen form som går att skära: i ett material som tillåter det, inom måttet och utan fel i konturen. */
+export function isValidCustomShape(doc: BadgeDocument): boolean {
+  const { minSideMm, maxSideMm, maxCornerRadiusMm } = CUSTOM_SHAPE_LIMITS;
+  const { widthMm, heightMm } = doc.size;
+  return (
+    doc.shape === "custom" &&
+    getMaterial(doc.materialId).customShape === true &&
+    widthMm >= minSideMm &&
+    widthMm <= maxSideMm &&
+    heightMm >= minSideMm &&
+    heightMm <= maxSideMm &&
+    doc.cornerRadiusMm <= maxCornerRadiusMm &&
+    customOutlineIssue(doc.customOutline ?? [], doc.size) === null
+  );
 }
 
 /** Ämnet som ligger närmast en äldre skylt: samma formfamilj först, sedan närmast i höjd. */
@@ -109,42 +155,54 @@ function colorDistance(a: string, b: string): number {
   return (r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2;
 }
 
-/** Går att beställa i dag: ett material som säljs, i en av dess ytor, på ett av ämnena, med ett fäste som säljs. */
+/**
+ * Går att beställa i dag: ett material som säljs, i en av dess ytor, på ett av
+ * ämnena eller i en giltig egen form, med ett fäste som säljs.
+ */
 export function isOfferedDocument(doc: BadgeDocument): boolean {
   const material = getMaterial(doc.materialId);
   return (
     material.offered &&
     material.colors.some((c) => c.id === doc.colorId) &&
-    blankOf(doc) !== null &&
+    (blankOf(doc) !== null || isValidCustomShape(doc)) &&
     getMounting(doc.mounting).offered
   );
 }
 
-/**
- * En skylt i dagens sortiment. Delade länkar och äldre skyltar kan bära ett
- * material, ett mått eller ett fäste som inte säljs längre; de flyttas till
- * närmaste yta, ämne och fäste. Text, logga och ram rörs inte.
- */
-export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
-  const offeredMaterial = getMaterial(doc.materialId).offered;
-  const onBlank = blankOf(doc) !== null;
-  const offeredMounting = getMounting(doc.mounting).offered;
-  if (offeredMaterial && onBlank && offeredMounting) return doc;
-
-  const material = OFFERED_MATERIALS[0];
-  if (!material) return doc;
+/** Ytan i `material` som ligger närmast skyltens nuvarande färg. */
+function nearestColor(doc: BadgeDocument, material: BadgeMaterial): ColorCombo {
   const surface = getColor(doc.materialId, doc.colorId).surface;
   // Ljus metall ligger nära vitt i färg men ska bli borstad metall, inte vit lack.
   const wasMetal = METAL_FINISHES.has(getMaterial(doc.materialId).finish);
   const brushed = material.colors.filter((c) => !c.lacquered);
   const candidates = wasMetal && brushed.length > 0 ? brushed : material.colors;
-  const color = candidates.reduce((best, c) =>
-    colorDistance(c.surface, surface) < colorDistance(best.surface, surface) ? c : best,
-  );
+  return candidates.reduce((best, c) => (colorDistance(c.surface, surface) < colorDistance(best.surface, surface) ? c : best));
+}
+
+const PLASTIC_FINISHES: ReadonlySet<MaterialFinish> = new Set(["plastic", "acrylic", "epoxy"]);
+
+/** Materialet i dagens sortiment som ligger närmast ett äldre: plast blir plast, metall blir metall. */
+function nearestOfferedMaterial(doc: BadgeDocument) {
+  const wasPlastic = PLASTIC_FINISHES.has(getMaterial(doc.materialId).finish);
+  return OFFERED_MATERIALS.find((m) => PLASTIC_FINISHES.has(m.finish) === wasPlastic) ?? OFFERED_MATERIALS[0];
+}
+
+/**
+ * En skylt i dagens sortiment. Delade länkar och äldre skyltar kan bära ett
+ * material, ett mått eller ett fäste som inte säljs längre; de flyttas till
+ * närmaste material, yta, ämne och fäste. Text, logga och ram rörs inte.
+ */
+export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
+  const offeredMaterial = getMaterial(doc.materialId).offered;
+  const material = offeredMaterial ? getMaterial(doc.materialId) : nearestOfferedMaterial(doc);
+  if (!material) return doc;
+  const offeredColor = offeredMaterial && material.colors.some((c) => c.id === doc.colorId);
+  const moved: BadgeDocument = offeredColor ? doc : { ...doc, materialId: material.id, colorId: nearestColor(doc, material).id };
+  const offeredShape = blankOf(moved) !== null || isValidCustomShape(moved);
+  const offeredMounting = getMounting(doc.mounting).offered;
+  if (offeredColor && offeredShape && offeredMounting) return doc;
   return {
-    ...doc,
-    ...(offeredMaterial ? {} : { materialId: material.id, colorId: color.id }),
-    ...(onBlank ? {} : blankGeometry(nearestBlank(doc))),
+    ...(offeredShape ? moved : withBlank(moved, nearestBlank(moved).id)),
     // Säkerhetsnålen är en nål; den vanliga nålen är närmast.
     ...(offeredMounting ? {} : { mounting: "pin" as const }),
   };

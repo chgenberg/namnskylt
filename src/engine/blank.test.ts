@@ -15,15 +15,29 @@ function pointsOf(doc: BadgeDocument, inset = 0) {
 }
 
 describe("sortimentet", () => {
-  it("säljer bara verkstadens metallskylt, i tre ytor", () => {
+  it("säljer verkstadens metallskylt i tre ytor och plastskylt i fyra färger", () => {
     assert.deepEqual(
-      OFFERED_MATERIALS.map((m) => [m.id, m.producer]),
-      [["metal", "skylt-gravyr"]],
+      OFFERED_MATERIALS.map((m) => [m.id, m.producer, m.priceClass]),
+      [
+        ["metal", "skylt-gravyr", "premium"],
+        ["plastic", "skylt-gravyr", "standard"],
+      ],
     );
     assert.deepEqual(
       getMaterial("metal").colors.map((c) => c.id),
       ["metal-white", "metal-gold", "metal-silver"],
     );
+    assert.deepEqual(
+      getMaterial("plastic").colors.map((c) => c.id),
+      ["white-black", "black-white", "gold-black", "silver-black"],
+    );
+  });
+
+  it("bara plasten skärs ur ark och kan få en egen form; metallen är färdiga ämnen", () => {
+    assert.equal(getMaterial("plastic").customShape, true);
+    assert.equal(getMaterial("plastic").precut ?? false, false);
+    assert.equal(getMaterial("metal").customShape ?? false, false);
+    assert.equal(getMaterial("metal").precut, true);
   });
 
   it("behåller de äldre materialen så att sparade skyltar går att rita", () => {
@@ -147,10 +161,13 @@ describe("toOfferedDocument", () => {
 
   it("väljer yta efter den gamla färgen och ämne efter den gamla formen", () => {
     const base = createBadgeDocument(["Anna"]);
+    // Äldre plast blir dagens plast, äldre metall dagens metall.
     const white = toOfferedDocument({ ...base, materialId: "plastic-2-layer", colorId: "white-black" });
+    const red = toOfferedDocument({ ...base, materialId: "plastic-2-layer", colorId: "red-white" });
     const steel = toOfferedDocument({ ...base, materialId: "stainless", colorId: "steel-laser" });
-    assert.equal(white.colorId, "metal-white");
-    assert.equal(steel.colorId, "metal-silver");
+    assert.deepEqual([white.materialId, white.colorId], ["plastic", "white-black"]);
+    assert.equal(red.materialId, "plastic");
+    assert.deepEqual([steel.materialId, steel.colorId], ["metal", "metal-silver"]);
 
     const round = toOfferedDocument({ ...base, shape: "round", size: { widthMm: 55, heightMm: 55 } });
     const tall = toOfferedDocument({ ...base, shape: "rectangle", size: { widthMm: 74, heightMm: 40 } });

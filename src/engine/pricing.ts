@@ -26,7 +26,7 @@ export interface PriceTier {
 }
 
 export interface PriceOptions {
-  /** Egen form upp till 12 × 12 cm. Används först när fri form går att beställa. */
+  /** Egen form upp till 12 × 12 cm. */
   customShape: number;
   /** Extra gravyr eller print — i dag loggan. */
   extraEngraving: number;
@@ -110,6 +110,8 @@ export interface PriceItem {
   signClass: SignClass;
   mounting: MountingId;
   extraEngraving: boolean;
+  /** Skylten skärs i en egen form. */
+  customShape: boolean;
   quantity: number;
 }
 
@@ -130,6 +132,7 @@ function priceItemOf(doc: BadgeDocument): PriceItem {
     signClass: signClassOf(doc.materialId),
     mounting: doc.mounting,
     extraEngraving: Boolean(doc.logo),
+    customShape: doc.shape === "custom",
     quantity: doc.quantity,
   };
 }
@@ -153,6 +156,7 @@ function resellerParts(item: PriceItem, tierIndex: number, model: PriceModel): n
     model.signs[item.signClass][tierIndex] ?? 0,
     mountingResellerSek(item.mounting, model),
     item.extraEngraving ? model.options.extraEngraving : 0,
+    item.customShape ? model.options.customShape : 0,
   ];
 }
 

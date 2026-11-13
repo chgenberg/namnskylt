@@ -52,7 +52,9 @@ export interface SupplierSignDocument {
   productType: "sign";
   material: string;
   color: string;
-  shape: "rectangular" | "oval" | "round" | "hexagon" | "octagon";
+  shape: "rectangular" | "oval" | "round" | "hexagon" | "octagon" | "freeform";
+  /** Egen form: hörnpunkter i mm, y nedåt — samma fält som skyltmotorns fria polygon. */
+  customShapePoints?: { x: number; y: number }[];
   dimensions: { widthMm: number; heightMm: number; autoSize: false };
   cornerRadiusMm: number;
   mounting: string;
