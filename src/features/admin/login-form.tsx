@@ -113,7 +113,13 @@ export function LoginForm({ kind }: { kind: keyof typeof LOGINS }) {
         </button>
         <p className={styles.loginFoot}>
           {withEmail ? (
-            "Kontot skapas med länken i inbjudan från namnskylt.com."
+            <>
+              Inget konto?{" "}
+              <Link href="/aterforsaljare/ansok" className={styles.link}>
+                Ansök om att bli återförsäljare
+              </Link>
+              . Har du glömt lösenordet skickar namnskylt.com en länk där du väljer ett nytt.
+            </>
           ) : (
             <>
               Är du återförsäljare?{" "}

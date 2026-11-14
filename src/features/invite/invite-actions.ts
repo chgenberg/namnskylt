@@ -3,12 +3,11 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { createRateLimiter } from "@/lib/ai/rate-limit";
-import { accountExists, accountIdByEmail, authenticate, createAccount } from "@/lib/reseller-auth/accounts";
+import { accountIdByEmail, authenticate, createAccount, freeTenantId } from "@/lib/reseller-auth/accounts";
 import { signInCookies } from "@/lib/reseller-auth/sign-in";
 import { requireDb } from "@/lib/db/client";
 import { attributeLead, leadIdForInvite } from "@/lib/outreach/repository";
 import { acceptInvite, getInvite } from "@/lib/shops/editor-repository";
-import { OWNER_TENANT, TENANT_ID } from "@/lib/tenants/model";
 import { MIN_PASSWORD_CHARS } from "./limits";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -21,16 +20,6 @@ const claimSchema = z.object({
 });
 
 export type ClaimResult = { ok: true; slug: string } | { ok: false; error: string };
-
-/** Ett ledigt konto-id ur butikens adress: exempelbutik, exempelbutik-2 … */
-async function freeTenantId(base: string): Promise<string> {
-  const root = TENANT_ID.test(base) && base !== OWNER_TENANT ? base : "aterforsaljare";
-  for (let n = 1; n < 100; n++) {
-    const id = n === 1 ? root : `${root.slice(0, 36)}-${n}`;
-    if (!(await accountExists(id))) return id;
-  }
-  throw new Error("Inget ledigt konto-id");
-}
 
 /**
  * Återförsäljaren tar över sin butik: nytt konto, eller ett befintligt med

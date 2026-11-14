@@ -117,7 +117,7 @@ describe("priceBadge", () => {
     const one = priceBadge({ ...createBadgeDocument(["Anna"]), quantity: 10 }, list);
     const many = priceBadge({ ...createBadgeDocument(["Anna"]), quantity: 250 }, list);
     assert.ok(many.unitSek < one.unitSek);
-    assert.equal(many.totalSek, many.unitSek * 250);
+    assert.equal(many.totalSek, many.unitSek * 250 + many.shippingSek);
   });
 });
 

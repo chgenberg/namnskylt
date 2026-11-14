@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createBadgeDocument, priceOrder, resellerOrder } from "@/engine";
+import { createBadgeDocument, NO_SHIPPING, priceOrder, resellerOrder } from "@/engine";
 import { endPriceTable, resellerPriceTable } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { marginOf } from "./purchase";
 
 /** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
-const M = { ...DEFAULT_PRICE_MODEL, startSek: 0 };
+const M = { ...DEFAULT_PRICE_MODEL, startSek: 0, shipping: NO_SHIPPING };
 const LIST = endPriceTable(M);
 const PURCHASE = resellerPriceTable(M);
 
@@ -33,10 +33,31 @@ describe("marginal", () => {
 
   it("med startkostnad får återförsäljaren marginal även på den: 4 skyltar ger 852 kr mot 512 kr i inköp", () => {
     const badges = [{ ...createBadgeDocument(["Anna Lind"]), quantity: 4 }];
-    const sale = priceOrder(badges, endPriceTable(DEFAULT_PRICE_MODEL)).totalSek;
-    const purchase = resellerOrder(badges, resellerPriceTable(DEFAULT_PRICE_MODEL)).totalSek;
+    const withStart = { ...DEFAULT_PRICE_MODEL, shipping: NO_SHIPPING };
+    const sale = priceOrder(badges, endPriceTable(withStart)).totalSek;
+    const purchase = resellerOrder(badges, resellerPriceTable(withStart)).totalSek;
     assert.equal(sale, 4 * (130 + 83));
     assert.equal(purchase, 4 * (78 + 50));
     assert.deepEqual(marginOf(sale, purchase), { sek: 340, percent: 40 });
+  });
+
+  it("frakten ger ingen marginal: 20 skyltar har 159 kr frakt hos båda parter och samma marginal i kronor", () => {
+    const badges = [{ ...createBadgeDocument(["Anna Lind"]), quantity: 20 }];
+    const sale = priceOrder(badges, endPriceTable(DEFAULT_PRICE_MODEL));
+    const purchase = resellerOrder(badges, resellerPriceTable(DEFAULT_PRICE_MODEL));
+    assert.equal(sale.shippingSek, 159);
+    assert.equal(purchase.shippingSek, 159);
+    const withoutShipping = marginOf(sale.totalSek - sale.shippingSek, purchase.goodsSek);
+    assert.equal(marginOf(sale.totalSek, purchase.totalSek).sek, withoutShipping.sek);
+  });
+
+  it("varje part räknar frakten på sitt eget varuvärde: 3 skyltar ger kunden paket och återförsäljaren varubrev", () => {
+    // Kundens varuvärde är 3 × (130 + 111) = 723 kr, över gränsen 500 kr. Återförsäljarens är 3 × (78 + 66,67) = 434,01 kr.
+    const badges = [{ ...createBadgeDocument(["Anna Lind"]), quantity: 3 }];
+    const sale = priceOrder(badges, endPriceTable(DEFAULT_PRICE_MODEL));
+    const purchase = resellerOrder(badges, resellerPriceTable(DEFAULT_PRICE_MODEL));
+    assert.equal(sale.shippingSek, 159);
+    assert.equal(purchase.shippingSek, 75);
+    assert.equal(sale.shippingSek - purchase.shippingSek, 84);
   });
 });

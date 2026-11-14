@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { siteOrigin } from "@/lib/http/origin";
+import { quoteDeliverySchema, type QuoteDelivery } from "@/lib/orders/delivery";
 import { pricingSchema, type Pricing } from "@/lib/orders/pricing";
+import { saveResellerDeliveryAddress } from "@/lib/orders/repository";
 import { acceptQuote } from "@/lib/quotes/accept";
-import { cancelQuote, markSent, updateQuote } from "@/lib/quotes/repository";
+import { cancelQuote, markSent, updateQuote, updateQuoteDelivery } from "@/lib/quotes/repository";
 import { requireReseller } from "@/lib/reseller-auth/session";
 import type { ActionResult } from "./actions";
 
@@ -46,6 +48,25 @@ export async function updateQuoteTermsAction(quoteNo: string, input: z.input<typ
     return ok ? done() : { ok: false, error: "Offerten går inte att ändra längre" };
   } catch (error) {
     return fail(error, "Villkoren kunde inte sparas");
+  }
+}
+
+/**
+ * Vart offertens skyltar ska. Till kunden får adressen lämnas tom, då fyller
+ * kunden i den när offerten godkänns. Till återförsäljaren krävs adressen.
+ */
+export async function updateQuoteDeliveryAction(quoteNo: string, delivery: QuoteDelivery): Promise<ActionResult> {
+  const tenant = await requireReseller();
+  try {
+    const parsed = quoteDeliverySchema.parse(delivery);
+    if (parsed.to === "reseller" && !parsed.address) return { ok: false, error: "Fyll i adressen skyltarna ska skickas till" };
+    const ok = await updateQuoteDelivery(tenant, quoteNoSchema.parse(quoteNo), parsed);
+    if (!ok) return { ok: false, error: "Offerten går inte att ändra längre" };
+    if (parsed.to === "reseller" && parsed.address) await saveResellerDeliveryAddress(tenant, parsed.address);
+    return done();
+  } catch (error) {
+    if (error instanceof z.ZodError) return { ok: false, error: error.issues[0]?.message ?? "Ogiltig adress" };
+    return fail(error, "Leveransen kunde inte sparas");
   }
 }
 

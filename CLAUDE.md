@@ -23,6 +23,9 @@ Läs dessa när du arbetar i respektive område:
   ocommittat arbete. Kör aldrig `git checkout -- <fil>`, `git stash`, `reset` eller `clean`.
 - **Skicka aldrig mejl.** `RESEND_API_KEY` ska vara tom tills användaren säger annat.
   Utskicket står i `dry_run` och är pausat.
+- **Slå aldrig på kopplingen till verkstaden.** `SUPPLIER_API_URL` och `SUPPLIER_API_KEY` ska
+  vara tomma i driften tills användaren säger till. Med dem satta skickas varje ny order till
+  Skylt & Gravyrteknik, som tillverkar och fakturerar. Se avsnittet Ordern till verkstaden.
 - **Kunddata stannar utanför repot.** Kundlistan (`PROFIL KUNDER 2026.xlsx`) ligger i iCloud
   och läses via `OUTREACH_LEADS_FILE`. Skriv aldrig namn eller adresser i loggar, svar eller
   commits. Filer med kundnamn hör hemma i `tmp/` (gitignorerad och dockerignorerad).
@@ -46,7 +49,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (698 tester, grönt 2026-11-14).
+# Kvalitetsgrinden. Kör den innan något lämnas (756 tester, grönt 2026-11-14).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -79,8 +82,9 @@ pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
 | `src/lib/ai/` | OpenAI-klient, bildredigering, bärarens kön och ålder ur namnet, fotokontroll, varumärkesläsning, hastighetsgränser. |
 | `src/lib/brand/` | Läser kunders hemsidor (färger, typsnitt, logga) med SSRF-skydd (`safe-fetch`, `ip`) och Chrome-reserv (`render`). |
 | `src/lib/shops/` | Butiker åt återförsäljare: modell, innehållsblock, sidmallar, AI-redigering, domäner. |
-| `src/lib/orders/`, `quotes/`, `production/` | Ordrar, offerter och korrektur, verkstadens arkpackning. |
-| `src/lib/supplier/` | Kontraktet mot Skylt & Gravyrteknik: `map.ts` (skylt → deras dokument), `client.ts` (mock utan nyckel), statuswebhook. |
+| `src/lib/orders/`, `quotes/`, `production/` | Ordrar (med leveransadress, `delivery.ts`), offerter och korrektur, verkstadens arkpackning. |
+| `src/lib/supplier/` | Kontraktet mot Skylt & Gravyrteknik: `types.ts` (kontraktet), `map.ts` (skylt → deras dokument), `request.ts` (hela anropet), `dispatch.ts` (utskicket), `client.ts`, statuswebhook. |
+| `src/lib/reseller-auth/` | Återförsäljarnas konton, inlogg, ansökningar (`applications.ts`) och hemliga länkar för att välja lösenord (`access-links.ts`). |
 | `src/lib/outreach/` | Utskicket till återförsäljare (se nedan). 42 filer i en platt mapp, vilket är känd skuld. |
 | `src/lib/email/` | Transport: `ResendEmailSender` och `MockEmailSender`, som skriver `.eml` till `tmp/outreach-outbox`. |
 | `src/lib/format/` | `formatSek`, `formatDate`, `formatDay`, `formatRelative` (Europe/Stockholm). |
@@ -218,6 +222,21 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   666 skyltar blir den 0 kr. Återförsäljarens del avrundas till ören. "Från"-priser och
   exempelpriser visas utan startkostnad (`fromPriceSek`, `withoutStartCost`), eftersom den beror
   på antalet.
+- **Frakten** (beslut av ägaren 2026-11-14) är Skylt & Gravyrtekniks egen, rakt av: varubrev 75 kr
+  för en order med varuvärde upp till 500 kr, annars paket 159 kr (`PriceModel.shipping`,
+  `ShippingRule`, kortet "Frakt" i `/admin/prismodell`, hela kronor).
+  - Den ligger **utanför kedjan**: ingen provision och ingen marginal, och allt går till
+    verkstaden. `provisionSplit` tar därför varuvärdet (`TablePrice.goodsSek`), aldrig summan
+    med frakt. `totalSek` är varuvärdet plus frakten, hos båda parter.
+  - **Varje part räknar frakten på sitt eget varuvärde** med samma gräns och samma belopp
+    (`shippingSek(goodsSek, table)`), precis som i verkstadens egen kassa. Slutkundens prislista
+    kan inte räkna på återförsäljarens varuvärde utan att avslöja inköpspriserna. Följden: i
+    ett smalt spann betalar kunden paketfrakt medan återförsäljaren betalar varubrev (3
+    metallskyltar: 159 mot 75 kr), och då behåller återförsäljaren mellanskillnaden på 84 kr.
+  - Varuvärdet är skyltarna med påslaget upp till minsta ordervärde. Butikens påslag gäller inte
+    frakten. Frakten visas som egen rad på offert, PDF, ordersida och fakturaunderlag.
+  - En modell sparad före frakten läses utan frakt (`NO_SHIPPING`), så äldre ordrar och offerter
+    behåller sina summor. Migrering 019 lade frakten i den sparade modellen i `settings`.
 - **Trappsteg** på orderns totala antal: 1–100, 101–300, 301–500 och 501 eller fler.
 - **Per skylt:** skylttypens pris (Premium = metall, Standard = plast, `priceClass` i katalogen),
   ett fäste (nål, klämma eller magnet), loggan som "extra gravyr" och skyltens del av
@@ -268,7 +287,7 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   äldre skylt med den prissätts som nål.
 - Kalkylens "militärklämma" är sajtens fäste "Klämma" (bekräftat av ägaren 2026-11-13).
 
-## Inlogg — läge 2026-11-13
+## Inlogg — läge 2026-11-14
 
 Panelen ligger under `/admin` för båda parter, men det finns två skilda inlogg:
 
@@ -276,22 +295,108 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
   med `{ password }`. Ger hyresgästen `namnskylt` (`OWNER_TENANT`, `isOwner`). Variabelnamnet är
   historiskt; lösenordet signerar också återförsäljarnas kakor.
 - **Återförsäljare**: `/aterforsaljare`, e-post och lösenord (`reseller_accounts`),
-  `POST /api/reseller/session`. Kontot skapas via inbjudan (`/aterforsaljare/[token]`) eller
-  `pnpm reseller:create`.
+  `POST /api/reseller/session`. Kontot skapas via en godkänd ansökan (nedan), via en
+  butiksinbjudan (`/aterforsaljare/[token]`) eller med `pnpm reseller:create`.
+- **Ansökan som admin godkänner** (beslut av ägaren 2026-11-14, migrering 021):
+  - Ett företag ansöker på `/aterforsaljare/ansok` (öppen förbi sajtspärren): företag,
+    organisationsnummer, kontakt, e-post och fakturaadress (`reseller_applications`,
+    `resellerApplicationSchema`). Formuläret begränsas per klient och har ett dolt robotfält.
+    En ny ansökan med samma e-post skriver över den som väntar.
+  - Admin godkänner eller avslår under `/admin/aterforsaljare`. Godkännandet ger en länk
+    (`/aterforsaljare/konto/<kod>`, 14 dagar) som admin kopierar eller mejlar själv, eftersom
+    sajten inte skickar mejl än. Länken visas en gång; i databasen ligger bara dess SHA-256
+    (`reseller_access_links`).
+  - Kontot skapas först när den sökande väljer lösenord. Då blir ansökans uppgifter företagets
+    (`company_profile`), så att organisationsnumret finns när ordrar ska till verkstaden, och
+    kontots id blir företagsnamnet som slug (`tenantSlug`, `freeTenantId`).
+  - Samma sida ger admin en **lösenordslänk** per konto (3 dagar, gäller en gång). En ny länk
+    gör äldre länkar ogiltiga. Återförsäljaren byter själv lösenord under Inställningar
+    (`changePasswordAction`). "Glömt lösenord" med mejl finns inte än.
+  - Lösenordets minsta längd ligger i `src/lib/reseller-auth/limits.ts`, en fil utan
+    Node-moduler, eftersom formulären i webbläsaren läser den.
 - Vägarna tar bara emot sina egna fält (`z.strictObject`), så det ena formuläret kan aldrig ge det
   andra inlogget. `authenticate` och `createAccount` vägrar ägarens id.
 - Formuläret är `LoginForm` (`kind: "admin" | "reseller"`) i `src/features/admin/login-form.tsx`.
   Sajtens meny länkar "Logga in" till `/aterforsaljare` och visar "Admin" eller "Mina sidor".
-- **Bara admin** ser Butiker, Utskick, Prismodell och Provision (sidor, actions och API-vägar
-  kontrollerar `isOwner`). Varje adminsida kontrollerar inloggningen själv med `adminTenant()`.
+- **Bara admin** ser Tillverkning, Återförsäljare, Butiker, Utskick, Prismodell och Provision
+  (sidor, actions och API-vägar kontrollerar `isOwner`). Varje adminsida kontrollerar inloggningen själv med `adminTenant()`.
 - **Provision** (`/admin/provision`) är adminens samlade vy över återförsäljarnas ordrar: vad
   återförsäljaren betalar, provisionen och verkstadens del, per order och per återförsäljare
   (rena regler i `src/lib/orders/provision.ts`, frågan i `provision-store.ts`). Ägarens egna
-  ordrar, demoordrar och avbrutna ordrar är inte med. Vyn saknar periodfilter och länk till
-  orderns detaljer, och läser alla ordrar varje gång, vilket håller så länge de är få. Under
-  Ordrar ser admin fortfarande bara ordrar under hyresgästen `namnskylt`.
+  ordrar, demoordrar och avbrutna ordrar är inte med. Vyn filtreras per månad
+  (`?period=2026-11`, månaden ordern lades i svensk tid) och laddas ner som CSV
+  (`/api/admin/provision/export`, `provisionCsv`): varor, frakt, provision och verkstadens del
+  per order. Det är underlaget för plattformens faktura till Skylt & Gravyrteknik. Vyn läser
+  alla ordrar varje gång, vilket håller så länge de är få. Under Ordrar ser admin fortfarande
+  bara ordrar under hyresgästen `namnskylt`; alla återförsäljares ordrar syns under Tillverkning.
 - `next dev` skickar med serverns mellanresultat som felsökningsdata i sidan (React), så där syns
   hela prismodellen i sidkällan. Kontrollera läckor mot `next build` + `next start`.
+
+## Ordern till verkstaden — läge 2026-11-14
+
+Återförsäljaren är ett säljverktyg ovanpå verkstaden: den designar åt sina kunder, skickar offert
+med eget namn och egen logga, och ordern går till Skylt & Gravyrteknik, som tillverkar, skickar
+och **fakturerar återförsäljaren** (beslut av ägaren 2026-11-14). Plattformen fakturerar
+verkstaden sin provision per period.
+
+- **Kopplingen är byggd men avstängd.** Strömbrytaren är `SUPPLIER_API_URL` och
+  `SUPPLIER_API_KEY` (`supplierApiConfigured`). Utan dem sparas ordrar och väntar. Verkstadens
+  API finns inte än, se avsnittet Leverantören.
+- **Ordern sparas alltid först** (`placeOrder`), sedan skickas den (`dispatchOrder` i
+  `src/lib/supplier/dispatch.ts`). Misslyckas utskicket ligger ordern kvar med felet
+  (`orders.supplier_error`, `supplier_attempts`), och kunden får aldrig ett fel för det. Förut
+  anropades verkstaden först, och ordern gick förlorad om anropet föll.
+- **Adminens översikt** är `/admin/tillverkning` (bara admin): alla återförsäljares ordrar med
+  läget Väntar, Saknar uppgifter, Misslyckades eller Hos verkstaden (`dispatchStatus`). Väntande
+  och misslyckade ordrar skickas en i taget härifrån. Det finns med flit ingen knapp för att
+  skicka alla, eftersom gamla testordrar annars skulle tillverkas. "Underlag" visar anropet som
+  JSON utan att skicka något (`GET /api/admin/supplier/request/<order>`). Ett misslyckat utskick
+  görs inte om av sig självt; det finns inget schemalagt jobb.
+- **Det som stoppar en order** (`dispatchProblems`): leveransadress saknas, återförsäljarens
+  organisationsnummer eller e-post saknas, eller ordern har inga skyltar som verkstaden gör.
+  Beställaren (`SupplierBuyer`) är återförsäljaren ordern tillhör, läst ur dess
+  företagsuppgifter. namnskylt.coms egna ordrar har namnskylt.com som beställare, så ägarens
+  företagsuppgifter måste vara ifyllda innan kopplingen slås på.
+- **Anropet** (`SupplierOrderRequest`, byggs i `request.ts`): vårt ordernummer som `orderRef`
+  och i huvudet `Idempotency-Key`, projektet, beställaren som faktureras, slutkunden som
+  referens, fraktsätt (`postnord-varubrev` eller `dhl-paket`), fraktkostnad och adress, och per
+  rad dokumentet, produktionsfilen, antalet och **återförsäljarens pris per skylt** med
+  startkostnaden inräknad, samt påslaget upp till minsta ordervärde. Bilderna skickas en gång i
+  `images` och lagren pekar dit (`src: "image:<nyckel>"`), så hundra namn med samma logga blir
+  en bild. Ett anrop över 5,5 MB stoppas med ett begripligt fel. Provision och marginal finns
+  aldrig i anropet.
+- **Leveransadressen** (`Delivery` i `src/lib/orders/delivery.ts`, migrering 020, kolumnen
+  `delivery` på `orders` och `quotes`) har samma fält som verkstadens `Address`. Mottagaren väljs
+  per order: till kunden eller till återförsäljaren (beslut av ägaren 2026-11-14).
+  - Formuläret är `DeliveryFields` (`src/components/`), samma överallt. Det förifylls ur kundens
+    senaste leverans, annars ur kundens fria adresstext (`guessAddress`), och för "Till oss" ur
+    återförsäljarens sparade adress (`settings`, nyckeln `delivery_address`).
+  - Skyltmotorn: en kund som beställer själv fyller i adressen; en återförsäljare som lägger en
+    order får den efter första klicket på "Lägg order". Med formuläret öppet scrollar
+    beställningsdelen själv (`.order[data-open]`).
+  - En offert börjar med leverans till kunden. Är adressen tom fyller kunden i den när offerten
+    godkänns; ska skyltarna till återförsäljaren visas bara dess namn för kunden, aldrig adressen
+    (`acceptedDelivery`). Panelen `DeliveryPanel` ändrar leveransen på order och offert tills
+    ordern har gått till verkstaden.
+  - "Beställ igen" och "Ny personal" ärver förra orderns leverans, en order från en mall får
+    kundens senaste. Saknas adressen sparas ordern ändå, men den går inte att skicka.
+- **Statusen tillbaka** går som förut via `/api/supplier/webhook` (signerad) och hämtas vid
+  behov med `GET /orders/<nr>`.
+- **Flera designer i samma order** (`CartSection`, `BadgeGroup` i motorn): "Lägg till en skylt
+  med annan design" lägger undan skylten i editorn och börjar på nästa med samma design utan
+  text. Den nya räknas inte in förrän den ändrats. Priset räknas på hela ordern, så trappsteg,
+  startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom
+  bilden bara visar en av dem. Korgen ligger i minnet och försvinner om sidan laddas om.
+- `/verkstad`, produktionssidan här i projektet, visar fortfarande bara demoordrar. Riktiga
+  ordrar är tänkta att gå via kopplingen till verkstadens eget system.
+- Öppet: underlaget per period räknar på månaden ordern lades, inte när den skickades eller
+  fakturerades. Ingen har bestämt vilket som gäller för plattformens faktura till verkstaden.
+- **Mejl skickas inte.** Offertens länk går från återförsäljarens eget mejlprogram. Ingen får
+  besked när en kund godkänner en offert, och det finns ingen orderbekräftelse. Resend är
+  beslutat men inte inkopplat.
+- Kontrollerat 2026-11-14 mot en låtsasverkstad på datorn (produktionsbygget med kopplingen
+  på): en ny order skickas en gång, ett fel går att göra om, en väntande order skickas från
+  översikten och statusen kommer tillbaka. Aldrig provat mot verkstadens riktiga system.
 
 ## AI i produkten
 
@@ -369,22 +474,32 @@ gamla ska inte godkännas.
 med Prisma, AWS och SST, byggt av samma ägare. Namnskylts katalog (`supplierCode`, färg-id:n)
 speglar `packages/catalog` där.
 
-Deras sajt har ännu inget API som tar emot ordrar. Planen för det:
-1. En API-nyckel per partnerkonto.
-2. `POST /orders` som tar emot vårt `SupplierSignDocument` och skapar en vanlig order.
-3. `GET /orders/{nr}`.
-4. En signerad statuswebhook till `/api/supplier/webhook`.
+Deras sajt har ännu inget API som tar emot ordrar. Namnskylts sida är klar (se Ordern till
+verkstaden), så det som återstår ligger där. Lästes 2026-11-14: deras `Order` har redan
+`customerPo`, `orderName`, `shippingMethod`, `shippingCost`, `shippingAddress`,
+`minOrderAdjustment`, betalsättet `invoice` med Fortnox-faktura vid Skickad, och
+`Company.collectiveInvoice` för samfakturering. Det som behöver byggas hos dem:
+1. En API-nyckel per partnerkonto (`Authorization: Bearer`).
+2. `POST /orders` som tar emot `SupplierOrderRequest` och skapar en vanlig fakturaorder:
+   - hittar eller lägger upp beställaren som företagskund på `buyer.id` och organisationsnummer,
+   - sparar `orderRef` som `customerPo` och svarar med samma order om `Idempotency-Key`
+     kommer igen,
+   - lägger in bilderna ur `images` i dokumenten innan de sparas,
+   - tar radpriserna, påslaget och frakten ur anropet i stället för sin egen prislista.
+3. `GET /orders/{nr}` med `SupplierOrderState`.
+4. En signerad statuswebhook till `/api/supplier/webhook` (`x-supplier-signature`,
+   `t=<sekunder>,v1=<HMAC-SHA256 av "t.kropp">`).
 
 Luckor i kontraktet:
-- Leveransadress saknas i ordern.
 - Metallämnena och kuddformen finns inte i deras katalog. Kudden skickas som rektangel.
 - Egen form skickas som deras fria polygon (`shape: "freeform"`, `customShapePoints`), men hos dem
   är den bara tillåten för metallskärning. De behöver öppna den för graverad plast.
-- En idempotensnyckel behövs mot dubbla ordrar.
 - Fästet skickas som text i stället för artikelkod.
+- Deras fraktsätt har också upphämtning och express. Vi skickar bara varubrev eller paket.
 - En logga i färg skickas som bildlager med `renderMode: "print"`. Deras format har läget, men
   ingen har bekräftat att verkstaden trycker namnskyltar eller vilken upplösning som krävs.
-- Lambda tar högst 6 MB per anrop.
+- Lambda tar högst 6 MB per anrop. Bilderna skickas en gång och anropet stoppas vid 5,5 MB,
+  men en order med många olika loggor i färg kan ändå bli för stor.
 
 Det projektet har egna, strikta regler i `Skyltochgravyr/.cursor/rules/`:
 - Ändra inget under `skyltmotor/` utan ett uttryckligt ja i samma meddelande.

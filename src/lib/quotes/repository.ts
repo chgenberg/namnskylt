@@ -6,6 +6,7 @@ import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
 import { endPriceTable, type PriceModel } from "@/engine/price-model";
 import { requireDb } from "@/lib/db/client";
 import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages, withStoredLogoImages } from "@/lib/logo-images/repository";
+import { parseQuoteDelivery, quoteDeliverySchema, type QuoteDelivery } from "@/lib/orders/delivery";
 import { isCustomPricing, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
 import { priceListsFor, storedPriceModel, type PriceAudience } from "@/lib/orders/price-lists";
 import { getPriceModel, parsePricing } from "@/lib/orders/repository";
@@ -52,6 +53,7 @@ interface QuoteRow {
   badge_shot: string | null;
   project: string | null;
   reseller_id: string;
+  delivery: unknown;
 }
 
 function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudience): StoredQuote {
@@ -87,6 +89,7 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
     token: row.token,
     orderNo: row.order_no,
     declineReason: row.decline_reason,
+    delivery: parseQuoteDelivery(row.delivery),
     demo: row.is_demo,
     createdAt: row.created_at.toISOString(),
     sentAt: row.sent_at?.toISOString() ?? null,
@@ -98,7 +101,7 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
 /** Stillbilden är den tunga kolumnen — listan klarar sig utan. */
 function selectQuotes(sql: Sql, withShot = false) {
   return sql`
-    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, q.project, q.reseller_id, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
+    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, q.project, q.reseller_id, q.delivery, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
            to_char(q.valid_until, 'YYYY-MM-DD') as valid_until, q.token, q.decline_reason, q.is_demo,
            q.created_at, q.sent_at, q.decided_at, o.order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email,
@@ -147,6 +150,8 @@ export async function createQuote(input: {
   demo: boolean;
   badgeShot?: string | null;
   project?: string | null;
+  /** Utelämnad = till kunden, som fyller i adressen när offerten godkänns. */
+  delivery?: QuoteDelivery | null;
 }): Promise<{ quoteNo: string }> {
   const sql = requireDb();
   const model = await getPriceModel();
@@ -159,9 +164,11 @@ export async function createQuote(input: {
   return sql.begin(async (tx) => {
     // Kunden måste tillhöra samma återförsäljare — annars skapas ingen offert.
     const [row] = await tx<{ id: string; quote_no: string }[]>`
-      insert into quotes (reseller_id, customer_id, badges, price_model, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project)
+      insert into quotes (reseller_id, customer_id, badges, price_model, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project,
+                          delivery)
       select ${input.tenant}, ${input.customerId}, ${tx.json(badges as unknown as Json)}, ${tx.json(model as unknown as Json)}, ${price.totalSek},
-             ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null}, ${input.project ?? null}
+             ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null}, ${input.project ?? null},
+             ${input.delivery ? tx.json(input.delivery as unknown as Json) : null}
        where exists (select 1 from customers where id = ${input.customerId} and reseller_id = ${input.tenant})
       returning id, quote_no`;
     if (!row) throw new Error("Offerten kunde inte sparas");
@@ -203,6 +210,23 @@ export async function updateQuote(
     }
     return true;
   });
+}
+
+/** Vart offertens skyltar ska skickas. Går att ändra tills offerten är besvarad. */
+export async function updateQuoteDelivery(tenant: string, quoteNo: string, delivery: QuoteDelivery): Promise<boolean> {
+  const sql = requireDb();
+  const parsed = quoteDeliverySchema.parse(delivery);
+  const [row] = await sql<{ id: string }[]>`
+    update quotes set delivery = ${sql.json(parsed as unknown as Json)}
+     where quote_no = ${quoteNo} and reseller_id = ${tenant} and status in ('draft', 'sent', 'declined')
+    returning id`;
+  return Boolean(row);
+}
+
+/** Leveransen som gällde när offerten blev en order. Sparas på offerten så att den visar vart skyltarna gick. */
+export async function saveAcceptedDelivery(quoteId: string, delivery: QuoteDelivery): Promise<void> {
+  const sql = requireDb();
+  await sql`update quotes set delivery = ${sql.json(quoteDeliverySchema.parse(delivery) as unknown as Json)} where id = ${quoteId}`;
 }
 
 export async function markSent(tenant: string, quoteNo: string): Promise<StoredQuote | null> {

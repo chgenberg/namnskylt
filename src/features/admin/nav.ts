@@ -21,6 +21,8 @@ export function adminNav({ owner, shopSlug }: { owner: boolean; shopSlug: string
   if (owner) {
     return [
       ...first,
+      { href: "/admin/tillverkning", label: "Tillverkning", icon: "workshop" },
+      { href: "/admin/aterforsaljare", label: "Återförsäljare", icon: "resellers" },
       { href: "/admin/butiker", label: "Butiker", icon: "shops" },
       { href: "/admin/utskick", label: "Utskick", icon: "outreach" },
       { href: "/admin/prismodell", label: "Prismodell", icon: "purchase" },

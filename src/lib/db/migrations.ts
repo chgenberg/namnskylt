@@ -400,6 +400,64 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       );
     `,
   },
+  {
+    // Frakten, Skylt & Gravyrtekniks prislista rakt av. Ordrar och offerter behåller sin sparade modell utan frakt.
+    id: "019_price_model_shipping",
+    sql: `
+      update settings
+         set value = jsonb_set(value, '{shipping}', '{"letterSek": 75, "parcelSek": 159, "letterMaxSek": 500}'::jsonb), updated_at = now()
+       where key = 'price_model' and not (value ? 'shipping');
+    `,
+  },
+  {
+    // Leveransadress på order och offert, och orderns väg till verkstaden: när den skickades,
+    // senaste felet och antalet försök. En order utan supplier_sent_at väntar på att skickas.
+    id: "020_delivery_and_dispatch",
+    sql: `
+      alter table orders add column delivery jsonb;
+      alter table orders add column supplier_sent_at timestamptz;
+      alter table orders add column supplier_claimed_at timestamptz;
+      alter table orders add column supplier_error text;
+      alter table orders add column supplier_attempts integer not null default 0;
+      alter table quotes add column delivery jsonb;
+    `,
+  },
+  {
+    // Ansökan om att bli återförsäljare, som admin godkänner eller avslår, och hemliga länkar
+    // för att välja lösenord: en vid godkänd ansökan och en när admin återställer ett konto.
+    // Bara länkens SHA-256 sparas.
+    id: "021_reseller_applications",
+    sql: `
+      create table reseller_applications (
+        id uuid primary key default gen_random_uuid(),
+        company text not null,
+        org_number text not null,
+        contact_name text not null,
+        email text not null,
+        phone text,
+        address text not null,
+        website text,
+        message text,
+        status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+        account_id text references reseller_accounts(id) on delete set null,
+        created_at timestamptz not null default now(),
+        decided_at timestamptz
+      );
+      create index reseller_applications_status on reseller_applications (status, created_at desc);
+      create unique index reseller_applications_pending_email on reseller_applications (lower(email)) where status = 'pending';
+
+      create table reseller_access_links (
+        token_hash text primary key check (token_hash ~ '^[0-9a-f]{64}$'),
+        kind text not null check (kind in ('activate', 'reset')),
+        application_id uuid references reseller_applications(id) on delete cascade,
+        account_id text references reseller_accounts(id) on delete cascade,
+        created_at timestamptz not null default now(),
+        expires_at timestamptz not null,
+        used_at timestamptz,
+        check ((kind = 'activate' and application_id is not null) or (kind = 'reset' and account_id is not null))
+      );
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

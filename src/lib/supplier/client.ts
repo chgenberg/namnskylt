@@ -7,6 +7,11 @@ const REQUEST_TIMEOUT_MS = 15_000;
 /** Statusen hämtas när sidan visas — den får inte hålla upp sidan länge. */
 const STATUS_TIMEOUT_MS = 4_000;
 
+/** Beräknat skickdatum för en order som läggs nu, tills verkstaden gett sitt eget. */
+export function estimatedShipDate(now: Date = new Date()): string {
+  return shipDate(now, PRODUCTION_DAYS);
+}
+
 function shipDate(fromDate: Date, workingDays: number): string {
   const date = new Date(fromDate);
   let remaining = workingDays;
@@ -23,7 +28,7 @@ class MockSupplierClient implements SupplierClient {
     return {
       orderNumber: `MOCK-${Date.now().toString(36).toUpperCase()}`,
       status: "mock",
-      estimatedShipDate: shipDate(new Date(), PRODUCTION_DAYS),
+      estimatedShipDate: estimatedShipDate(),
     };
   }
 
@@ -44,6 +49,8 @@ class HttpSupplierClient implements SupplierClient {
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${this.apiKey}`,
+        // Samma order får aldrig bli två hos leverantören, även om svaret tappas och vi försöker igen.
+        "idempotency-key": request.orderRef,
       },
       body: JSON.stringify(request),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),

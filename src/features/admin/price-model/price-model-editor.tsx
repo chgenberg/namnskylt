@@ -262,6 +262,53 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
         </div>
       </section>
 
+      <section className={styles.card} aria-labelledby="price-model-shipping">
+        <div className={styles.cardHead}>
+          <h2 id="price-model-shipping" className={styles.cardTitle}>
+            Frakt
+          </h2>
+          <p className={styles.muted}>
+            Skylt &amp; Gravyrtekniks frakt, rakt av. Återförsäljaren och slutkunden betalar samma belopp, utan provision och
+            marginal, och varje part räknar på sitt eget varuvärde.
+          </p>
+        </div>
+        <div className={styles.orderGrid}>
+          <div className={styles.orderField}>
+            <span className={styles.controlLabel}>Varubrev</span>
+            <NumberField
+              label="Frakt som varubrev"
+              value={draft.shipping.letterSek}
+              unit="kr"
+              max={MAX_PRICE_SEK}
+              onChange={(letterSek) => setDraft({ ...draft, shipping: { ...draft.shipping, letterSek } })}
+            />
+            <small>PostNord, för en order upp till gränsen</small>
+          </div>
+          <div className={styles.orderField}>
+            <span className={styles.controlLabel}>Gräns för varubrev</span>
+            <NumberField
+              label="Högsta varuvärde för varubrev"
+              value={draft.shipping.letterMaxSek}
+              unit="kr"
+              max={MAX_PRICE_SEK}
+              onChange={(letterMaxSek) => setDraft({ ...draft, shipping: { ...draft.shipping, letterMaxSek } })}
+            />
+            <small>Varuvärde exkl. moms och frakt</small>
+          </div>
+          <div className={styles.orderField}>
+            <span className={styles.controlLabel}>Paket</span>
+            <NumberField
+              label="Frakt som paket"
+              value={draft.shipping.parcelSek}
+              unit="kr"
+              max={MAX_PRICE_SEK}
+              onChange={(parcelSek) => setDraft({ ...draft, shipping: { ...draft.shipping, parcelSek } })}
+            />
+            <small>DHL, för en order över gränsen</small>
+          </div>
+        </div>
+      </section>
+
       <section className={styles.card} aria-labelledby="price-model-calc">
         <div className={styles.cardHead}>
           <h2 id="price-model-calc" className={styles.cardTitle}>

@@ -58,3 +58,24 @@ export function batchLine(doc: BadgeDocument): string {
     .filter((text) => text.length > 0)
     .join(", ");
 }
+
+/**
+ * En design med sina namn: skylten som den står i editorn och raderna i
+ * textrutan "Fler namn". En order kan innehålla flera sådana, till exempel en
+ * metallskylt till ledningen och plastskyltar till personalen.
+ */
+export interface BadgeGroup {
+  doc: BadgeDocument;
+  batchText: string;
+}
+
+/** Gruppens skyltar: dokumentet först, sedan en skylt per rad i textrutan, högst `max` stycken. */
+export function groupBadges(group: BadgeGroup, max = MAX_ORDER_BADGES): BadgeDocument[] {
+  if (max <= 0) return [];
+  return [group.doc, ...parseBatchInput(group.batchText, max - 1).map((texts) => withTexts(group.doc, texts))];
+}
+
+/** Antal skyltar i gruppen, alla namn gånger antalet per namn. */
+export function groupQuantity(group: BadgeGroup): number {
+  return groupBadges(group).reduce((total, badge) => total + Math.max(1, Math.floor(badge.quantity)), 0);
+}

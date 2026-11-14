@@ -1,0 +1,62 @@
+import { DispatchQueue, type DispatchRow } from "@/features/admin/dispatch-queue";
+import { adminTenant } from "@/features/admin/guard";
+import styles from "@/features/admin/admin.module.css";
+import { listOrdersForDispatch } from "@/lib/orders/repository";
+import { supplierApiConfigured } from "@/lib/supplier/client";
+import { buyerFor, dispatchStatus } from "@/lib/supplier/dispatch";
+import type { SupplierBuyer } from "@/lib/supplier/types";
+import { isOwner } from "@/lib/tenants/model";
+
+export const dynamic = "force-dynamic";
+
+export default async function DispatchPage() {
+  const tenant = await adminTenant();
+  // Översikten visar alla återförsäljares ordrar. Bara namnskylt.com får se den.
+  if (!tenant || !isOwner(tenant)) return null;
+  const orders = await listOrdersForDispatch();
+  const buyers = new Map<string, SupplierBuyer>();
+  for (const { order } of orders) {
+    if (!buyers.has(order.resellerId)) buyers.set(order.resellerId, await buyerFor(order.resellerId));
+  }
+  const rows: DispatchRow[] = orders.map((row) => ({ ...row, status: dispatchStatus(row.order, buyers.get(row.order.resellerId) ?? null) }));
+  const connected = supplierApiConfigured();
+
+  return (
+    <>
+      <header className={styles.pageHead}>
+        <div>
+          <p className={styles.eyebrow}>Tillverkning</p>
+          <h1 className={styles.pageTitle}>Ordrar till verkstaden</h1>
+          <p className={styles.pageLead}>
+            Varje order sparas här först och skickas sedan till Skylt &amp; Gravyrteknik med skyltarna, återförsäljaren som
+            faktureras, leveransadressen och frakten. Under Underlag syns exakt det som skickas.
+          </p>
+        </div>
+      </header>
+      <div className={styles.callout} data-tone={connected ? "good" : "warn"} style={{ marginBottom: "var(--space-4)" }}>
+        {connected ? (
+          <>
+            <strong>Kopplingen till Skylt &amp; Gravyrteknik är aktiverad.</strong>
+            <span>Nya ordrar skickas direkt när de läggs. Äldre ordrar som väntar skickas en i taget härifrån.</span>
+          </>
+        ) : (
+          <>
+            <strong>Kopplingen till Skylt &amp; Gravyrteknik är inte aktiverad.</strong>
+            <span>
+              Ordrar sparas och väntar här, och ingenting skickas. Kopplingen slås på med SUPPLIER_API_URL och
+              SUPPLIER_API_KEY i driftmiljön.
+            </span>
+          </>
+        )}
+      </div>
+      {rows.length === 0 ? (
+        <div className={styles.empty}>
+          <strong>Inga ordrar än</strong>
+          <span>När en order läggs syns den här.</span>
+        </div>
+      ) : (
+        <DispatchQueue rows={rows} connected={connected} />
+      )}
+    </>
+  );
+}

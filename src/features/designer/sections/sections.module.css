@@ -287,7 +287,12 @@
   bottom: 0;
   z-index: 10;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
+  /* Med beställningsformuläret öppet kan delen bli högre än panelen. Då scrollar den själv. */
+  max-height: calc(100dvh - var(--header-height));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-4) var(--space-5);
   background: var(--surface-glass);
   backdrop-filter: saturate(1.6) blur(18px);
@@ -317,6 +322,13 @@
 
   .order .purchase {
     padding: var(--space-2) var(--space-3);
+  }
+
+  /* Här scrollar hela panelen: med formuläret öppet följer delen med innehållet i stället för att stå fast. */
+  .order[data-open] {
+    position: static;
+    max-height: none;
+    overflow: visible;
   }
 }
 
@@ -510,6 +522,7 @@
 
 .orderForm {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   overflow: hidden;
 }
@@ -722,4 +735,77 @@
 
 .batchNote[data-severity="error"] {
   color: var(--color-danger);
+}
+
+/* Leveransadressen i beställningen: rubrik, val av mottagare och adressfälten. */
+.delivery {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.deliveryHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.deliveryHead .specTitle,
+.delivery > .specTitle {
+  margin: 0;
+}
+
+/* Designerna som redan ligger i ordern. */
+.cartList {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.cartItem {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+}
+
+.cartPreview {
+  width: 72px;
+}
+
+.cartText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+.cartText strong {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cartText span {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.cartActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.cartButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }

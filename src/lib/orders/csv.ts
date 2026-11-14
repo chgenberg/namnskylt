@@ -12,7 +12,7 @@ function cell(value: string | number | null): string {
   return /[";\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-function toCsv(header: readonly string[], rows: readonly (readonly (string | number | null)[])[]): string {
+export function toCsv(header: readonly string[], rows: readonly (readonly (string | number | null)[])[]): string {
   return BOM + [header, ...rows].map((row) => row.map(cell).join(SEPARATOR)).join("\r\n") + "\r\n";
 }
 
@@ -77,6 +77,7 @@ export function invoiceCsv(orders: readonly StoredOrder[]): string {
         ...(priced.minimumTopUpSek > 0
           ? [[...customer, "Upp till minsta ordervärde", "", 1, priced.minimumTopUpSek, priced.minimumTopUpSek, 25]]
           : []),
+        ...(priced.shippingSek > 0 ? [[...customer, "Frakt", "", 1, priced.shippingSek, priced.shippingSek, 25]] : []),
       ];
     });
   return toCsv(

@@ -13,6 +13,7 @@ import {
   getColor,
   getMaterial,
   batchLine,
+  groupBadges,
   layoutBadge,
   parseBatchInput,
   removeBatchEntry,
@@ -22,6 +23,7 @@ import {
   toOfferedDocument,
   withTexts,
   type BadgeDocument,
+  type BadgeGroup,
   type FontId,
 } from "@/engine";
 import { useFontEngine } from "@/hooks/use-font-engine";
@@ -30,6 +32,7 @@ import { VisualizeView } from "@/features/visualize/visualize-view";
 import { BadgeEditor } from "./badge-editor";
 import styles from "./designer.module.css";
 import { BatchSection } from "./sections/batch-section";
+import { CartSection } from "./sections/cart-section";
 import { FormatSection } from "./sections/format-section";
 import { LogoSection } from "./sections/logo-section";
 import { MaterialSection } from "./sections/material-section";
@@ -129,12 +132,18 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
   const [stageNote, setStageNote] = useState<string | null>(null);
   const visualize = useVisualize(doc);
   const [batchText, setBatchText] = useState("");
+  /** Designer som redan ligger i ordern, utöver skylten i editorn. */
+  const [cart, setCart] = useState<BadgeGroup[]>([]);
+  /** Skylten i editorn är ny och orörd efter "lägg till": den räknas inte in i ordern förrän den ändrats. */
+  const [pending, setPending] = useState(false);
+  const cartBadges = useMemo(() => cart.flatMap((group) => groupBadges(group)), [cart]);
   const batchEntries = useMemo(() => parseBatchInput(batchText, Infinity), [batchText]);
   const batch = useMemo(
-    () => batchEntries.slice(0, MAX_ORDER_BADGES - 1).map((texts) => withTexts(doc, texts)),
-    [batchEntries, doc],
+    // Ordern rymmer MAX_ORDER_BADGES skyltar, med dem som redan ligger där inräknade.
+    () => batchEntries.slice(0, Math.max(0, MAX_ORDER_BADGES - cartBadges.length - 1)).map((texts) => withTexts(doc, texts)),
+    [batchEntries, doc, cartBadges.length],
   );
-  const orderBadges = useMemo(() => [doc, ...batch], [doc, batch]);
+  const orderBadges = useMemo(() => (pending ? cartBadges : [...cartBadges, doc, ...batch]), [pending, cartBadges, doc, batch]);
   const priceList = usePriceList();
   /** Trappsteget för hela ordern: ett tillval kan kosta olika på olika trappsteg. */
   const tierIndex = tierIndexFor(
@@ -200,6 +209,8 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
 
   const update = useCallback((action: DesignerAction) => {
     dispatch(action);
+    // En ny skylt räknas in i ordern så fort den ändras.
+    setPending(false);
     if (action.type === "quantity") return;
     const side = action.type === "mounting" ? "back" : photo ? "hero" : "front";
     setFocus({ side, key: performance.now() });
@@ -220,6 +231,42 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
     setBatchText((text) => removeBatchEntry(text, 0));
     update({ type: "texts", texts: next });
   };
+  /** Lägger skylten i editorn i ordern och börjar på nästa: samma design, utan text. */
+  const addDesign = () => {
+    setCart((groups) => [...groups, { doc, batchText }]);
+    setBatchText("");
+    dispatch({ type: "load", doc: { ...withTexts(doc, [""]), quantity: 1 } });
+    setPending(true);
+    setFocus({ side: "front", key: performance.now() });
+  };
+
+  /** Öppnar en design ur ordern i editorn. Den som redigerades tar dess plats, om den inte var ny och orörd. */
+  const editDesign = (index: number) => {
+    const target = cart[index];
+    if (!target) return;
+    setCart((groups) => (pending ? groups.filter((_, i) => i !== index) : groups.map((group, i) => (i === index ? { doc, batchText } : group))));
+    dispatch({ type: "load", doc: target.doc });
+    setBatchText(target.batchText);
+    setPending(false);
+    setFocus({ side: "front", key: performance.now() });
+  };
+
+  const removeDesign = (index: number) => {
+    // Utan något annat i ordern är skylten i editorn hela ordern, även om den är ny.
+    if (cart.length === 1) setPending(false);
+    setCart((groups) => groups.filter((_, i) => i !== index));
+  };
+
+  /** Ångrar den nya skylten: senaste designen ur ordern tillbaka i editorn. */
+  const undoDesign = () => {
+    const last = cart.at(-1);
+    if (!last) return;
+    setCart((groups) => groups.slice(0, -1));
+    dispatch({ type: "load", doc: last.doc });
+    setBatchText(last.batchText);
+    setPending(false);
+  };
+
   const layout = useMemo(() => layoutBadge(doc, fonts), [doc, fonts]);
   const moved = Boolean(doc.textOffsetMm || doc.logo?.offsetMm);
   /** Ritningen visar platshållare för tomma rader — loggan ska inte heller hamna över dem. */
@@ -478,11 +525,23 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
             current={doc}
             badges={batch}
             text={batchText}
-            onTextChange={setBatchText}
+            onTextChange={(text) => {
+              setBatchText(text);
+              setPending(false);
+            }}
             onSelect={openColleague}
             onRemoveCurrent={removeCurrent}
             overflow={batchEntries.length - batch.length}
             fonts={fonts}
+          />
+          <CartSection
+            groups={cart}
+            pending={pending}
+            canAdd={orderBadges.length < MAX_ORDER_BADGES}
+            onAdd={addDesign}
+            onEdit={editDesign}
+            onRemove={removeDesign}
+            onUndo={undoDesign}
           />
         </div>
         <OrderSection
@@ -491,7 +550,9 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
           dispatch={update}
           reseller={reseller}
           shop={shop}
-          captureShot={() => recorderRef.current?.still() ?? null}
+          designs={cart.length + (pending ? 0 : 1)}
+          // Stillbilden visar bara skylten i editorn. En order med flera designer visas med sina ritningar i stället.
+          captureShot={() => (cart.length > 0 ? null : (recorderRef.current?.still() ?? null))}
         />
       </aside>
       {onboarding && <OnboardingDialog doc={doc} fonts={fonts} dispatch={update} onClose={finishOnboarding} />}

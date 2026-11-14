@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { lineUnitPrices, VAT_RATE, type BadgeDocument, type PriceTable } from "@/engine";
+import { lineUnitPrices, shippingSek, VAT_RATE, type BadgeDocument, type PriceTable } from "@/engine";
 
 /** En egen rad utöver skyltarna, t.ex. framtagning av korrektur eller expressorder. */
 export interface PriceExtra {
@@ -61,6 +61,11 @@ export interface PricedTotals {
   extrasSek: number;
   /** Påslaget upp till slutkundens minsta ordervärde; 0 när ordern redan når dit. */
   minimumTopUpSek: number;
+  /** Varuvärdet: skyltar, extrarader och påslaget, utan frakt. */
+  goodsSek: number;
+  /** Frakten, räknad på varuvärdet. 0 kr för en order från före frakten. */
+  shippingSek: number;
+  /** Varuvärdet plus frakten. */
   totalSek: number;
   vatSek: number;
   totalInclVatSek: number;
@@ -88,7 +93,9 @@ export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pric
   const extras = pricing?.extras ?? [];
   const extrasSek = extras.reduce((sum, e) => sum + e.amountSek, 0);
   const minimumTopUpSek = badges.length > 0 ? Math.max(0, priceList.minOrderSek - badgesSek - extrasSek) : 0;
-  const totalSek = badgesSek + extrasSek + minimumTopUpSek;
+  const goodsSek = badgesSek + extrasSek + minimumTopUpSek;
+  const shipping = shippingSek(goodsSek, priceList);
+  const totalSek = goodsSek + shipping;
   const vatSek = Math.round(totalSek * VAT_RATE);
   return {
     lines,
@@ -102,6 +109,8 @@ export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pric
     extras,
     extrasSek,
     minimumTopUpSek,
+    goodsSek,
+    shippingSek: shipping,
     totalSek,
     vatSek,
     totalInclVatSek: totalSek + vatSek,

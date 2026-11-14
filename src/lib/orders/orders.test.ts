@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createBadgeDocument, priceOrder, withTexts, type BadgeDocument } from "@/engine";
+import { createBadgeDocument, NO_SHIPPING, priceOrder, withTexts, type BadgeDocument } from "@/engine";
 import { endPriceTable } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { invoiceCsv, ordersCsv } from "./csv";
@@ -13,7 +13,7 @@ import { orderStats } from "./stats";
 
 /** Kundens prislista enligt kalkylen. */
 /** Kalkylens siffror utan startkostnad: den har egna tester i motorn. */
-const MODEL = { ...DEFAULT_PRICE_MODEL, startSek: 0 };
+const MODEL = { ...DEFAULT_PRICE_MODEL, startSek: 0, shipping: NO_SHIPPING };
 const LIST = endPriceTable(MODEL);
 
 const plastic: BadgeDocument = { ...createBadgeDocument(["Anna Lind", "Säljare"]), materialId: "plastic-2-layer", colorId: "white-black" };
@@ -42,6 +42,10 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     pricing: null,
     priceList: LIST,
     demo: false,
+    delivery: null,
+    supplierSentAt: null,
+    supplierError: null,
+    supplierAttempts: 0,
     ...patch,
   };
 }

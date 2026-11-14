@@ -7,6 +7,7 @@ import { endPriceTable, type PriceModel } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { db, requireDb } from "@/lib/db/client";
 import { withStoredLogoImages } from "@/lib/logo-images/repository";
+import { deliveryAddressSchema, deliverySchema, parseDelivery, type Delivery, type DeliveryAddress } from "./delivery";
 import { priceListsFor, storedPriceModel, type PriceAudience } from "./price-lists";
 import { isCustomPricing, pricingSchema, priceWithPricing, type Pricing } from "./pricing";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
@@ -52,6 +53,10 @@ interface OrderRow {
   customer_address: string | null;
   customer_demo: boolean;
   is_demo: boolean;
+  delivery: unknown;
+  supplier_sent_at: Date | null;
+  supplier_error: string | null;
+  supplier_attempts: number;
   events: { status: string; note: string | null; at: string }[] | null;
 }
 
@@ -94,6 +99,10 @@ function toOrder(row: OrderRow, currentModel: PriceModel, audience: PriceAudienc
     project: row.project,
     resellerId: row.reseller_id,
     demo: row.is_demo,
+    delivery: parseDelivery(row.delivery),
+    supplierSentAt: row.supplier_sent_at?.toISOString() ?? null,
+    supplierError: row.supplier_error,
+    supplierAttempts: row.supplier_attempts,
   };
 }
 
@@ -112,6 +121,7 @@ function selectOrders(sql: Sql) {
     select o.id, o.order_no, o.status, o.badges, o.pricing, o.price_model, o.total_sek, o.total_incl_vat_sek,
            o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo, o.supplier_synced_at,
            o.badge_shot is not null as has_badge_shot, o.shop_slug, o.project, o.reseller_id,
+           o.delivery, o.supplier_sent_at, o.supplier_error, o.supplier_attempts,
            r.order_no as repeat_of_order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email, c.is_demo as customer_demo,
            c.phone as customer_phone, c.org_number as customer_org_number, c.address as customer_address,
@@ -147,6 +157,48 @@ async function getOrderAnyTenant(orderNo: string): Promise<StoredOrder | null> {
   return row ? toOrder(row, await getPriceModel(), "customer") : null;
 }
 
+/**
+ * En order oavsett återförsäljare, med inköpspriserna. Bara för servern själv
+ * (orderns väg till verkstaden) och för adminens översikt, aldrig för en
+ * återförsäljares eller kunds sida.
+ */
+export async function getOrderForDispatch(orderNo: string): Promise<StoredOrder | null> {
+  const sql = requireDb();
+  const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.order_no = ${orderNo}`;
+  return row ? toOrder(row, await getPriceModel(), "reseller") : null;
+}
+
+export interface DispatchOrder {
+  order: StoredOrder;
+  /** Återförsäljarens namn; namnskylt.com för ägarens egna ordrar. */
+  resellerName: string;
+}
+
+/**
+ * De senaste ordrarna hos alla återförsäljare, nyast först, utan demoordrar.
+ * Bara för adminens översikt över vad som ska till verkstaden.
+ */
+export async function listOrdersForDispatch(limit = 300): Promise<DispatchOrder[]> {
+  const sql = requireDb();
+  const rows = await sql<(OrderRow & { reseller_name: string | null })[]>`
+    select orders.*, a.name as reseller_name
+      from (${selectOrders(sql)} where not o.is_demo order by o.placed_at desc limit ${limit}) orders
+      left join reseller_accounts a on a.id = orders.reseller_id
+     order by orders.placed_at desc`;
+  const model = await getPriceModel();
+  return rows.map((row) => ({
+    order: toOrder(row, model, "reseller"),
+    resellerName: row.reseller_name ?? (isOwner(row.reseller_id) ? "namnskylt.com" : row.reseller_id),
+  }));
+}
+
+/** Hela prismodellen ordern sparades med. Bara för servern. */
+export async function orderPriceModel(orderId: string): Promise<PriceModel> {
+  const sql = requireDb();
+  const [row] = await sql<{ price_model: unknown }[]>`select price_model from orders where id = ${orderId}`;
+  return storedPriceModel(row?.price_model, await getPriceModel());
+}
+
 export async function listCustomerOrders(tenant: string, customerId: string): Promise<StoredOrder[]> {
   const sql = requireDb();
   const rows = await sql<OrderRow[]>`${selectOrders(sql)}
@@ -172,6 +224,8 @@ export interface NewOrder {
   badgeShot?: string | null;
   shopSlug?: string | null;
   project?: string | null;
+  /** Vart skyltarna skickas. Utan leverans sparas ordern, men den går inte att skicka till verkstaden. */
+  delivery?: Delivery | null;
   /** Återförsäljaren ordern tillhör; webbshoppen och butikerna är ägarens. */
   tenant: string;
 }
@@ -197,12 +251,14 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
     if (!customer) throw new Error("Kunden kunde inte sparas");
     const [saved] = await tx<{ id: string; order_no: string }[]>`
       insert into orders (customer_id, status, badges, pricing, price_model, total_sek, total_incl_vat_sek,
-                          supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug, reseller_id, project)
+                          supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug, reseller_id, project,
+                          delivery)
       values (${customer.id}, ${order.status}, ${tx.json(badges as unknown as Json)},
               ${pricing ? tx.json(pricing as unknown as Json) : null}, ${tx.json(model as unknown as Json)},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
               ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false},
-              ${order.badgeShot ?? null}, ${order.shopSlug ?? null}, ${tenant}, ${order.project ?? null})
+              ${order.badgeShot ?? null}, ${order.shopSlug ?? null}, ${tenant}, ${order.project ?? null},
+              ${order.delivery ? tx.json(order.delivery as unknown as Json) : null})
       returning id, order_no`;
     if (!saved) throw new Error("Ordern kunde inte sparas");
     await tx`insert into order_events (order_id, status, note, at) values (${saved.id}, ${order.status}, ${order.note ?? null}, ${placedAt})`;
@@ -357,6 +413,87 @@ export async function applySupplierUpdate(
     }
     return { found: true, changed: next !== null };
   });
+}
+
+/**
+ * Ny leveransadress på en order. Går bara medan ordern väntar på att skickas
+ * till verkstaden; därefter är adressen deras.
+ */
+export async function updateOrderDelivery(tenant: string, orderNo: string, delivery: Delivery): Promise<boolean> {
+  const sql = requireDb();
+  const parsed = deliverySchema.parse(delivery);
+  return sql.begin(async (tx) => {
+    const [row] = await tx<{ id: string; status: string }[]>`
+      update orders set delivery = ${tx.json(parsed as unknown as Json)}
+       where order_no = ${orderNo} and reseller_id = ${tenant} and supplier_sent_at is null
+      returning id, status`;
+    if (!row) return false;
+    await tx`insert into order_events (order_id, status, note)
+             values (${row.id}, ${row.status}, ${`Leverans: ${parsed.address.zip} ${parsed.address.city}`})`;
+    return true;
+  });
+}
+
+/**
+ * Tar ordern för ett försök att skicka den till verkstaden. Bara ett försök åt
+ * gången: ett pågående försök håller ordern i två minuter. `false` när ordern
+ * redan är skickad, är en demoorder eller just nu skickas av någon annan.
+ */
+export async function claimForDispatch(orderId: string): Promise<boolean> {
+  const sql = requireDb();
+  const [row] = await sql<{ id: string }[]>`
+    update orders set supplier_claimed_at = now(), supplier_attempts = supplier_attempts + 1
+     where id = ${orderId} and supplier_sent_at is null and not is_demo and status <> 'cancelled'
+       and (supplier_claimed_at is null or supplier_claimed_at < now() - interval '2 minutes')
+    returning id`;
+  return Boolean(row);
+}
+
+/** Verkstaden har tagit emot ordern. */
+export async function markDispatched(orderId: string, supplierOrderNo: string): Promise<void> {
+  const sql = requireDb();
+  await sql.begin(async (tx) => {
+    const [row] = await tx<{ status: string }[]>`
+      update orders set supplier_order_no = ${supplierOrderNo}, supplier_sent_at = now(), supplier_claimed_at = null, supplier_error = null
+       where id = ${orderId}
+      returning status`;
+    if (!row) return;
+    await tx`insert into order_events (order_id, status, note)
+             values (${orderId}, ${row.status}, ${`Skickad till Skylt & Gravyrteknik, deras order ${supplierOrderNo}`})`;
+  });
+}
+
+/** Försöket misslyckades. Ordern ligger kvar och kan skickas igen. */
+export async function markDispatchFailed(orderId: string, error: string): Promise<void> {
+  const sql = requireDb();
+  await sql`update orders set supplier_error = ${error.slice(0, 500)}, supplier_claimed_at = null where id = ${orderId}`;
+}
+
+/** Adressen kunden senast fick skyltar till, när de gick direkt till kunden. */
+export async function latestCustomerDelivery(tenant: string, customerId: string): Promise<DeliveryAddress | null> {
+  const sql = requireDb();
+  const [row] = await sql<{ delivery: unknown }[]>`
+    select delivery from orders
+     where customer_id = ${customerId} and reseller_id = ${tenant} and delivery->>'to' = 'customer'
+     order by placed_at desc limit 1`;
+  return parseDelivery(row?.delivery)?.address ?? null;
+}
+
+const DELIVERY_ADDRESS_KEY = "delivery_address";
+
+/** Återförsäljarens egen leveransadress, den som fylls i när skyltarna ska "till oss". */
+export async function getResellerDeliveryAddress(tenant: string): Promise<DeliveryAddress | null> {
+  const sql = requireDb();
+  const [row] = await sql<{ value: unknown }[]>`select value from settings where key = ${settingsKey(tenant, DELIVERY_ADDRESS_KEY)}`;
+  const parsed = deliveryAddressSchema.safeParse(row?.value);
+  return parsed.success ? parsed.data : null;
+}
+
+export async function saveResellerDeliveryAddress(tenant: string, address: DeliveryAddress): Promise<void> {
+  const sql = requireDb();
+  await sql`
+    insert into settings (key, value) values (${settingsKey(tenant, DELIVERY_ADDRESS_KEY)}, ${sql.json(address as unknown as Json)})
+    on conflict (key) do update set value = excluded.value, updated_at = now()`;
 }
 
 export interface CustomerInput {

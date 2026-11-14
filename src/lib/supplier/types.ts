@@ -1,7 +1,9 @@
 /**
  * Kontraktet mot Skylt & Gravyrteknik. Dokumentformen är en delmängd av
  * skyltmotorns `SignDocument` (productType "sign"), så leverantören kan
- * produktionsrendera ordern med sin befintliga motor.
+ * produktionsrendera ordern med sin befintliga motor. Resten av ordern följer
+ * deras `Order`: beställare som faktureras, leveransadress, fraktsätt, vår
+ * referens och priset per rad.
  */
 
 export interface SupplierTextRow {
@@ -38,7 +40,7 @@ export type SupplierLayer =
       data:
         | {
             kind: "image";
-            /** PNG-miniatyr för allt hos leverantören som bara läser bilder. */
+            /** PNG-miniatyr för allt hos leverantören som bara läser bilder. Se `SupplierOrderRequest.images`. */
             src: string;
             widthMm: number;
             heightMm: number;
@@ -49,7 +51,7 @@ export type SupplierLayer =
           }
         | {
             kind: "image";
-            /** Bilden som trycks: loggan i färg som PNG med genomskinlig botten. */
+            /** Bilden som trycks: loggan i färg som PNG med genomskinlig botten. Se `SupplierOrderRequest.images`. */
             src: string;
             widthMm: number;
             heightMm: number;
@@ -79,6 +81,12 @@ export interface SupplierOrderLine {
   /** Vår referens per rad, återkommer i leverantörens följesedel. */
   reference: string;
   /**
+   * Det återförsäljaren betalar per skylt, exkl. moms, med skyltens del av
+   * startkostnaden inräknad. Leverantören fakturerar det priset, inte sin egen
+   * prislista. Får ha ören.
+   */
+  unitPriceSek: number;
+  /**
    * Färdig produktionsfil i mm med glyferna som konturer (röd = skär,
    * svart = gravyr) — facit om leverantörens rendering skulle skilja.
    */
@@ -91,9 +99,73 @@ export interface SupplierCustomer {
   company?: string;
 }
 
+/** Leveransadressen, samma fält som leverantörens `Address`. */
+export interface SupplierAddress {
+  /** Mottagaren på fraktsedeln: företaget eller personen. */
+  name: string;
+  /** Personen som tar emot när mottagaren är ett företag. */
+  contactName?: string;
+  line1: string;
+  line2?: string;
+  zip: string;
+  city: string;
+  country: "SE";
+  phone?: string;
+}
+
+/**
+ * Den som beställer hos leverantören och får fakturan: återförsäljaren.
+ * Leverantören lägger upp den som företagskund första gången och känner sedan
+ * igen den på `id`.
+ */
+export interface SupplierBuyer {
+  /** Vårt id för återförsäljaren. Ändras aldrig. */
+  id: string;
+  name: string;
+  orgNumber: string;
+  /** Dit fakturan och orderbekräftelsen går. */
+  email: string;
+  phone?: string;
+  /** Fakturaadressen som fri text, som den står i återförsäljarens uppgifter. */
+  address?: string;
+}
+
+/** Leverantörens fraktsätt, samma koder som `Order.shippingMethod` i skyltmotorn. */
+export type SupplierShippingMethod = "postnord-varubrev" | "dhl-paket";
+
+export interface SupplierShipping {
+  method: SupplierShippingMethod;
+  /** Frakten återförsäljaren betalar, exkl. moms. Samma belopp som leverantörens egen prislista ger. */
+  costSek: number;
+  address: SupplierAddress;
+}
+
 export interface SupplierOrderRequest {
+  /**
+   * Vårt ordernummer. Leverantören sparar det som kundens referens
+   * (`customerPo`), och samma nummer får aldrig ge två ordrar: ett upprepat
+   * anrop svarar med ordern som redan finns. Skickas också i huvudet
+   * `Idempotency-Key`.
+   */
+  orderRef: string;
+  /** Projektets namn, leverantörens `orderName`. */
+  orderName?: string;
+  buyer: SupplierBuyer;
+  /** Slutkunden skyltarna är till. Bara en referens på följesedeln; fakturan går till `buyer`. */
   customer: SupplierCustomer;
+  shipping: SupplierShipping;
   lines: SupplierOrderLine[];
+  /** Påslaget upp till minsta ordervärde, exkl. moms. Leverantörens `minOrderAdjustment`. */
+  minimumTopUpSek: number;
+  /** Varuvärdet leverantören fakturerar, exkl. moms och frakt: raderna gånger antal plus påslaget. */
+  goodsSek: number;
+  /**
+   * Bilderna som dokumenten pekar på, en gång var. En rads bildlager har
+   * `src: "image:<nyckel>"`, och leverantören lägger in bilden härifrån innan
+   * dokumentet sparas. Hundra namn med samma logga blir då en bild i anropet,
+   * inte hundra.
+   */
+  images: Record<string, string>;
 }
 
 export interface SupplierOrderReceipt {

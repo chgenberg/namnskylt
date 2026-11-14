@@ -4,6 +4,8 @@ import { approxFonts, createBadgeDocument, type BadgeDocument } from "@/engine";
 import { endPriceTable } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
+import type { DeliveryAddress } from "@/lib/orders/delivery";
+import { acceptedDelivery } from "./accept";
 import { quoteHtml } from "./document";
 import { addDays, canCustomerAnswer, canEditQuote, displayStatus, type StoredQuote } from "./model";
 
@@ -28,6 +30,7 @@ function quote(patch: Partial<StoredQuote> = {}): StoredQuote {
     token: "t",
     orderNo: null,
     declineReason: null,
+    delivery: { to: "customer", address: null },
     demo: false,
     createdAt: "2026-10-27T10:00:00Z",
     sentAt: "2026-10-27T11:00:00Z",
@@ -96,5 +99,48 @@ describe("offertdokumentet", () => {
     assert.match(branded, /Profilhuset &lt;AB&gt; · Org\.nr 556123-4567/);
     assert.match(branded, /Betalning 30 dagar netto/);
     assert.doesNotMatch(branded, /#0b1f3a/);
+  });
+});
+
+describe("leveransen när offerten godkänns", () => {
+  const typed: DeliveryAddress = {
+    name: "Kafé Ett",
+    contactName: "Anna Lind",
+    line1: "Storgatan 1",
+    line2: null,
+    zip: "111 22",
+    city: "Stockholm",
+    country: "SE",
+    phone: null,
+  };
+  const stored: DeliveryAddress = { ...typed, line1: "Lagervägen 4", zip: "431 53", city: "Mölndal" };
+
+  it("till kunden: adressen kunden fyller i gäller, före den som stod på offerten", () => {
+    assert.deepEqual(acceptedDelivery(quote({ delivery: { to: "customer", address: stored } }), typed), { to: "customer", address: typed });
+  });
+
+  it("till kunden utan ny adress: offertens adress gäller, och utan någon adress stoppas godkännandet", () => {
+    assert.deepEqual(acceptedDelivery(quote({ delivery: { to: "customer", address: stored } }), null), { to: "customer", address: stored });
+    assert.equal(acceptedDelivery(quote(), null), null);
+  });
+
+  it("offertens PDF visar kundens leveransadress, men aldrig återförsäljarens", () => {
+    const toCustomer = quoteHtml(quote({ delivery: { to: "customer", address: typed } }), approxFonts, DEFAULT_COMPANY);
+    assert.match(toCustomer, /Leverans/);
+    assert.match(toCustomer, /Storgatan 1/);
+    const toReseller = quoteHtml(quote({ delivery: { to: "reseller", address: stored } }), approxFonts, { ...DEFAULT_COMPANY, name: "Exempelprofil AB" });
+    assert.match(toReseller, /Till Exempelprofil AB/);
+    assert.doesNotMatch(toReseller, /Lagervägen/);
+    assert.doesNotMatch(quoteHtml(quote(), approxFonts, DEFAULT_COMPANY), /Leverans<\/p>/);
+  });
+
+  it("offertens PDF har frakten som egen rad i summan", () => {
+    const html = quoteHtml(quote({ pricing: null }), approxFonts, DEFAULT_COMPANY);
+    assert.match(html, /<span>Frakt<\/span><span>\d+ kr<\/span>/);
+  });
+
+  it("till återförsäljaren: kunden kan inte byta adress", () => {
+    assert.deepEqual(acceptedDelivery(quote({ delivery: { to: "reseller", address: stored } }), typed), { to: "reseller", address: stored });
+    assert.equal(acceptedDelivery(quote({ delivery: { to: "reseller", address: null } }), typed), null);
   });
 });

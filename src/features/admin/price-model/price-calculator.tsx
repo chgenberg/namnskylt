@@ -63,10 +63,15 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
   const purchase = resellerPriceTable(model);
   const reseller = priceItems([item], purchase);
   const end = priceItems([item], endPriceTable(model));
-  const split = provisionSplit(model, reseller.totalSek, reseller.quantity);
-  const margin = marginOf(end.totalSek, reseller.totalSek);
+  // Frakten ligger utanför kedjan: kalkylen räknar på varuvärdet och visar frakten för sig.
+  const split = provisionSplit(model, reseller.goodsSek, reseller.quantity);
+  const margin = marginOf(end.goodsSek, reseller.goodsSek);
   const spec = itemBreakdown(model, item);
   const perSign = (sek: number) => `${formatSek(toOre(sek / reseller.quantity))} / st`;
+  const shippingNote =
+    reseller.shippingSek === end.shippingSek
+      ? `Frakt ${formatSek(reseller.shippingSek)} tillkommer för både återförsäljaren och slutkunden.`
+      : `Frakt tillkommer: ${formatSek(reseller.shippingSek)} för återförsäljaren och ${formatSek(end.shippingSek)} för slutkunden, eftersom varje part räknar på sitt eget varuvärde.`;
   const tier = tierRangeLabel(reseller.tierIndex, purchase);
   /** Hur provisionen räknas fram: `100 st à 15 %, 200 st à 12 % och 50 st à 10 %`. */
   const steps = STEP_LIST.format(
@@ -122,9 +127,9 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
       <dl className={styles.results}>
         <div className={styles.result}>
           <dt>ÅF betalar</dt>
-          <dd>{formatSek(reseller.totalSek)}</dd>
+          <dd>{formatSek(reseller.goodsSek)}</dd>
           <small>
-            {perSign(reseller.totalSek)}
+            {perSign(reseller.goodsSek)}
             {reseller.minimumTopUpSek > 0 && " · minidebitering"}
           </small>
         </div>
@@ -142,9 +147,9 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
         </div>
         <div className={styles.result}>
           <dt>Rek. slutkund</dt>
-          <dd>{formatSek(end.totalSek)}</dd>
+          <dd>{formatSek(end.goodsSek)}</dd>
           <small>
-            {perSign(end.totalSek)}
+            {perSign(end.goodsSek)}
             {end.minimumTopUpSek > 0 && " · minsta order"}
           </small>
         </div>
@@ -170,13 +175,19 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
           spec={spec}
           partNames={partNames}
           quantity={reseller.quantity}
-          totals={{ resellerSek: reseller.totalSek, supplierSek: split.supplierSek, provisionSek: split.provisionSek, endSek: end.totalSek }}
+          totals={{ resellerSek: reseller.goodsSek, supplierSek: split.supplierSek, provisionSek: split.provisionSek, endSek: end.goodsSek }}
         />
         <p className={styles.footnote}>
           Provisionen räknas på orderns summa och avrundas till ören, och resten går till Skylt &amp; Gravyrteknik. Per skylt
           avrundas varje del för sig, så delarna gånger antalet kan skilja några ören från ordern. Startkostnaden per skylt
           avrundas till ören för återförsäljaren och till hela kronor för slutkunden.
         </p>
+        {reseller.shippingSek + end.shippingSek > 0 && (
+          <p className={styles.footnote}>
+            {shippingNote} Frakten är Skylt &amp; Gravyrtekniks egen, utan provision och marginal, och går oavkortad till
+            verkstaden. Den är inte med i beloppen ovan.
+          </p>
+        )}
       </div>
     </>
   );

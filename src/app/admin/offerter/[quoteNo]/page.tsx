@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
+import { DeliveryPanel } from "@/features/admin/delivery-panel";
 import { adminTenant } from "@/features/admin/guard";
 import { PricingEditor } from "@/features/admin/pricing-editor";
 import { updateQuotePricingAction } from "@/features/admin/quote-actions";
@@ -9,6 +10,7 @@ import { QuoteFlow, QuoteStatusPill } from "@/features/admin/quote-parts";
 import styles from "@/features/admin/admin.module.css";
 import { formatDate, formatDay, formatSek } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
+import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { badgeCount } from "@/lib/orders/model";
 import { canEditQuote, displayStatus } from "@/lib/quotes/model";
 import { getQuote } from "@/lib/quotes/repository";
@@ -25,7 +27,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
   if (!quote) notFound();
   const status = displayStatus(quote);
   const editable = canEditQuote(quote);
-  const origin = await siteOrigin();
+  const [origin, addresses] = await Promise.all([siteOrigin(), deliveryOptions(tenant, quote.customer)]);
   const link = quote.status === "sent" || status === "expired" ? `${origin}/offert/${quote.token}` : null;
   const name = quote.customer.company ?? quote.customer.name;
 
@@ -99,6 +101,18 @@ export default async function QuotePage({ params }: QuotePageProps) {
               badges={quote.badges}
               pricing={quote.pricing}
               submit={editable ? updateQuotePricingAction.bind(null, quote.quoteNo) : undefined}
+            />
+          </section>
+
+          <section className={styles.panel}>
+            <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>
+              Leverans
+            </h2>
+            <DeliveryPanel
+              target={{ kind: "quote", quoteNo: quote.quoteNo }}
+              delivery={quote.delivery}
+              options={addresses}
+              locked={editable ? null : "Låst — offerten är besvarad."}
             />
           </section>
 

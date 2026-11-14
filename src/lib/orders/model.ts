@@ -1,4 +1,5 @@
 import { isOfferedDocument, type BadgeDocument, type PriceTable } from "@/engine";
+import type { Delivery } from "./delivery";
 import type { Pricing } from "./pricing";
 
 export const ORDER_STATUSES = [
@@ -109,6 +110,14 @@ export interface StoredOrder {
   resellerId: string;
   /** Demoorder — skickas aldrig till tillverkningen, inte heller om den beställs igen. */
   demo: boolean;
+  /** Vart skyltarna skickas. Saknas på ordrar från före leveransadressen; då går ordern inte att skicka till verkstaden. */
+  delivery: Delivery | null;
+  /** När ordern skickades till verkstaden; `null` medan den väntar. */
+  supplierSentAt: string | null;
+  /** Felet från senaste försöket att skicka ordern till verkstaden. */
+  supplierError: string | null;
+  /** Antal försök att skicka ordern till verkstaden. */
+  supplierAttempts: number;
 }
 
 export function isOrderStatus(value: string): value is OrderStatus {

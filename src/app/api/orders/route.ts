@@ -5,6 +5,7 @@ import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { endPriceTable } from "@/engine/price-model";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
+import { deliveryAddressSchema } from "@/lib/orders/delivery";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import { databaseConfigured, getPriceModel } from "@/lib/orders/repository";
@@ -24,14 +25,18 @@ const orderRequestSchema = z.object({
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
   badgeShot: badgeShotUploadSchema,
   shop: z.string().regex(SHOP_SLUG).optional(),
+  /** Vart skyltarna skickas. Kunden beställer själv, så de går alltid till kunden. */
+  delivery: deliveryAddressSchema,
 });
 
 export async function POST(request: Request) {
   const body: unknown = await request.json().catch(() => null);
   const parsed = orderRequestSchema.safeParse(body);
   if (!parsed.success) {
+    const issue = parsed.error.issues[0];
     return NextResponse.json(
-      { error: "Ogiltig order", issues: z.treeifyError(parsed.error) },
+      // Adressens fel är skrivna för kunden som fyller i formuläret.
+      { error: issue?.path[0] === "delivery" ? issue.message : "Ogiltig order", issues: z.treeifyError(parsed.error) },
       { status: 400 },
     );
   }
@@ -39,7 +44,7 @@ export async function POST(request: Request) {
   if (!allOffered(parsed.data.badges)) return NextResponse.json({ error: NOT_OFFERED_ERROR }, { status: 400 });
 
   try {
-    const { badgeShot, shop: shopSlug, ...order } = parsed.data;
+    const { badgeShot, shop: shopSlug, delivery, ...order } = parsed.data;
     const shop = shopSlug && databaseConfigured() ? await getShop(shopSlug) : null;
     if (shopSlug && !shop) return NextResponse.json({ error: "Butiken finns inte" }, { status: 404 });
     // Webbshoppen och demobutikerna är namnskylt.coms; en övertagen butik är återförsäljarens.
@@ -56,6 +61,7 @@ export async function POST(request: Request) {
       pricing: shopOrderPricing(order.badges, shop?.priceList, endPriceTable(priceModel)),
       priceModel,
       note: shop ? `Beställd i butiken ${shop.profile.name}` : null,
+      delivery: { to: "customer", address: delivery },
       badgeShot: await normalizeBadgeShot(badgeShot),
     });
     return NextResponse.json(receipt, { status: 201 });

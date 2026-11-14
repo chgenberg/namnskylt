@@ -6,6 +6,7 @@ import { staffOrderAction, updateOrderPricingAction } from "@/features/admin/act
 import { PricingEditor } from "@/features/admin/pricing-editor";
 import { adminTenant } from "@/features/admin/guard";
 import { DeleteOrderButton } from "@/features/admin/delete-order-button";
+import { DeliveryPanel } from "@/features/admin/delivery-panel";
 import { NewNamesButton } from "@/features/admin/new-names-button";
 import { OrderTimeline } from "@/features/admin/order-timeline";
 import { ProofPanel } from "@/features/admin/proof-panel";
@@ -15,6 +16,7 @@ import { StatusPill } from "@/features/admin/status-pill";
 import styles from "@/features/admin/admin.module.css";
 import { formatDate, formatSek } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
+import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { badgeCount, ORDER_SOURCE_LABEL } from "@/lib/orders/model";
 import { getOrder, latestProof } from "@/lib/orders/repository";
 import { atPrinter, refreshFromSupplier, supplierLink, type SupplierLink } from "@/lib/supplier/sync";
@@ -39,7 +41,16 @@ export default async function OrderPage({ params }: OrderPageProps) {
   if (!stored) notFound();
   const order = (await refreshFromSupplier(stored)) ? ((await getOrder(tenant, orderNumber)) ?? stored) : stored;
   const link = supplierLink(order);
-  const [proof, origin] = await Promise.all([latestProof(tenant, order.orderNo), siteOrigin()]);
+  const [proof, origin, addresses] = await Promise.all([
+    latestProof(tenant, order.orderNo),
+    siteOrigin(),
+    deliveryOptions(tenant, order.customer),
+  ]);
+  const deliveryLocked = order.supplierSentAt
+    ? "Ordern har gått till verkstaden. Hör av dig till namnskylt.com om adressen ska ändras."
+    : order.status === "cancelled"
+      ? "Ordern är avbruten."
+      : null;
   const template = order.badges[0];
   const customerName = order.customer.company ?? order.customer.name;
 
@@ -207,6 +218,17 @@ export default async function OrderPage({ params }: OrderPageProps) {
         </div>
 
         <div className={styles.detailSide}>
+          <section className={styles.panel}>
+            <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>
+              Leverans
+            </h2>
+            <DeliveryPanel
+              target={{ kind: "order", orderNo: order.orderNo }}
+              delivery={order.delivery}
+              options={addresses}
+              locked={order.demo ? "Demoorder, skickas inte." : deliveryLocked}
+            />
+          </section>
           <section className={styles.panel}>
             <h2 className={styles.sectionTitle}>Tidslinje</h2>
             <p className={styles.syncNote} data-link={link}>

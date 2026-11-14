@@ -246,13 +246,22 @@ export function PricingEditor({ badges, pricing, priceList, purchaseList, submit
               <dd>{formatSek(priced.minimumTopUpSek)}</dd>
             </>
           )}
+          {priced.shippingSek > 0 && (
+            <>
+              <dt>Frakt</dt>
+              <dd>{formatSek(priced.shippingSek)}</dd>
+            </>
+          )}
           <dt className={styles.summaryTotal}>Totalt exkl. moms</dt>
           <dd className={styles.summaryTotal}>{formatSek(priced.totalSek)}</dd>
           <dt>Inkl. moms</dt>
           <dd>{formatSek(priced.totalInclVatSek)}</dd>
           {cost && margin && (
             <>
-              <dt>Ditt inköp{cost.minimumTopUpSek > 0 ? " (minsta ordervärde)" : ""}</dt>
+              <dt>
+                Ditt inköp{cost.minimumTopUpSek > 0 ? " (minsta ordervärde)" : ""}
+                {cost.shippingSek > 0 && `, varav frakt ${formatSek(cost.shippingSek)}`}
+              </dt>
               <dd>{formatSek(cost.totalSek)}</dd>
               <dt className={margin.sek < 0 ? styles.marginBad : styles.marginGood}>Marginal</dt>
               <dd className={margin.sek < 0 ? styles.marginBad : styles.marginGood}>

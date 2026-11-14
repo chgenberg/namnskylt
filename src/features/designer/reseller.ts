@@ -1,4 +1,5 @@
 import type { PriceTable } from "@/engine";
+import type { DeliveryOptions } from "@/lib/orders/delivery";
 import type { ShopPriceList } from "@/lib/shops/price-list";
 
 /** Skyltmotorn i en återförsäljares demobutik — ordern märks med butiken. */
@@ -19,4 +20,6 @@ export interface ResellerOrderContext {
   project?: string;
   /** Återförsäljarens inköpspriser, för inköp och marginal. Skickas bara till en inloggad återförsäljare. */
   purchaseList: PriceTable;
+  /** Förifyllda leveransadresser: kundens och återförsäljarens egen. */
+  delivery: DeliveryOptions;
 }

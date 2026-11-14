@@ -13,10 +13,10 @@ import {
   tierCounts,
   type PriceModel,
 } from "./price-model";
-import { priceItems, toOre, type PriceItem } from "./pricing";
+import { NO_SHIPPING, priceItems, toOre, type PriceItem } from "./pricing";
 
 /** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
-const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0 };
+const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0, shipping: NO_SHIPPING };
 
 const item = (patch: Partial<PriceItem> = {}): PriceItem => ({
   signClass: "premium",
@@ -179,7 +179,8 @@ describe("specifikationen per skylt", () => {
 });
 
 describe("startkostnaden i specifikationen", () => {
-  const D = DEFAULT_PRICE_MODEL;
+  /** Kalkylen utan frakt. Frakten har egna tester. */
+  const D: PriceModel = { ...DEFAULT_PRICE_MODEL, shipping: NO_SHIPPING };
 
   it("är en egen rad per skylt: 200 kr på 4 skyltar ger 50 kr, varav 7,50 kr i provision", () => {
     const spec = itemBreakdown(D, item({ quantity: 4 }));

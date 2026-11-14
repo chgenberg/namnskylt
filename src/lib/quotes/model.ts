@@ -1,4 +1,5 @@
 import type { BadgeDocument, PriceTable } from "@/engine";
+import type { QuoteDelivery } from "@/lib/orders/delivery";
 import type { Customer } from "@/lib/orders/model";
 import type { Pricing } from "@/lib/orders/pricing";
 
@@ -49,6 +50,8 @@ export interface StoredQuote {
   token: string;
   orderNo: string | null;
   declineReason: string | null;
+  /** Vart skyltarna ska skickas. Adressen får saknas när de ska till kunden: då fyller kunden i den vid godkännandet. */
+  delivery: QuoteDelivery;
   demo: boolean;
   createdAt: string;
   sentAt: string | null;

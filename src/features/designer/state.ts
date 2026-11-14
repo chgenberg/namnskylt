@@ -49,7 +49,9 @@ export type DesignerAction =
   | { type: "move"; target: "text" | "logo"; offset: Offset }
   | { type: "move/reset" }
   | { type: "mounting"; mounting: MountingId }
-  | { type: "quantity"; quantity: number };
+  | { type: "quantity"; quantity: number }
+  /** Byter hela skylten, när en annan design i ordern öppnas i editorn. */
+  | { type: "load"; doc: BadgeDocument };
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -172,5 +174,7 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       return { ...doc, mounting: action.mounting };
     case "quantity":
       return { ...doc, quantity: clamp(Math.round(action.quantity) || 1, 1, 10_000) };
+    case "load":
+      return action.doc;
   }
 }

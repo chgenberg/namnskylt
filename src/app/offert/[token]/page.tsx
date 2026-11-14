@@ -8,6 +8,7 @@ import { QuoteDecision } from "@/features/quote-public/quote-decision";
 import styles from "@/features/quote-public/quote-public.module.css";
 import { companyFooter, readableOn } from "@/lib/company/profile";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
+import { deliveryLines, draftForRecipient, draftFromAddress } from "@/lib/orders/delivery";
 import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import { displayStatus } from "@/lib/quotes/model";
@@ -158,6 +159,12 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
                 <dd>{formatSek(priced.minimumTopUpSek)}</dd>
               </>
             )}
+            {priced.shippingSek > 0 && (
+              <>
+                <dt>Frakt</dt>
+                <dd>{formatSek(priced.shippingSek)}</dd>
+              </>
+            )}
             <dt className={styles.grand}>Totalt exkl. moms</dt>
             <dd className={styles.grand}>{formatSek(priced.totalSek)}</dd>
             <dt>Moms 25 %</dt>
@@ -175,7 +182,28 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
               </>
             )}
           </dl>
-          {status === "sent" && <QuoteDecision token={quote.token} totalInclVatSek={priced.totalInclVatSek} />}
+          {quote.delivery.address && (status === "accepted" || quote.delivery.to === "reseller") && (
+            <p className={styles.deliveryNote}>
+              <strong>{quote.delivery.to === "reseller" ? `Skyltarna skickas till ${company.name}` : "Skyltarna skickas till"}</strong>
+              {quote.delivery.to === "customer" &&
+                deliveryLines(quote.delivery.address).map((line) => (
+                  <span key={line}>{line}</span>
+                ))}
+            </p>
+          )}
+          {status === "sent" && (
+            <QuoteDecision
+              token={quote.token}
+              totalInclVatSek={priced.totalInclVatSek}
+              deliveryDraft={
+                quote.delivery.to === "customer"
+                  ? quote.delivery.address
+                    ? draftFromAddress(quote.delivery.address)
+                    : draftForRecipient(quote.customer)
+                  : null
+              }
+            />
+          )}
         </section>
 
         <a href={`/offert/${quote.token}/pdf`} className={styles.pdf}>

@@ -30,4 +30,6 @@ export const DEFAULT_PRICE_MODEL: PriceModel = {
   minOrderSek: 299,
   endMarginPercent: 40,
   endMinOrderSek: 299,
+  // Skylt & Gravyrtekniks frakt 2026-11-14: varubrev 75 kr upp till 500 kr i varuvärde, annars paket 159 kr.
+  shipping: { letterSek: 75, parcelSek: 159, letterMaxSek: 500 },
 };

@@ -1,9 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useState, type Dispatch, type FormEvent } from "react";
+import { useEffect, useRef, useState, type Dispatch, type FormEvent } from "react";
+import { DeliveryFields } from "@/components/delivery-fields";
 import { usePriceList } from "@/components/price-list-provider";
 import { ProgressBanner } from "@/components/ui/progress-banner";
+import { Segmented } from "@/components/ui/segmented";
 import {
   badgeDocumentSchema,
   getMaterial,
@@ -16,6 +18,14 @@ import {
   type PricePart,
 } from "@/engine";
 import { formatSek } from "@/lib/format";
+import {
+  addressFromDraft,
+  DELIVERY_TO_LABEL,
+  EMPTY_DELIVERY_DRAFT,
+  type DeliveryDraft,
+  type DeliveryOptions,
+  type DeliveryTo,
+} from "@/lib/orders/delivery";
 import { marginOf } from "@/lib/orders/purchase";
 import { shopPrice, shopPriceParts } from "@/lib/shops/price-list";
 import type { ResellerOrderContext, ShopContext } from "../reseller";
@@ -42,13 +52,15 @@ const PARTNER_STEPS = [
 
 type OrderState =
   | { status: "idle" }
-  | { status: "form" }
+  | { status: "form"; message?: string }
   | { status: "sending" }
   | { status: "done"; orderNumber: string; shipDate: string; mock: boolean }
   | { status: "requested"; requestNumber: string }
   | { status: "error"; message: string };
 
 const sek = new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 });
+
+const DELIVERY_TO_OPTIONS = (["customer", "reseller"] as const).map((id) => ({ id, label: DELIVERY_TO_LABEL[id] }));
 
 /** Radernas namn i specifikationen per skylt. */
 function partLabel(part: PricePart, doc: BadgeDocument): string {
@@ -68,8 +80,10 @@ function partLabel(part: PricePart, doc: BadgeDocument): string {
 
 interface OrderSectionProps {
   doc: BadgeDocument;
-  /** Allt som beställs: `doc` först, sedan skyltarna med samma design. */
+  /** Allt som beställs: skyltarna med designen i editorn och de designer som redan ligger i ordern. */
   badges: readonly BadgeDocument[];
+  /** Antal olika designer i ordern. Med fler än en gäller antalet och specifikationen skylten i editorn. */
+  designs?: number;
   dispatch: Dispatch<DesignerAction>;
   reseller?: ResellerOrderContext;
   shop?: ShopContext;
@@ -77,14 +91,28 @@ interface OrderSectionProps {
   captureShot?: () => string | null;
 }
 
-export function OrderSection({ doc, badges, dispatch, reseller, shop, captureShot }: OrderSectionProps) {
+export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, shop, captureShot }: OrderSectionProps) {
   const [order, setOrder] = useState<OrderState>({ status: "idle" });
+  // Återförsäljaren väljer mottagare och har båda adresserna förifyllda; en kund som beställer själv fyller i sin.
+  const [deliverTo, setDeliverTo] = useState<DeliveryTo>("customer");
+  const [addresses, setAddresses] = useState<DeliveryOptions>(
+    () => reseller?.delivery ?? { customer: EMPTY_DELIVERY_DRAFT, reseller: EMPTY_DELIVERY_DRAFT },
+  );
+  const sectionRef = useRef<HTMLElement>(null);
+  const formOpen = order.status === "form" || order.status === "sending";
+  // Formuläret öppnas under priset. På en låg skärm hamnar det annars utanför det som syns.
+  useEffect(() => {
+    if (formOpen) sectionRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [formOpen]);
+  const address = addresses[deliverTo];
+  const setAddress = (draft: DeliveryDraft) => setAddresses((all) => ({ ...all, [deliverTo]: draft }));
   const priceList = usePriceList();
   const listPrice = priceOrder(badges, priceList);
   // Butiken visar sina egna priser; servern sparar ordern med samma tal.
   const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, priceList) } : listPrice;
-  // Alla skyltar i ordern har samma design, så en specifikation gäller dem alla.
+  // Specifikationen gäller skylten i editorn, på trappsteget för hela orderns antal.
   const parts = shopPriceParts(doc, price.quantity, shop?.priceList, priceList);
+  const mixed = designs > 1;
   const names = badges.length;
   const nextTier = priceList.tiers[price.tierIndex + 1];
   const quickQuantities = [...QUICK_QUANTITIES, (priceList.tiers[1] ?? 100) + 1];
@@ -99,8 +127,14 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
 
   /** Återförsäljaren: ordern eller offerten läggs på kunden och panelen öppnar den. */
   async function submitForCustomer(context: ResellerOrderContext) {
-    setOrder({ status: "sending" });
     const quote = context.mode === "quote";
+    // En offert får sin leverans på offerten. En order behöver adressen nu.
+    const delivery = quote ? null : addressFromDraft(address);
+    if (delivery && !delivery.ok) {
+      setOrder({ status: "form", message: delivery.error });
+      return;
+    }
+    setOrder({ status: "sending" });
     try {
       const response = await fetch(quote ? "/api/admin/quotes" : "/api/admin/orders", {
         method: "POST",
@@ -110,6 +144,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
           badges,
           badgeShot: captureShot?.() ?? undefined,
           project: context.project,
+          ...(delivery && { delivery: { to: deliverTo, address: delivery.address } }),
         }),
       });
       const body = await response.json();
@@ -125,6 +160,11 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const delivery = addressFromDraft(address);
+    if (!delivery.ok) {
+      setOrder({ status: "form", message: delivery.error });
+      return;
+    }
     setOrder({ status: "sending" });
     try {
       const response = await fetch("/api/orders", {
@@ -135,6 +175,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
           badges,
           badgeShot: captureShot?.() ?? undefined,
           shop: shop?.slug,
+          delivery: delivery.address,
         }),
       });
       const body = await response.json();
@@ -155,7 +196,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
   }
 
   return (
-    <section className={styles.order} aria-label="Antal och pris">
+    <section ref={sectionRef} className={styles.order} aria-label="Antal och pris" data-open={formOpen || undefined}>
       <div className={styles.summary}>
         <div className={styles.quantityRow}>
           <div className={`field ${styles.stepper}`}>
@@ -165,7 +206,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
             <input
               type="number"
               inputMode="numeric"
-              aria-label={names > 1 ? "Antal per namn" : "Antal"}
+              aria-label={names > 1 || mixed ? "Antal per namn" : "Antal"}
               min={1}
               value={doc.quantity}
               onChange={(e) => dispatch({ type: "quantity", quantity: Number(e.target.value) })}
@@ -190,7 +231,9 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
         </div>
         <div className={styles.priceBlock}>
           <p className={styles.priceLabel}>
-            {names > 1 && `${names} namn × ${doc.quantity} = ${price.quantity} st · `}
+            {mixed
+              ? `${designs} designer · ${price.quantity} st · i snitt `
+              : names > 1 && `${names} namn × ${doc.quantity} = ${price.quantity} st · `}
             {sek.format(price.unitSek)} / st
           </p>
           <AnimatePresence mode="popLayout" initial={false}>
@@ -207,7 +250,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
           </AnimatePresence>
         </div>
         <div className={styles.spec}>
-          <p className={styles.specTitle}>Pris per skylt</p>
+          <p className={styles.specTitle}>{mixed ? "Pris för skylten ovan" : "Pris per skylt"}</p>
           <dl>
             {parts.map(({ part, sek: partSek }) => (
               <div key={part}>
@@ -222,6 +265,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
       <div className={styles.priceRow}>
         <div>
           <p className={styles.priceNote}>exkl. moms · {priceNote}</p>
+          {price.shippingSek > 0 && <p className={styles.priceNote}>Frakt {sek.format(price.shippingSek)} ingår i summan.</p>}
           {price.startShareSek > 0 && (
             <p className={styles.priceNote}>Startkostnaden ingår i priset och delas på antalet skyltar.</p>
           )}
@@ -240,12 +284,25 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
 
       {reseller && <PurchaseSummary badges={badges} reseller={reseller} saleSek={price.totalSek} />}
 
+      {reseller && reseller.mode === "order" && formOpen && (
+        <div className={styles.delivery}>
+          <div className={styles.deliveryHead}>
+            <p className={styles.specTitle}>Leverans</p>
+            <Segmented label="Skyltarna skickas" value={deliverTo} options={DELIVERY_TO_OPTIONS} onChange={setDeliverTo} />
+          </div>
+          <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
+        </div>
+      )}
+
       {reseller && (
         <button
           type="button"
           className="btn btn--primary btn--lg btn--block"
           disabled={!valid || order.status === "sending"}
-          onClick={() => void submitForCustomer(reseller)}
+          onClick={() =>
+            // Ordern behöver en leveransadress: första klicket visar den, andra lägger ordern.
+            reseller.mode === "order" && order.status !== "form" ? setOrder({ status: "form" }) : void submitForCustomer(reseller)
+          }
         >
           {order.status === "sending"
             ? reseller.mode === "quote"
@@ -253,12 +310,14 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
               : "Lägger ordern…"
             : reseller.mode === "quote"
               ? `Skapa offert till ${reseller.customerName}`
-              : `Lägg order åt ${reseller.customerName}`}
+              : order.status === "form"
+                ? `Lägg ordern · ${sek.format(price.totalSek)} exkl. moms`
+                : `Lägg order åt ${reseller.customerName}`}
         </button>
       )}
 
       <AnimatePresence initial={false}>
-        {!reseller && (order.status === "form" || order.status === "sending") && (
+        {!reseller && formOpen && (
           <motion.form
             key="form"
             className={styles.orderForm}
@@ -275,6 +334,10 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
               <span className="visually-hidden">E-post</span>
               <input name="email" type="email" placeholder="E-post" required autoComplete="email" />
             </label>
+            <div className={styles.delivery}>
+              <p className={styles.specTitle}>Leveransadress</p>
+              <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
+            </div>
             <button type="submit" className="btn btn--ink btn--block" disabled={order.status === "sending"}>
               {order.status === "sending" ? "Skickar…" : `Skicka order · ${sek.format(price.totalInclVatSek)} inkl. moms`}
             </button>
@@ -304,7 +367,7 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
           leveranstid.
         </motion.div>
       )}
-      {order.status === "error" && (
+      {(order.status === "error" || (order.status === "form" && order.message)) && (
         <p className={styles.issue} data-severity="error" role="alert">
           {order.message}
         </p>
@@ -330,7 +393,8 @@ function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
         <dt>Ditt inköp</dt>
         <dd>
           {formatSek(purchase.totalSek)}
-          {quantity > 1 && <span> · {formatSek(toOre(purchase.totalSek / quantity))} / st</span>}
+          {quantity > 1 && <span> · {formatSek(toOre(purchase.goodsSek / quantity))} / st</span>}
+          {purchase.shippingSek > 0 && <span> · varav frakt {formatSek(purchase.shippingSek)}</span>}
         </dd>
       </div>
       <div>

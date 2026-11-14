@@ -8,6 +8,7 @@ import { requireDb } from "@/lib/db/client";
 import { insertDemoData, removeDemoData } from "@/lib/orders/demo-data";
 import { pricingSchema, type Pricing } from "@/lib/orders/pricing";
 import { companyProfileSchema, type CompanyProfile } from "@/lib/company/profile";
+import { deliverySchema, type Delivery } from "@/lib/orders/delivery";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import { repeatBadges, staffBadges } from "@/lib/orders/repeat";
@@ -22,7 +23,10 @@ import {
   getCustomer,
   getDesign,
   getOrder,
+  latestCustomerDelivery,
   saveDesign,
+  saveResellerDeliveryAddress,
+  updateOrderDelivery,
   updateOrderPricing,
   upsertCustomer,
 } from "@/lib/orders/repository";
@@ -60,6 +64,8 @@ export async function repeatOrderAction(orderNo: string): Promise<ActionResult> 
       source: "repeat",
       repeatOf: original.id,
       note: `Beställd igen från ${original.orderNo}`,
+      // Samma leverans som förra gången. Saknas den fylls den i på ordern innan den går till verkstaden.
+      delivery: original.delivery,
       demo: original.demo,
       badgeShot: original.hasBadgeShot ? await getBadgeShot(tenant, original.orderNo) : null,
     });
@@ -86,6 +92,7 @@ export async function staffOrderAction(orderNo: string, names: string, quantity:
       source: "staff",
       repeatOf: original.id,
       note: `Ny personal, samma design som ${original.orderNo}`,
+      delivery: original.delivery,
       demo: original.demo,
     });
     return done(placed.orderNumber);
@@ -104,12 +111,14 @@ export async function orderFromDesignAction(designId: string, names: string, qua
     if (badges.length === 0) return { ok: false, error: "Skriv minst ett namn" };
     if (badges.length > MAX_ORDER_BADGES) return { ok: false, error: `Högst ${MAX_ORDER_BADGES} namn per order` };
     if (!allOffered(badges)) return { ok: false, error: NOT_OFFERED_ERROR };
+    const lastUsed = await latestCustomerDelivery(tenant, customer.id);
     const placed = await placeOrder({
       tenant,
       customer,
       badges,
       source: "template",
       note: `Från mallen ”${design.name}”`,
+      delivery: lastUsed ? { to: "customer", address: lastUsed } : null,
       demo: customer.demo,
     });
     return done(placed.orderNumber);
@@ -250,6 +259,21 @@ export async function startOrderAction(input: z.input<typeof startOrderSchema>):
     return { ok: true, url: `/skapa?${params}` };
   } catch (error) {
     return fail(error, "Kunden kunde inte sparas");
+  }
+}
+
+/** Ny leveransadress på en order som ännu inte gått till verkstaden. "Till oss" sparas också som återförsäljarens adress. */
+export async function updateOrderDeliveryAction(orderNo: string, delivery: Delivery): Promise<ActionResult> {
+  const tenant = await requireReseller();
+  try {
+    const parsed = deliverySchema.parse(delivery);
+    const ok = await updateOrderDelivery(tenant, orderNoSchema.parse(orderNo), parsed);
+    if (!ok) return { ok: false, error: "Ordern har redan gått till verkstaden. Hör av dig till namnskylt.com om adressen ska ändras." };
+    if (parsed.to === "reseller") await saveResellerDeliveryAddress(tenant, parsed.address);
+    return done(orderNo);
+  } catch (error) {
+    if (error instanceof z.ZodError) return { ok: false, error: error.issues[0]?.message ?? "Ogiltig adress" };
+    return fail(error, "Adressen kunde inte sparas");
   }
 }
 

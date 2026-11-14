@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  NO_SHIPPING,
   tierIndexFor,
   toOre,
   unitPriceParts,
@@ -8,6 +9,7 @@ import {
   type PriceOptions,
   type PricePart,
   type PriceTable,
+  type ShippingRule,
 } from "./pricing";
 import type { SignClass } from "./types";
 
@@ -62,6 +64,12 @@ export interface PriceModel {
   endMarginPercent: number;
   /** Minsta belopp slutkunden betalar för en order. */
   endMinOrderSek: number;
+  /**
+   * Frakten per order: Skylt & Gravyrtekniks prislista rakt av. Den ligger
+   * utanför kedjan ovan. Återförsäljaren och slutkunden betalar samma belopp,
+   * utan provision och utan marginal, och allt går till verkstaden.
+   */
+  shipping: ShippingRule;
 }
 
 export const MAX_PRICE_SEK = 100_000;
@@ -96,6 +104,8 @@ export const priceModelSchema = z
     minOrderSek: oreSchema,
     endMarginPercent: percentSchema,
     endMinOrderSek: sekSchema,
+    // Frakten är hela kronor: slutkunden betalar den, och slutkundens belopp har inga ören.
+    shipping: z.object({ letterSek: sekSchema, parcelSek: sekSchema, letterMaxSek: sekSchema }),
   })
   .superRefine((model, ctx) => {
     if (model.tiers[0]?.moreThan !== 0) {
@@ -118,7 +128,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * En modell sparad före 2026-11-13 har ett enda pris per tillval och ingen
  * startkostnad. Den läses som samma pris på alla trappsteg och startkostnad 0,
- * så att ordrar och offerter från den tiden behåller exakt sina priser.
+ * så att ordrar och offerter från den tiden behåller exakt sina priser. En
+ * modell sparad före 2026-11-14 saknar frakt och läses utan, av samma skäl.
  */
 function upgradeStoredModel(value: unknown): unknown {
   if (!isRecord(value)) return value;
@@ -127,7 +138,7 @@ function upgradeStoredModel(value: unknown): unknown {
         Object.entries(value.options).map(([id, price]) => [id, typeof price === "number" ? Array(PRICE_TIER_COUNT).fill(price) : price]),
       )
     : value.options;
-  return { ...value, options, startSek: value.startSek ?? 0 };
+  return { ...value, options, startSek: value.startSek ?? 0, shipping: value.shipping ?? NO_SHIPPING };
 }
 
 /** Läser en sparad modell, även en i det äldre formatet. `null` när värdet inte är en prismodell. */
@@ -155,6 +166,7 @@ export function resellerPriceTable(model: PriceModel): PriceTable {
     options: mapOptions(model.options, (sek) => sek),
     startSek: model.startSek,
     minOrderSek: model.minOrderSek,
+    shipping: { ...model.shipping },
     ore: true,
   };
 }
@@ -162,7 +174,7 @@ export function resellerPriceTable(model: PriceModel): PriceTable {
 /**
  * Det slutkunden betalar. Varje belopp avrundas för sig, så att skylt, fäste
  * och logga i gränssnittet summerar till exakt det kunden betalar. Marginalen
- * gäller startkostnaden på samma sätt som priserna per skylt.
+ * gäller startkostnaden på samma sätt som priserna per skylt, men inte frakten.
  */
 export function endPriceTable(model: PriceModel): PriceTable {
   const end = (sek: number) => endPriceSek(sek, model);
@@ -172,6 +184,8 @@ export function endPriceTable(model: PriceModel): PriceTable {
     options: mapOptions(model.options, end),
     startSek: end(model.startSek),
     minOrderSek: model.endMinOrderSek,
+    // Frakten går rakt igenom: samma belopp och samma gräns som återförsäljaren har.
+    shipping: { ...model.shipping },
   };
 }
 
@@ -219,11 +233,15 @@ export function provisionPercentRange(model: PriceModel, tierIndex: number): { m
   return { min: Math.min(first, last), max: Math.max(first, last) };
 }
 
-/** Fördelningen av det återförsäljaren betalar för en order. Provisionen räknas steg för steg, med ören. */
-export function provisionSplit(model: PriceModel, resellerTotalSek: number, quantity: number): ProvisionSplit {
+/**
+ * Fördelningen av varuvärdet återförsäljaren betalar för en order
+ * (`TablePrice.goodsSek`). Provisionen räknas steg för steg, med ören. Frakten
+ * är inte med: den har ingen provision och går oavkortad till verkstaden.
+ */
+export function provisionSplit(model: PriceModel, resellerGoodsSek: number, quantity: number): ProvisionSplit {
   const provisionPercent = provisionPercentFor(model, quantity);
-  const provisionSek = toOre((resellerTotalSek * provisionPercent) / 100);
-  return { provisionPercent, provisionSek, supplierSek: toOre(resellerTotalSek - provisionSek) };
+  const provisionSek = toOre((resellerGoodsSek * provisionPercent) / 100);
+  return { provisionPercent, provisionSek, supplierSek: toOre(resellerGoodsSek - provisionSek) };
 }
 
 /** Hur ett belopp fördelas mellan parterna, med ören. */

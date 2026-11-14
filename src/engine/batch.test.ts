@@ -4,6 +4,9 @@ import {
   badgeDocumentSchema,
   batchLine,
   createBadgeDocument,
+  groupBadges,
+  groupQuantity,
+  MAX_ORDER_BADGES,
   parseBatchInput,
   priceBadge,
   priceOrder,
@@ -86,5 +89,29 @@ describe("priceOrder", () => {
   it("stämmer med priceBadge för en enda rad", () => {
     const doc = { ...createBadgeDocument(["Anna"]), quantity: 250 };
     assert.deepEqual(priceOrder([doc], LIST), priceBadge(doc, LIST));
+  });
+});
+
+describe("en design med sina namn", () => {
+  const doc = { ...createBadgeDocument(["Anna Lind", "Säljare"]), quantity: 2 };
+
+  it("ger skylten i editorn först och sedan en skylt per rad, alla med samma design", () => {
+    const badges = groupBadges({ doc, batchText: "Bo Ek, Kock\n\nCia Dal" });
+    assert.equal(badges.length, 3);
+    assert.equal(badges[0], doc);
+    assert.deepEqual(badges.map((badge) => badge.rows[0]?.text), ["Anna Lind", "Bo Ek", "Cia Dal"]);
+    assert.ok(badges.every((badge) => badge.materialId === doc.materialId && badge.quantity === 2));
+  });
+
+  it("räknar alla namn gånger antalet per namn", () => {
+    assert.equal(groupQuantity({ doc, batchText: "Bo Ek\nCia Dal" }), 6);
+    assert.equal(groupQuantity({ doc, batchText: "" }), 2);
+  });
+
+  it("håller sig inom det som får plats i ordern", () => {
+    const many = Array.from({ length: 150 }, (_, i) => `Person ${i + 1}`).join("\n");
+    assert.equal(groupBadges({ doc, batchText: many }).length, MAX_ORDER_BADGES);
+    assert.equal(groupBadges({ doc, batchText: many }, 10).length, 10);
+    assert.deepEqual(groupBadges({ doc, batchText: many }, 0), []);
   });
 });

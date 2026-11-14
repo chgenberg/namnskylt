@@ -397,7 +397,8 @@
   box-shadow: 0 0 0 1px rgb(10 10 11 / 0.18);
 }
 
-.filter[aria-pressed="true"] {
+.filter[aria-pressed="true"],
+.filter[aria-current="page"] {
   background: #0a0a0b;
   color: #fff;
   box-shadow: none;

@@ -1,1 +1,1 @@
-export const MIN_PASSWORD_CHARS = 10;
+export { MIN_PASSWORD_CHARS } from "@/lib/reseller-auth/limits";

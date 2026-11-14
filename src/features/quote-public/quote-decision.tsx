@@ -1,14 +1,27 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { DeliveryFields } from "@/components/delivery-fields";
 import { formatSek } from "@/lib/format";
+import { addressFromDraft, type DeliveryDraft } from "@/lib/orders/delivery";
 import { decideQuoteAction } from "./actions";
 import styles from "./quote-public.module.css";
 
 type Result = { kind: "accepted"; orderNo?: string } | { kind: "declined" };
 
-export function QuoteDecision({ token, totalInclVatSek }: { token: string; totalInclVatSek: number }) {
+interface QuoteDecisionProps {
+  token: string;
+  totalInclVatSek: number;
+  /**
+   * Leveransadressen kunden ska fylla i eller bekräfta, förifylld med det som
+   * redan är känt. `null` när skyltarna skickas till återförsäljaren.
+   */
+  deliveryDraft: DeliveryDraft | null;
+}
+
+export function QuoteDecision({ token, totalInclVatSek, deliveryDraft }: QuoteDecisionProps) {
   const [result, setResult] = useState<Result | null>(null);
+  const [address, setAddress] = useState<DeliveryDraft | null>(deliveryDraft);
   const [declining, setDeclining] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -16,8 +29,19 @@ export function QuoteDecision({ token, totalInclVatSek }: { token: string; total
 
   const send = (accept: boolean) => {
     setError(null);
+    // Godkännandet behöver adressen; ett nej behöver den inte.
+    const delivery = accept && address ? addressFromDraft(address) : null;
+    if (delivery && !delivery.ok) {
+      setError(delivery.error);
+      return;
+    }
     startTransition(async () => {
-      const response = await decideQuoteAction({ token, accept, reason: accept ? undefined : reason });
+      const response = await decideQuoteAction({
+        token,
+        accept,
+        reason: accept ? undefined : reason,
+        delivery: delivery?.address,
+      });
       if (!response.ok) {
         setError(response.error ?? "Något gick fel");
         return;
@@ -69,14 +93,22 @@ export function QuoteDecision({ token, totalInclVatSek }: { token: string; total
           </div>
         </>
       ) : (
-        <div className={styles.buttons}>
-          <button type="button" className="btn btn--ghost btn--lg" onClick={() => setDeclining(true)}>
-            Tacka nej
-          </button>
-          <button type="button" className="btn btn--primary btn--lg" disabled={pending} onClick={() => send(true)}>
-            {pending ? "Godkänner…" : `Godkänn · ${formatSek(totalInclVatSek)} inkl. moms`}
-          </button>
-        </div>
+        <>
+          {address && (
+            <div className={styles.delivery}>
+              <p className={styles.label}>Vart ska skyltarna skickas?</p>
+              <DeliveryFields value={address} onChange={setAddress} disabled={pending} />
+            </div>
+          )}
+          <div className={styles.buttons}>
+            <button type="button" className="btn btn--ghost btn--lg" onClick={() => setDeclining(true)}>
+              Tacka nej
+            </button>
+            <button type="button" className="btn btn--primary btn--lg" disabled={pending} onClick={() => send(true)}>
+              {pending ? "Godkänner…" : `Godkänn · ${formatSek(totalInclVatSek)} inkl. moms`}
+            </button>
+          </div>
+        </>
       )}
       {error && (
         <p className={styles.error} role="alert">

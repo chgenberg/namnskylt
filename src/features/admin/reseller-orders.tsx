@@ -24,7 +24,9 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
         <div className={admin.kpi}>
           <span className={admin.kpiLabel}>Återförsäljarna betalar</span>
           <span className={admin.kpiValue}>{formatSek(total.resellerSek)}</span>
-          <span className={admin.kpiHint}>kunderna betalar dem {formatSek(total.customerSek)}</span>
+          <span className={admin.kpiHint}>
+            varor · frakt {formatSek(total.shippingSek)} tillkommer · kunderna betalar dem {formatSek(total.customerSek)}
+          </span>
         </div>
         <div className={admin.kpi} data-tone="gold">
           <span className={admin.kpiLabel}>Er provision</span>
@@ -33,6 +35,7 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
         <div className={admin.kpi}>
           <span className={admin.kpiLabel}>Till Skylt &amp; Gravyrteknik</span>
           <span className={admin.kpiValue}>{formatSek(total.supplierSek)}</span>
+          <span className={admin.kpiHint}>varor · hela frakten går också dit</span>
         </div>
       </div>
 
@@ -54,7 +57,10 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
                   Skyltar
                 </th>
                 <th scope="col" className={styles.num}>
-                  Betalar
+                  Betalar, varor
+                </th>
+                <th scope="col" className={styles.num}>
+                  Frakt
                 </th>
                 <th scope="col" className={styles.num}>
                   Er provision
@@ -73,6 +79,7 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
                   <td className={styles.num}>{reseller.orders}</td>
                   <td className={styles.num}>{reseller.quantity}</td>
                   <td className={styles.num}>{formatSek(reseller.resellerSek)}</td>
+                  <td className={styles.num}>{formatSek(reseller.shippingSek)}</td>
                   <td className={`${styles.num} ${styles.own}`}>{formatSek(reseller.provisionSek)}</td>
                   <td className={styles.num}>{formatSek(reseller.supplierSek)}</td>
                 </tr>
@@ -87,7 +94,7 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
           <h2 id="per-order" className={admin.sectionTitle}>
             Per order
           </h2>
-          <span className={admin.muted}>Nyast först. Alla belopp exkl. moms.</span>
+          <span className={admin.muted}>Nyast först. Alla belopp exkl. moms. Provisionen räknas på varorna, inte på frakten.</span>
         </div>
         <div className={styles.scroll}>
           <table className={styles.table}>
@@ -103,7 +110,10 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
                   Kund betalar
                 </th>
                 <th scope="col" className={styles.num}>
-                  Återförsäljaren betalar
+                  Återförsäljaren betalar, varor
+                </th>
+                <th scope="col" className={styles.num}>
+                  Frakt
                 </th>
                 <th scope="col" className={styles.num}>
                   Er provision
@@ -130,6 +140,7 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
                   <td className={styles.num}>{row.share.quantity}</td>
                   <td className={styles.num}>{formatSek(row.customerSek)}</td>
                   <td className={styles.num}>{formatSek(row.share.resellerSek)}</td>
+                  <td className={styles.num}>{formatSek(row.share.shippingSek)}</td>
                   <td className={`${styles.num} ${styles.own}`}>
                     {formatSek(row.share.provisionSek)}
                     <span className={styles.sub}>{formatPercent(row.share.provisionPercent)}</span>
@@ -144,6 +155,7 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
                 <td className={styles.num}>{total.quantity}</td>
                 <td className={styles.num}>{formatSek(total.customerSek)}</td>
                 <td className={styles.num}>{formatSek(total.resellerSek)}</td>
+                <td className={styles.num}>{formatSek(total.shippingSek)}</td>
                 <td className={styles.num}>{formatSek(total.provisionSek)}</td>
                 <td className={styles.num}>{formatSek(total.supplierSek)}</td>
               </tr>

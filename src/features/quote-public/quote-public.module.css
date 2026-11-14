@@ -332,3 +332,20 @@
     animation: none;
   }
 }
+
+/* Leveransadressen kunden fyller i innan offerten godkänns. */
+.delivery {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.deliveryNote {
+  display: grid;
+  gap: 2px;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.deliveryNote strong {
+  color: var(--color-ink);
+}

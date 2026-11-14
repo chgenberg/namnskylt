@@ -4,6 +4,7 @@ import { resellerPriceTable } from "@/engine/price-model";
 import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
 import { siteOrigin } from "@/lib/http/origin";
+import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { databaseConfigured, getCustomer, getPriceModel } from "@/lib/orders/repository";
 import { currentTenant } from "@/lib/reseller-auth/session";
 import { genitive } from "@/lib/share/genitive";
@@ -57,6 +58,7 @@ async function resellerContext(customerId: string | undefined, quote: boolean, p
         mode: quote ? ("quote" as const) : ("order" as const),
         project: project?.trim().slice(0, 120) || undefined,
         purchaseList: resellerPriceTable(await getPriceModel()),
+        delivery: await deliveryOptions(tenant, customer),
       }
     : undefined;
 }

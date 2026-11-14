@@ -1,11 +1,10 @@
 import "server-only";
-import { layoutBadge, renderBadgeSvg, type BadgeDocument } from "@/engine";
+import type { BadgeDocument } from "@/engine";
 import type { PriceModel } from "@/engine/price-model";
-import { renderLogoPng } from "@/lib/ai/badge-image";
-import { loadNodeFontEngine } from "@/lib/fonts/load-node";
-import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages, withInlineLogoImages } from "@/lib/logo-images/repository";
-import { createSupplierClient } from "@/lib/supplier/client";
-import { toSupplierSignDocument } from "@/lib/supplier/map";
+import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages } from "@/lib/logo-images/repository";
+import { estimatedShipDate } from "@/lib/supplier/client";
+import { dispatchOrder } from "@/lib/supplier/dispatch";
+import type { Delivery } from "./delivery";
 import { NOT_OFFERED_ERROR, allOffered, type OrderSource } from "./model";
 import type { Pricing } from "./pricing";
 import { partnerRequestNumber, splitByProducer } from "./partner";
@@ -28,110 +27,88 @@ export interface PlaceOrderInput {
   /** Demobutiken ordern kom från. */
   shopSlug?: string | null;
   project?: string | null;
+  /** Vart skyltarna skickas. Utan leverans sparas ordern, men den skickas inte till verkstaden förrän adressen är ifylld. */
+  delivery?: Delivery | null;
   /** Återförsäljaren ordern tillhör; webbshoppen och butikerna är ägarens. */
   tenant: string;
 }
 
 export interface PlaceOrderResult {
-  /** Vårt ordernummer när ordern sparats, annars leverantörens. */
+  /** Vårt ordernummer. */
   orderNumber: string;
-  status: "received" | "mock" | "request";
+  /**
+   * `received` = verkstaden har ordern. `pending` = ordern är sparad och
+   * skickas till verkstaden så snart det går: ett försök misslyckades eller en
+   * uppgift saknas. `mock` = kopplingen till verkstaden är inte aktiverad, så
+   * ingenting skickas. `request` = bara en förfrågan till partnern.
+   */
+  status: "received" | "pending" | "mock" | "request";
   estimatedShipDate?: string;
   partnerRequest?: string;
   supplierOrderNumber?: string;
 }
 
 /**
- * Skickar verkstadens skyltar till Skylt & Gravyrteknik, gör en förfrågan av
- * partnerns, och sparar ordern när databasen finns. Används av webbshoppen och
- * av återförsäljarens "Beställ igen".
+ * Sparar ordern och skickar verkstadens skyltar till Skylt & Gravyrteknik när
+ * kopplingen är aktiverad. Ordern sparas alltid först: misslyckas utskicket
+ * ligger den kvar med felet och skickas igen från adminens översikt, så att
+ * kunden aldrig får ett fel för något som går att göra om. Partnerns skyltar
+ * blir en förfrågan. Används av webbshoppen, butikerna, offerter och panelen.
  */
 export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
   // Sista spärren: anroparna kontrollerar själva och svarar med ett begripligt fel.
   if (!allOffered(input.badges)) throw new Error(NOT_OFFERED_ERROR);
   // En skylt som pekar på en logga som inte finns på servern går inte att trycka.
   if (await missingLogoImages(input.badges)) throw new Error(MISSING_LOGO_IMAGE_ERROR);
-  if (input.demo) return placeDemoOrder(input);
   const { workshop, partner } = splitByProducer(input.badges);
-  const partnerRequest = partner.length > 0 ? partnerRequestNumber() : undefined;
+  const partnerRequest = partner.length > 0 && !input.demo ? partnerRequestNumber() : undefined;
 
-  let supplier: { orderNumber: string; status: "received" | "mock"; estimatedShipDate: string } | undefined;
-  if (workshop.length > 0) {
-    const fonts = await loadNodeFontEngine();
-    // Verkstaden får bilden själv, inte adressen till den hos oss.
-    const printable = await withInlineLogoImages(workshop);
-    supplier = await createSupplierClient().placeOrder({
-      customer: { name: input.customer.name, email: input.customer.email, company: input.customer.company ?? undefined },
-      lines: printable.map((badge, i) => ({
-        // En logga i färg skickas som sin egen bild; bara en graverad behöver en svartvit miniatyr.
-        document: toSupplierSignDocument(badge, fonts, {
-          logoPng: badge.logo && !badge.logo.image ? renderLogoPng(badge.logo) : undefined,
-        }),
-        productionSvg: renderBadgeSvg(badge, layoutBadge(badge, fonts), { mode: "production", fonts }),
-        quantity: badge.quantity,
-        reference: `NS-${i + 1}`,
-      })),
-    });
+  if (!databaseConfigured()) {
+    // Utan databas finns ingenstans att spara ordern: skyltmotorn går att prova, men inget beställs.
+    if (partnerRequest) console.warn("Partnerförfrågan att hantera manuellt", partnerRequest);
+    return workshop.length > 0
+      ? { orderNumber: `MOCK-${Date.now().toString(36).toUpperCase()}`, status: "mock", estimatedShipDate: estimatedShipDate(), partnerRequest }
+      : { orderNumber: partnerRequest ?? "", status: "request", partnerRequest };
   }
 
-  let savedOrderNo: string | undefined;
-  if (databaseConfigured()) {
-    try {
-      const saved = await createOrder({
-        customer: input.customer,
-        badges: input.badges,
-        status: "received",
-        source: input.source,
-        repeatOf: input.repeatOf,
-        supplierOrderNo: supplier?.orderNumber ?? null,
-        partnerRequestNo: partnerRequest ?? null,
-        note: input.note ?? (partnerRequest ? `Partnerförfrågan ${partnerRequest}` : null),
-        pricing: input.pricing,
-        priceModel: input.priceModel,
-        badgeShot: input.badgeShot,
-        shopSlug: input.shopSlug,
-        project: input.project,
-        tenant: input.tenant,
-      });
-      savedOrderNo = saved.orderNo;
-    } catch (error) {
-      // Leverantören har redan ordern — kunden ska inte få ett fel för att vår kopia misslyckades.
-      console.error("Ordern skickades men kunde inte sparas", error);
-    }
-  } else if (partnerRequest) {
-    console.warn("Partnerförfrågan att hantera manuellt", partnerRequest, {
-      customer: input.customer,
-      badges: partner.map((b) => ({ materialId: b.materialId, colorId: b.colorId, shape: b.shape, size: b.size, quantity: b.quantity })),
-    });
-  }
-
-  if (!supplier) {
-    return { orderNumber: savedOrderNo ?? partnerRequest ?? "", status: "request", partnerRequest };
-  }
-  return {
-    orderNumber: savedOrderNo ?? supplier.orderNumber,
-    status: supplier.status,
-    estimatedShipDate: supplier.estimatedShipDate,
-    partnerRequest,
-    supplierOrderNumber: supplier.orderNumber,
-  };
-}
-
-async function placeDemoOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
   const saved = await createOrder({
     customer: input.customer,
     badges: input.badges,
     status: "received",
     source: input.source,
     repeatOf: input.repeatOf,
-    supplierOrderNo: "DEMO",
-    note: input.note ?? "Demoorder — skickas inte till tillverkningen",
-    demo: true,
+    supplierOrderNo: input.demo ? "DEMO" : null,
+    partnerRequestNo: partnerRequest ?? null,
+    note:
+      input.note ??
+      (input.demo ? "Demoorder — skickas inte till tillverkningen" : partnerRequest ? `Partnerförfrågan ${partnerRequest}` : null),
+    demo: input.demo,
     pricing: input.pricing,
     priceModel: input.priceModel,
     badgeShot: input.badgeShot,
+    shopSlug: input.shopSlug,
     project: input.project,
+    delivery: input.delivery,
     tenant: input.tenant,
   });
-  return { orderNumber: saved.orderNo, status: "mock" };
+
+  if (input.demo) return { orderNumber: saved.orderNo, status: "mock" };
+  if (workshop.length === 0) return { orderNumber: saved.orderNo, status: "request", partnerRequest };
+
+  const sent = await dispatchOrder(saved.orderNo);
+  return sent.ok
+    ? {
+        orderNumber: saved.orderNo,
+        status: "received",
+        estimatedShipDate: sent.estimatedShipDate ?? estimatedShipDate(),
+        partnerRequest,
+        supplierOrderNumber: sent.supplierOrderNo,
+      }
+    : {
+        orderNumber: saved.orderNo,
+        // Kunden har lagt sin order i båda fallen. Bara utan koppling är det ett testläge.
+        status: sent.reason === "not-configured" ? "mock" : "pending",
+        estimatedShipDate: estimatedShipDate(),
+        partnerRequest,
+      };
 }

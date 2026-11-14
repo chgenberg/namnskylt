@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
+import { deliverySchema } from "@/lib/orders/delivery";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
-import { databaseConfigured, getCustomer } from "@/lib/orders/repository";
+import { databaseConfigured, getCustomer, saveResellerDeliveryAddress } from "@/lib/orders/repository";
 import { currentTenant } from "@/lib/reseller-auth/session";
 
 export const runtime = "nodejs";
@@ -14,6 +15,7 @@ const requestSchema = z.object({
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
   badgeShot: badgeShotUploadSchema,
   project: z.string().trim().max(120).optional(),
+  delivery: deliverySchema,
 });
 
 /** Återförsäljaren lägger en order åt en kund — samma väg till tillverkningen som webbshoppen. */
@@ -24,7 +26,11 @@ export async function POST(request: Request) {
   }
   if (!databaseConfigured()) return NextResponse.json({ error: "Databasen är inte kopplad" }, { status: 503 });
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: "Ogiltig order" }, { status: 400 });
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    // Adressens fel är skrivna för den som fyller i formuläret.
+    return NextResponse.json({ error: issue?.path[0] === "delivery" ? issue.message : "Ogiltig order" }, { status: 400 });
+  }
   if (!allOffered(parsed.data.badges)) return NextResponse.json({ error: NOT_OFFERED_ERROR }, { status: 400 });
 
   const customer = await getCustomer(tenant, parsed.data.customerId);
@@ -39,7 +45,10 @@ export async function POST(request: Request) {
       demo: customer.demo,
       badgeShot: await normalizeBadgeShot(parsed.data.badgeShot),
       project: parsed.data.project || null,
+      delivery: parsed.data.delivery,
     });
+    // Nästa gång skyltarna ska "till oss" är adressen redan ifylld.
+    if (parsed.data.delivery.to === "reseller") await saveResellerDeliveryAddress(tenant, parsed.data.delivery.address);
     return NextResponse.json(receipt, { status: 201 });
   } catch (error) {
     console.error("Återförsäljarens order kunde inte läggas", error);

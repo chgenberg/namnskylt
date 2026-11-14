@@ -9,6 +9,7 @@ import {
   type FontEngine,
 } from "@/engine";
 import { companyFooter, DEFAULT_COMPANY, readableOn, type CompanyProfile } from "@/lib/company/profile";
+import { deliveryLines } from "@/lib/orders/delivery";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import type { StoredQuote } from "./model";
 
@@ -58,6 +59,12 @@ export function quoteHtml(
     ...(customer.orgNumber ? ([["Org.nr", customer.orgNumber]] as [string, string][]) : []),
     ["Kontakt", [customer.name, customer.email, customer.phone].filter(Boolean).join(" · ")],
     ...(customer.address ? ([["Adress", customer.address]] as [string, string][]) : []),
+    // Vart skyltarna skickas. Återförsäljarens egen adress står inte på kundens offert.
+    ...(quote.delivery.to === "reseller"
+      ? ([["Leverans", `Till ${company.name}`]] as [string, string][])
+      : quote.delivery.address
+        ? ([["Leverans", deliveryLines(quote.delivery.address).join("\n")]] as [string, string][])
+        : []),
     ["Offertdatum", day(quote.sentAt ?? quote.createdAt)],
     ["Giltig till", day(quote.validUntil)],
   ];
@@ -130,6 +137,7 @@ ${
 <div><span>Skyltar</span><span>${esc(sek(priced.badgesSek))}</span></div>
 ${priced.extras.map((e) => `<div><span>${esc(e.label)}</span><span>${esc(sek(e.amountSek))}</span></div>`).join("")}
 ${priced.minimumTopUpSek > 0 ? `<div><span>Upp till minsta ordervärde</span><span>${esc(sek(priced.minimumTopUpSek))}</span></div>` : ""}
+${priced.shippingSek > 0 ? `<div><span>Frakt</span><span>${esc(sek(priced.shippingSek))}</span></div>` : ""}
 <div class="tot"><span>Totalt exkl. moms</span><span>${esc(sek(priced.totalSek))}</span></div>
 <div class="vat"><span>Moms 25 %</span><span>${esc(sek(priced.vatSek))}</span></div>
 <div class="vat"><span>Att betala inkl. moms</span><span>${esc(sek(priced.totalInclVatSek))}</span></div>

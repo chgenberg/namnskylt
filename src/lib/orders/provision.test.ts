@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createBadgeDocument, type BadgeDocument } from "@/engine";
+import { createBadgeDocument, NO_SHIPPING, type BadgeDocument } from "@/engine";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import type { PriceModel } from "@/engine/price-model";
-import { orderShare, sumShares, totalsByReseller, type ResellerOrderRow } from "./provision";
+import { inPeriod, orderShare, periodLabel, periodOf, periodsOf, provisionCsv, sumShares, totalsByReseller, type ResellerOrderRow } from "./provision";
 
 /** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
-const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0 };
+const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0, shipping: NO_SHIPPING };
 /** Metallskylt (Premium) med nål: 73 + 5 kr på första trappsteget. */
 const badges = (quantity: number): BadgeDocument[] => [{ ...createBadgeDocument(["Anna Lind"]), quantity }];
 
@@ -28,6 +28,7 @@ describe("fördelningen av en återförsäljares order", () => {
     assert.deepEqual(orderShare(badges(10), M), {
       quantity: 10,
       resellerSek: 780,
+      shippingSek: 0,
       provisionPercent: 15,
       provisionSek: 117,
       supplierSek: 663,
@@ -54,6 +55,14 @@ describe("fördelningen av en återförsäljares order", () => {
     assert.equal(share.resellerSek, 101 * (68 + 5));
     assert.equal(share.provisionSek, 1103.76);
     assert.equal(share.supplierSek, 6269.24);
+  });
+
+  it("frakten har ingen provision: 10 skyltar med 159 kr frakt ger samma 117 kr som utan", () => {
+    const withShipping = orderShare(badges(10), { ...M, shipping: DEFAULT_PRICE_MODEL.shipping });
+    assert.equal(withShipping.resellerSek, 780);
+    assert.equal(withShipping.shippingSek, 159);
+    assert.equal(withShipping.provisionSek, 117);
+    assert.equal(withShipping.supplierSek, 663);
   });
 
   it("räknar med modellen ordern sparades med", () => {
@@ -87,7 +96,45 @@ describe("summor", () => {
   });
 
   it("ingenting att summera ger nollor", () => {
-    assert.deepEqual(sumShares([]), { orders: 0, quantity: 0, customerSek: 0, resellerSek: 0, provisionSek: 0, supplierSek: 0 });
+    assert.deepEqual(sumShares([]), {
+      orders: 0,
+      quantity: 0,
+      customerSek: 0,
+      resellerSek: 0,
+      shippingSek: 0,
+      provisionSek: 0,
+      supplierSek: 0,
+    });
     assert.deepEqual(totalsByReseller([]), []);
+  });
+});
+
+describe("perioder", () => {
+  const at = (placedAt: string, quantity = 10): ResellerOrderRow => ({ ...row("alfa", quantity, 1300), placedAt });
+
+  it("en order hör till månaden den lades i svensk tid, även strax efter midnatt", () => {
+    assert.equal(periodOf("2026-11-13T10:00:00.000Z"), "2026-11");
+    // 23:30 UTC den 30 november är 00:30 den 1 december i Sverige.
+    assert.equal(periodOf("2026-11-30T23:30:00.000Z"), "2026-12");
+    assert.equal(periodLabel("2026-11"), "november 2026");
+  });
+
+  it("månaderna listas nyast först och en vald månad ger bara sina ordrar", () => {
+    const rows = [at("2026-10-05T10:00:00.000Z"), at("2026-11-13T10:00:00.000Z"), at("2026-11-20T10:00:00.000Z")];
+    assert.deepEqual(periodsOf(rows), ["2026-11", "2026-10"]);
+    assert.equal(inPeriod(rows, "2026-11").length, 2);
+    assert.equal(inPeriod(rows, "2026-09").length, 0);
+    assert.equal(inPeriod(rows, null).length, 3);
+  });
+
+  it("underlaget har en rad per order med varor, frakt, provision och verkstadens del", () => {
+    const withShipping: ResellerOrderRow = {
+      ...at("2026-11-13T10:00:00.000Z"),
+      share: orderShare(badges(10), { ...M, shipping: DEFAULT_PRICE_MODEL.shipping }),
+    };
+    const lines = provisionCsv([withShipping]).replace("\uFEFF", "").trim().split("\r\n");
+    assert.equal(lines.length, 2);
+    assert.equal(lines[0]?.split(";").length, 12);
+    assert.deepEqual(lines[1]?.split(";"), ["NS-alfa-10", "2026-11-13", "Mottagen", "ALFA", "Kafé Ett", "10", "780", "159", "15", "117", "663", "822"]);
   });
 });

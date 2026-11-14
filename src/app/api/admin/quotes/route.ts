@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
+import { defaultQuoteDelivery } from "@/lib/orders/delivery-options";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { databaseConfigured, getCustomer } from "@/lib/orders/repository";
 import { createQuote } from "@/lib/quotes/repository";
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       demo: customer.demo,
       badgeShot: await normalizeBadgeShot(parsed.data.badgeShot),
       project: parsed.data.project || null,
+      delivery: await defaultQuoteDelivery(tenant, customer),
     });
     return NextResponse.json({ quoteNo }, { status: 201 });
   } catch (error) {

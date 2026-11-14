@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, before, describe, test } from "node:test";
 import postgres, { type Sql, type TransactionSql } from "postgres";
-import { createBadgeDocument } from "@/engine";
+import { createBadgeDocument, NO_SHIPPING } from "@/engine";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import type { PriceModel } from "@/engine/price-model";
 import { OWNER_TENANT } from "@/lib/tenants/model";
@@ -13,7 +13,7 @@ const url = process.env.DATABASE_URL;
 const ROLLBACK = new Error("rulla tillbaka");
 
 /** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
-const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0 };
+const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0, shipping: NO_SHIPPING };
 
 describe("återförsäljarnas ordrar i databasen", { skip: !url }, () => {
   let sql: Sql;
@@ -63,7 +63,14 @@ describe("återförsäljarnas ordrar i databasen", { skip: !url }, () => {
         const mine = all.filter((row) => row.resellerId === reseller);
         assert.equal(mine.length, 2);
         const saved = mine.find((row) => row.orderNo === kept);
-        assert.deepEqual(saved?.share, { quantity: 10, resellerSek: 780, provisionPercent: 25, provisionSek: 195, supplierSek: 585 });
+        assert.deepEqual(saved?.share, {
+          quantity: 10,
+          resellerSek: 780,
+          shippingSek: 0,
+          provisionPercent: 25,
+          provisionSek: 195,
+          supplierSek: 585,
+        });
         assert.equal(saved?.customer, "Testkunden AB");
         assert.equal(saved?.customerSek, 1300);
         // Utan konto visas återförsäljarens id som namn.
