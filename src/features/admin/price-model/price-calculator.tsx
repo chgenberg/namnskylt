@@ -1,18 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { OFFERED_MOUNTINGS, priceItems, tierRangeLabel, type MountingId, type PriceItem, type SignClass } from "@/engine";
+import {
+  OFFERED_MOUNTINGS,
+  priceItems,
+  tierRangeLabel,
+  type MountingId,
+  type PriceItem,
+  type PricePart,
+  type SignClass,
+  toOre,
+} from "@/engine";
 import {
   MAX_MARGIN_PERCENT,
   endPriceTable,
   itemBreakdown,
   provisionSplit,
   resellerPriceTable,
+  tierCounts,
   type PriceModel,
-  type PricePart,
 } from "@/engine/price-model";
 import { Segmented } from "@/components/ui/segmented";
-import { formatSek } from "@/lib/format";
+import { formatPercent, formatSek } from "@/lib/format";
 import { marginOf } from "@/lib/orders/purchase";
 import { NumberField } from "./number-field";
 import { OptionChip } from "./option-chip";
@@ -21,9 +30,14 @@ import styles from "../price-model.module.css";
 
 const SIGN_NAMES: Record<SignClass, string> = { premium: "Premium", standard: "Standard" };
 const SIGN_OPTIONS = (["premium", "standard"] as const).map((id) => ({ id, label: SIGN_NAMES[id] }));
-const MOUNTING_OPTIONS = OFFERED_MOUNTINGS.map((mounting) => ({ id: mounting.id, label: mounting.name }));
+const STEP_LIST = new Intl.ListFormat("sv", { type: "conjunction" });
 
-const percentText = (value: number) => `${String(value).replace(".", ",")} %`;
+/** Kalkylen kan räkna på skylten utan fäste, så att skyltens egna siffror syns för sig. Det går inte att beställa så. */
+type CalculatorMounting = MountingId | "none";
+const MOUNTING_OPTIONS: { id: CalculatorMounting; label: string }[] = [
+  ...OFFERED_MOUNTINGS.map((mounting) => ({ id: mounting.id, label: mounting.name })),
+  { id: "none", label: "Utan" },
+];
 
 interface PriceCalculatorProps {
   /** Utkastet: kalkylen räknar på siffrorna direkt, även innan de är sparade. */
@@ -35,19 +49,32 @@ interface PriceCalculatorProps {
 export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps) {
   const [signClass, setSignClass] = useState<SignClass>("premium");
   const [quantity, setQuantity] = useState(25);
-  const [mounting, setMounting] = useState<MountingId>("pin");
+  const [mounting, setMounting] = useState<CalculatorMounting>("pin");
   const [logo, setLogo] = useState(false);
   const [customShape, setCustomShape] = useState(false);
 
-  const item: PriceItem = { signClass, mounting, extraEngraving: logo, customShape, quantity: Math.max(1, quantity) };
+  const item: PriceItem = {
+    signClass,
+    mounting: mounting === "none" ? null : mounting,
+    extraEngraving: logo,
+    customShape,
+    quantity: Math.max(1, quantity),
+  };
   const purchase = resellerPriceTable(model);
   const reseller = priceItems([item], purchase);
   const end = priceItems([item], endPriceTable(model));
   const split = provisionSplit(model, reseller.totalSek, reseller.quantity);
   const margin = marginOf(end.totalSek, reseller.totalSek);
   const spec = itemBreakdown(model, item);
-  const perSign = (sek: number) => `${formatSek(Math.round(sek / reseller.quantity))} / st`;
+  const perSign = (sek: number) => `${formatSek(toOre(sek / reseller.quantity))} / st`;
   const tier = tierRangeLabel(reseller.tierIndex, purchase);
+  /** Hur provisionen räknas fram: `100 st à 15 %, 200 st à 12 % och 50 st à 10 %`. */
+  const steps = STEP_LIST.format(
+    tierCounts(model, reseller.quantity)
+      .map((count, i) => ({ count, percent: model.tiers[i]?.provisionPercent ?? 0 }))
+      .filter((step) => step.count > 0)
+      .map((step) => `${step.count} st à ${formatPercent(step.percent)}`),
+  );
 
   const partNames: Record<PricePart, string> = {
     sign: `${SIGN_NAMES[signClass]}skylt, ${tier}`,
@@ -110,7 +137,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
           <dt>Merchin netto</dt>
           <dd>{formatSek(split.provisionSek)}</dd>
           <small>
-            {percentText(split.provisionPercent)} provision · {tier}
+            {formatPercent(split.provisionPercent)} provision · {steps}
           </small>
         </div>
         <div className={styles.result}>
@@ -128,7 +155,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
         </div>
         <div className={styles.result} data-tone="own">
           <dt>Säljs på namnskylt.com</dt>
-          <dd>{formatSek(split.provisionSek + margin.sek)}</dd>
+          <dd>{formatSek(toOre(split.provisionSek + margin.sek))}</dd>
           <small>Provision plus marginal när ni säljer själva</small>
         </div>
       </dl>
@@ -137,7 +164,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
         <h3 className={styles.specTitle}>Specifikation per skylt</h3>
         <p className={styles.muted}>
           Vad varje part får för skylten, fästet, tillvalen och skyltens del av startkostnaden. Provisionen är{" "}
-          {percentText(split.provisionPercent)} på alla delar vid {tier}.
+          {formatPercent(split.provisionPercent)} på alla delar: {steps}.
         </p>
         <ShareTable
           spec={spec}
@@ -146,8 +173,9 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
           totals={{ resellerSek: reseller.totalSek, supplierSek: split.supplierSek, provisionSek: split.provisionSek, endSek: end.totalSek }}
         />
         <p className={styles.footnote}>
-          Per skylt visas ören. På ordern avrundas provisionen till hela kronor, och resten går till Skylt &amp; Gravyrteknik.
-          Startkostnaden per skylt avrundas till hela kronor, så summan för ordern kan skilja några kronor från startkostnaden.
+          Provisionen räknas på orderns summa och avrundas till ören, och resten går till Skylt &amp; Gravyrteknik. Per skylt
+          avrundas varje del för sig, så delarna gånger antalet kan skilja några ören från ordern. Startkostnaden per skylt
+          avrundas till ören för återförsäljaren och till hela kronor för slutkunden.
         </p>
       </div>
     </>

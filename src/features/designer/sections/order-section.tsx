@@ -4,9 +4,20 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState, type Dispatch, type FormEvent } from "react";
 import { usePriceList } from "@/components/price-list-provider";
 import { ProgressBanner } from "@/components/ui/progress-banner";
-import { badgeDocumentSchema, isPartnerMade, priceOrder, resellerOrder, type BadgeDocument } from "@/engine";
+import {
+  badgeDocumentSchema,
+  getMaterial,
+  getMounting,
+  isPartnerMade,
+  priceOrder,
+  resellerOrder,
+  toOre,
+  type BadgeDocument,
+  type PricePart,
+} from "@/engine";
+import { formatSek } from "@/lib/format";
 import { marginOf } from "@/lib/orders/purchase";
-import { shopPrice } from "@/lib/shops/price-list";
+import { shopPrice, shopPriceParts } from "@/lib/shops/price-list";
 import type { ResellerOrderContext, ShopContext } from "../reseller";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
@@ -39,6 +50,22 @@ type OrderState =
 
 const sek = new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 });
 
+/** Radernas namn i specifikationen per skylt. */
+function partLabel(part: PricePart, doc: BadgeDocument): string {
+  switch (part) {
+    case "sign":
+      return `Skylt, ${getMaterial(doc.materialId).name.toLowerCase()}`;
+    case "mounting":
+      return `Fäste, ${getMounting(doc.mounting).name.toLowerCase()}`;
+    case "extraEngraving":
+      return "Logga";
+    case "customShape":
+      return "Egen form";
+    case "start":
+      return "Startkostnad";
+  }
+}
+
 interface OrderSectionProps {
   doc: BadgeDocument;
   /** Allt som beställs: `doc` först, sedan skyltarna med samma design. */
@@ -56,6 +83,8 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
   const listPrice = priceOrder(badges, priceList);
   // Butiken visar sina egna priser; servern sparar ordern med samma tal.
   const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, priceList) } : listPrice;
+  // Alla skyltar i ordern har samma design, så en specifikation gäller dem alla.
+  const parts = shopPriceParts(doc, price.quantity, shop?.priceList, priceList);
   const names = badges.length;
   const nextTier = priceList.tiers[price.tierIndex + 1];
   const quickQuantities = [...QUICK_QUANTITIES, (priceList.tiers[1] ?? 100) + 1];
@@ -127,40 +156,39 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
 
   return (
     <section className={styles.order} aria-label="Antal och pris">
-      <div className={styles.quantityRow}>
-        <div className={`field ${styles.stepper}`}>
-          <button type="button" aria-label="Minska antal" onClick={() => dispatch({ type: "quantity", quantity: doc.quantity - 1 })}>
-            −
-          </button>
-          <input
-            type="number"
-            inputMode="numeric"
-            aria-label={names > 1 ? "Antal per namn" : "Antal"}
-            min={1}
-            value={doc.quantity}
-            onChange={(e) => dispatch({ type: "quantity", quantity: Number(e.target.value) })}
-          />
-          <button type="button" aria-label="Öka antal" onClick={() => dispatch({ type: "quantity", quantity: doc.quantity + 1 })}>
-            +
-          </button>
-        </div>
-        <div className={styles.chips}>
-          {quickQuantities.map((q) => (
-            <button
-              key={q}
-              type="button"
-              className="chip"
-              aria-pressed={doc.quantity === q}
-              onClick={() => dispatch({ type: "quantity", quantity: q })}
-            >
-              {q} st
+      <div className={styles.summary}>
+        <div className={styles.quantityRow}>
+          <div className={`field ${styles.stepper}`}>
+            <button type="button" aria-label="Minska antal" onClick={() => dispatch({ type: "quantity", quantity: doc.quantity - 1 })}>
+              −
             </button>
-          ))}
+            <input
+              type="number"
+              inputMode="numeric"
+              aria-label={names > 1 ? "Antal per namn" : "Antal"}
+              min={1}
+              value={doc.quantity}
+              onChange={(e) => dispatch({ type: "quantity", quantity: Number(e.target.value) })}
+            />
+            <button type="button" aria-label="Öka antal" onClick={() => dispatch({ type: "quantity", quantity: doc.quantity + 1 })}>
+              +
+            </button>
+          </div>
+          <div className={styles.chips}>
+            {quickQuantities.map((q) => (
+              <button
+                key={q}
+                type="button"
+                className="chip"
+                aria-pressed={doc.quantity === q}
+                onClick={() => dispatch({ type: "quantity", quantity: q })}
+              >
+                {q} st
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-
-      <div className={styles.priceRow}>
-        <div>
+        <div className={styles.priceBlock}>
           <p className={styles.priceLabel}>
             {names > 1 && `${names} namn × ${doc.quantity} = ${price.quantity} st · `}
             {sek.format(price.unitSek)} / st
@@ -177,6 +205,22 @@ export function OrderSection({ doc, badges, dispatch, reseller, shop, captureSho
               {sek.format(price.totalSek)}
             </motion.p>
           </AnimatePresence>
+        </div>
+        <div className={styles.spec}>
+          <p className={styles.specTitle}>Pris per skylt</p>
+          <dl>
+            {parts.map(({ part, sek: partSek }) => (
+              <div key={part}>
+                <dt>{partLabel(part, doc)}</dt>
+                <dd>{sek.format(partSek)}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </div>
+
+      <div className={styles.priceRow}>
+        <div>
           <p className={styles.priceNote}>exkl. moms · {priceNote}</p>
           {price.startShareSek > 0 && (
             <p className={styles.priceNote}>Startkostnaden ingår i priset och delas på antalet skyltar.</p>
@@ -285,8 +329,8 @@ function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
       <div>
         <dt>Ditt inköp</dt>
         <dd>
-          {sek.format(purchase.totalSek)}
-          {quantity > 1 && <span> · {sek.format(Math.round(purchase.totalSek / quantity))} / st</span>}
+          {formatSek(purchase.totalSek)}
+          {quantity > 1 && <span> · {formatSek(toOre(purchase.totalSek / quantity))} / st</span>}
         </dd>
       </div>
       <div>
@@ -296,7 +340,7 @@ function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
       <div data-tone={margin.sek < 0 ? "bad" : "good"}>
         <dt>Marginal</dt>
         <dd>
-          {sek.format(margin.sek)}
+          {formatSek(margin.sek)}
           {margin.percent !== null && <span> · {margin.percent} %</span>}
         </dd>
       </div>

@@ -136,7 +136,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
   );
   const orderBadges = useMemo(() => [doc, ...batch], [doc, batch]);
   const priceList = usePriceList();
-  /** Trappsteget för hela ordern: fästen och tillval kan kosta olika på olika trappsteg. */
+  /** Trappsteget för hela ordern: ett tillval kan kosta olika på olika trappsteg. */
   const tierIndex = tierIndexFor(
     orderBadges.reduce((total, badge) => total + Math.max(1, Math.floor(badge.quantity)), 0),
     priceList,
@@ -473,7 +473,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
           <LogoSection doc={doc} dispatch={update} onWorkplace={visualize.setWorkplace} />
           <MaterialSection doc={doc} dispatch={update} />
           <FormatSection doc={doc} dispatch={update} tierIndex={tierIndex} />
-          <MountingSection doc={doc} dispatch={update} tierIndex={tierIndex} />
+          <MountingSection doc={doc} dispatch={update} />
           <BatchSection
             current={doc}
             badges={batch}

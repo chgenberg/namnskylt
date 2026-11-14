@@ -1,18 +1,19 @@
 import { z } from "zod";
 import {
-  mountingPriceSek,
-  optionPriceSek,
-  startShareSek,
   tierIndexFor,
+  toOre,
+  unitPriceParts,
   type PriceItem,
   type PriceOptionId,
   type PriceOptions,
+  type PricePart,
   type PriceTable,
 } from "./pricing";
 import type { SignClass } from "./types";
 
 /**
- * Prismodellen. Alla belopp är exkl. moms, i hela kronor.
+ * Prismodellen. Alla belopp är exkl. moms. Det återförsäljaren betalar får
+ * ha ören; slutkundens priser är hela kronor.
  *
  * Tre parter delar på en order: Skylt & Gravyrteknik tillverkar, plattformen
  * tar provision och återförsäljaren säljer till slutkund. Tabellen anger vad
@@ -35,7 +36,11 @@ const PRICE_TIER_COUNT = 4;
 export interface PriceTier {
   /** Trappsteget gäller när ordern har fler skyltar än så. Första steget är alltid 0. */
   moreThan: number;
-  /** Plattformens andel av det återförsäljaren betalar, i procent. */
+  /**
+   * Plattformens andel av det återförsäljaren betalar, i procent. Den gäller
+   * bara skyltarna inom steget: i en order på 250 skyltar ger de första 100
+   * första stegets procent och de övriga 150 andra stegets.
+   */
   provisionPercent: number;
 }
 
@@ -63,9 +68,16 @@ export const MAX_PRICE_SEK = 100_000;
 /** Vid 100 % går priset mot oändligheten. */
 export const MAX_MARGIN_PERCENT = 90;
 
+/** Slutkundens belopp: hela kronor. */
 const sekSchema = z.number().int().min(0).max(MAX_PRICE_SEK);
+/** Återförsäljarens belopp: kronor med högst två decimaler. */
+const oreSchema = z
+  .number()
+  .min(0)
+  .max(MAX_PRICE_SEK)
+  .refine((sek) => Math.abs(sek * 100 - Math.round(sek * 100)) < 1e-6, "Ett belopp får ha högst två decimaler");
 const percentSchema = z.number().min(0).max(MAX_MARGIN_PERCENT);
-const tierPricesSchema = z.array(sekSchema).length(PRICE_TIER_COUNT);
+const tierPricesSchema = z.array(oreSchema).length(PRICE_TIER_COUNT);
 
 export const priceModelSchema = z
   .object({
@@ -80,8 +92,8 @@ export const priceModelSchema = z
       clip: tierPricesSchema,
       magnet: tierPricesSchema,
     }),
-    startSek: sekSchema,
-    minOrderSek: sekSchema,
+    startSek: oreSchema,
+    minOrderSek: oreSchema,
     endMarginPercent: percentSchema,
     endMinOrderSek: sekSchema,
   })
@@ -143,6 +155,7 @@ export function resellerPriceTable(model: PriceModel): PriceTable {
     options: mapOptions(model.options, (sek) => sek),
     startSek: model.startSek,
     minOrderSek: model.minOrderSek,
+    ore: true,
   };
 }
 
@@ -163,6 +176,7 @@ export function endPriceTable(model: PriceModel): PriceTable {
 }
 
 export interface ProvisionSplit {
+  /** Provisionen i snitt på hela ordern, i procent. Har decimaler när ordern går över flera trappsteg. */
   provisionPercent: number;
   /** Plattformens del av det återförsäljaren betalar. */
   provisionSek: number;
@@ -170,21 +184,49 @@ export interface ProvisionSplit {
   supplierSek: number;
 }
 
-/** Hur det återförsäljaren betalar delas mellan plattformen och verkstaden. Bara för ägaren. */
-export function provisionSplit(model: PriceModel, resellerTotalSek: number, quantity: number): ProvisionSplit {
-  const tierIndex = tierIndexFor(quantity, resellerPriceTable(model));
-  const provisionPercent = model.tiers[tierIndex]?.provisionPercent ?? 0;
-  const provisionSek = Math.round((resellerTotalSek * provisionPercent) / 100);
-  return { provisionPercent, provisionSek, supplierSek: resellerTotalSek - provisionSek };
+/** Hur många av orderns skyltar som hamnar på varje trappsteg: 250 skyltar är 100 på första steget och 150 på andra. */
+export function tierCounts(model: PriceModel, quantity: number): number[] {
+  return model.tiers.map((tier, i) => {
+    const upTo = model.tiers[i + 1]?.moreThan ?? Infinity;
+    return Math.max(0, Math.min(quantity, upTo) - tier.moreThan);
+  });
 }
 
-/** En del av skyltens pris: själva skylten, fästet, ett tillval eller skyltens del av startkostnaden. */
-export type PricePart = "sign" | "mounting" | "extraEngraving" | "customShape" | "start";
+/**
+ * Provisionen för en order, i procent av det återförsäljaren betalar. Den
+ * räknas steg för steg: varje trappstegs procent gäller bara skyltarna inom
+ * steget, så en order på 101 skyltar ger aldrig lägre procent på de första
+ * 100. Resultatet är snittet över orderns skyltar och gäller hela beloppet,
+ * även fästen, tillval, startkostnad och minidebitering.
+ */
+export function provisionPercentFor(model: PriceModel, quantity: number): number {
+  if (quantity <= 0) return model.tiers[0]?.provisionPercent ?? 0;
+  const weighted = tierCounts(model, quantity).reduce((sum, count, i) => sum + count * (model.tiers[i]?.provisionPercent ?? 0), 0);
+  return weighted / quantity;
+}
 
 /**
- * Hur ett belopp fördelas mellan parterna. Provisionen och verkstadens del har
- * ören: de avrundas först på orderns summa (`provisionSplit`), inte per del.
+ * Lägsta och högsta provision i procent för en order på ett trappsteg: vid
+ * stegets första och sista antal. Sista steget har inget sista antal; där går
+ * provisionen mot stegets egen procent när ordern växer.
  */
+export function provisionPercentRange(model: PriceModel, tierIndex: number): { min: number; max: number } {
+  const tier = model.tiers[tierIndex];
+  if (!tier) return { min: 0, max: 0 };
+  const next = model.tiers[tierIndex + 1];
+  const first = provisionPercentFor(model, tier.moreThan + 1);
+  const last = next ? provisionPercentFor(model, next.moreThan) : tier.provisionPercent;
+  return { min: Math.min(first, last), max: Math.max(first, last) };
+}
+
+/** Fördelningen av det återförsäljaren betalar för en order. Provisionen räknas steg för steg, med ören. */
+export function provisionSplit(model: PriceModel, resellerTotalSek: number, quantity: number): ProvisionSplit {
+  const provisionPercent = provisionPercentFor(model, quantity);
+  const provisionSek = toOre((resellerTotalSek * provisionPercent) / 100);
+  return { provisionPercent, provisionSek, supplierSek: toOre(resellerTotalSek - provisionSek) };
+}
+
+/** Hur ett belopp fördelas mellan parterna, med ören. */
 export interface PartShare {
   /** Det återförsäljaren betalar. */
   resellerSek: number;
@@ -196,16 +238,14 @@ export interface PartShare {
   endSek: number;
 }
 
-const toOre = (sek: number) => Math.round(sek * 100) / 100;
-
 function shareOf(resellerSek: number, endSek: number, provisionPercent: number): PartShare {
   const provisionSek = toOre((resellerSek * provisionPercent) / 100);
-  return { resellerSek, provisionSek, supplierSek: toOre(resellerSek - provisionSek), endSek };
+  return { resellerSek: toOre(resellerSek), provisionSek, supplierSek: toOre(resellerSek - provisionSek), endSek };
 }
 
-/** Fördelningen av ett pris hos återförsäljaren på ett trappsteg — provisionen gäller skyltar, fästen, tillval och startkostnad lika. */
-export function partShare(model: PriceModel, resellerSek: number, tierIndex: number): PartShare {
-  return shareOf(resellerSek, endPriceSek(resellerSek, model), model.tiers[tierIndex]?.provisionPercent ?? 0);
+/** Fördelningen av ett pris hos återförsäljaren vid en viss provision — den gäller skyltar, fästen, tillval och startkostnad lika. */
+export function partShare(model: PriceModel, resellerSek: number, provisionPercent: number): PartShare {
+  return shareOf(resellerSek, endPriceSek(resellerSek, model), provisionPercent);
 }
 
 export interface ItemBreakdown {
@@ -224,19 +264,14 @@ export function itemBreakdown(model: PriceModel, item: PriceItem): ItemBreakdown
   const quantity = Math.max(1, Math.floor(item.quantity));
   const purchase = resellerPriceTable(model);
   const tierIndex = tierIndexFor(quantity, purchase);
-  const provisionPercent = model.tiers[tierIndex]?.provisionPercent ?? 0;
-  const prices: [PricePart, number, boolean][] = [
-    ["sign", purchase.signs[item.signClass][tierIndex] ?? 0, true],
-    ["mounting", mountingPriceSek(item.mounting, purchase, tierIndex), true],
-    ["extraEngraving", optionPriceSek("extraEngraving", purchase, tierIndex), item.extraEngraving],
-    ["customShape", optionPriceSek("customShape", purchase, tierIndex), item.customShape],
-  ];
-  const parts = prices.filter(([, , included]) => included).map(([part, sek]) => ({ part, share: partShare(model, sek, tierIndex) }));
-  // Slutkundens del räknas ur slutkundens startkostnad, precis som i prislistan, inte ur återförsäljarens del.
-  if (model.startSek > 0) {
-    const share = shareOf(startShareSek(quantity, purchase), startShareSek(quantity, endPriceTable(model)), provisionPercent);
-    parts.push({ part: "start", share });
-  }
+  const provisionPercent = provisionPercentFor(model, quantity);
+  // Slutkundens del läses ur slutkundens prislista, del för del. Startkostnaden räknas alltså ur slutkundens
+  // startkostnad och inte ur återförsäljarens del.
+  const endParts = unitPriceParts(item, quantity, endPriceTable(model));
+  const parts = unitPriceParts(item, quantity, purchase).map(({ part, sek }, i) => ({
+    part,
+    share: shareOf(sek, endParts[i]?.sek ?? 0, provisionPercent),
+  }));
   const sum = (pick: (share: PartShare) => number) => toOre(parts.reduce((total, { share }) => total + pick(share), 0));
   const perSign: PartShare = {
     resellerSek: sum((s) => s.resellerSek),

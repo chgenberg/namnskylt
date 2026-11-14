@@ -4,7 +4,6 @@ import { motion } from "motion/react";
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { OFFERED_MOUNTINGS, getMounting, type BadgeDocument, type MountingId } from "@/engine";
-import { useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
@@ -23,12 +22,10 @@ const MOUNTING_ICON: Record<MountingId, React.ReactNode> = {
 interface MountingSectionProps {
   doc: BadgeDocument;
   dispatch: Dispatch<DesignerAction>;
-  /** Trappsteget för orderns antal — fästets pris kan skilja mellan trappstegen. */
-  tierIndex: number;
 }
 
-export function MountingSection({ doc, dispatch, tierIndex }: MountingSectionProps) {
-  const { mountingPrice } = useShopPrices(tierIndex);
+/** Fästets pris står i specifikationen vid antal och pris, inte här: det beror på orderns antal. */
+export function MountingSection({ doc, dispatch }: MountingSectionProps) {
   return (
     <PanelSection step={5} title="Fäste" aside={getMounting(doc.mounting).description}>
       <div className={styles.mountingGrid} role="radiogroup" aria-label="Fäste">
@@ -54,7 +51,6 @@ export function MountingSection({ doc, dispatch, tierIndex }: MountingSectionPro
                 {MOUNTING_ICON[m.id]}
               </svg>
               <span className={styles.materialName}>{m.name}</span>
-              <span className={styles.materialPrice}>+{mountingPrice(m.id, doc.materialId)} kr</span>
             </button>
           );
         })}

@@ -1,5 +1,15 @@
 import { z } from "zod";
-import { lineUnitPrices, MATERIALS, priceOrder, VAT_RATE, type BadgeDocument, type MaterialId, type PriceTable } from "@/engine";
+import {
+  badgePriceParts,
+  lineUnitPrices,
+  MATERIALS,
+  priceOrder,
+  VAT_RATE,
+  type BadgeDocument,
+  type MaterialId,
+  type PriceTable,
+  type UnitPricePart,
+} from "@/engine";
 import type { Pricing } from "@/lib/orders/pricing";
 
 /**
@@ -43,6 +53,26 @@ export function shopUnitPrices(
   const units = lineUnitPrices(badges, priceList);
   if (!list) return units;
   return badges.map((badge, i) => Math.round((units[i] ?? 0) * (1 + percentFor(list, badge.materialId) / 100)));
+}
+
+/**
+ * Vad som ingår i skyltens à-pris i butiken, i en order med `orderQuantity`
+ * skyltar. Varje del får butikens påslag. Avrundningen läggs på själva skylten,
+ * så att delarna summerar till exakt à-priset i `shopUnitPrices`.
+ */
+export function shopPriceParts(
+  badge: BadgeDocument,
+  orderQuantity: number,
+  list: ShopPriceList | null | undefined,
+  priceList: PriceTable,
+): UnitPricePart[] {
+  const parts = badgePriceParts(badge, orderQuantity, priceList);
+  if (!list) return parts;
+  const factor = 1 + percentFor(list, badge.materialId) / 100;
+  const sum = (items: readonly UnitPricePart[]) => items.reduce((total, item) => total + item.sek, 0);
+  const scaled = parts.map((item) => ({ ...item, sek: Math.round(item.sek * factor) }));
+  const rest = Math.round(sum(parts) * factor) - sum(scaled);
+  return scaled.map((item) => (item.part === "sign" ? { ...item, sek: item.sek + rest } : item));
 }
 
 export interface ShopPrice {

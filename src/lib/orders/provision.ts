@@ -1,5 +1,5 @@
 import "server-only";
-import { resellerOrder, type BadgeDocument } from "@/engine";
+import { resellerOrder, toOre, type BadgeDocument } from "@/engine";
 import { provisionSplit, resellerPriceTable, type PriceModel } from "@/engine/price-model";
 import type { OrderStatus } from "./model";
 
@@ -9,8 +9,9 @@ import type { OrderStatus } from "./model";
  */
 export interface OrderShare {
   quantity: number;
-  /** Det återförsäljaren betalar, exkl. moms, med minsta ordervärde inräknat. */
+  /** Det återförsäljaren betalar, exkl. moms, med minsta ordervärde inräknat. Får ha ören. */
   resellerSek: number;
+  /** Provisionen i snitt på ordern. Den räknas steg för steg och har decimaler när ordern går över flera trappsteg. */
   provisionPercent: number;
   /** Plattformens del av det återförsäljaren betalar. */
   provisionSek: number;
@@ -57,9 +58,9 @@ export function sumShares(rows: readonly Pick<ResellerOrderRow, "customerSek" | 
       orders: total.orders + 1,
       quantity: total.quantity + row.share.quantity,
       customerSek: total.customerSek + row.customerSek,
-      resellerSek: total.resellerSek + row.share.resellerSek,
-      provisionSek: total.provisionSek + row.share.provisionSek,
-      supplierSek: total.supplierSek + row.share.supplierSek,
+      resellerSek: toOre(total.resellerSek + row.share.resellerSek),
+      provisionSek: toOre(total.provisionSek + row.share.provisionSek),
+      supplierSek: toOre(total.supplierSek + row.share.supplierSek),
     }),
     { orders: 0, quantity: 0, customerSek: 0, resellerSek: 0, provisionSek: 0, supplierSek: 0 },
   );

@@ -7,10 +7,11 @@ import {
   MAX_PRICE_SEK,
   endPriceSek,
   priceModelSchema,
+  provisionPercentRange,
   resellerPriceTable,
   type PriceModel,
 } from "@/engine/price-model";
-import { formatSek } from "@/lib/format";
+import { formatPercent, formatSek } from "@/lib/format";
 import { savePriceModelAction } from "../actions";
 import { NumberField } from "./number-field";
 import { PriceCalculator } from "./price-calculator";
@@ -32,6 +33,12 @@ const OPTION_ROWS: readonly { id: PriceOptionId; name: string; note: string }[] 
 
 function replaceAt<T>(list: readonly T[], index: number, value: T): T[] {
   return list.map((item, i) => (i === index ? value : item));
+}
+
+/** Provisionen på hela ordern när den ligger på trappsteget: ett tal, eller lägsta och högsta. */
+function orderPercentText(model: PriceModel, tierIndex: number): string {
+  const { min, max } = provisionPercentRange(model, tierIndex);
+  return min === max ? formatPercent(max) : `${formatPercent(min).replace(" %", "")}–${formatPercent(max)}`;
 }
 
 interface PriceModelEditorProps {
@@ -92,7 +99,8 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
             </h2>
             <p className={styles.muted}>
               Priset följer orderns totala antal. Provisionen är er andel av allt återförsäljaren betalar: skyltar, fästen,
-              tillval och startkostnad. Resten går till Skylt &amp; Gravyrteknik.
+              tillval och startkostnad. Den räknas steg för steg: varje procentsats gäller bara skyltarna inom sitt
+              trappsteg. Resten går till Skylt &amp; Gravyrteknik.
             </p>
           </div>
           <div className={`${styles.orderField} ${styles.startField}`}>
@@ -102,6 +110,7 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
               value={draft.startSek}
               unit="kr"
               max={MAX_PRICE_SEK}
+              decimals
               onChange={(startSek) => setDraft({ ...draft, startSek })}
             />
             <small>
@@ -136,7 +145,7 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
             <span className={styles.divider} />
             <span className={styles.rowLabel}>
               Provision
-              <small>Merchins andel</small>
+              <small>Merchins andel av skyltarna inom trappsteget</small>
             </span>
             {draft.tiers.map((tier, i) => (
               <NumberField
@@ -149,6 +158,12 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
                 onChange={(provisionPercent) => setDraft({ ...draft, tiers: replaceAt(draft.tiers, i, { ...tier, provisionPercent }) })}
               />
             ))}
+            <span className={styles.derivedLabel}>På hela ordern</span>
+            {draft.tiers.map((_, i) => (
+              <span key={i} className={styles.derived}>
+                {orderPercentText(draft, i)}
+              </span>
+            ))}
           </div>
         </div>
       </section>
@@ -158,7 +173,10 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
           <h2 id="price-model-signs" className={styles.cardTitle}>
             Typ av skylt
           </h2>
-          <p className={styles.muted}>Det återförsäljaren betalar per skylt, och hur beloppet fördelas.</p>
+          <p className={styles.muted}>
+            Det återförsäljaren betalar per skylt, och hur beloppet fördelas. Två belopp gäller trappstegets första och sista
+            antal, eftersom provisionen räknas steg för steg.
+          </p>
         </div>
         <div className={styles.scroll}>
           <div className={styles.table}>
@@ -214,7 +232,14 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
         <div className={styles.orderGrid}>
           <div className={styles.orderField}>
             <span className={styles.controlLabel}>Minidebitering</span>
-            <NumberField label="Minidebitering" value={draft.minOrderSek} unit="kr" max={MAX_PRICE_SEK} onChange={(minOrderSek) => setDraft({ ...draft, minOrderSek })} />
+            <NumberField
+              label="Minidebitering"
+              value={draft.minOrderSek}
+              unit="kr"
+              max={MAX_PRICE_SEK}
+              decimals
+              onChange={(minOrderSek) => setDraft({ ...draft, minOrderSek })}
+            />
             <small>Minsta belopp återförsäljaren betalar för en order</small>
           </div>
           <div className={styles.orderField}>
@@ -232,7 +257,7 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
           <div className={styles.orderField}>
             <span className={styles.controlLabel}>Slutkundens minsta order</span>
             <NumberField label="Slutkundens minsta order" value={draft.endMinOrderSek} unit="kr" max={MAX_PRICE_SEK} onChange={(endMinOrderSek) => setDraft({ ...draft, endMinOrderSek })} />
-            <small>Minsta belopp slutkunden betalar för en order</small>
+            <small>Minsta belopp slutkunden betalar för en order, i hela kronor</small>
           </div>
         </div>
       </section>

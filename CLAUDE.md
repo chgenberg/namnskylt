@@ -46,7 +46,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (672 tester, grönt 2026-11-13).
+# Kvalitetsgrinden. Kör den innan något lämnas (698 tester, grönt 2026-11-14).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -174,7 +174,7 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Att verkstaden kan trycka i färg på både metall och plast, och vilken tryckfil den behöver.
     I dag finns bara bilden på 640 px; originalfilen sparas inte.
 
-## Prismodellen — läge 2026-11-13
+## Prismodellen — läge 2026-11-14
 
 Alla priser kommer ur en prismodell (`PriceModel` i `src/engine/price-model.ts`) som ägaren ändrar
 i `/admin/prismodell`. Den sparas i `settings` under nyckeln `price_model`; utan sparad modell
@@ -183,25 +183,50 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
 - **Tre parter:** tabellen anger vad återförsäljaren betalar. Provisionen är plattformens andel
   av det beloppet och resten går till Skylt & Gravyrteknik. Slutkundens pris är återförsäljarens
   pris delat med (1 − marginalen), alltså marginal och inte påslag.
-- **Provisionen gäller allt återförsäljaren betalar**: skyltar, fästen, tillval och minidebitering.
-  `partShare` och `itemBreakdown` i `price-model.ts` delar upp ett pris eller en orderrad per
-  del, med ören; på ordern avrundas provisionen till hela kronor (`provisionSplit`).
+- **Provisionen gäller allt återförsäljaren betalar**: skyltar, fästen, tillval, startkostnad och
+  minidebitering. `partShare` och `itemBreakdown` i `price-model.ts` delar upp ett pris eller en
+  orderrad per del. Provisionen har ören, även på ordern (`provisionSplit`).
+- **Provisionen räknas steg för steg** (beslut av ägaren 2026-11-14): varje trappstegs procent
+  gäller bara skyltarna inom steget. En order på 350 skyltar ger 15 % på de första 100, 12 % på
+  nästa 200 och 10 % på de sista 50, alltså 12,57 % på hela beloppet (`tierCounts`,
+  `provisionPercentFor`). Förut gällde orderns trappsteg hela ordern, så 101 skyltar gav 12 % på
+  allt. Priset per skylt följer däremot fortfarande orderns trappsteg för alla skyltar. Därför ger
+  101 skyltar ändå lite lägre provision än 100 (1 134 mot 1 200 kr för Premium med nål), eftersom
+  priset sjunker på hela ordern. Regeln gäller alla ordrar, även redan lagda, eftersom
+  provisionen räknas när den visas och inte sparas.
+- **Återförsäljarens belopp får ha ören, slutkundens är hela kronor** (2026-11-14). Priserna i
+  modellen (skyltar, fästen, tillval, startkostnad, minidebitering) får ha två decimaler, så att
+  verkstadens netto går att träffa exakt: 72,94 kr ger 62,00 kr vid 15 %. Återförsäljarens lista
+  bär `ore: true`, och summor avrundas med `toOre`. Slutkundens priser avrundas som förut till
+  hela kronor per del (`endPriceSek`), och slutkundens minsta order är ett heltal, eftersom
+  `orders.total_sek` är ett heltal. `formatSek` visar två decimaler bara när beloppet har ören.
 - **Sidan `/admin/prismodell`** (`src/features/admin/price-model/`) har samma kolumner i alla
   tabeller: trappsteg och provision, skyltar, tillbehör och tillval. Under varje pris står
   Skylt & Gravyrs netto, provisionen och slutkundens pris per trappsteg. "Vid order" är en
   kalkyl med summor och en specifikation per skylt. Mats på Skylt & Gravyrteknik använder sidan.
+  - Fälten är textfält (`number-field.tsx`), så att decimaler går att skriva med komma eller punkt.
+  - Under ett pris står två belopp när provisionen skiljer inom trappsteget: stegets första och
+    sista antal (`provisionPercentRange`). Raden "På hela ordern" visar samma sak i procent.
+  - Kalkylen har fästet "Utan" (`PriceItem.mounting: null`), så att skyltens egna siffror syns för
+    sig. Det går inte att beställa en skylt utan fäste.
 - **Startkostnaden** (`startSek`, 200 kr i kalkylen, ändras uppe till höger i kortet "Trappsteg
   och provision") är en egen avgift per order, skild från minidebiteringen. Den **fördelas på
   orderns skyltar** och ingår i priset per skylt: 200 kr på 4 skyltar lägger 50 kr på varje
   (`startShareSek` i `pricing.ts`). Den följer samma kedja som övriga priser: slutkunden betalar
   den med marginalen (333 kr) och provisionen gäller den. Delen per skylt avrundas till hela
-  kronor, så orderns summa kan skilja några kronor från startkostnaden, och över 400 skyltar blir
-  den 0 kr för återförsäljaren. "Från"-priser och exempelpriser visas utan startkostnad
-  (`fromPriceSek`, `withoutStartCost`), eftersom den beror på antalet.
+  kronor för slutkunden, så orderns summa kan skilja några kronor från startkostnaden, och över
+  666 skyltar blir den 0 kr. Återförsäljarens del avrundas till ören. "Från"-priser och
+  exempelpriser visas utan startkostnad (`fromPriceSek`, `withoutStartCost`), eftersom den beror
+  på antalet.
 - **Trappsteg** på orderns totala antal: 1–100, 101–300, 301–500 och 501 eller fler.
 - **Per skylt:** skylttypens pris (Premium = metall, Standard = plast, `priceClass` i katalogen),
   ett fäste (nål, klämma eller magnet), loggan som "extra gravyr" och skyltens del av
-  startkostnaden. Textrader och ram ingår. Varje del avrundas för sig till hela kronor.
+  startkostnaden. Textrader och ram ingår. Slutkundens delar avrundas var för sig till hela kronor.
+- **Skyltmotorn visar inget pris på fästena**, eftersom priset beror på orderns antal. I stället
+  står en specifikation per skylt bredvid antal och pris (`order-section.tsx`): skylten, fästet,
+  loggan, egen form och startkostnaden, som summerar till priset per skylt (`badgePriceParts` i
+  motorn, `shopPriceParts` med butikens påslag). "Egen form" visar fortfarande sitt tillägg i
+  formväljaren, och materialen sitt från-pris.
 - **Fästen och tillval har ett pris per trappsteg**, precis som skyltarna (`PriceOptions` är
   `Record<PriceOptionId, number[]>`; läs med `optionPriceSek` och `mountingPriceSek` och ange
   trappsteget). I kalkylen är priset samma på alla trappsteg.

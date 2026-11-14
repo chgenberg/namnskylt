@@ -1,7 +1,14 @@
 const TIME_ZONE = "Europe/Stockholm";
 
+/** Kronor: hela belopp utan decimaler, belopp med ören med två decimaler (`73 kr`, `73,50 kr`). */
 export function formatSek(value: number): string {
-  return `${new Intl.NumberFormat("sv-SE").format(value)} kr`;
+  const digits = Number.isInteger(value) ? 0 : 2;
+  return `${new Intl.NumberFormat("sv-SE", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value)} kr`;
+}
+
+/** Procent med högst två decimaler: `12 %`, `14,97 %`. */
+export function formatPercent(value: number): string {
+  return `${new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 2 }).format(value)} %`;
 }
 
 /** Millimeter med en decimal, som i måttangivelser: `43,5`. */

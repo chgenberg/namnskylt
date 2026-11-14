@@ -1,11 +1,9 @@
 import "server-only";
-import { formatDay, formatSek } from "@/lib/format";
+import { formatDay, formatPercent, formatSek } from "@/lib/format";
 import { sumShares, totalsByReseller, type ResellerOrderRow } from "@/lib/orders/provision";
 import { StatusPill } from "./status-pill";
 import admin from "./admin.module.css";
 import styles from "./reseller-orders.module.css";
-
-const percent = (value: number) => `${String(value).replace(".", ",")} %`;
 
 /**
  * Adminens samlade vy över återförsäljarnas ordrar: vad återförsäljaren
@@ -134,7 +132,7 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
                   <td className={styles.num}>{formatSek(row.share.resellerSek)}</td>
                   <td className={`${styles.num} ${styles.own}`}>
                     {formatSek(row.share.provisionSek)}
-                    <span className={styles.sub}>{percent(row.share.provisionPercent)}</span>
+                    <span className={styles.sub}>{formatPercent(row.share.provisionPercent)}</span>
                   </td>
                   <td className={styles.num}>{formatSek(row.share.supplierSek)}</td>
                 </tr>

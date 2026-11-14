@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { createBadgeDocument, lineUnitPrices, priceOrder } from "@/engine";
 import { endPriceTable } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
-import { shopOrderPricing, shopPrice, shopPriceListSchema, shopUnitPrices } from "./price-list";
+import { shopOrderPricing, shopPrice, shopPriceListSchema, shopPriceParts, shopUnitPrices } from "./price-list";
 
 /** Kundens prislista enligt kalkylen, utan startkostnad: den har egna tester i motorn. */
 const M = endPriceTable({ ...DEFAULT_PRICE_MODEL, startSek: 0 });
@@ -30,6 +30,28 @@ describe("butikens prislista", () => {
     const pricing = shopOrderPricing([metal], list, M);
     assert.ok(pricing);
     assert.equal((pricing.unitOverrides[0] ?? 0) * metal.quantity, shown.totalSek);
+  });
+
+  it("specifikationen per skylt summerar till butikens à-pris, med och utan påslag", () => {
+    const withStart = endPriceTable(DEFAULT_PRICE_MODEL);
+    const logo = { d: "M0 0h1v1z", viewWidth: 1, viewHeight: 1, placement: "top" as const, heightMm: 10 };
+    for (const percent of [0, 7, 20, 35, -15]) {
+      for (const quantity of [1, 6, 24, 101, 350]) {
+        const badge = { ...metal, mounting: "magnet" as const, logo, quantity };
+        const list = { percent, perMaterial: {} };
+        const parts = shopPriceParts(badge, quantity, list, withStart);
+        const sum = parts.reduce((total, part) => total + part.sek, 0);
+        assert.equal(sum, shopUnitPrices([badge], list, withStart)[0], `${percent} %, ${quantity} st`);
+        assert.deepEqual(
+          parts.map((part) => part.part),
+          ["sign", "mounting", "extraEngraving", "start"],
+        );
+      }
+    }
+    assert.deepEqual(shopPriceParts(metal, 24, null, M), [
+      { part: "sign", sek: 122 },
+      { part: "mounting", sek: 8 },
+    ]);
   });
 
   it("en liten order i butiken fylls upp till minsta ordervärde", () => {

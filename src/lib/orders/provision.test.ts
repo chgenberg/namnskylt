@@ -37,16 +37,23 @@ describe("fördelningen av en återförsäljares order", () => {
   it("en ensam skylt: provisionen räknas på minsta ordervärde, 299 kr", () => {
     const share = orderShare(badges(1), M);
     assert.equal(share.resellerSek, 299);
-    assert.equal(share.provisionSek, 45);
-    assert.equal(share.supplierSek, 254);
+    assert.equal(share.provisionSek, 44.85);
+    assert.equal(share.supplierSek, 254.15);
   });
 
-  it("trappsteget följer orderns antal: 150 skyltar ger 12 %", () => {
+  it("provisionen räknas steg för steg: 150 skyltar är 100 st à 15 % och 50 st à 12 %, alltså 14 % på ordern", () => {
     const share = orderShare(badges(150), M);
     assert.equal(share.resellerSek, 150 * (68 + 5));
-    assert.equal(share.provisionPercent, 12);
-    assert.equal(share.provisionSek, Math.round((150 * 73 * 12) / 100));
+    assert.equal(share.provisionPercent, 14);
+    assert.equal(share.provisionSek, 1533);
     assert.equal(share.provisionSek + share.supplierSek, share.resellerSek);
+  });
+
+  it("skylt 101 sänker inte provisionen på de första 100: 7 373 kr ger 1 103,76 kr, inte 884,76 kr", () => {
+    const share = orderShare(badges(101), M);
+    assert.equal(share.resellerSek, 101 * (68 + 5));
+    assert.equal(share.provisionSek, 1103.76);
+    assert.equal(share.supplierSek, 6269.24);
   });
 
   it("räknar med modellen ordern sparades med", () => {
@@ -64,8 +71,8 @@ describe("summor", () => {
     assert.equal(total.quantity, 161);
     assert.equal(total.customerSek, 19599);
     assert.equal(total.resellerSek, 780 + 10950 + 299);
-    assert.equal(total.provisionSek, 117 + 1314 + 45);
-    assert.equal(total.provisionSek + total.supplierSek, total.resellerSek);
+    assert.equal(total.provisionSek, 1694.85);
+    assert.equal(total.supplierSek, 10334.15);
   });
 
   it("grupperar per återförsäljare med störst provision först", () => {
@@ -73,8 +80,8 @@ describe("summor", () => {
     assert.deepEqual(
       groups.map((g) => [g.resellerId, g.orders, g.provisionSek]),
       [
-        ["beta", 1, 1314],
-        ["alfa", 2, 162],
+        ["beta", 1, 1533],
+        ["alfa", 2, 161.85],
       ],
     );
   });

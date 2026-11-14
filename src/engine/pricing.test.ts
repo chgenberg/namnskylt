@@ -4,6 +4,7 @@ import { createBadgeDocument, withBlank, withShapePreset } from "./document";
 import { BLANKS } from "./catalog";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
 import {
+  badgePriceParts,
   fromPriceSek,
   lineUnitPrices,
   mountingPriceSek,
@@ -66,12 +67,12 @@ describe("kalkylens siffror", () => {
     }
   });
 
-  it("provisionen är plattformens andel och resten går till verkstaden: 73 kr blir 11 och 62", () => {
-    assert.deepEqual(provisionSplit(M, 73, 1), { provisionPercent: 15, provisionSek: 11, supplierSek: 62 });
-    assert.deepEqual(
-      [101, 301, 501].map((quantity) => provisionSplit(M, 1000, quantity).provisionPercent),
-      [12, 10, 8],
-    );
+  it("provisionen är plattformens andel och resten går till verkstaden: 73 kr blir 10,95 och 62,05", () => {
+    assert.deepEqual(provisionSplit(M, 73, 1), { provisionPercent: 15, provisionSek: 10.95, supplierSek: 62.05 });
+    // Över 100 skyltar räknas provisionen steg för steg; reglerna prövas i price-model.test.ts.
+    assert.equal(provisionSplit(M, 1000, 100).provisionPercent, 15);
+    assert.ok(provisionSplit(M, 1000, 101).provisionPercent < 15);
+    assert.ok(provisionSplit(M, 1000, 101).provisionPercent > 12);
   });
 
   it("tillvalen läggs på skylten: nål 5, klämma 9, magnet 11 och logga 19 kr", () => {
@@ -102,7 +103,7 @@ describe("minidebiteringen", () => {
     assert.equal(order.badgesSek, 78);
     assert.equal(order.minimumTopUpSek, 221);
     assert.equal(order.totalSek, 299);
-    assert.deepEqual(provisionSplit(M, order.totalSek, order.quantity), { provisionPercent: 15, provisionSek: 45, supplierSek: 254 });
+    assert.deepEqual(provisionSplit(M, order.totalSek, order.quantity), { provisionPercent: 15, provisionSek: 44.85, supplierSek: 254.15 });
   });
 
   it("en order över gränsen får inget påslag", () => {
@@ -190,12 +191,24 @@ describe("startkostnaden", () => {
     assert.deepEqual(lineUnitPrices(names, list), [213, 213, 213, 213]);
   });
 
-  it("avrundas till hela kronor per skylt: 3 skyltar ger 67 kr, 100 ger 2 kr och över 400 skyltar blir den 0", () => {
+  it("slutkundens del avrundas till hela kronor: 3 skyltar ger 111 kr, 150 ger 2 kr och över 666 skyltar blir den 0", () => {
+    assert.deepEqual(
+      [1, 3, 7, 100, 150, 401, 667].map((quantity) => startShareSek(quantity, list)),
+      [333, 111, 48, 3, 2, 1, 0],
+    );
+    assert.equal(startShareSek(0, list), 0);
+  });
+
+  it("återförsäljarens del avrundas till ören: 3 skyltar ger 66,67 kr och 150 ger 1,33 kr", () => {
     assert.deepEqual(
       [1, 3, 7, 100, 150, 401].map((quantity) => startShareSek(quantity, purchase)),
-      [200, 67, 29, 2, 1, 0],
+      [200, 66.67, 28.57, 2, 1.33, 0.5],
     );
     assert.equal(startShareSek(0, purchase), 0);
+    // 150 skyltar bär 199,50 kr av startkostnaden på 200 kr, inte 150 kr som med hela kronor.
+    const order = priceItems([premium(150)], purchase);
+    assert.deepEqual(order.unitSek, [68 + 5 + 1.33]);
+    assert.equal(order.totalSek, 150 * 73 + 199.5);
   });
 
   it("en ensam skylt bär hela startkostnaden, och minidebiteringen fyller bara upp resten", () => {
@@ -208,15 +221,64 @@ describe("startkostnaden", () => {
     assert.equal(customer.minimumTopUpSek, 0);
   });
 
-  it("provisionen gäller startkostnaden som allt annat: 512 kr ger 77 kr", () => {
+  it("provisionen gäller startkostnaden som allt annat: 512 kr ger 76,80 kr", () => {
     const order = priceItems([premium(4)], purchase);
-    assert.deepEqual(provisionSplit(D, order.totalSek, order.quantity), { provisionPercent: 15, provisionSek: 77, supplierSek: 435 });
+    assert.deepEqual(provisionSplit(D, order.totalSek, order.quantity), { provisionPercent: 15, provisionSek: 76.8, supplierSek: 435.2 });
   });
 
   it("från-priset och ett listpris utan startkostnad påverkas inte", () => {
     assert.equal(fromPriceSek("metal", list), 130);
     assert.equal(priceOrder([anna(10)], withoutStartCost(list)).unitSek, 130);
     assert.equal(withoutStartCost(list).minOrderSek, list.minOrderSek);
+  });
+});
+
+describe("vad som ingår i priset per skylt", () => {
+  const D = DEFAULT_PRICE_MODEL;
+  const list = endPriceTable(D);
+  const parts = (doc: BadgeDocument, quantity: number) => badgePriceParts(doc, quantity, list).map(({ part, sek }) => [part, sek]);
+
+  it("skylt, fäste och startkostnad: 122 + 15 + 56 kr för en metallskylt med klämma i en order på 6", () => {
+    const doc: BadgeDocument = { ...createBadgeDocument(["Anna"]), mounting: "clip", quantity: 6 };
+    assert.deepEqual(parts(doc, 6), [
+      ["sign", 122],
+      ["mounting", 15],
+      ["start", 56],
+    ]);
+  });
+
+  it("logga och egen form är egna rader", () => {
+    const plastic = { ...createBadgeDocument(["Anna"]), materialId: "plastic" as const, colorId: "white-black" };
+    const doc: BadgeDocument = { ...withShapePreset(plastic, "star"), logo: { d: "M0 0h1v1z", viewWidth: 1, viewHeight: 1, placement: "top", heightMm: 10 }, quantity: 6 };
+    assert.deepEqual(
+      parts(doc, 6).map(([part]) => part),
+      ["sign", "mounting", "extraEngraving", "customShape", "start"],
+    );
+  });
+
+  it("delarna summerar alltid till skyltens à-pris, på alla trappsteg", () => {
+    for (const quantity of [1, 3, 6, 100, 101, 350, 700]) {
+      const doc: BadgeDocument = { ...createBadgeDocument(["Anna"]), mounting: "magnet", quantity };
+      const sum = badgePriceParts(doc, quantity, list).reduce((total, { sek }) => total + sek, 0);
+      assert.equal(sum, lineUnitPrices([doc], list)[0], `${quantity} st`);
+    }
+  });
+
+  it("trappsteget och startkostnaden följer orderns antal, inte skyltens", () => {
+    const doc: BadgeDocument = { ...createBadgeDocument(["Anna"]), quantity: 1 };
+    assert.deepEqual(parts(doc, 200), [
+      ["sign", 113],
+      ["mounting", 8],
+      ["start", 2],
+    ]);
+  });
+
+  it("utan startkostnad i listan finns ingen sådan rad", () => {
+    const doc: BadgeDocument = { ...createBadgeDocument(["Anna"]), quantity: 6 };
+    assert.deepEqual(
+      badgePriceParts(doc, 6, withoutStartCost(list)).map(({ part }) => part),
+      ["sign", "mounting"],
+    );
   });
 });
 
@@ -311,11 +373,14 @@ describe("priceModelSchema", () => {
     assert.equal(priceModelSchema.safeParse({ ...M, tiers: tiers([0, 50, 200, 1000]) }).success, true);
   });
 
-  it("stoppar en marginal på 100 %, negativa belopp och ören", () => {
+  it("stoppar en marginal på 100 %, negativa belopp och fel antal trappsteg", () => {
     const model: PriceModel = M;
     assert.equal(priceModelSchema.safeParse({ ...model, endMarginPercent: 100 }).success, false);
     assert.equal(priceModelSchema.safeParse({ ...model, minOrderSek: -1 }).success, false);
-    assert.equal(priceModelSchema.safeParse({ ...model, signs: { ...model.signs, premium: [73.5, 68, 64, 61] } }).success, false);
     assert.equal(priceModelSchema.safeParse({ ...model, signs: { ...model.signs, premium: [73, 68, 64] } }).success, false);
+  });
+
+  it("godtar ören i återförsäljarens priser", () => {
+    assert.equal(priceModelSchema.safeParse({ ...M, signs: { ...M.signs, premium: [73.5, 68, 64, 61] } }).success, true);
   });
 });

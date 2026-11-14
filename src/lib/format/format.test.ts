@@ -1,11 +1,26 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { formatDate, formatDay, formatRelative, formatSek } from "./index";
+import { formatDate, formatDay, formatPercent, formatRelative, formatSek } from "./index";
 
 describe("formatSek", () => {
   test("tusental grupperas och enheten står sist", () => {
     assert.match(formatSek(1234), /^1\s234 kr$/);
     assert.equal(formatSek(95), "95 kr");
+  });
+
+  test("ett belopp med ören visas med två decimaler, ett helt belopp utan", () => {
+    assert.equal(formatSek(73.5), "73,50 kr");
+    assert.equal(formatSek(72.94), "72,94 kr");
+    assert.match(formatSek(11899.5), /^11\s899,50 kr$/);
+    assert.equal(formatSek(73), "73 kr");
+  });
+});
+
+describe("formatPercent", () => {
+  test("högst två decimaler, och inga i onödan", () => {
+    assert.equal(formatPercent(12), "12 %");
+    assert.equal(formatPercent(12.5), "12,5 %");
+    assert.equal(formatPercent(1512 / 101), "14,97 %");
   });
 });
 

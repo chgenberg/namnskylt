@@ -1,6 +1,8 @@
+import { toOre } from "@/engine";
+
 /**
  * Återförsäljarens marginal på en order: kundens pris minus det återförsäljaren
- * betalar enligt prismodellen (`resellerOrder` i motorn).
+ * betalar enligt prismodellen (`resellerOrder` i motorn). Inköpet får ha ören.
  */
 export interface Margin {
   sek: number;
@@ -9,6 +11,6 @@ export interface Margin {
 }
 
 export function marginOf(saleSek: number, purchaseSek: number): Margin {
-  const sek = saleSek - purchaseSek;
+  const sek = toOre(saleSek - purchaseSek);
   return { sek, percent: saleSek > 0 ? Math.round((sek / saleSek) * 100) : null };
 }

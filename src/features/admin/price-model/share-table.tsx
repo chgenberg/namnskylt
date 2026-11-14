@@ -1,6 +1,7 @@
 "use client";
 
-import type { ItemBreakdown, PartShare, PricePart } from "@/engine/price-model";
+import { toOre, type PricePart } from "@/engine";
+import type { ItemBreakdown, PartShare } from "@/engine/price-model";
 import { formatSek, formatSekExact } from "@/lib/format";
 import styles from "../price-model.module.css";
 
@@ -9,11 +10,11 @@ interface ShareTableProps {
   /** Radernas namn: skylten, fästet och tillvalen som de är valda i kalkylen. */
   partNames: Record<PricePart, string>;
   quantity: number;
-  /** Orderns summor i hela kronor, som de faktureras. */
+  /** Orderns summor, som de faktureras. */
   totals: PartShare;
 }
 
-const marginOf = (share: PartShare) => share.endSek - share.resellerSek;
+const marginOf = (share: PartShare) => toOre(share.endSek - share.resellerSek);
 
 /**
  * Specifikationen per skylt: vad varje part får för skylten, fästet och varje
