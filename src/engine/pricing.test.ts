@@ -18,6 +18,7 @@ import {
   tierIndexFor,
   tierRangeLabel,
   withoutStartCost,
+  withStartInSign,
   type PriceItem,
 } from "./pricing";
 import {
@@ -285,6 +286,47 @@ describe("vad som ingår i priset per skylt", () => {
       badgePriceParts(doc, 6, withoutStartCost(list)).map(({ part }) => part),
       ["sign", "mounting"],
     );
+  });
+
+  it("mot kunden ligger startkostnaden på skylten: 122 + 13 = 135 kr i en order på 25", () => {
+    const doc: BadgeDocument = { ...createBadgeDocument(["Anna"]), quantity: 25 };
+    assert.deepEqual(
+      withStartInSign(badgePriceParts(doc, 25, list)).map(({ part, sek }) => [part, sek]),
+      [
+        ["sign", 135],
+        ["mounting", 8],
+      ],
+    );
+  });
+
+  it("återförsäljarens skylt i samma order: 73 + 8 = 81 kr", () => {
+    const doc: BadgeDocument = { ...createBadgeDocument(["Anna"]), quantity: 25 };
+    assert.deepEqual(
+      withStartInSign(badgePriceParts(doc, 25, resellerPriceTable(D))).map(({ part, sek }) => [part, sek]),
+      [
+        ["sign", 81],
+        ["mounting", 5],
+      ],
+    );
+  });
+
+  it("summan är densamma med startkostnaden på skylten, och ingen egen rad finns kvar", () => {
+    for (const quantity of [1, 3, 6, 100, 101, 350, 700]) {
+      const doc: BadgeDocument = { ...createBadgeDocument(["Anna"]), mounting: "magnet", quantity };
+      const shown = withStartInSign(badgePriceParts(doc, quantity, list));
+      assert.equal(
+        shown.reduce((total, { sek }) => total + sek, 0),
+        lineUnitPrices([doc], list)[0],
+        `${quantity} st`,
+      );
+      assert.ok(shown.every(({ part }) => (part as string) !== "start"));
+    }
+  });
+
+  it("utan startkostnad ändras ingenting", () => {
+    const doc: BadgeDocument = { ...createBadgeDocument(["Anna"]), quantity: 6 };
+    const parts = badgePriceParts(doc, 6, withoutStartCost(list));
+    assert.deepEqual(withStartInSign(parts), parts);
   });
 });
 

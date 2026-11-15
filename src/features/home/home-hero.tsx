@@ -155,14 +155,14 @@ export function HomeHero({
         </div>
         <figcaption className={styles.caption}>
           <span className={styles.figNo}>Fig. 1</span>
-          {material.name}, {color.name.toLowerCase()} — graverad i Sverige
+          {material.name}, {color.name.toLowerCase()} — tillverkad i Sverige
         </figcaption>
       </figure>
 
       <div className={styles.copy}>
         {eyebrow && <p className={styles.eyebrow}>{eyebrow}</p>}
         <h1 className={styles.title}>
-          Skriv ditt namn. <em>Vi graverar resten.</em>
+          Skriv ditt namn. <em>Vi gör resten.</em>
         </h1>
 
         <form className={styles.form} onSubmit={handleSubmit} role="search">
@@ -237,8 +237,8 @@ export function HomeHero({
 
       {!embedded && (
         <footer className={styles.margins} aria-hidden="true">
-          <span>Graverade namnskyltar</span>
-          <span>Korrektur innan gravyr</span>
+          <span>Namnskyltar i metall och plast</span>
+          <span>Korrektur innan produktion</span>
           <span>Tillverkade i Sverige</span>
         </footer>
       )}

@@ -7,7 +7,8 @@ import {
   OFFERED_MATERIALS,
   createBadgeDocument,
   fromPriceSek,
-  tierRangeLabel,
+  startShareSek,
+  tierIndexFor,
   type BadgeDocument,
   type MountingId,
   type PriceTable,
@@ -47,13 +48,20 @@ interface VolumeRow {
   price: string;
 }
 
-/** Lägsta pris per skylt på varje trappsteg i prismodellen, exkl. moms. */
+/** Antal som visar hur priset per skylt sjunker. Fyra, så många rutor som tabellen har. */
+const VOLUME_QUANTITIES = [10, 50, 100, 500] as const;
+
+/**
+ * Priset per skylt vid några antal, exkl. moms: skylten med det billigaste
+ * fästet och skyltens del av startkostnaden. Mot kunden står startkostnaden
+ * aldrig för sig, den ligger i priset per skylt.
+ */
 function volumeRows(priceList: PriceTable): VolumeRow[] {
   const material = OFFERED_MATERIALS[0];
   if (!material) return [];
-  return priceList.tiers.map((_, i) => ({
-    range: tierRangeLabel(i, priceList),
-    price: `${fromPriceSek(material.id, priceList, i)} kr`,
+  return VOLUME_QUANTITIES.map((quantity) => ({
+    range: `${quantity} skyltar`,
+    price: `${fromPriceSek(material.id, priceList, tierIndexFor(quantity, priceList)) + startShareSek(quantity, priceList)} kr`,
   }));
 }
 
@@ -176,11 +184,6 @@ export function BusinessPage({ priceList }: BusinessPageProps) {
           <div>
             <h3 className={styles.volumeTitle}>{VOLUME.title}</h3>
             <p className={styles.volumeBody}>{VOLUME.body}</p>
-            {priceList.startSek > 0 && (
-              <p className={styles.volumeBody}>
-                Till det kommer en startkostnad på {priceList.startSek} kr per beställning, som delas på antalet skyltar.
-              </p>
-            )}
           </div>
           <dl className={styles.volumeTable}>
             {volumeRows(priceList).map((row, i) => (

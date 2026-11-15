@@ -17,7 +17,6 @@ import type { BadgeRecorder } from "./three/recorder";
 import { BlankPicker, ColorPicker, MaterialPicker } from "./pickers";
 import styles from "./onboarding-dialog.module.css";
 import type { DesignerAction } from "./state";
-import { useShopPrices } from "./shop-price";
 
 /** Samma 3D-skylt som i skyltmotorn; ritningen syns medan den laddar. */
 const Badge3D = dynamic(() => import("./badge-3d"), { ssr: false, loading: () => null });
@@ -40,7 +39,6 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
   const [canvasReady, setCanvasReady] = useState(false);
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
-  const { fromPrice } = useShopPrices();
   const blank = blankOf(doc);
   const shapeName = shapeLabel(doc);
   const severalMaterials = OFFERED_MATERIALS.length > 1;
@@ -137,9 +135,7 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
         </div>
 
         <footer className={styles.footer}>
-          <p className={styles.price}>
-            från <strong>{fromPrice(material.id)} kr</strong> / st
-          </p>
+          <p className={styles.footNote}>Priset per skylt beror på antalet och visas i nästa steg.</p>
           <button type="button" className="btn btn--ghost" onClick={() => ref.current?.close()}>
             Hoppa över
           </button>

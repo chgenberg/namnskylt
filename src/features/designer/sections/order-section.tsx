@@ -14,8 +14,10 @@ import {
   priceOrder,
   resellerOrder,
   toOre,
+  VAT_RATE,
+  withStartInSign,
   type BadgeDocument,
-  type PricePart,
+  type ShownPricePart,
 } from "@/engine";
 import { useOrderShipping } from "@/hooks/use-order-shipping";
 import { formatSek } from "@/lib/format";
@@ -66,8 +68,8 @@ const FORM_OPEN_MS = 380;
 
 const DELIVERY_TO_OPTIONS = (["customer", "reseller"] as const).map((id) => ({ id, label: DELIVERY_TO_LABEL[id] }));
 
-/** Radernas namn i specifikationen per skylt. */
-function partLabel(part: PricePart, doc: BadgeDocument): string {
+/** Radernas namn i specifikationen per skylt. Startkostnaden ligger på skylten och har ingen egen rad. */
+function partLabel(part: ShownPricePart, doc: BadgeDocument): string {
   switch (part) {
     case "sign":
       return `Skylt, ${getMaterial(doc.materialId).name.toLowerCase()}`;
@@ -77,8 +79,6 @@ function partLabel(part: PricePart, doc: BadgeDocument): string {
       return "Logga";
     case "customShape":
       return "Egen form";
-    case "start":
-      return "Startkostnad";
   }
 }
 
@@ -118,23 +118,30 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
   const address = addresses[deliverTo];
   const setAddress = (draft: DeliveryDraft) => setAddresses((all) => ({ ...all, [deliverTo]: draft }));
   const priceList = usePriceList();
-  // Frakten är samma för kunden och återförsäljaren. Återförsäljaren räknar den ur sin inköpslista, en kund får den av servern.
-  const shipping = useOrderShipping(badges, reseller?.purchaseList);
-  const listPrice = priceOrder(badges, priceList, shipping ?? 0);
-  // Butiken visar sina egna priser; servern sparar ordern med samma tal.
-  const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, priceList, shipping ?? 0) } : listPrice;
+  // Priset bredvid antalet är skyltarna, utan frakt. Frakten hör till kassan och visas först där
+  // (besked via ägaren 2026-11-15). Butiken visar sina egna priser; servern sparar ordern med samma tal.
+  const listPrice = priceOrder(badges, priceList, 0);
+  const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, priceList, 0) } : listPrice;
+  // Frakten är samma för kunden och återförsäljaren. Återförsäljaren räknar den ur sin inköpslista,
+  // en kund får den av servern när kassan öppnas.
+  const shipping = useOrderShipping(badges, reseller?.purchaseList, Boolean(reseller) || formOpen);
+  const checkoutSek = price.totalSek + (shipping ?? 0);
+  const checkoutInclVatSek = checkoutSek + Math.round(checkoutSek * VAT_RATE);
   // Specifikationen gäller skylten i editorn, på trappsteget för hela orderns antal.
-  const parts = shopPriceParts(doc, price.quantity, shop?.priceList, priceList);
+  const parts = withStartInSign(shopPriceParts(doc, price.quantity, shop?.priceList, priceList));
   const mixed = designs > 1;
   const names = badges.length;
   const nextTier = priceList.tiers[price.tierIndex + 1];
   const quickQuantities = [...QUICK_QUANTITIES, (priceList.tiers[1] ?? 100) + 1];
+  // Med en startkostnad i priset blir varje skylt billigare för varje skylt som läggs till, inte bara vid nästa trappsteg.
   const priceNote =
     price.minimumTopUpSek > 0
       ? `Minsta ordervärde ${sek.format(priceList.minOrderSek)}`
-      : nextTier !== undefined
-        ? `Lägre pris från ${nextTier + 1} st`
-        : "Lägsta styckpris";
+      : price.startShareSek > 0
+        ? "Lägre pris per skylt ju fler du beställer"
+        : nextTier !== undefined
+          ? `Lägre pris från ${nextTier + 1} st`
+          : "Lägsta styckpris";
   const valid = badges.every((badge) => badgeDocumentSchema.safeParse(badge).success);
   const partnerMade = isPartnerMade(doc.materialId);
 
@@ -276,15 +283,8 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
 
       <div className={styles.priceRow}>
         <div>
-          <p className={styles.priceNote}>exkl. moms · {priceNote}</p>
-          {shipping === null ? (
-            <p className={styles.priceNote}>Frakt tillkommer.</p>
-          ) : (
-            shipping > 0 && <p className={styles.priceNote}>Frakt {sek.format(shipping)} ingår i summan.</p>
-          )}
-          {price.startShareSek > 0 && (
-            <p className={styles.priceNote}>Startkostnaden ingår i priset och delas på antalet skyltar.</p>
-          )}
+          <p className={styles.priceNote}>exkl. moms och frakt</p>
+          <p className={styles.priceNote}>{priceNote}</p>
         </div>
         {!reseller && (order.status === "idle" || order.status === "error") ? (
           <button
@@ -307,6 +307,7 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
             <Segmented label="Skyltarna skickas" value={deliverTo} options={DELIVERY_TO_OPTIONS} onChange={setDeliverTo} />
           </div>
           <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
+          <OrderTotals label="Kundens pris" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} vat={false} />
         </div>
       )}
 
@@ -333,7 +334,7 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
             : reseller.mode === "quote"
               ? `Skapa offert till ${reseller.customerName}`
               : order.status === "form"
-                ? `Lägg ordern · ${sek.format(price.totalSek)} exkl. moms`
+                ? `Lägg ordern · ${sek.format(checkoutSek)} exkl. moms`
                 : `Lägg order åt ${reseller.customerName}`}
         </button>
       )}
@@ -371,13 +372,18 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
               <p className={styles.specTitle}>Leveransadress</p>
               <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
             </div>
+            <OrderTotals label="Att betala" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} vat />
             {formError && (
               <p className={styles.issue} data-severity="error" role="alert">
                 {formError}
               </p>
             )}
             <button type="submit" className="btn btn--ink btn--block" disabled={order.status === "sending"}>
-              {order.status === "sending" ? "Skickar…" : `Skicka order · ${sek.format(price.totalInclVatSek)} inkl. moms`}
+              {order.status === "sending"
+                ? "Skickar…"
+                : shipping === null
+                  ? "Skicka order"
+                  : `Skicka order · ${sek.format(checkoutInclVatSek)} inkl. moms`}
             </button>
           </motion.form>
         )}
@@ -413,25 +419,74 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
   );
 }
 
+interface OrderTotalsProps {
+  /** Rubriken över raderna. */
+  label: string;
+  quantity: number;
+  /** Skyltarna, med påslaget upp till minsta ordervärde. */
+  goodsSek: number;
+  /** Orderns frakt; `null` när den inte är känd än. */
+  shippingSek: number | null;
+  /** Kunden som beställer själv ser momsen och summan med moms. */
+  vat: boolean;
+}
+
+/** Kassans summering: skyltarna för sig, frakten för sig och summan. Frakten visas först här, aldrig i priset per skylt. */
+function OrderTotals({ label, quantity, goodsSek, shippingSek, vat }: OrderTotalsProps) {
+  const known = shippingSek !== null;
+  const totalSek = goodsSek + (shippingSek ?? 0);
+  const vatSek = Math.round(totalSek * VAT_RATE);
+  return (
+    <div className={styles.totals}>
+      <p className={styles.specTitle}>{label}</p>
+      <dl>
+        <div>
+          <dt>Skyltar, {quantity} st</dt>
+          <dd>{sek.format(goodsSek)}</dd>
+        </div>
+        <div>
+          <dt>Frakt</dt>
+          <dd>{known ? sek.format(shippingSek) : "tillkommer"}</dd>
+        </div>
+        {vat && (
+          <div>
+            <dt>Moms</dt>
+            <dd>{sek.format(vatSek)}</dd>
+          </div>
+        )}
+        <div data-total>
+          <dt>{vat ? "Summa inkl. moms" : "Summa exkl. moms"}</dt>
+          <dd>
+            {sek.format(vat ? totalSek + vatSek : totalSek)}
+            {!known && " + frakt"}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
 interface PurchaseSummaryProps {
   badges: readonly BadgeDocument[];
   reseller: ResellerOrderContext;
   saleSek: number;
 }
 
-/** Bara för återförsäljaren: vad ordern kostar i inköp enligt prismodellen och vad som blir kvar vid listpris. */
+/**
+ * Bara för återförsäljaren: vad skyltarna kostar i inköp enligt prismodellen och vad som blir kvar vid listpris.
+ * Alla tre beloppen är utan frakt. Frakten är samma för återförsäljaren och kunden och ändrar inte marginalen.
+ */
 function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
   const purchase = resellerOrder(badges, reseller.purchaseList);
-  const margin = marginOf(saleSek, purchase.totalSek);
+  const margin = marginOf(saleSek, purchase.goodsSek);
   const quantity = badges.reduce((sum, badge) => sum + badge.quantity, 0);
   return (
     <dl className={styles.purchase} aria-label="Ditt inköp och marginal">
       <div>
         <dt>Ditt inköp</dt>
         <dd>
-          {formatSek(purchase.totalSek)}
+          {formatSek(purchase.goodsSek)}
           {quantity > 1 && <span> · {formatSek(toOre(purchase.goodsSek / quantity))} / st</span>}
-          {purchase.shippingSek > 0 && <span className={styles.purchaseNote}>varav frakt {formatSek(purchase.shippingSek)}</span>}
         </dd>
       </div>
       <div>
@@ -445,6 +500,7 @@ function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
           {margin.percent !== null && <span> · {margin.percent} %</span>}
         </dd>
       </div>
+      {purchase.shippingSek > 0 && <p>Frakt {formatSek(purchase.shippingSek)} tillkommer, samma för dig och kunden.</p>}
       {reseller.mode === "quote" && <p>Kundpriset kan du ändra på offerten innan den skickas.</p>}
     </dl>
   );

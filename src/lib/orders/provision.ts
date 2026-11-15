@@ -1,6 +1,6 @@
 import "server-only";
-import { resellerOrder, toOre, type BadgeDocument } from "@/engine";
-import { provisionSplit, resellerPriceTable, type PriceModel } from "@/engine/price-model";
+import { createBadgeDocument, priceItemsOf, priceOrder, resellerOrder, toOre, type BadgeDocument } from "@/engine";
+import { endPriceTable, orderShippingSek, provisionSplit, resellerPriceTable, type PriceModel } from "@/engine/price-model";
 import { toCsv } from "./csv";
 import { ORDER_STATUS_LABEL, type OrderStatus } from "./model";
 
@@ -89,6 +89,59 @@ export function totalsByReseller(rows: readonly ResellerOrderRow[]): ResellerTot
   return [...groups.values()]
     .map((group) => ({ resellerId: group[0]?.resellerId ?? "", resellerName: group[0]?.resellerName ?? "", ...sumShares(group) }))
     .sort((a, b) => b.provisionSek - a.provisionSek || a.resellerName.localeCompare(b.resellerName, "sv"));
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const EXAMPLE_LOGO = { d: "M0 0h1v1z", viewWidth: 1, viewHeight: 1, placement: "top" as const, heightMm: 10 };
+const exampleMetal = (quantity: number, mounting: BadgeDocument["mounting"]): BadgeDocument => ({
+  ...createBadgeDocument(["Anna Exempel"]),
+  mounting,
+  quantity,
+});
+const examplePlastic = (quantity: number, mounting: BadgeDocument["mounting"]): BadgeDocument => ({
+  ...exampleMetal(quantity, mounting),
+  materialId: "plastic",
+  colorId: "white-black",
+});
+
+/**
+ * Exempelordrarna. Antalen är valda så att varje regel syns: minsta ordervärde,
+ * gränsen mellan varubrev och paket, prismodellens exempel på 25 skyltar och
+ * ordrar som går över flera trappsteg.
+ */
+const EXAMPLE_ORDERS: readonly {
+  resellerId: string;
+  resellerName: string;
+  customer: string;
+  status: OrderStatus;
+  daysAgo: number;
+  badges: BadgeDocument[];
+}[] = [
+  { resellerId: "exempel-profil", resellerName: "Exempel Profil AB", customer: "Exempelkund Tandvård", status: "received", daysAgo: 1, badges: [exampleMetal(1, "pin")] },
+  { resellerId: "exempel-profil", resellerName: "Exempel Profil AB", customer: "Exempelkund Café", status: "approved", daysAgo: 4, badges: [examplePlastic(4, "magnet")] },
+  { resellerId: "exempel-reklam", resellerName: "Exempel Reklam AB", customer: "Exempelkund Hotell", status: "in-production", daysAgo: 8, badges: [exampleMetal(25, "pin")] },
+  { resellerId: "exempel-reklam", resellerName: "Exempel Reklam AB", customer: "Exempelkund Bygghandel", status: "shipped", daysAgo: 16, badges: [{ ...examplePlastic(120, "clip"), logo: EXAMPLE_LOGO }] },
+  { resellerId: "exempel-kontor", resellerName: "Exempel Kontor AB", customer: "Exempelkund Vårdbolag", status: "delivered", daysAgo: 33, badges: [exampleMetal(350, "pin")] },
+  { resellerId: "exempel-kontor", resellerName: "Exempel Kontor AB", customer: "Exempelkund Butikskedja", status: "delivered", daysAgo: 40, badges: [exampleMetal(600, "magnet")] },
+];
+
+/**
+ * Påhittade ordrar som visar hur fördelningen räknas med en prismodell. Sidan
+ * Provision visar dem tills den första riktiga ordern finns. De ligger inte i
+ * databasen och är aldrig med i underlaget (CSV). Bara för admin.
+ */
+export function exampleResellerOrders(model: PriceModel, now: Date): ResellerOrderRow[] {
+  return EXAMPLE_ORDERS.map((example, index) => ({
+    orderNo: `EX-${1001 + index}`,
+    placedAt: new Date(now.getTime() - example.daysAgo * DAY_MS).toISOString(),
+    status: example.status,
+    resellerId: example.resellerId,
+    resellerName: example.resellerName,
+    customer: example.customer,
+    // Det kunden betalar är listpriset med samma frakt som återförsäljaren betalar.
+    customerSek: priceOrder(example.badges, endPriceTable(model), orderShippingSek(model, priceItemsOf(example.badges))).totalSek,
+    share: orderShare(example.badges, model),
+  }));
 }
 
 /** Månaden en order lades, `2026-11`, i svensk tid. */

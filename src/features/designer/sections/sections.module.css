@@ -371,7 +371,7 @@
   min-width: 0;
 }
 
-/* Vad som ingår i priset per skylt: skylten, fästet, tillvalen och startkostnaden. */
+/* Vad som ingår i priset per skylt: skylten, fästet och tillvalen. */
 .spec {
   grid-area: spec;
   display: grid;
@@ -517,11 +517,6 @@
   font-size: var(--text-xs);
   font-weight: 400;
   color: var(--color-muted);
-}
-
-/* Frakten står på en egen rad under beloppet. */
-.purchase dd .purchaseNote {
-  display: block;
 }
 
 .purchase [data-tone="good"] dd {
@@ -771,6 +766,45 @@
 .deliveryHead .specTitle,
 .delivery > .specTitle {
   margin: 0;
+}
+
+/* Kassans summering: skyltarna, frakten och summan på egna rader. */
+.totals {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  font-size: var(--text-sm);
+}
+
+.totals dl {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.totals dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.totals dt {
+  color: var(--color-ink-2);
+}
+
+.totals dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.totals [data-total] {
+  margin-top: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-line);
+  font-weight: 600;
 }
 
 /* Designerna som redan ligger i ordern. */

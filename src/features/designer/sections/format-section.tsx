@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Segmented } from "@/components/ui/segmented";
-import { FRAME_STYLES, SHAPE_PRESETS, blankOf, getMaterial, type BadgeDocument } from "@/engine";
+import { FRAME_STYLES, OFFERED_MATERIALS, SHAPE_PRESETS, blankOf, getMaterial, type BadgeDocument } from "@/engine";
 import { CustomShapeEditor } from "../custom-shape/custom-shape-editor";
 import { BlankPicker } from "../pickers";
 import { useShopPrices } from "../shop-price";
@@ -13,6 +13,9 @@ import styles from "./sections.module.css";
 
 /** Förslaget en egen form börjar från. */
 const FIRST_PRESET_ID = SHAPE_PRESETS[0]?.id ?? "shield";
+/** Egen form skärs ur ark, och i dagens sortiment är det bara plasten som gör det. */
+const CUSTOM_SHAPE_OFFERED = OFFERED_MATERIALS.some((material) => material.customShape);
+const CUSTOM_SHAPE_ELSEWHERE = "Endast möjlig för plastskyltar";
 
 interface FormatSectionProps {
   doc: BadgeDocument;
@@ -23,7 +26,8 @@ interface FormatSectionProps {
 
 /**
  * Ämnena har fast form och fast mått — kunden väljer ett av dem. Ett material
- * som skärs ur ark kan dessutom få en egen form, som ritas här under.
+ * som skärs ur ark kan dessutom få en egen form, som ritas här under. På övriga
+ * material syns valet ändå, med en rad om var det finns.
  */
 export function FormatSection({ doc, dispatch, tierIndex }: FormatSectionProps) {
   const { widthMm, heightMm } = doc.size;
@@ -38,13 +42,16 @@ export function FormatSection({ doc, dispatch, tierIndex }: FormatSectionProps) 
         custom={
           getMaterial(doc.materialId).customShape
             ? {
+                available: true,
                 checked: custom,
                 priceSek: customShapePrice(doc.materialId),
                 onSelect: () => {
                   if (!custom) dispatch({ type: "custom/preset", presetId: FIRST_PRESET_ID });
                 },
               }
-            : undefined
+            : CUSTOM_SHAPE_OFFERED
+              ? { available: false, note: CUSTOM_SHAPE_ELSEWHERE }
+              : undefined
         }
       />
 

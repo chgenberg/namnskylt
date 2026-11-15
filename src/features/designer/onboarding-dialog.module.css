@@ -175,16 +175,11 @@
   border-top: 1px solid var(--color-line);
 }
 
-.price {
+/* Raden till vänster om knapparna. */
+.footNote {
   margin-right: auto;
-  white-space: nowrap;
   font-size: var(--text-sm);
   color: var(--color-muted);
-}
-
-.price strong {
-  font-size: var(--text-lg);
-  color: var(--color-ink);
 }
 
 @media (max-width: 640px) {

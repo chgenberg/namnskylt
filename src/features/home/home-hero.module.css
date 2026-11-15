@@ -260,13 +260,21 @@
 }
 
 /* Marginaltext längs ramens nederkant, som i en trycksak. */
+/* Sidorna är lika breda, så att mittentexten står mitt på sidan även när texterna är olika långa. */
 .margins {
   position: absolute;
   inset: auto 40px 30px;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  column-gap: var(--space-4);
+  text-align: left;
+  white-space: nowrap;
   text-transform: uppercase;
   color: var(--home-muted);
+}
+
+.margins span:last-child {
+  text-align: right;
 }
 
 .hero[data-embedded] {
@@ -285,7 +293,7 @@
   letter-spacing: -0.02em;
 }
 
-/* Bredare typsnitt bryter annars mitt i "Vi graverar resten." — andra raden får stå för sig. */
+/* Bredare typsnitt bryter annars mitt i "Vi gör resten." — andra raden får stå för sig. */
 .hero[data-branded] .title em {
   display: block;
   font-style: normal;
@@ -341,6 +349,7 @@
   }
 
   .margins {
+    display: flex;
     inset: auto 20px 22px;
     justify-content: center;
   }

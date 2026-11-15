@@ -98,7 +98,7 @@ export async function renderShopMockup(shop: Shop, logoPlate: string | null): Pr
     text(fonts, "Skapa skylt", 17, true, ctaX + (ctaW - fonts.measure("Skapa skylt", { fontId: "arial", bold: true, sizeMm: 17 })) / 2, headerY + 44, onPrimary),
     text(fonts, eyebrow.length > MAX_EYEBROW_CHARS + 27 ? `${eyebrow.slice(0, MAX_EYEBROW_CHARS + 26)}…` : eyebrow, 13, true, textX, win.y + 190, primary),
     text(fonts, "Skriv ditt namn.", 50, true, textX, win.y + 250, INK),
-    text(fonts, "Vi graverar resten.", 50, true, textX, win.y + 308, primary),
+    text(fonts, "Vi gör resten.", 50, true, textX, win.y + 308, primary),
     text(fonts, "Se skylten i 3D direkt — i vitt,", 19, false, textX, win.y + 352, MUTED),
     text(fonts, "borstat guld eller borstat silver.", 19, false, textX, win.y + 378, MUTED),
     `<rect x="${textX}" y="${inputY}" width="430" height="58" rx="29" fill="#ffffff" stroke="${primary}" stroke-opacity=".5" stroke-width="2"/>`,

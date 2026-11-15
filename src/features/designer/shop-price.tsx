@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 import { usePriceList } from "@/components/price-list-provider";
-import { fromPriceSek, optionPriceSek, type MaterialId } from "@/engine";
+import { optionPriceSek, type MaterialId } from "@/engine";
 import { percentFor, type ShopPriceList } from "@/lib/shops/price-list";
 
 const ShopPriceContext = createContext<ShopPriceList | null>(null);
@@ -16,8 +16,6 @@ export function ShopPriceProvider({ priceList, children }: { priceList: ShopPric
  * Ett tillval kan ha olika pris per trappsteg; `tierIndex` är trappsteget för orderns antal.
  */
 export function useShopPrices(tierIndex = 0): {
-  /** Lägsta pris för en skylt i materialet, med det billigaste fästet. */
-  fromPrice: (materialId: MaterialId) => number;
   /** Det en egen form lägger på skyltpriset. */
   customShapePrice: (materialId: MaterialId) => number;
 } {
@@ -26,7 +24,6 @@ export function useShopPrices(tierIndex = 0): {
   const adjust = (sek: number, materialId: MaterialId) =>
     list ? Math.round(sek * (1 + percentFor(list, materialId) / 100)) : sek;
   return {
-    fromPrice: (materialId) => adjust(fromPriceSek(materialId, priceList), materialId),
     customShapePrice: (materialId) => adjust(optionPriceSek("customShape", priceList, tierIndex), materialId),
   };
 }

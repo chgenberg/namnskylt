@@ -6,7 +6,7 @@ import { batchLine, getColor, getMaterial, groupBadges, groupQuantity, type Badg
 import styles from "./sections.module.css";
 
 interface CartSectionProps {
-  /** Designerna som redan ligger i ordern, utöver skylten i editorn. */
+  /** Designerna som redan ligger i varukorgen, utöver skylten i editorn. */
   groups: readonly BadgeGroup[];
   /** Skylten i editorn är ny och orörd, och räknas inte in i ordern förrän den ändrats. */
   pending: boolean;
@@ -31,17 +31,17 @@ function groupSummary(group: BadgeGroup): string {
 const designCount = (count: number) => (count === 1 ? "1 design" : `${count} designer`);
 
 /**
- * Flera olika skyltar i samma order: en design läggs undan och nästa börjar i
- * editorn. Priset räknas på hela ordern, så trappsteget och startkostnaden
- * delas av alla skyltar.
+ * Varukorgen: flera olika skyltar i samma order. En design läggs i korgen och
+ * nästa börjar i editorn. Priset räknas på hela ordern, så trappsteget,
+ * startkostnaden och frakten delas av alla skyltar.
  */
 export function CartSection({ groups, pending, canAdd, onAdd, onEdit, onRemove, onUndo }: CartSectionProps) {
   return (
-    <PanelSection step={7} title="Fler skyltar i ordern" aside={groups.length > 0 ? designCount(groups.length + (pending ? 0 : 1)) : "Annan design"}>
+    <PanelSection step={7} title="Varukorg" aside={groups.length > 0 ? designCount(groups.length + (pending ? 0 : 1)) : "Fler designer"}>
       {groups.length === 0 ? (
         <p className={styles.batchLead}>
-          Behöver ni en annan yta, form eller fäste till några av skyltarna? Lägg skylten ovan i ordern och designa nästa.
-          Alla hamnar på samma order och delar på startkostnad och frakt.
+          Behöver ni en annan yta, form eller fäste till några av skyltarna? Lägg skylten ovan i varukorgen och designa
+          nästa. Allt beställs tillsammans med gemensam frakt, och priset per skylt räknas på hela antalet.
         </p>
       ) : (
         <>
@@ -61,7 +61,7 @@ export function CartSection({ groups, pending, canAdd, onAdd, onEdit, onRemove, 
                     <button type="button" className="chip" onClick={() => onEdit(index)}>
                       Ändra
                     </button>
-                    <button type="button" className="chip" aria-label={`Ta bort ${batchLine(group.doc) || "skylten"} ur ordern`} onClick={() => onRemove(index)}>
+                    <button type="button" className="chip" aria-label={`Ta bort ${batchLine(group.doc) || "skylten"} ur varukorgen`} onClick={() => onRemove(index)}>
                       Ta bort
                     </button>
                   </div>
@@ -71,8 +71,8 @@ export function CartSection({ groups, pending, canAdd, onAdd, onEdit, onRemove, 
           </ul>
           <p className={styles.hint} role="status">
             {pending
-              ? "Ny skylt med samma design. Skriv namnet och ändra det som ska skilja, så läggs den i ordern."
-              : "Skylten ovan ligger också i ordern."}
+              ? "Ny skylt med samma design. Skriv namnet och ändra det som ska skilja, så läggs den i varukorgen."
+              : "Skylten ovan ligger också i varukorgen."}
           </p>
         </>
       )}
@@ -83,11 +83,11 @@ export function CartSection({ groups, pending, canAdd, onAdd, onEdit, onRemove, 
           </button>
         ) : (
           <button type="button" className="btn" disabled={!canAdd} onClick={onAdd}>
-            Lägg till en skylt med annan design
+            Lägg i varukorgen och designa en till
           </button>
         )}
       </div>
-      {!canAdd && !pending && <p className={styles.hint}>Ordern är full. Lägg resten i en ny order.</p>}
+      {!canAdd && !pending && <p className={styles.hint}>Varukorgen är full. Lägg resten i en ny order.</p>}
     </PanelSection>
   );
 }

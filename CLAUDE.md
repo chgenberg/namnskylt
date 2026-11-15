@@ -50,7 +50,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (788 tester, grönt 2026-11-15).
+# Kvalitetsgrinden. Kör den innan något lämnas (797 tester, grönt 2026-11-15).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -113,8 +113,10 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Formförslagen ligger i `src/engine/shape-presets.ts`.
   - Ritverktyget ligger i `src/features/designer/custom-shape/`: formförslag, punkter som dras,
     mått och rundning, och uppladdning av SVG, PNG, JPG eller PDF som spåras till en kontur
-    (`src/engine/outline-trace.ts`, `outline-edit.ts`). Valet "Egen form" visas bara på material
-    med `customShape`.
+    (`src/engine/outline-trace.ts`, `outline-edit.ts`). Valet "Egen form" går bara att välja på
+    material med `customShape`. På metall syns det ändå, streckat och med raden "Endast möjlig
+    för plastskyltar", så att ingen missar funktionen (besked via ägaren 2026-11-15,
+    `BlankPicker` i `pickers.tsx`).
   - PDF läses med `pdfjs-dist`, låst till `~5.4.624` eftersom nyare kräver Node 22. Bara första
     sidan läses.
   - Kända brister: bara provat i Chrome; en ritad form försvinner om kunden väljer ett ämne och
@@ -158,6 +160,10 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Kända brister: bilder tas aldrig bort ur `logo_images`, även när ingen skylt pekar på dem
     längre. Mjuka, halvgenomskinliga kanter i en logga (en skugga eller ett sken) klipps i 3D-vyn,
     eftersom ytan följer siluetten; ritningen visar hela bilden.
+- **Ordval:** sajten säger inte "graverad" om hela sortimentet, eftersom loggor i färg trycks.
+  Startsidan säger "Vi gör resten", "tillverkad i Sverige" och "Korrektur innan produktion"
+  (2026-11-15). Där texten gäller just gravyren (skyltens text, "Graverad ram") står ordet kvar.
+  Övriga sidor (flikens titel, butikernas sidfot, korrekturet m.fl.) är inte genomgångna.
 - **Äldre material och former** (mässing, akryl, epoxy, gravyrplast, sexkant m.fl.) ligger kvar
   i motorn så att sparade ordrar, offerter och butiker går att rita. En äldre skylt som öppnas
   i designern flyttas till närmaste yta och ämne (`toOfferedDocument`).
@@ -221,9 +227,18 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   (`startShareSek` i `pricing.ts`). Den följer samma kedja som övriga priser: slutkunden betalar
   den med marginalen (333 kr) och provisionen gäller den. Delen per skylt avrundas till hela
   kronor för slutkunden, så orderns summa kan skilja några kronor från startkostnaden, och över
-  666 skyltar blir den 0 kr. Återförsäljarens del avrundas till ören. "Från"-priser och
-  exempelpriser visas utan startkostnad (`fromPriceSek`, `withoutStartCost`), eftersom den beror
-  på antalet.
+  666 skyltar blir den 0 kr. Återförsäljarens del avrundas till ören.
+  - **Mot kunden står startkostnaden aldrig för sig** (besked via ägaren 2026-11-15): den ligger på
+    skyltens pris. I prismodellens exempel på 25 skyltar betalar återförsäljaren 73 + 8 = 81 kr
+    för skylten och slutkunden 122 + 13 = 135 kr. `withStartInSign` i `pricing.ts` gör om
+    delarna, och skyltmotorns specifikation använder den. Ordet "startkostnad" står inte i
+    skyltmotorn, varukorgen eller på företagssidan. Uppdelningen med startkostnaden på egen rad
+    finns bara i `/admin/prismodell`. Återförsäljarens inköpsprislista (`/admin/inkopspriser`)
+    anger den fortfarande, eftersom en prislista inte kan lägga in den utan ett antal.
+  - **Inga "från"-priser** (samma besked): priset per skylt beror på antalet, så materialkorten,
+    startdialogen och inspirationsbanken visar inget pris. Företagssidan visar priset per skylt
+    vid 10, 50, 100 och 500 skyltar, med startkostnaden inräknad. `withoutStartCost` används
+    bara där återförsäljaren ställer in butikens priser.
 - **Frakten** (beslut av ägaren 2026-11-14) är Skylt & Gravyrtekniks egen, rakt av: varubrev 75 kr
   för en order med varuvärde upp till 500 kr, annars paket 159 kr (`PriceModel.shipping`,
   `ShippingRule`, kortet "Frakt" i `/admin/prismodell`, hela kronor).
@@ -243,8 +258,14 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
     - servern räknar den för en ny order eller offert (`shippingFor` i `price-lists.ts`),
     - en inloggad återförsäljare räknar den ur sin inköpslista,
     - kundens webbläsare frågar `POST /api/shipping` (`useOrderShipping` i `src/hooks/`), som
-      får skyltarnas typ och antal och bara svarar med beloppet. Tills svaret kommit, eller om
-      det uteblir, står "Frakt tillkommer" och summan visas utan frakt.
+      får skyltarnas typ och antal och bara svarar med beloppet. Skyltmotorn frågar först när
+      kassan öppnas. Uteblir svaret står frakten som "tillkommer".
+  - **Frakten blandas aldrig med styckpriset** (besked via ägaren 2026-11-15). Priset bredvid
+    antalet i skyltmotorn är skyltarna, "exkl. moms och frakt". Frakten visas först i kassan,
+    alltså i beställningsformuläret och i återförsäljarens leveranssteg, på en egen rad med
+    summan under (`OrderTotals` i `order-section.tsx`). Återförsäljarens inköp, kundpris och
+    marginal i skyltmotorn är också utan frakt. Kunden väljer inte fraktsätt än; verkstadens egen
+    kassa har dessutom upphämtning och express.
   - Frakten beror bara på skyltarna. Återförsäljarens egna priser, rabatter och extrarader och
     butikens påslag ändrar den inte. Den visas som egen rad på offert, PDF, ordersida och
     fakturaunderlag.
@@ -261,10 +282,10 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   ett fäste (nål, klämma eller magnet), loggan som "extra gravyr" och skyltens del av
   startkostnaden. Textrader och ram ingår. Slutkundens delar avrundas var för sig till hela kronor.
 - **Skyltmotorn visar inget pris på fästena**, eftersom priset beror på orderns antal. I stället
-  står en specifikation per skylt bredvid antal och pris (`order-section.tsx`): skylten, fästet,
-  loggan, egen form och startkostnaden, som summerar till priset per skylt (`badgePriceParts` i
-  motorn, `shopPriceParts` med butikens påslag). "Egen form" visar fortfarande sitt tillägg i
-  formväljaren, och materialen sitt från-pris.
+  står en specifikation per skylt bredvid antal och pris (`order-section.tsx`): skylten (med
+  startkostnaden i), fästet, loggan och egen form, som summerar till priset per skylt
+  (`badgePriceParts` i motorn, `shopPriceParts` med butikens påslag, `withStartInSign`).
+  "Egen form" visar fortfarande sitt tillägg i formväljaren. Materialen visar inget pris.
 - **Fästen och tillval har ett pris per trappsteg**, precis som skyltarna (`PriceOptions` är
   `Record<PriceOptionId, number[]>`; läs med `optionPriceSek` och `mountingPriceSek` och ange
   trappsteget). I kalkylen är priset samma på alla trappsteg.
@@ -349,7 +370,10 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
   (`?period=2026-11`, månaden ordern lades i svensk tid) och laddas ner som CSV
   (`/api/admin/provision/export`, `provisionCsv`): varor, frakt, provision och verkstadens del
   per order. Det är underlaget för plattformens faktura till Skylt & Gravyrteknik. Vyn läser
-  alla ordrar varje gång, vilket håller så länge de är få. Under Ordrar ser admin fortfarande
+  alla ordrar varje gång, vilket håller så länge de är få. Innan den första riktiga ordern
+  finns visar sidan sex påhittade ordrar (`exampleResellerOrders`, nummer `EX-…`), räknade med
+  dagens prismodell, så att fördelningen går att kontrollera. Med riktiga ordrar nås de via
+  "Visa exempel" (`?exempel=1`). De ligger inte i databasen och är aldrig med i underlaget. Under Ordrar ser admin fortfarande
   bara ordrar under hyresgästen `namnskylt`; alla återförsäljares ordrar syns under Tillverkning.
 - `next dev` skickar med serverns mellanresultat som felsökningsdata i sidan (React), så där syns
   hela prismodellen i sidkällan. Kontrollera läckor mot `next build` + `next start`.
@@ -404,9 +428,9 @@ verkstaden sin provision per period.
     kundens senaste. Saknas adressen sparas ordern ändå, men den går inte att skicka.
 - **Statusen tillbaka** går som förut via `/api/supplier/webhook` (signerad) och hämtas vid
   behov med `GET /orders/<nr>`.
-- **Flera designer i samma order** (`CartSection`, `BadgeGroup` i motorn): "Lägg till en skylt
-  med annan design" lägger undan skylten i editorn och börjar på nästa med samma design utan
-  text. Den nya räknas inte in förrän den ändrats. Priset räknas på hela ordern, så trappsteg,
+- **Flera designer i samma order** heter Varukorg i skyltmotorn (`CartSection`, `BadgeGroup` i
+  motorn): "Lägg i varukorgen och designa en till" lägger undan skylten i editorn och börjar på
+  nästa med samma design utan text. Den nya räknas inte in förrän den ändrats. Priset räknas på hela ordern, så trappsteg,
   startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom
   bilden bara visar en av dem, och panelen fyller inte heller i en bild i efterhand
   (`sameDesign` i motorn, `missingBadgeShots`). Korgen ligger i minnet och försvinner om sidan

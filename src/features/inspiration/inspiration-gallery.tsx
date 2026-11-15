@@ -3,13 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
-import { usePriceList } from "@/components/price-list-provider";
-import { getMaterial, isPartnerMade, priceBadge, withoutStartCost } from "@/engine";
+import { getMaterial, isPartnerMade } from "@/engine";
 import { encodeShareCode } from "@/lib/share/share-link";
 import { INSPIRATION, type InspirationEntry } from "@/lib/inspiration/catalog";
 import styles from "./inspiration.module.css";
-
-const sek = new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 });
 
 function Frame({ entry, onOpen }: { entry: InspirationEntry; onOpen: () => void }) {
   return (
@@ -41,8 +38,6 @@ function Dialog({ entry, onClose }: { entry: InspirationEntry; onClose: () => vo
   const router = useRouter();
   const [opening, setOpening] = useState(false);
   const material = getMaterial(entry.doc.materialId);
-  // "Från"-priset är listpriset per skylt; startkostnaden beror på hur många kunden beställer.
-  const price = priceBadge(entry.doc, withoutStartCost(usePriceList()));
 
   useEffect(() => {
     const dialog = ref.current;
@@ -112,9 +107,6 @@ function Dialog({ entry, onClose }: { entry: InspirationEntry; onClose: () => vo
             </p>
           )}
           <footer className={styles.footer}>
-            <p className={styles.price}>
-              från <strong>{sek.format(price.unitSek)}</strong>
-            </p>
             <button type="button" className="btn btn--ghost" onClick={() => ref.current?.close()}>
               Stäng
             </button>

@@ -16,7 +16,6 @@ import {
   type MaterialId,
 } from "@/engine";
 import styles from "./pickers.module.css";
-import { useShopPrices } from "./shop-price";
 
 /** Luft runt konturen i ikonens ruta, i mm. */
 const BLANK_ICON_PAD_MM = 2;
@@ -113,9 +112,11 @@ interface MaterialPickerProps {
   compact?: boolean;
 }
 
-/** Visas bara när det finns mer än ett material att välja mellan. */
+/**
+ * Visas bara när det finns mer än ett material att välja mellan. Korten har
+ * inget pris: priset per skylt beror på orderns antal och står bredvid antalet.
+ */
 export function MaterialPicker({ value, onChange, layoutId, compact = false }: MaterialPickerProps) {
-  const { fromPrice } = useShopPrices();
   if (OFFERED_MATERIALS.length < 2) return null;
   return (
     <div className={styles.materialGrid} data-compact={compact} role="radiogroup" aria-label="Material">
@@ -142,7 +143,6 @@ export function MaterialPicker({ value, onChange, layoutId, compact = false }: M
             </span>
             <span className={styles.materialName}>{m.name}</span>
             {!compact && <span className={styles.materialTagline}>{m.tagline}</span>}
-            <span className={styles.materialPrice}>från {fromPrice(m.id)} kr</span>
           </button>
         );
       })}
@@ -150,19 +150,30 @@ export function MaterialPicker({ value, onChange, layoutId, compact = false }: M
   );
 }
 
-/** Valet "Egen form" bredvid ämnena, för material som skärs ur ark. */
-interface CustomShapeChoice {
-  checked: boolean;
-  /** Tillägget per skylt för slutkunden. */
-  priceSek: number;
-  onSelect: () => void;
-}
+/**
+ * Valet "Egen form" bredvid ämnena. Det går att välja för material som skärs ur
+ * ark. På övriga material syns det ändå, med en rad om var det finns, så att
+ * ingen missar att formen går att rita själv.
+ */
+type CustomShapeChoice =
+  | {
+      available: true;
+      checked: boolean;
+      /** Tillägget per skylt för slutkunden. */
+      priceSek: number;
+      onSelect: () => void;
+    }
+  | {
+      available: false;
+      /** Var formen finns, till exempel "Endast möjlig för plastskyltar". */
+      note: string;
+    };
 
 interface BlankPickerProps {
   /** `null` för en äldre skylt som inte ligger på något ämne, och för en egen form. */
   value: BlankId | null;
   onChange: (blankId: BlankId) => void;
-  /** Utelämnas när materialet bara finns som färdiga ämnen. */
+  /** Utelämnas där en egen form inte ska visas alls. */
   custom?: CustomShapeChoice;
 }
 
@@ -185,11 +196,19 @@ export function BlankPicker({ value, onChange, custom }: BlankPickerProps) {
           </span>
         </button>
       ))}
-      {custom && (
+      {custom?.available && (
         <button type="button" role="radio" aria-checked={custom.checked} className={styles.blankCard} onClick={custom.onSelect}>
           <CustomShapeIcon />
           <span>Egen form</span>
           <span className={`mono ${styles.blankSize}`}>+{custom.priceSek} kr</span>
+        </button>
+      )}
+      {custom && !custom.available && (
+        // Går inte att välja, men går att nå med tangentbordet så att raden om var formen finns blir läst.
+        <button type="button" role="radio" aria-checked={false} aria-disabled="true" className={styles.blankCard}>
+          <CustomShapeIcon />
+          <span>Egen form</span>
+          <span className={styles.blankNote}>{custom.note}</span>
         </button>
       )}
     </div>

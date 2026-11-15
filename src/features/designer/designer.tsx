@@ -380,7 +380,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
             </p>
             <h2 className={styles.startTitle}>
               Skriv namnet.
-              <span>Vi graverar resten.</span>
+              <span>Vi gör resten.</span>
             </h2>
             <SmartInput
               baseDoc={doc}

@@ -3,7 +3,18 @@ import { describe, it } from "node:test";
 import { createBadgeDocument, NO_SHIPPING, type BadgeDocument } from "@/engine";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import type { PriceModel } from "@/engine/price-model";
-import { inPeriod, orderShare, periodLabel, periodOf, periodsOf, provisionCsv, sumShares, totalsByReseller, type ResellerOrderRow } from "./provision";
+import {
+  exampleResellerOrders,
+  inPeriod,
+  orderShare,
+  periodLabel,
+  periodOf,
+  periodsOf,
+  provisionCsv,
+  sumShares,
+  totalsByReseller,
+  type ResellerOrderRow,
+} from "./provision";
 
 /** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
 const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0, shipping: NO_SHIPPING };
@@ -136,5 +147,43 @@ describe("perioder", () => {
     assert.equal(lines.length, 2);
     assert.equal(lines[0]?.split(";").length, 12);
     assert.deepEqual(lines[1]?.split(";"), ["NS-alfa-10", "2026-11-13", "Mottagen", "ALFA", "Kafé Ett", "10", "780", "159", "15", "117", "663", "822"]);
+  });
+});
+
+describe("exempelordrarna på sidan Provision", () => {
+  const rows = exampleResellerOrders(DEFAULT_PRICE_MODEL, new Date("2026-11-15T12:00:00.000Z"));
+  const share = (orderNo: string) => rows.find((row) => row.orderNo === orderNo)?.share;
+
+  it("har egna ordernummer och påhittade namn, så att de inte går att ta för riktiga", () => {
+    assert.ok(rows.length > 0);
+    assert.ok(rows.every((row) => /^EX-\d{4}$/.test(row.orderNo)));
+    assert.equal(new Set(rows.map((row) => row.orderNo)).size, rows.length);
+    assert.ok(rows.every((row) => row.resellerName.startsWith("Exempel ") && row.customer.startsWith("Exempelkund ")));
+  });
+
+  it("25 skyltar räknas som i prismodellens kalkyl: 2 150 kr, 322,50 kr i provision och 1 827,50 kr till verkstaden", () => {
+    assert.deepEqual(share("EX-1003"), {
+      quantity: 25,
+      resellerSek: 2150,
+      shippingSek: 159,
+      provisionPercent: 15,
+      provisionSek: 322.5,
+      supplierSek: 1827.5,
+    });
+    // Kunden betalar 143 kr per skylt och samma frakt som återförsäljaren.
+    assert.equal(rows.find((row) => row.orderNo === "EX-1003")?.customerSek, 25 * 143 + 159);
+  });
+
+  it("en ensam skylt når minsta ordervärde och går som varubrev", () => {
+    assert.equal(share("EX-1001")?.resellerSek, 299);
+    assert.equal(share("EX-1001")?.shippingSek, 75);
+  });
+
+  it("350 skyltar får provisionen steg för steg, 12,57 % på hela ordern", () => {
+    assert.equal(Math.round((share("EX-1005")?.provisionPercent ?? 0) * 100) / 100, 12.57);
+  });
+
+  it("ligger i två månader, så att periodfiltret går att prova", () => {
+    assert.deepEqual(periodsOf(rows), ["2026-11", "2026-10"]);
   });
 });

@@ -69,13 +69,8 @@
   font-weight: 500;
 }
 
-.materialTagline,
-.materialPrice {
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-}
-
 .materialTagline {
+  font-size: var(--text-xs);
   color: var(--color-ink-2);
 }
 
@@ -117,8 +112,27 @@
   stroke-width: 1.5px;
 }
 
-.blankSize {
+.blankSize,
+.blankNote {
   color: var(--color-muted);
+}
+
+/* Ett val som syns men inte går att välja på det här materialet. */
+.blankCard[aria-disabled="true"] {
+  border-style: dashed;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+.blankCard[aria-disabled="true"]:hover {
+  border-color: var(--color-line);
+}
+
+.blankNote {
+  text-align: center;
+  text-wrap: balance;
+  line-height: 1.3;
 }
 
 /* Punkterna i ikonen för egen form täcker linjen under sig. */

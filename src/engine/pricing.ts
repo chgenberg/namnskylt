@@ -200,6 +200,22 @@ export function badgePriceParts(doc: BadgeDocument, orderQuantity: number, list:
   return unitPriceParts(priceItemOf(doc), orderQuantity, list);
 }
 
+/** Delarna som kunden ser. Startkostnaden står aldrig på en egen rad. */
+export type ShownPricePart = Exclude<PricePart, "start">;
+
+/**
+ * Delarna så som kunden ser dem: skyltens del av startkostnaden ligger på
+ * själva skylten och får ingen egen rad (besked via ägaren 2026-11-15).
+ * Summan är densamma. Uppdelningen med startkostnaden för sig visas bara i
+ * adminens prismodell.
+ */
+export function withStartInSign(parts: readonly UnitPricePart[]): { part: ShownPricePart; sek: number }[] {
+  const start = parts.reduce((total, item) => (item.part === "start" ? total + item.sek : total), 0);
+  return parts.flatMap((item) =>
+    item.part === "start" ? [] : [{ part: item.part, sek: item.part === "sign" ? toOre(item.sek + start) : item.sek }],
+  );
+}
+
 const sumOf = (parts: readonly UnitPricePart[]) => toOre(parts.reduce((total, part) => total + part.sek, 0));
 
 export interface TablePrice {
