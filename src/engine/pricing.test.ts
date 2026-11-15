@@ -23,6 +23,7 @@ import {
 import {
   endPriceSek,
   endPriceTable,
+  orderShippingSek,
   parseStoredPriceModel,
   priceModelSchema,
   provisionSplit,
@@ -92,7 +93,7 @@ describe("kalkylens siffror", () => {
     assert.equal(plain, 50 + 5);
     assert.equal(custom, 50 + 5 + 19);
     const doc = { ...withShapePreset({ ...createBadgeDocument(["Anna"]), materialId: "plastic" as const, colorId: "white-black" }, "star"), quantity: 10 };
-    assert.equal(priceOrder([doc], LIST).unitSek, endPriceSek(54, M) + 8 + 32);
+    assert.equal(priceOrder([doc], LIST, 0).unitSek, endPriceSek(54, M) + 8 + 32);
   });
 
   it("en äldre skylt med säkerhetsnål prissätts som nål", () => {
@@ -135,29 +136,29 @@ describe("slutkundens pris", () => {
   it("från-priset är skylten med det billigaste fästet, och det är vad en skylt kostar", () => {
     assert.equal(fromPriceSek("metal", LIST), 130);
     assert.equal(fromPriceSek("plastic", LIST), 90 + 8);
-    assert.equal(priceOrder([{ ...createBadgeDocument(["Anna"]), quantity: 10 }], LIST).unitSek, 130);
+    assert.equal(priceOrder([{ ...createBadgeDocument(["Anna"]), quantity: 10 }], LIST, 0).unitSek, 130);
     assert.equal(fromPriceSek("metal", LIST, 3), 102 + 8);
   });
 
   it("alla fyra ämnen kostar lika", () => {
     for (const blank of BLANKS) {
       const doc = { ...withBlank(createBadgeDocument(["Anna"]), blank.id), quantity: 10 };
-      assert.equal(priceOrder([doc], LIST).unitSek, 130, blank.id);
+      assert.equal(priceOrder([doc], LIST, 0).unitSek, 130, blank.id);
     }
   });
 
   it("minsta ordervärde är 299 kr: en ensam skylt kostar 299, inte 130", () => {
-    const one = priceOrder([createBadgeDocument(["Anna"])], LIST);
+    const one = priceOrder([createBadgeDocument(["Anna"])], LIST, 0);
     assert.equal(one.badgesSek, 130);
     assert.equal(one.minimumTopUpSek, 169);
     assert.equal(one.totalSek, 299);
     assert.equal(one.totalInclVatSek, 374);
-    assert.equal(priceOrder([{ ...createBadgeDocument(["Anna"]), quantity: 3 }], LIST).minimumTopUpSek, 0);
+    assert.equal(priceOrder([{ ...createBadgeDocument(["Anna"]), quantity: 3 }], LIST, 0).minimumTopUpSek, 0);
   });
 
   it("trappsteget gäller orderns totala antal, även när alla skyltar har olika namn", () => {
     const names: BadgeDocument[] = Array.from({ length: 101 }, (_, i) => createBadgeDocument([`Person ${i}`]));
-    const order = priceOrder(names, LIST);
+    const order = priceOrder(names, LIST, 0);
     assert.equal(order.quantity, 101);
     assert.equal(order.tierIndex, 1);
     assert.equal(order.unitSek, 113 + 8);
@@ -183,7 +184,7 @@ describe("startkostnaden", () => {
 
   it("slutkunden betalar den med samma marginal som priset per skylt: 333 kr, 83 kr per skylt på 4 skyltar", () => {
     assert.equal(list.startSek, 333);
-    const order = priceOrder([anna(4)], list);
+    const order = priceOrder([anna(4)], list, 0);
     assert.equal(order.startShareSek, 83);
     assert.equal(order.unitSek, 130 + 83);
     assert.equal(order.totalSek, 4 * 213);
@@ -220,7 +221,7 @@ describe("startkostnaden", () => {
     assert.equal(reseller.badgesSek, 78 + 200);
     assert.equal(reseller.minimumTopUpSek, 21);
     assert.equal(reseller.totalSek, 299);
-    const customer = priceOrder([anna(1)], list);
+    const customer = priceOrder([anna(1)], list, 0);
     assert.equal(customer.badgesSek, 130 + 333);
     assert.equal(customer.minimumTopUpSek, 0);
   });
@@ -232,7 +233,7 @@ describe("startkostnaden", () => {
 
   it("från-priset och ett listpris utan startkostnad påverkas inte", () => {
     assert.equal(fromPriceSek("metal", list), 130);
-    assert.equal(priceOrder([anna(10)], withoutStartCost(list)).unitSek, 130);
+    assert.equal(priceOrder([anna(10)], withoutStartCost(list), 0).unitSek, 130);
     assert.equal(withoutStartCost(list).minOrderSek, list.minOrderSek);
   });
 });
@@ -327,15 +328,44 @@ describe("frakten", () => {
   });
 
   it("gränsen gäller varuvärdet: precis 500 kr går som varubrev, en krona till som paket", () => {
-    assert.equal(shippingKind(500, list), "letter");
-    assert.equal(shippingSek(500, list), 75);
-    assert.equal(shippingKind(501, list), "parcel");
+    assert.equal(shippingKind(500, purchase), "letter");
+    assert.equal(shippingSek(500, purchase), 75);
+    assert.equal(shippingKind(501, purchase), "parcel");
     assert.equal(shippingSek(500.01, purchase), 159);
   });
 
-  it("båda parter har samma belopp och samma gräns, utan marginal", () => {
-    assert.deepEqual(list.shipping, purchase.shipping);
-    assert.deepEqual(list.shipping, S.shipping);
+  it("regeln finns bara i återförsäljarens lista, eftersom frakten räknas på det återförsäljaren betalar", () => {
+    assert.deepEqual(purchase.shipping, S.shipping);
+    assert.equal(list.shipping, undefined);
+    assert.equal(priceItems([premium(10)], list).shippingSek, 0);
+  });
+
+  it("frakten är samma i alla led: 3 skyltar går som varubrev fast kunden betalar över 500 kr för dem", () => {
+    // Hela kalkylen, med startkostnaden: återförsäljaren betalar 434,01 kr och kunden 723 kr för varorna.
+    const D = DEFAULT_PRICE_MODEL;
+    const doc: BadgeDocument = { ...createBadgeDocument(["Anna Lind"]), quantity: 3 };
+    const reseller = resellerOrder([doc], resellerPriceTable(D));
+    assert.equal(reseller.goodsSek, 434.01);
+    assert.equal(reseller.shippingSek, 75);
+    const shipping = orderShippingSek(D, [premium(3)]);
+    assert.equal(shipping, 75);
+    const customer = priceOrder([doc], endPriceTable(D), shipping);
+    assert.equal(customer.totalSek - customer.shippingSek, 723);
+    assert.equal(customer.shippingSek, reseller.shippingSek);
+  });
+
+  it("en skylt till, och båda betalar för paket", () => {
+    const D = DEFAULT_PRICE_MODEL;
+    assert.equal(priceItems([premium(4)], resellerPriceTable(D)).goodsSek, 512);
+    assert.equal(orderShippingSek(D, [premium(4)]), 159);
+  });
+
+  it("frakten räknas på hela ordern, även när skyltarna är olika", () => {
+    const D = DEFAULT_PRICE_MODEL;
+    // 2 metall med nål och 2 plast med nål: 2 × 78 + 2 × 59 + 200 = 474 kr.
+    assert.equal(orderShippingSek(D, [premium(2), premium(2, { signClass: "standard" })]), 75);
+    // Med logga på plastskyltarna: 474 + 2 × 19 = 512 kr.
+    assert.equal(orderShippingSek(D, [premium(2), premium(2, { signClass: "standard", extraEngraving: true })]), 159);
   });
 
   it("läggs på ordern efter minsta ordervärde: en ensam skylt kostar 299 kr plus 75 kr", () => {
@@ -360,7 +390,7 @@ describe("frakten", () => {
 
   it("kundens order har frakten i summan och i momsen", () => {
     const doc: BadgeDocument = { ...createBadgeDocument(["Anna Lind"]), quantity: 10 };
-    const order = priceOrder([doc], list);
+    const order = priceOrder([doc], list, orderShippingSek(S, [premium(10)]));
     assert.equal(order.shippingSek, 159);
     assert.equal(order.totalSek, 1300 + 159);
     assert.equal(order.totalInclVatSek, Math.round(1459 * 1.25));
@@ -368,10 +398,12 @@ describe("frakten", () => {
   });
 
   it("en lista utan frakt, eller en tom order, har ingen frakt", () => {
-    assert.equal(shippingSek(1000, LIST), 0);
-    assert.equal(shippingKind(1000, LIST), null);
-    assert.equal(shippingSek(0, list), 0);
-    assert.equal(priceItems([], list).totalSek, 0);
+    assert.equal(shippingSek(1000, PURCHASE), 0);
+    assert.equal(shippingKind(1000, PURCHASE), null);
+    assert.equal(orderShippingSek(M, [premium(10)]), 0);
+    assert.equal(shippingSek(0, purchase), 0);
+    assert.equal(priceItems([], purchase).totalSek, 0);
+    assert.equal(orderShippingSek(S, []), 0);
     assert.equal(shippingSek(1000, { shipping: undefined }), 0);
   });
 
@@ -422,7 +454,7 @@ describe("en modell sparad i det äldre formatet", () => {
 describe("prislistorna håller isär parterna", () => {
   it("slutkundens lista innehåller varken inköpspriser, provision eller marginal", () => {
     const text = JSON.stringify(LIST);
-    assert.deepEqual(Object.keys(LIST).sort(), ["minOrderSek", "options", "shipping", "signs", "startSek", "tiers"]);
+    assert.deepEqual(Object.keys(LIST).sort(), ["minOrderSek", "options", "signs", "startSek", "tiers"]);
     assert.doesNotMatch(text, /provision|margin|reseller/i);
     // Inget av återförsäljarens skyltpriser står i kundens lista.
     for (const price of [...M.signs.premium, ...M.signs.standard]) {

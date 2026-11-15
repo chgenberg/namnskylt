@@ -138,6 +138,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
             <PricingEditor
               priceList={order.priceList}
               purchaseList={order.purchaseList}
+              shippingSek={order.shippingSek}
               badges={order.badges}
               pricing={order.pricing}
               submit={order.status === "cancelled" ? undefined : updateOrderPricingAction.bind(null, order.orderNo)}

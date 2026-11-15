@@ -42,6 +42,8 @@ export interface StoredQuote {
   priceList: PriceTable;
   /** Återförsäljarens prislista från samma tillfälle. Finns bara i panelen, aldrig på kundens offertsida. */
   purchaseList?: PriceTable;
+  /** Offertens frakt. Den är samma för kunden och återförsäljaren och räknas på det återförsäljaren betalar för varorna. */
+  shippingSek: number;
   totalSek: number;
   totalInclVatSek: number;
   message: string | null;

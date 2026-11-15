@@ -41,6 +41,7 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     resellerId: "namnskylt",
     pricing: null,
     priceList: LIST,
+    shippingSek: 0,
     demo: false,
     delivery: null,
     supplierSentAt: null,
@@ -127,14 +128,14 @@ describe("egna priser", () => {
   ];
 
   it("utan prissättning blir det listpris, samma som motorn", () => {
-    const priced = priceWithPricing(badges, null, LIST);
-    assert.equal(priced.totalSek, priceOrder(badges, LIST).totalSek);
+    const priced = priceWithPricing(badges, null, LIST, 0);
+    assert.equal(priced.totalSek, priceOrder(badges, LIST, 0).totalSek);
     assert.equal(priced.discountSek, 0);
     assert.ok(priced.lines.every((l) => !l.overridden));
   });
 
   it("à-pris per skylt och rabatt på summan", () => {
-    const priced = priceWithPricing(badges, { unitOverrides: [50, null], discountPercent: 10, extras: [] }, LIST);
+    const priced = priceWithPricing(badges, { unitOverrides: [50, null], discountPercent: 10, extras: [] }, LIST, 0);
     const second = priced.lines[1];
     assert.ok(second);
     assert.equal(priced.lines[0]?.totalSek, 100);
@@ -159,7 +160,7 @@ describe("egna priser", () => {
         { label: "Framtagning av korrektur", amountSek: 250 },
         { label: "Expressorder", amountSek: 300 },
       ],
-    }, LIST);
+    }, LIST, 0);
     assert.equal(priced.extrasSek, 550);
     assert.equal(priced.totalSek, priced.badgesSek + 550);
     assert.equal(priced.totalInclVatSek, priced.totalSek + Math.round(priced.totalSek * 0.25));
@@ -171,24 +172,24 @@ describe("egna priser", () => {
     assert.deepEqual(units, [148, 90]);
     assert.equal(discountForUnits(list, [131, 100], [1, 1]), 12.5);
     assert.equal(discountForUnits(list, list, [1, 1]), 0);
-    const priced = priceWithPricing(badges, { unitOverrides: [40, null], discountPercent: 0, extras: [] }, LIST);
+    const priced = priceWithPricing(badges, { unitOverrides: [40, null], discountPercent: 0, extras: [] }, LIST, 0);
     assert.equal(priced.savingsSek, priced.listTotalSek - priced.badgesSek);
   });
 
   it("en liten order fylls upp till minsta ordervärde, och extra kostnader räknas in", () => {
     const one = [{ ...plastic, quantity: 1 }];
-    const list = priceWithPricing(one, null, LIST);
+    const list = priceWithPricing(one, null, LIST, 0);
     assert.equal(list.totalSek, 299);
     assert.equal(list.minimumTopUpSek, 299 - list.badgesSek);
-    const express = priceWithPricing(one, { unitOverrides: [], discountPercent: 0, extras: [{ label: "Express", amountSek: 300 }] }, LIST);
+    const express = priceWithPricing(one, { unitOverrides: [], discountPercent: 0, extras: [{ label: "Express", amountSek: 300 }] }, LIST, 0);
     assert.equal(express.minimumTopUpSek, 0);
     assert.equal(express.totalSek, express.badgesSek + 300);
   });
 
   it("räknar med modellen ordern sparades med, inte dagens", () => {
     const cheaper = endPriceTable({ ...MODEL, endMarginPercent: 0, endMinOrderSek: 0 });
-    const then = priceWithPricing(badges, null, cheaper).totalSek;
-    const now = priceWithPricing(badges, null, LIST).totalSek;
+    const then = priceWithPricing(badges, null, cheaper, 0).totalSek;
+    const now = priceWithPricing(badges, null, LIST, 0).totalSek;
     assert.ok(then < now);
   });
 

@@ -24,6 +24,8 @@ interface PricingEditorProps {
   priceList: PriceTable;
   /** Återförsäljarens prislista från samma tillfälle. Med den visas inköp och marginal. */
   purchaseList?: PriceTable;
+  /** Orderns eller offertens frakt. Den ändras inte av priserna här. */
+  shippingSek: number;
   /** Utan `submit` visas priserna bara. */
   submit?: (pricing: Pricing) => Promise<ActionResult>;
 }
@@ -50,11 +52,11 @@ const formatPercent = (value: number) => String(Math.round(value * 10) / 10).rep
  * långt under listpris skyltarna ligger, och en ny rabatt räknar om à-priserna.
  * Extra kostnader läggs till efter rabatten.
  */
-export function PricingEditor({ badges, pricing, priceList, purchaseList, submit }: PricingEditorProps) {
-  const base = useMemo(() => priceWithPricing(badges, null, priceList), [badges, priceList]);
+export function PricingEditor({ badges, pricing, priceList, purchaseList, shippingSek, submit }: PricingEditorProps) {
+  const base = useMemo(() => priceWithPricing(badges, null, priceList, shippingSek), [badges, priceList, shippingSek]);
   const list = useMemo(() => base.lines.map((l) => l.listUnitSek), [base]);
   const quantities = useMemo(() => base.lines.map((l) => l.quantity), [base]);
-  const saved = priceWithPricing(badges, pricing, priceList);
+  const saved = priceWithPricing(badges, pricing, priceList, shippingSek);
   // Äldre priser kan ha rabatten separat — här blir den en del av à-priserna.
   const savedUnits = saved.lines.map((l) => Math.round(l.unitSek * (1 - saved.discountPercent / 100)));
 
@@ -75,7 +77,7 @@ export function PricingEditor({ badges, pricing, priceList, purchaseList, submit
       return e.label.trim() && amountSek !== null ? [{ label: e.label.trim().slice(0, 80), amountSek }] : [];
     }),
   };
-  const priced = priceWithPricing(badges, draft, priceList);
+  const priced = priceWithPricing(badges, draft, priceList, shippingSek);
   const dirty =
     JSON.stringify(draft) !==
     JSON.stringify({

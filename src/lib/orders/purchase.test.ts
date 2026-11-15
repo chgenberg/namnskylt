@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { createBadgeDocument, NO_SHIPPING, priceOrder, resellerOrder } from "@/engine";
 import { endPriceTable, resellerPriceTable } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
+import { shippingFor } from "./price-lists";
 import { marginOf } from "./purchase";
 
 /** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
@@ -19,14 +20,14 @@ describe("marginal", () => {
 
   it("vid listpris får återförsäljaren modellens marginal på en order över minsta ordervärde", () => {
     const badges = [{ ...createBadgeDocument(["Anna Lind"]), quantity: 25 }];
-    const sale = priceOrder(badges, LIST).totalSek;
+    const sale = priceOrder(badges, LIST, 0).totalSek;
     const purchase = resellerOrder(badges, PURCHASE).totalSek;
     assert.equal(marginOf(sale, purchase).percent, M.endMarginPercent);
   });
 
   it("på en ensam skylt äter minidebiteringen upp marginalen", () => {
     const badges = [createBadgeDocument(["Anna Lind"])];
-    const sale = priceOrder(badges, LIST).totalSek;
+    const sale = priceOrder(badges, LIST, 0).totalSek;
     const purchase = resellerOrder(badges, PURCHASE).totalSek;
     assert.deepEqual(marginOf(sale, purchase), { sek: 0, percent: 0 });
   });
@@ -34,7 +35,7 @@ describe("marginal", () => {
   it("med startkostnad får återförsäljaren marginal även på den: 4 skyltar ger 852 kr mot 512 kr i inköp", () => {
     const badges = [{ ...createBadgeDocument(["Anna Lind"]), quantity: 4 }];
     const withStart = { ...DEFAULT_PRICE_MODEL, shipping: NO_SHIPPING };
-    const sale = priceOrder(badges, endPriceTable(withStart)).totalSek;
+    const sale = priceOrder(badges, endPriceTable(withStart), 0).totalSek;
     const purchase = resellerOrder(badges, resellerPriceTable(withStart)).totalSek;
     assert.equal(sale, 4 * (130 + 83));
     assert.equal(purchase, 4 * (78 + 50));
@@ -43,21 +44,22 @@ describe("marginal", () => {
 
   it("frakten ger ingen marginal: 20 skyltar har 159 kr frakt hos båda parter och samma marginal i kronor", () => {
     const badges = [{ ...createBadgeDocument(["Anna Lind"]), quantity: 20 }];
-    const sale = priceOrder(badges, endPriceTable(DEFAULT_PRICE_MODEL));
     const purchase = resellerOrder(badges, resellerPriceTable(DEFAULT_PRICE_MODEL));
+    const sale = priceOrder(badges, endPriceTable(DEFAULT_PRICE_MODEL), shippingFor(DEFAULT_PRICE_MODEL, badges));
     assert.equal(sale.shippingSek, 159);
     assert.equal(purchase.shippingSek, 159);
     const withoutShipping = marginOf(sale.totalSek - sale.shippingSek, purchase.goodsSek);
     assert.equal(marginOf(sale.totalSek, purchase.totalSek).sek, withoutShipping.sek);
   });
 
-  it("varje part räknar frakten på sitt eget varuvärde: 3 skyltar ger kunden paket och återförsäljaren varubrev", () => {
-    // Kundens varuvärde är 3 × (130 + 111) = 723 kr, över gränsen 500 kr. Återförsäljarens är 3 × (78 + 66,67) = 434,01 kr.
+  it("kunden betalar samma frakt som återförsäljaren: 3 skyltar går som varubrev för båda, och frakten ger ingen marginal", () => {
+    // Kundens varuvärde är 3 × (130 + 111) = 723 kr, över gränsen 500 kr. Återförsäljarens är 3 × (78 + 66,67) = 434,01 kr,
+    // och det är det beloppet regeln gäller. Förut betalade kunden 159 kr och återförsäljaren behöll mellanskillnaden.
     const badges = [{ ...createBadgeDocument(["Anna Lind"]), quantity: 3 }];
-    const sale = priceOrder(badges, endPriceTable(DEFAULT_PRICE_MODEL));
     const purchase = resellerOrder(badges, resellerPriceTable(DEFAULT_PRICE_MODEL));
-    assert.equal(sale.shippingSek, 159);
+    const sale = priceOrder(badges, endPriceTable(DEFAULT_PRICE_MODEL), shippingFor(DEFAULT_PRICE_MODEL, badges));
     assert.equal(purchase.shippingSek, 75);
-    assert.equal(sale.shippingSek - purchase.shippingSek, 84);
+    assert.equal(sale.shippingSek, 75);
+    assert.equal(marginOf(sale.totalSek, purchase.totalSek).sek, 723 - 434.01);
   });
 });

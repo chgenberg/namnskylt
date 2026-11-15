@@ -38,7 +38,7 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
     "--brand-accent": company.accentColor,
   } as React.CSSProperties;
   const status = displayStatus(quote);
-  const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceList);
+  const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceList, quote.shippingSek);
   const firstName = quote.customer.name.split(" ")[0] ?? quote.customer.name;
   const saving = priced.savingsSek;
 

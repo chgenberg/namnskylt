@@ -89,6 +89,8 @@ export interface StoredOrder {
    * Finns bara när ordern lästs åt den inloggade återförsäljaren — aldrig på kundens sidor.
    */
   purchaseList?: PriceTable;
+  /** Orderns frakt. Den är samma för kunden och återförsäljaren och räknas på det återförsäljaren betalar för varorna. */
+  shippingSek: number;
   totalSek: number;
   totalInclVatSek: number;
   supplierOrderNo: string | null;

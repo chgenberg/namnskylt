@@ -31,16 +31,17 @@ export type PriceOptions = Record<PriceOptionId, number[]>;
 
 /**
  * Frakten för en order, Skylt & Gravyrtekniks egen prislista rakt av: varubrev
- * upp till ett varuvärde, annars paket. Alla parter har samma belopp, utan
- * provision och utan marginal. Nollor betyder att ordern saknar frakt, vilket
- * gäller ordrar och offerter från före 2026-11-14.
+ * upp till ett varuvärde, annars paket. Regeln gäller det återförsäljaren
+ * betalar verkstaden för varorna, och frakten är sedan samma belopp i alla
+ * led, utan provision och utan marginal. Nollor betyder att ordern saknar
+ * frakt, vilket gäller ordrar och offerter från före 2026-11-14.
  */
 export interface ShippingRule {
   /** Varubrev (PostNord), för en order med varuvärde upp till `letterMaxSek`. */
   letterSek: number;
   /** Paket (DHL), för en order över gränsen. */
   parcelSek: number;
-  /** Högsta varuvärde, exkl. moms och frakt, som får gå som varubrev. */
+  /** Högsta varuvärde hos återförsäljaren, exkl. moms och frakt, som får gå som varubrev. */
   letterMaxSek: number;
 }
 
@@ -56,9 +57,10 @@ export function shippingKind(goodsSek: number, table: Pick<PriceTable, "shipping
 }
 
 /**
- * Frakten för en order med varuvärdet `goodsSek`, alltså skyltarna med
- * påslaget upp till minsta ordervärde men utan frakt. Varje part räknar på sitt
- * eget varuvärde, precis som i Skylt & Gravyrtekniks egen kassa.
+ * Frakten för en order där återförsäljaren betalar `goodsSek` för varorna,
+ * alltså skyltarna med påslaget upp till minsta ordervärde men utan frakt.
+ * Bara återförsäljarens lista har regeln. Kunden betalar samma frakt, och får
+ * beloppet färdigt i stället för regeln (`priceOrder`).
  */
 export function shippingSek(goodsSek: number, table: Pick<PriceTable, "shipping">): number {
   const kind = shippingKind(goodsSek, table);
@@ -79,7 +81,10 @@ export interface PriceTable {
   /** Startkostnaden för en order. Den fördelas på orderns skyltar och ingår i priset per skylt. */
   startSek: number;
   minOrderSek: number;
-  /** Frakten per order. Saknas i listor ur en modell från före frakten, och då är frakten 0 kr. */
+  /**
+   * Fraktregeln. Den finns bara i återförsäljarens lista, eftersom frakten räknas
+   * på det återförsäljaren betalar för varorna. Slutkundens lista saknar den.
+   */
   shipping?: ShippingRule;
   /**
    * Listan räknas med ören. Återförsäljarens lista gör det: priserna får ha
@@ -120,6 +125,11 @@ function priceItemOf(doc: BadgeDocument): PriceItem {
     customShape: doc.shape === "custom",
     quantity: doc.quantity,
   };
+}
+
+/** Det som avgör skyltarnas pris, utan design och text. Det är allt servern behöver för att räkna orderns frakt. */
+export function priceItemsOf(docs: readonly BadgeDocument[]): PriceItem[] {
+  return docs.map(priceItemOf);
 }
 
 function quantityOf(item: Pick<PriceItem, "quantity">): number {
@@ -204,7 +214,7 @@ export interface TablePrice {
   minimumTopUpSek: number;
   /** Varuvärdet: skyltarna med påslaget upp till minsta ordervärde, utan frakt. Provisionen räknas på det. */
   goodsSek: number;
-  /** Frakten för ordern. */
+  /** Frakten enligt listans fraktregel. 0 kr för slutkundens lista, som saknar regeln. */
   shippingSek: number;
   /** Varuvärdet plus frakten. */
   totalSek: number;
@@ -254,9 +264,15 @@ export interface PriceBreakdown {
   totalInclVatSek: number;
 }
 
-/** Kundens pris för ordern enligt slutkundens lista. */
-export function priceOrder(docs: readonly BadgeDocument[], list: PriceTable): PriceBreakdown {
+/**
+ * Kundens pris för ordern enligt slutkundens lista. `shippingSek` är orderns
+ * frakt, som är samma i alla led och räknas på det återförsäljaren betalar:
+ * på servern med `orderShippingSek`, hos en inloggad återförsäljare ur dess
+ * inköpslista. Kundens webbläsare frågar servern (`useOrderShipping`).
+ */
+export function priceOrder(docs: readonly BadgeDocument[], list: PriceTable, shippingSek: number): PriceBreakdown {
   const price = priceItems(docs.map(priceItemOf), list);
+  const totalSek = price.goodsSek + shippingSek;
   return {
     unitSek: price.quantity > 0 ? Math.round(price.badgesSek / price.quantity) : 0,
     quantity: price.quantity,
@@ -264,9 +280,9 @@ export function priceOrder(docs: readonly BadgeDocument[], list: PriceTable): Pr
     startShareSek: price.startShareSek,
     badgesSek: price.badgesSek,
     minimumTopUpSek: price.minimumTopUpSek,
-    shippingSek: price.shippingSek,
-    totalSek: price.totalSek,
-    totalInclVatSek: Math.round(price.totalSek * (1 + VAT_RATE)),
+    shippingSek,
+    totalSek,
+    totalInclVatSek: Math.round(totalSek * (1 + VAT_RATE)),
   };
 }
 
@@ -275,8 +291,9 @@ export function lineUnitPrices(docs: readonly BadgeDocument[], list: PriceTable)
   return priceItems(docs.map(priceItemOf), list).unitSek;
 }
 
+/** Priset för en ensam skylt, utan frakt. Används för exempelpriser, där ingen order finns. */
 export function priceBadge(doc: BadgeDocument, list: PriceTable): PriceBreakdown {
-  return priceOrder([doc], list);
+  return priceOrder([doc], list, 0);
 }
 
 /** Vad återförsäljaren betalar för skyltarna, enligt återförsäljarens lista. */

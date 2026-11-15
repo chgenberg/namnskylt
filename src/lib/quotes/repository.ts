@@ -8,7 +8,7 @@ import { requireDb } from "@/lib/db/client";
 import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages, withStoredLogoImages } from "@/lib/logo-images/repository";
 import { parseQuoteDelivery, quoteDeliverySchema, type QuoteDelivery } from "@/lib/orders/delivery";
 import { isCustomPricing, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
-import { priceListsFor, storedPriceModel, type PriceAudience } from "@/lib/orders/price-lists";
+import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "@/lib/orders/price-lists";
 import { getPriceModel, parsePricing } from "@/lib/orders/repository";
 import {
   addDays,
@@ -81,7 +81,7 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
     status: isQuoteStatus(row.status) ? row.status : "draft",
     badges: badges.success ? badges.data : [],
     pricing: parsePricing(row.pricing),
-    ...priceListsFor(row.price_model, currentModel, audience),
+    ...priceListsFor(row.price_model, currentModel, audience, badges.success ? badges.data : []),
     totalSek: row.total_sek,
     totalInclVatSek: row.total_incl_vat_sek,
     message: row.message,
@@ -155,7 +155,7 @@ export async function createQuote(input: {
 }): Promise<{ quoteNo: string }> {
   const sql = requireDb();
   const model = await getPriceModel();
-  const price = priceWithPricing(input.badges, null, endPriceTable(model));
+  const price = priceWithPricing(input.badges, null, endPriceTable(model), shippingFor(model, input.badges));
   // En logga i färg sparas en gång; skyltarna pekar på den. En bild som saknas stoppar offerten.
   if (await missingLogoImages(input.badges)) throw new Error(MISSING_LOGO_IMAGE_ERROR);
   const badges = await withStoredLogoImages(input.badges);
@@ -195,7 +195,8 @@ export async function updateQuote(
     const badges = badgesSchema.safeParse(row?.badges);
     if (!row || !badges.success || !["draft", "sent", "declined"].includes(row.status)) return false;
     const pricing = patch.pricing !== undefined ? (isCustomPricing(patch.pricing) ? patch.pricing : null) : parsePricing(row.pricing);
-    const price = priceWithPricing(badges.data, pricing, endPriceTable(storedPriceModel(row.price_model, currentModel)));
+    const model = storedPriceModel(row.price_model, currentModel);
+    const price = priceWithPricing(badges.data, pricing, endPriceTable(model), shippingFor(model, badges.data));
     const status: QuoteStatus = row.status === "declined" ? "draft" : (row.status as QuoteStatus);
     await tx`
       update quotes set pricing = ${pricing ? tx.json(pricing as unknown as Json) : null},

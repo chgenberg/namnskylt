@@ -46,7 +46,7 @@ export function invoiceCsv(orders: readonly StoredOrder[]): string {
   const rows = orders
     .filter((o) => o.status !== "cancelled")
     .flatMap((o) => {
-      const priced = priceWithPricing(o.badges, o.pricing, o.priceList);
+      const priced = priceWithPricing(o.badges, o.pricing, o.priceList, o.shippingSek);
       const rows = o.badges.map((badge, i) => {
         const unit = priced.lines[i]?.unitSek ?? 0;
         const text = engravedRows(badge)

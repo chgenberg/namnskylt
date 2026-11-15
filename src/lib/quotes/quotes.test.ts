@@ -23,6 +23,7 @@ function quote(patch: Partial<StoredQuote> = {}): StoredQuote {
     badges: [badge],
     pricing: { unitOverrides: [40], discountPercent: 10, extras: [{ label: "Expressorder", amountSek: 300 }] },
     priceList: endPriceTable(DEFAULT_PRICE_MODEL),
+    shippingSek: 75,
     totalSek: 144,
     totalInclVatSek: 180,
     message: "Hej Anna!",
@@ -134,9 +135,12 @@ describe("leveransen när offerten godkänns", () => {
     assert.doesNotMatch(quoteHtml(quote(), approxFonts, DEFAULT_COMPANY), /Leverans<\/p>/);
   });
 
-  it("offertens PDF har frakten som egen rad i summan", () => {
+  it("offertens PDF har offertens frakt som egen rad i summan", () => {
     const html = quoteHtml(quote({ pricing: null }), approxFonts, DEFAULT_COMPANY);
-    assert.match(html, /<span>Frakt<\/span><span>\d+ kr<\/span>/);
+    assert.match(html, /<span>Frakt<\/span><span>75\skr<\/span>/);
+    // Frakten följer offerten, inte kundens pris: en rabatt eller en extrarad ändrar den inte.
+    assert.match(quoteHtml(quote(), approxFonts, DEFAULT_COMPANY), /<span>Frakt<\/span><span>75\skr<\/span>/);
+    assert.doesNotMatch(quoteHtml(quote({ shippingSek: 0 }), approxFonts, DEFAULT_COMPANY), /<span>Frakt<\/span>/);
   });
 
   it("till återförsäljaren: kunden kan inte byta adress", () => {

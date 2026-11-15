@@ -268,8 +268,8 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
             Frakt
           </h2>
           <p className={styles.muted}>
-            Skylt &amp; Gravyrtekniks frakt, rakt av. Återförsäljaren och slutkunden betalar samma belopp, utan provision och
-            marginal, och varje part räknar på sitt eget varuvärde.
+            Skylt &amp; Gravyrtekniks frakt, rakt av. Den räknas på det återförsäljaren betalar för varorna, och slutkunden
+            betalar samma belopp, utan provision och marginal.
           </p>
         </div>
         <div className={styles.orderGrid}>
@@ -293,7 +293,7 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
               max={MAX_PRICE_SEK}
               onChange={(letterMaxSek) => setDraft({ ...draft, shipping: { ...draft.shipping, letterMaxSek } })}
             />
-            <small>Varuvärde exkl. moms och frakt</small>
+            <small>Det återförsäljaren betalar för varorna, exkl. moms och frakt</small>
           </div>
           <div className={styles.orderField}>
             <span className={styles.controlLabel}>Paket</span>

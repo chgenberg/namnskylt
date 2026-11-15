@@ -105,6 +105,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
             <PricingEditor
               priceList={quote.priceList}
               purchaseList={quote.purchaseList}
+              shippingSek={quote.shippingSek}
               badges={quote.badges}
               pricing={quote.pricing}
               submit={editable ? updateQuotePricingAction.bind(null, quote.quoteNo) : undefined}

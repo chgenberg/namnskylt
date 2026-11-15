@@ -4,7 +4,6 @@ import {
   lineUnitPrices,
   MATERIALS,
   priceOrder,
-  shippingSek,
   VAT_RATE,
   type BadgeDocument,
   type MaterialId,
@@ -81,7 +80,7 @@ export interface ShopPrice {
   badgesSek: number;
   /** Påslaget upp till slutkundens minsta ordervärde. */
   minimumTopUpSek: number;
-  /** Frakten, räknad på butikens varuvärde. Butikens påslag gäller inte frakten. */
+  /** Orderns frakt, samma belopp som återförsäljaren betalar. Butikens påslag gäller inte frakten. */
   shippingSek: number;
   totalSek: number;
   totalInclVatSek: number;
@@ -89,23 +88,23 @@ export interface ShopPrice {
   tierIndex: number;
 }
 
-/** Det kunden ser i butikens skyltmotor — samma tal som ordern sparas med. */
+/** Det kunden ser i butikens skyltmotor — samma tal som ordern sparas med. `shippingSek` är orderns frakt. */
 export function shopPrice(
   badges: readonly BadgeDocument[],
   list: ShopPriceList | null | undefined,
   priceList: PriceTable,
+  shippingSek: number,
 ): ShopPrice {
-  const base = priceOrder(badges, priceList);
+  const base = priceOrder(badges, priceList, shippingSek);
   const units = shopUnitPrices(badges, list, priceList);
   const badgesSek = badges.reduce((sum, badge, i) => sum + (units[i] ?? 0) * Math.max(1, Math.floor(badge.quantity)), 0);
   const minimumTopUpSek = base.quantity > 0 ? Math.max(0, priceList.minOrderSek - badgesSek) : 0;
-  const shipping = shippingSek(badgesSek + minimumTopUpSek, priceList);
-  const totalSek = badgesSek + minimumTopUpSek + shipping;
+  const totalSek = badgesSek + minimumTopUpSek + shippingSek;
   return {
     unitSek: base.quantity > 0 ? Math.round(badgesSek / base.quantity) : 0,
     badgesSek,
     minimumTopUpSek,
-    shippingSek: shipping,
+    shippingSek,
     totalSek,
     totalInclVatSek: Math.round(totalSek * (1 + VAT_RATE)),
     quantity: base.quantity,

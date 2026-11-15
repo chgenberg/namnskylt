@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   NO_SHIPPING,
+  priceItems,
   tierIndexFor,
   toOre,
   unitPriceParts,
@@ -174,7 +175,9 @@ export function resellerPriceTable(model: PriceModel): PriceTable {
 /**
  * Det slutkunden betalar. Varje belopp avrundas för sig, så att skylt, fäste
  * och logga i gränssnittet summerar till exakt det kunden betalar. Marginalen
- * gäller startkostnaden på samma sätt som priserna per skylt, men inte frakten.
+ * gäller startkostnaden på samma sätt som priserna per skylt. Frakten är inte
+ * med: den räknas på det återförsäljaren betalar (`orderShippingSek`), och
+ * kunden betalar samma belopp.
  */
 export function endPriceTable(model: PriceModel): PriceTable {
   const end = (sek: number) => endPriceSek(sek, model);
@@ -184,9 +187,16 @@ export function endPriceTable(model: PriceModel): PriceTable {
     options: mapOptions(model.options, end),
     startSek: end(model.startSek),
     minOrderSek: model.endMinOrderSek,
-    // Frakten går rakt igenom: samma belopp och samma gräns som återförsäljaren har.
-    shipping: { ...model.shipping },
   };
+}
+
+/**
+ * Orderns frakt. Den är samma i alla led (beslut 2026-11-15): Skylt &
+ * Gravyrtekniks regel gäller det återförsäljaren betalar verkstaden för
+ * varorna, och kunden betalar samma belopp som återförsäljaren.
+ */
+export function orderShippingSek(model: PriceModel, items: readonly PriceItem[]): number {
+  return priceItems(items, resellerPriceTable(model)).shippingSek;
 }
 
 export interface ProvisionSplit {

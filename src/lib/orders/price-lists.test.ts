@@ -5,9 +5,11 @@ import { describe, it } from "node:test";
 import * as engine from "@/engine";
 import { endPriceTable, resellerPriceTable, type PriceModel } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
-import { priceListsFor, storedPriceModel } from "./price-lists";
+import { priceListsFor, shippingFor, storedPriceModel } from "./price-lists";
 
 const M = DEFAULT_PRICE_MODEL;
+/** Tre metallskyltar med nål: återförsäljaren betalar 434,01 kr för varorna, kunden 723 kr. */
+const THREE = [{ ...engine.createBadgeDocument(["Anna Lind"]), quantity: 3 }];
 /** En äldre modell: dyrare skyltar och annan provision än dagens. */
 const OLDER: PriceModel = {
   ...M,
@@ -17,13 +19,30 @@ const OLDER: PriceModel = {
 
 describe("prislistor per part", () => {
   it("kunden får bara sin egen prislista, aldrig inköpspriserna", () => {
-    const lists = priceListsFor(M, M, "customer");
-    assert.deepEqual(Object.keys(lists), ["priceList"]);
+    const lists = priceListsFor(M, M, "customer", THREE);
+    assert.deepEqual(Object.keys(lists), ["priceList", "shippingSek"]);
     assert.deepEqual(lists.priceList, endPriceTable(M));
   });
 
+  it("kunden och återförsäljaren får samma frakt, räknad på det återförsäljaren betalar", () => {
+    const customer = priceListsFor(M, M, "customer", THREE);
+    const reseller = priceListsFor(M, M, "reseller", THREE);
+    assert.equal(customer.shippingSek, 75);
+    assert.equal(reseller.shippingSek, 75);
+    assert.equal(reseller.purchaseList && engine.resellerOrder(THREE, reseller.purchaseList).shippingSek, 75);
+    // Kundens lista har ingen fraktregel att räkna på sitt eget varuvärde med.
+    assert.equal(customer.priceList.shipping, undefined);
+    assert.equal(shippingFor(M, [{ ...THREE[0]!, quantity: 4 }]), 159);
+  });
+
+  it("en rad från före frakten har ingen frakt", () => {
+    const beforeShipping: Record<string, unknown> = { ...M };
+    delete beforeShipping.shipping;
+    assert.equal(priceListsFor(JSON.parse(JSON.stringify(beforeShipping)), M, "customer", THREE).shippingSek, 0);
+  });
+
   it("återförsäljaren får sina inköpspriser men inte provisionen", () => {
-    const lists = priceListsFor(M, M, "reseller");
+    const lists = priceListsFor(M, M, "reseller", THREE);
     assert.deepEqual(lists.purchaseList, resellerPriceTable(M));
     assert.doesNotMatch(JSON.stringify(lists), /provision|margin/i);
   });
@@ -31,14 +50,14 @@ describe("prislistor per part", () => {
   it("ingen part får provisionen, vad den än är satt till", () => {
     const odd: PriceModel = { ...M, tiers: M.tiers.map((tier, i) => ({ ...tier, provisionPercent: 37.5 + i })) };
     for (const audience of ["customer", "reseller"] as const) {
-      const text = JSON.stringify(priceListsFor(odd, M, audience));
+      const text = JSON.stringify(priceListsFor(odd, M, audience, THREE));
       assert.doesNotMatch(text, /provision/i, audience);
       assert.doesNotMatch(text, /37\.5|38\.5|39\.5|40\.5/, audience);
     }
   });
 
   it("räknar med modellen raden sparades med, inte med dagens", () => {
-    const lists = priceListsFor(JSON.parse(JSON.stringify(OLDER)), M, "reseller");
+    const lists = priceListsFor(JSON.parse(JSON.stringify(OLDER)), M, "reseller", THREE);
     assert.deepEqual(lists.purchaseList?.signs.premium, [90, 85, 80, 75]);
     assert.deepEqual(lists.priceList, endPriceTable(OLDER));
   });
@@ -46,7 +65,7 @@ describe("prislistor per part", () => {
   it("en rad utan sparad modell, eller med en trasig, räknas med dagens", () => {
     assert.equal(storedPriceModel(null, M), M);
     assert.equal(storedPriceModel({ tiers: [] }, M), M);
-    assert.deepEqual(priceListsFor(null, M, "customer").priceList, endPriceTable(M));
+    assert.deepEqual(priceListsFor(null, M, "customer", THREE).priceList, endPriceTable(M));
   });
 });
 

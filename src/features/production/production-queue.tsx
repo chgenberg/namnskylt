@@ -29,7 +29,8 @@ export function ProductionQueue({ orders, onOpenBatch }: ProductionQueueProps) {
   );
   const badgeCount = batches.reduce((sum, b) => sum + b.batch.units.length, 0);
   const sheetCount = batches.reduce((sum, b) => sum + b.sheets, 0);
-  const value = queue.reduce((sum, o) => sum + priceOrder(o.badges, priceList).totalSek, 0);
+  // Kön värderas efter skyltarna. Frakten är verkstadens egen och hör inte till det som tillverkas.
+  const value = queue.reduce((sum, o) => sum + priceOrder(o.badges, priceList, 0).totalSek, 0);
 
   const stats = [
     { label: "Ordrar i kö", value: String(queue.length) },

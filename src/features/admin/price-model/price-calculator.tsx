@@ -68,10 +68,6 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
   const margin = marginOf(end.goodsSek, reseller.goodsSek);
   const spec = itemBreakdown(model, item);
   const perSign = (sek: number) => `${formatSek(toOre(sek / reseller.quantity))} / st`;
-  const shippingNote =
-    reseller.shippingSek === end.shippingSek
-      ? `Frakt ${formatSek(reseller.shippingSek)} tillkommer för både återförsäljaren och slutkunden.`
-      : `Frakt tillkommer: ${formatSek(reseller.shippingSek)} för återförsäljaren och ${formatSek(end.shippingSek)} för slutkunden, eftersom varje part räknar på sitt eget varuvärde.`;
   const tier = tierRangeLabel(reseller.tierIndex, purchase);
   /** Hur provisionen räknas fram: `100 st à 15 %, 200 st à 12 % och 50 st à 10 %`. */
   const steps = STEP_LIST.format(
@@ -182,10 +178,11 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
           avrundas varje del för sig, så delarna gånger antalet kan skilja några ören från ordern. Startkostnaden per skylt
           avrundas till ören för återförsäljaren och till hela kronor för slutkunden.
         </p>
-        {reseller.shippingSek + end.shippingSek > 0 && (
+        {reseller.shippingSek > 0 && (
           <p className={styles.footnote}>
-            {shippingNote} Frakten är Skylt &amp; Gravyrtekniks egen, utan provision och marginal, och går oavkortad till
-            verkstaden. Den är inte med i beloppen ovan.
+            Frakt {formatSek(reseller.shippingSek)} tillkommer, samma belopp för återförsäljaren och slutkunden. Den räknas på
+            det återförsäljaren betalar för varorna. Frakten är Skylt &amp; Gravyrtekniks egen, utan provision och marginal,
+            och går oavkortad till verkstaden. Den är inte med i beloppen ovan.
           </p>
         )}
       </div>

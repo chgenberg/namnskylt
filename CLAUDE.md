@@ -50,7 +50,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (777 tester, grönt 2026-11-15).
+# Kvalitetsgrinden. Kör den innan något lämnas (788 tester, grönt 2026-11-15).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -180,7 +180,7 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Att verkstaden kan trycka i färg på både metall och plast, och vilken tryckfil den behöver.
     I dag finns bara bilden på 640 px; originalfilen sparas inte.
 
-## Prismodellen — läge 2026-11-14
+## Prismodellen — läge 2026-11-15
 
 Alla priser kommer ur en prismodell (`PriceModel` i `src/engine/price-model.ts`) som ägaren ändrar
 i `/admin/prismodell`. Den sparas i `settings` under nyckeln `price_model`; utan sparad modell
@@ -230,15 +230,32 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   - Den ligger **utanför kedjan**: ingen provision och ingen marginal, och allt går till
     verkstaden. `provisionSplit` tar därför varuvärdet (`TablePrice.goodsSek`), aldrig summan
     med frakt. `totalSek` är varuvärdet plus frakten, hos båda parter.
-  - **Varje part räknar frakten på sitt eget varuvärde** med samma gräns och samma belopp
-    (`shippingSek(goodsSek, table)`), precis som i verkstadens egen kassa. Slutkundens prislista
-    kan inte räkna på återförsäljarens varuvärde utan att avslöja inköpspriserna. Följden: i
-    ett smalt spann betalar kunden paketfrakt medan återförsäljaren betalar varubrev (3
-    metallskyltar: 159 mot 75 kr), och då behåller återförsäljaren mellanskillnaden på 84 kr.
-  - Varuvärdet är skyltarna med påslaget upp till minsta ordervärde. Butikens påslag gäller inte
-    frakten. Frakten visas som egen rad på offert, PDF, ordersida och fakturaunderlag.
+  - **Frakten är samma i alla led** (beslut 2026-11-15, besked från Pär via ägaren: "frakt får
+    vara fast oavsett led"). Regeln gäller det återförsäljaren betalar verkstaden för varorna
+    (`orderShippingSek` i `price-model.ts`), och kunden betalar samma belopp. Förut räknade varje
+    part på sitt eget varuvärde, och då betalade kunden 159 kr och återförsäljaren 75 kr på små
+    ordrar (2–5 skyltar beroende på skylttyp), så att återförsäljaren behöll 84 kr.
+  - **Slutkundens prislista har ingen fraktregel**, bara återförsäljarens. `priceOrder`,
+    `priceWithPricing` och `shopPrice` tar frakten som ett belopp, och det kommer från ett av
+    fyra ställen:
+    - en sparad order eller offert bär den (`shippingSek`, ur `priceListsFor`), även när raden
+      läses åt kunden,
+    - servern räknar den för en ny order eller offert (`shippingFor` i `price-lists.ts`),
+    - en inloggad återförsäljare räknar den ur sin inköpslista,
+    - kundens webbläsare frågar `POST /api/shipping` (`useOrderShipping` i `src/hooks/`), som
+      får skyltarnas typ och antal och bara svarar med beloppet. Tills svaret kommit, eller om
+      det uteblir, står "Frakt tillkommer" och summan visas utan frakt.
+  - Frakten beror bara på skyltarna. Återförsäljarens egna priser, rabatter och extrarader och
+    butikens påslag ändrar den inte. Den visas som egen rad på offert, PDF, ordersida och
+    fakturaunderlag.
+  - Regeln gäller alla ordrar och offerter med frakt, även redan sparade, eftersom frakten räknas
+    när raden läses. Den sparade summan (`total_sek`, som listor och statistik visar) räknas
+    däremot inte om förrän priset sparas igen.
   - En modell sparad före frakten läses utan frakt (`NO_SHIPPING`), så äldre ordrar och offerter
     behåller sina summor. Migrering 019 lade frakten i den sparade modellen i `settings`.
+  - Känd följd: kunden ser var frakten slår om från 75 till 159 kr. Den som känner verkstadens
+    gräns på 500 kr kan därur gissa ungefär vad återförsäljaren betalar. Därför svarar servern
+    bara med beloppet, och frågan har en gräns per klient.
 - **Trappsteg** på orderns totala antal: 1–100, 101–300, 301–500 och 501 eller fler.
 - **Per skylt:** skylttypens pris (Premium = metall, Standard = plast, `priceClass` i katalogen),
   ett fäste (nål, klämma eller magnet), loggan som "extra gravyr" och skyltens del av

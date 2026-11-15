@@ -13,7 +13,7 @@ const plastic = { ...createBadgeDocument(["Erik"]), materialId: "plastic-2-layer
 describe("butikens prislista", () => {
   it("utan prislista är priset riktpriset", () => {
     assert.deepEqual(shopUnitPrices([metal], null, M), lineUnitPrices([metal], M));
-    assert.equal(shopPrice([metal], null, M).totalSek, priceOrder([metal], M).totalSek);
+    assert.equal(shopPrice([metal], null, M, 0).totalSek, priceOrder([metal], M, 0).totalSek);
     assert.equal(shopOrderPricing([metal], null, M), null);
     assert.equal(shopOrderPricing([metal], { percent: 0, perMaterial: {} }, M), null);
   });
@@ -26,7 +26,7 @@ describe("butikens prislista", () => {
 
   it("ordern sparas med exakt de priser kunden såg", () => {
     const list = { percent: 35, perMaterial: {} };
-    const shown = shopPrice([metal], list, M);
+    const shown = shopPrice([metal], list, M, 0);
     const pricing = shopOrderPricing([metal], list, M);
     assert.ok(pricing);
     assert.equal((pricing.unitOverrides[0] ?? 0) * metal.quantity, shown.totalSek);
@@ -56,7 +56,7 @@ describe("butikens prislista", () => {
 
   it("en liten order i butiken fylls upp till minsta ordervärde", () => {
     const one = [{ ...metal, quantity: 1 }];
-    const shown = shopPrice(one, { percent: 10, perMaterial: {} }, M);
+    const shown = shopPrice(one, { percent: 10, perMaterial: {} }, M, 0);
     assert.equal(shown.totalSek, M.minOrderSek);
     assert.equal(shown.minimumTopUpSek, M.minOrderSek - shown.badgesSek);
   });

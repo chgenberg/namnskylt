@@ -17,6 +17,7 @@ import {
   type BadgeDocument,
   type PricePart,
 } from "@/engine";
+import { useOrderShipping } from "@/hooks/use-order-shipping";
 import { formatSek } from "@/lib/format";
 import {
   addressFromDraft,
@@ -117,9 +118,11 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
   const address = addresses[deliverTo];
   const setAddress = (draft: DeliveryDraft) => setAddresses((all) => ({ ...all, [deliverTo]: draft }));
   const priceList = usePriceList();
-  const listPrice = priceOrder(badges, priceList);
+  // Frakten är samma för kunden och återförsäljaren. Återförsäljaren räknar den ur sin inköpslista, en kund får den av servern.
+  const shipping = useOrderShipping(badges, reseller?.purchaseList);
+  const listPrice = priceOrder(badges, priceList, shipping ?? 0);
   // Butiken visar sina egna priser; servern sparar ordern med samma tal.
-  const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, priceList) } : listPrice;
+  const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, priceList, shipping ?? 0) } : listPrice;
   // Specifikationen gäller skylten i editorn, på trappsteget för hela orderns antal.
   const parts = shopPriceParts(doc, price.quantity, shop?.priceList, priceList);
   const mixed = designs > 1;
@@ -274,7 +277,11 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
       <div className={styles.priceRow}>
         <div>
           <p className={styles.priceNote}>exkl. moms · {priceNote}</p>
-          {price.shippingSek > 0 && <p className={styles.priceNote}>Frakt {sek.format(price.shippingSek)} ingår i summan.</p>}
+          {shipping === null ? (
+            <p className={styles.priceNote}>Frakt tillkommer.</p>
+          ) : (
+            shipping > 0 && <p className={styles.priceNote}>Frakt {sek.format(shipping)} ingår i summan.</p>
+          )}
           {price.startShareSek > 0 && (
             <p className={styles.priceNote}>Startkostnaden ingår i priset och delas på antalet skyltar.</p>
           )}

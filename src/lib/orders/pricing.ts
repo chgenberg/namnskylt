@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { lineUnitPrices, shippingSek, VAT_RATE, type BadgeDocument, type PriceTable } from "@/engine";
+import { lineUnitPrices, VAT_RATE, type BadgeDocument, type PriceTable } from "@/engine";
 
 /** En egen rad utöver skyltarna, t.ex. framtagning av korrektur eller expressorder. */
 export interface PriceExtra {
@@ -63,7 +63,7 @@ export interface PricedTotals {
   minimumTopUpSek: number;
   /** Varuvärdet: skyltar, extrarader och påslaget, utan frakt. */
   goodsSek: number;
-  /** Frakten, räknad på varuvärdet. 0 kr för en order från före frakten. */
+  /** Orderns frakt, samma belopp som återförsäljaren betalar. 0 kr för en order från före frakten. */
   shippingSek: number;
   /** Varuvärdet plus frakten. */
   totalSek: number;
@@ -74,8 +74,16 @@ export interface PricedTotals {
 /**
  * Orderns pris till kunden. `priceList` är slutkundens prislista som gällde när
  * ordern eller offerten skapades — listpriserna och minsta ordervärdet kommer därifrån.
+ * `shippingSek` är orderns frakt. Den beror bara på skyltarna, aldrig på
+ * återförsäljarens egna priser, rabatter eller extrarader: en sparad order eller
+ * offert bär den (`shippingSek`), och en ny räknar den med `orderShippingSek`.
  */
-export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pricing | null, priceList: PriceTable): PricedTotals {
+export function priceWithPricing(
+  badges: readonly BadgeDocument[],
+  pricing: Pricing | null,
+  priceList: PriceTable,
+  shippingSek: number,
+): PricedTotals {
   const list = lineUnitPrices(badges, priceList);
   const lines = badges.map((badge, i) => {
     const listUnitSek = list[i] ?? 0;
@@ -94,8 +102,7 @@ export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pric
   const extrasSek = extras.reduce((sum, e) => sum + e.amountSek, 0);
   const minimumTopUpSek = badges.length > 0 ? Math.max(0, priceList.minOrderSek - badgesSek - extrasSek) : 0;
   const goodsSek = badgesSek + extrasSek + minimumTopUpSek;
-  const shipping = shippingSek(goodsSek, priceList);
-  const totalSek = goodsSek + shipping;
+  const totalSek = goodsSek + shippingSek;
   const vatSek = Math.round(totalSek * VAT_RATE);
   return {
     lines,
@@ -110,7 +117,7 @@ export function priceWithPricing(badges: readonly BadgeDocument[], pricing: Pric
     extrasSek,
     minimumTopUpSek,
     goodsSek,
-    shippingSek: shipping,
+    shippingSek,
     totalSek,
     vatSek,
     totalInclVatSek: totalSek + vatSek,

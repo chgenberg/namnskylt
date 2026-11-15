@@ -5,6 +5,7 @@ import { useMemo, useRef, useState, useTransition } from "react";
 import { BadgePreview } from "@/components/badge-preview";
 import { usePriceList } from "@/components/price-list-provider";
 import { priceOrder, type BadgeDocument } from "@/engine";
+import { useOrderShipping } from "@/hooks/use-order-shipping";
 import { formatSek } from "@/lib/format";
 import { staffBadges } from "@/lib/orders/repeat";
 import type { ActionResult } from "./actions";
@@ -27,9 +28,12 @@ export function NewNamesButton({ template, title, label, variant = "ghost", subm
   const [quantity, setQuantity] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [opened, setOpened] = useState(false);
   const badges = useMemo(() => staffBadges(template, names, quantity), [template, names, quantity]);
   const preview = badges[0] ?? template;
-  const price = priceOrder(badges, usePriceList());
+  // Frakten hämtas först när dialogen öppnas.
+  const shipping = useOrderShipping(badges, undefined, opened);
+  const price = priceOrder(badges, usePriceList(), shipping ?? 0);
 
   const send = () => {
     setError(null);
@@ -50,7 +54,10 @@ export function NewNamesButton({ template, title, label, variant = "ghost", subm
       <button
         type="button"
         className={variant === "primary" ? styles.repeat : styles.ghostButton}
-        onClick={() => dialog.current?.showModal()}
+        onClick={() => {
+          setOpened(true);
+          dialog.current?.showModal();
+        }}
       >
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
           <path d="M8 3v10M3 8h10" />
@@ -95,9 +102,16 @@ export function NewNamesButton({ template, title, label, variant = "ghost", subm
           <dl className={styles.summary}>
             <dt>Skyltar</dt>
             <dd>{badges.reduce((sum, b) => sum + b.quantity, 0)} st</dd>
+            {shipping !== null && shipping > 0 && (
+              <>
+                <dt>Varav frakt</dt>
+                <dd>{formatSek(shipping)}</dd>
+              </>
+            )}
             <dt className={styles.summaryTotal}>Totalt exkl. moms</dt>
             <dd className={styles.summaryTotal}>{formatSek(price.totalSek)}</dd>
           </dl>
+          {shipping === null && badges.length > 0 && <p className={styles.muted}>Frakt tillkommer.</p>}
           {error && (
             <p className={styles.error} role="alert">
               {error}

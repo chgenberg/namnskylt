@@ -52,7 +52,7 @@ export function quoteHtml(
     ? `<img class="logo${logoPlate ? " plate" : ""}" src="${esc(company.logo)}" alt="${esc(company.name)}"${logoPlate ? ` style="background:${logoPlate}"` : ""}>`
     : `<div class="brand">${esc(company.name)}${company.tagline ? `<small>${esc(company.tagline)}</small>` : ""}</div>`;
   const footer = companyFooter(company);
-  const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceList);
+  const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceList, quote.shippingSek);
   const customer = quote.customer;
   const info: [string, string][] = [
     ["Kund", customer.company ?? customer.name],

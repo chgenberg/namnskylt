@@ -81,7 +81,7 @@ describe("priceOrder", () => {
   it("ger lägre pris på orderns totala antal, även för olika namn", () => {
     const template = createBadgeDocument(["Anna"]);
     const names = Array.from({ length: 120 }, (_, i) => withTexts(template, [`Person ${i}`]));
-    const order = priceOrder(names, LIST);
+    const order = priceOrder(names, LIST, 0);
     assert.equal(order.quantity, 120);
     assert.equal(order.tierIndex, 1);
     assert.ok(order.unitSek < priceBadge({ ...template, quantity: 10 }, LIST).unitSek);
@@ -89,7 +89,7 @@ describe("priceOrder", () => {
 
   it("stämmer med priceBadge för en enda rad", () => {
     const doc = { ...createBadgeDocument(["Anna"]), quantity: 250 };
-    assert.deepEqual(priceOrder([doc], LIST), priceBadge(doc, LIST));
+    assert.deepEqual(priceOrder([doc], LIST, 0), priceBadge(doc, LIST));
   });
 });
 

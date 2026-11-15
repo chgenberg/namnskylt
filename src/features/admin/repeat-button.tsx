@@ -5,6 +5,7 @@ import { useRef, useState, useTransition } from "react";
 import { BadgePreview } from "@/components/badge-preview";
 import { usePriceList } from "@/components/price-list-provider";
 import { priceOrder } from "@/engine";
+import { useOrderShipping } from "@/hooks/use-order-shipping";
 import { formatSek } from "@/lib/format";
 import { badgeCount, type StoredOrder } from "@/lib/orders/model";
 import { repeatOrderAction } from "./actions";
@@ -21,8 +22,10 @@ export function RepeatButton({ order, compact = false }: RepeatButtonProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  // En ny order får dagens priser, inte den gamla orderns.
-  const price = priceOrder(order.badges, usePriceList());
+  const [opened, setOpened] = useState(false);
+  // En ny order får dagens priser och dagens frakt, inte den gamla orderns. Frakten hämtas först när dialogen öppnas.
+  const shipping = useOrderShipping(order.badges, undefined, opened);
+  const price = priceOrder(order.badges, usePriceList(), shipping ?? 0);
   const first = order.badges[0];
 
   const confirm = () => {
@@ -44,7 +47,10 @@ export function RepeatButton({ order, compact = false }: RepeatButtonProps) {
         type="button"
         className={styles.repeat}
         disabled={order.badges.length === 0}
-        onClick={() => dialog.current?.showModal()}
+        onClick={() => {
+          setOpened(true);
+          dialog.current?.showModal();
+        }}
       >
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
           <path d="M13.5 8A5.5 5.5 0 1 1 11.9 4.1M13.5 2.5v3h-3" />
@@ -76,10 +82,19 @@ export function RepeatButton({ order, compact = false }: RepeatButtonProps) {
             <dd>{order.badges.length}</dd>
             <dt>Skyltar</dt>
             <dd>{badgeCount(order)} st</dd>
+            {shipping !== null && shipping > 0 && (
+              <>
+                <dt>Varav frakt</dt>
+                <dd>{formatSek(shipping)}</dd>
+              </>
+            )}
             <dt className={styles.summaryTotal}>Totalt exkl. moms</dt>
             <dd className={styles.summaryTotal}>{formatSek(price.totalSek)}</dd>
           </dl>
-          <p className={styles.muted}>Ordern skickas direkt till tillverkningen med samma design och antal.</p>
+          <p className={styles.muted}>
+            {shipping === null && "Frakt tillkommer. "}
+            Ordern skickas direkt till tillverkningen med samma design och antal.
+          </p>
           {error && (
             <p className={styles.error} role="alert">
               {error}
@@ -90,7 +105,7 @@ export function RepeatButton({ order, compact = false }: RepeatButtonProps) {
               Avbryt
             </button>
             <button type="button" className="btn btn--primary" disabled={pending} onClick={confirm}>
-              {pending ? "Lägger ordern…" : `Beställ · ${formatSek(price.totalInclVatSek)} inkl. moms`}
+              {pending ? "Lägger ordern…" : shipping === null ? "Beställ" : `Beställ · ${formatSek(price.totalInclVatSek)} inkl. moms`}
             </button>
           </div>
         </div>

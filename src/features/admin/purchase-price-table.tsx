@@ -114,7 +114,7 @@ export function PurchasePriceTable({ purchase, list, marginPercent }: PurchasePr
               </dd>
               <small>
                 per order: {formatSek(shipping.letterSek)} när varorna kostar dig högst {formatSek(shipping.letterMaxSek)},
-                annars {formatSek(shipping.parcelSek)}. Kunden betalar frakt efter samma prislista, räknad på sitt pris.
+                annars {formatSek(shipping.parcelSek)}. Din kund betalar samma frakt som du.
               </small>
             </div>
           )}

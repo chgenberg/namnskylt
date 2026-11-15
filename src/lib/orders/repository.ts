@@ -8,7 +8,7 @@ import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { db, requireDb } from "@/lib/db/client";
 import { withStoredLogoImages } from "@/lib/logo-images/repository";
 import { deliveryAddressSchema, deliverySchema, parseDelivery, type Delivery, type DeliveryAddress } from "./delivery";
-import { priceListsFor, storedPriceModel, type PriceAudience } from "./price-lists";
+import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "./price-lists";
 import { isCustomPricing, pricingSchema, priceWithPricing, type Pricing } from "./pricing";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
 import { isOwner, OWNER_TENANT, settingsKey } from "@/lib/tenants/model";
@@ -83,7 +83,7 @@ function toOrder(row: OrderRow, currentModel: PriceModel, audience: PriceAudienc
     status: isOrderStatus(row.status) ? row.status : "received",
     badges: badges.success ? badges.data : [],
     pricing: parsePricing(row.pricing),
-    ...priceListsFor(row.price_model, currentModel, audience),
+    ...priceListsFor(row.price_model, currentModel, audience, badges.success ? badges.data : []),
     totalSek: row.total_sek,
     totalInclVatSek: row.total_incl_vat_sek,
     supplierOrderNo: row.supplier_order_no,
@@ -235,7 +235,7 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
   const sql = requireDb();
   const pricing = isCustomPricing(order.pricing ?? null) ? (order.pricing ?? null) : null;
   const model = order.priceModel ?? (await getPriceModel());
-  const price = priceWithPricing(order.badges, pricing, endPriceTable(model));
+  const price = priceWithPricing(order.badges, pricing, endPriceTable(model), shippingFor(model, order.badges));
   // En logga i färg sparas en gång; skyltarna pekar på den.
   const badges = await withStoredLogoImages(order.badges);
   const email = order.customer.email.trim().toLowerCase();
@@ -538,7 +538,8 @@ export async function updateOrderPricing(tenant: string, orderNo: string, pricin
     const badges = badgesSchema.safeParse(row?.badges);
     if (!row || !badges.success) return false;
     const custom = isCustomPricing(pricing) ? pricing : null;
-    const price = priceWithPricing(badges.data, custom, endPriceTable(storedPriceModel(row.price_model, currentModel)));
+    const model = storedPriceModel(row.price_model, currentModel);
+    const price = priceWithPricing(badges.data, custom, endPriceTable(model), shippingFor(model, badges.data));
     await tx`
       update orders set pricing = ${custom ? tx.json(custom as unknown as Json) : null},
              total_sek = ${price.totalSek}, total_incl_vat_sek = ${price.totalInclVatSek}
