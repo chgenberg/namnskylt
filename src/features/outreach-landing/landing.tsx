@@ -46,7 +46,7 @@ export function OutreachLanding({ token, data, selected, calendlyUrl }: Outreach
           <p className={styles.eyebrow}>Förberett åt {company}</p>
           <h1 className={styles.title}>{greetingName ? `${greetingName}, här är er skylt.` : "Här är er skylt."}</h1>
           <p className={styles.lead}>
-            Vi har byggt en butik där era kunder designar och beställer graverade namnskyltar — med{" "}
+            Vi har byggt en butik där era kunder designar och beställer namnskyltar — med{" "}
             {hasLogo ? "er logga" : "ert namn"} redan på plats. Prova den som en kund gör.
           </p>
           <div className={styles.actions}>
@@ -64,7 +64,7 @@ export function OutreachLanding({ token, data, selected, calendlyUrl }: Outreach
             src={assetPath(shown.id)}
             width={shown.width}
             height={shown.height}
-            alt={showingPersona ? `AI-genererad person som bär en namnskylt åt ${company}` : `Graverad namnskylt åt ${company}`}
+            alt={showingPersona ? `AI-genererad person som bär en namnskylt åt ${company}` : `Namnskylt åt ${company}`}
             className={styles.badge}
           />
           <figcaption className={styles.caption}>

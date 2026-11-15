@@ -9,11 +9,11 @@ import {
   type FontEngine,
 } from "@/engine";
 import { companyFooter, DEFAULT_COMPANY, readableOn, type CompanyProfile } from "@/lib/company/profile";
-import { deliveryLines } from "@/lib/orders/delivery";
+import { deliveryLines, shippingMethodOf, shippingNote } from "@/lib/orders/delivery";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import type { StoredQuote } from "./model";
 
-const PROMISES = ["Korrektur innan gravyr", "Leverans inom 5 arbetsdagar", "Svensk tillverkning"];
+const PROMISES = ["Korrektur innan produktion", "Leverans inom 5 arbetsdagar", "Svensk tillverkning"];
 
 const esc = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
@@ -53,6 +53,7 @@ export function quoteHtml(
     : `<div class="brand">${esc(company.name)}${company.tagline ? `<small>${esc(company.tagline)}</small>` : ""}</div>`;
   const footer = companyFooter(company);
   const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceList, quote.shippingSek);
+  const shipping = shippingNote(shippingMethodOf(quote.delivery));
   const customer = quote.customer;
   const info: [string, string][] = [
     ["Kund", customer.company ?? customer.name],
@@ -138,12 +139,13 @@ ${
 ${priced.extras.map((e) => `<div><span>${esc(e.label)}</span><span>${esc(sek(e.amountSek))}</span></div>`).join("")}
 ${priced.minimumTopUpSek > 0 ? `<div><span>Upp till minsta ordervärde</span><span>${esc(sek(priced.minimumTopUpSek))}</span></div>` : ""}
 ${priced.shippingSek > 0 ? `<div><span>Frakt</span><span>${esc(sek(priced.shippingSek))}</span></div>` : ""}
+${shipping ? `<div><span>${esc(shipping.label)}</span><span>${esc(shipping.value)}</span></div>` : ""}
 <div class="tot"><span>Totalt exkl. moms</span><span>${esc(sek(priced.totalSek))}</span></div>
 <div class="vat"><span>Moms 25 %</span><span>${esc(sek(priced.vatSek))}</span></div>
 <div class="vat"><span>Att betala inkl. moms</span><span>${esc(sek(priced.totalInclVatSek))}</span></div>
 </div>
 <div class="promise">${PROMISES.map((p) => `<span>${esc(p)}</span>`).join("")}</div>
-<div class="accept"><b>Godkänn offerten</b> — öppna länken i mejlet och klicka ”Godkänn”, så går skyltarna till gravyren.</div>
+<div class="accept"><b>Godkänn offerten</b> — öppna länken i mejlet och klicka ”Godkänn”, så går skyltarna till tillverkningen.</div>
 <div class="foot"><div class="terms">Offerten gäller till ${esc(day(quote.validUntil))}.${company.quoteTerms ? `\n${esc(company.quoteTerms)}` : ""}</div><div class="seller">${footer.map(esc).join("<br>")}</div></div>
 </div></body></html>`;
 }

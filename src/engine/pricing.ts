@@ -69,6 +69,24 @@ export function shippingSek(goodsSek: number, table: Pick<PriceTable, "shipping"
 }
 
 /**
+ * Hur ordern lämnar verkstaden, samma val som i Skylt & Gravyrtekniks egen
+ * kassa (beslut av ägaren 2026-11-15). `standard` följer fraktregeln: varubrev
+ * eller paket. `pickup` hämtas hos verkstaden utan frakt. `express` är PostNord
+ * Express, där verkstaden sätter priset efter storlek och vikt innan ordern
+ * skickas, så ordern har ingen frakt när den läggs.
+ */
+export const SHIPPING_METHODS = ["standard", "express", "pickup"] as const;
+export type ShippingMethod = (typeof SHIPPING_METHODS)[number];
+
+/** Listan som gäller för ett fraktsätt: bara standardfrakten följer fraktregeln. */
+export function withShippingMethod(table: PriceTable, method: ShippingMethod): PriceTable {
+  if (method === "standard" || !table.shipping) return table;
+  const rest = { ...table };
+  delete rest.shipping;
+  return rest;
+}
+
+/**
  * En parts prislista: vad den betalar per skylt på varje trappsteg, för
  * tillvalen, i startkostnad, i frakt och som minst för en order. Innehåller
  * ingenting om de andra parterna, så den kan skickas till den partens webbläsare.

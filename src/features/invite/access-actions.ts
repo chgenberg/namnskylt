@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { createRateLimiter } from "@/lib/ai/rate-limit";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
-import { saveCompanyProfile } from "@/lib/orders/repository";
+import { saveCompanyProfile, saveResellerDeliveryAddress } from "@/lib/orders/repository";
 import { consumeAccessLink, findAccessLink } from "@/lib/reseller-auth/access-links";
 import { accountIdByEmail, createAccount, freeTenantId, setPassword } from "@/lib/reseller-auth/accounts";
 import { tenantSlug } from "@/lib/reseller-auth/application-model";
@@ -54,9 +54,12 @@ export async function setPasswordAction(token: string, password: string): Promis
       orgNumber: application.orgNumber,
       address: application.address,
       email: application.email,
+      invoiceEmail: application.invoiceEmail,
       phone: application.phone,
       website: application.website,
     });
+    // Leveransadressen blir den som fylls i när skyltarna ska "till oss".
+    if (application.delivery) await saveResellerDeliveryAddress(tenant, application.delivery);
     await linkApplicationAccount(application.id, tenant);
   }
   const jar = await cookies();

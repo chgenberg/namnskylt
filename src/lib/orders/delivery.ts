@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SHIPPING_METHODS, type ShippingMethod } from "@/engine";
 
 /**
  * Leveransadressen på en order. Fälten följer Skylt & Gravyrtekniks adress
@@ -27,10 +28,42 @@ export const DELIVERY_TO_LABEL: Record<DeliveryTo, string> = {
   reseller: "Till oss",
 };
 
-/** Leveransen på en order: vem som tar emot och vart. */
+export const SHIPPING_METHOD_LABEL: Record<ShippingMethod, string> = {
+  standard: "Standardfrakt",
+  express: "PostNord Express",
+  pickup: "Hämta i Högsbo",
+};
+
+/** Det den som väljer behöver veta om varje fraktsätt. Texterna följer Skylt & Gravyrtekniks egen kassa. */
+export const SHIPPING_METHOD_INFO: Record<ShippingMethod, string> = {
+  standard: "PostNord varubrev eller DHL-paket, beroende på orderns storlek.",
+  express: "Priset avgörs av storlek och vikt. Fraktkostnaden tillkommer och meddelas innan ordern skickas.",
+  pickup: "F O Petersons gata 28, Västra Frölunda. Mån–tor 08–17, fre 08–16. Ingen frakt.",
+};
+
+/**
+ * Fraktraden på en offert eller order när frakten inte är ett belopp:
+ * expressfrakten tillkommer och upphämtning kostar inget. `null` för
+ * standardfrakt, som visas med sitt belopp. Texten nämner inte verkstaden,
+ * eftersom raden också står på offerten som återförsäljarens kund läser.
+ */
+export function shippingNote(method: ShippingMethod): { label: string; value: string } | null {
+  if (method === "express") return { label: "Frakt, express", value: "tillkommer" };
+  if (method === "pickup") return { label: "Frakt, hämtas", value: "0 kr" };
+  return null;
+}
+
+/** Fraktsättet på en leverans. En leverans sparad före valet har standardfrakt. */
+export function shippingMethodOf(delivery: { method?: ShippingMethod } | null | undefined): ShippingMethod {
+  return delivery?.method ?? "standard";
+}
+
+/** Leveransen på en order: vem som tar emot, vart och hur. */
 export interface Delivery {
   to: DeliveryTo;
   address: DeliveryAddress;
+  /** Saknas på leveranser sparade före valet av fraktsätt, och betyder då standardfrakt. */
+  method?: ShippingMethod;
 }
 
 /**
@@ -40,6 +73,7 @@ export interface Delivery {
 export interface QuoteDelivery {
   to: DeliveryTo;
   address: DeliveryAddress | null;
+  method?: ShippingMethod;
 }
 
 /** Fälten som de skrivs i ett formulär, alla som text. */
@@ -88,15 +122,18 @@ export const deliveryAddressSchema = z.object({
 }) satisfies z.ZodType<DeliveryAddress, unknown>;
 
 const deliveryToSchema = z.enum(["customer", "reseller"]);
+export const shippingMethodSchema = z.enum(SHIPPING_METHODS);
 
-export const deliverySchema = z.object({ to: deliveryToSchema, address: deliveryAddressSchema }) satisfies z.ZodType<
-  Delivery,
-  unknown
->;
+export const deliverySchema = z.object({
+  to: deliveryToSchema,
+  address: deliveryAddressSchema,
+  method: shippingMethodSchema.optional(),
+}) satisfies z.ZodType<Delivery, unknown>;
 
 export const quoteDeliverySchema = z.object({
   to: deliveryToSchema,
   address: deliveryAddressSchema.nullable(),
+  method: shippingMethodSchema.optional(),
 }) satisfies z.ZodType<QuoteDelivery, unknown>;
 
 /** Läser en sparad leverans. `null` när värdet saknas eller inte går att använda. */

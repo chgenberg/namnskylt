@@ -55,7 +55,7 @@ export async function renderShareImage(source: BadgeDocument): Promise<Buffer> {
     `<ellipse cx="${SHARE_IMAGE_WIDTH_PX / 2}" cy="${y + h + 26}" rx="${w * 0.46}" ry="18" fill="#0b1f3a" fill-opacity=".22" filter="url(#shadow)"/>`,
     badge,
     centeredText(fonts, heading.length > 48 ? "En ny namnskylt" : heading, 38, true, 76, NAVY),
-    centeredText(fonts, "Graverad i Sverige · namnskylt.com", 24, false, 580, MUTED),
+    centeredText(fonts, "Tillverkad i Sverige · namnskylt.com", 24, false, 580, MUTED),
     `</svg>`,
   ].join("");
   return new Resvg(svg, { font: { loadSystemFonts: false } }).render().asPng();

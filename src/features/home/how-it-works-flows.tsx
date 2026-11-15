@@ -193,7 +193,7 @@ function TeamFlow() {
 
 const DELIVERY = [
   { label: "Produktionsfil", icon: "check" },
-  { label: "Gravyr", icon: "laser" },
+  { label: "Tillverkning", icon: "laser" },
   { label: "Leverans", icon: "box" },
 ] as const;
 

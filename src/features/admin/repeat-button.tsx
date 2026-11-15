@@ -5,6 +5,7 @@ import { useRef, useState, useTransition } from "react";
 import { BadgePreview } from "@/components/badge-preview";
 import { usePriceList } from "@/components/price-list-provider";
 import { priceOrder } from "@/engine";
+import { shippingMethodOf } from "@/lib/orders/delivery";
 import { useOrderShipping } from "@/hooks/use-order-shipping";
 import { formatSek } from "@/lib/format";
 import { badgeCount, type StoredOrder } from "@/lib/orders/model";
@@ -24,7 +25,10 @@ export function RepeatButton({ order, compact = false }: RepeatButtonProps) {
   const [pending, startTransition] = useTransition();
   const [opened, setOpened] = useState(false);
   // En ny order får dagens priser och dagens frakt, inte den gamla orderns. Frakten hämtas först när dialogen öppnas.
-  const shipping = useOrderShipping(order.badges, undefined, opened);
+  // Leveranssättet ärvs: upphämtning och express har ingen frakt på ordern.
+  const standard = shippingMethodOf(order.delivery) === "standard";
+  const standardShipping = useOrderShipping(order.badges, undefined, opened && standard);
+  const shipping = standard ? standardShipping : 0;
   const price = priceOrder(order.badges, usePriceList(), shipping ?? 0);
   const first = order.badges[0];
 

@@ -92,19 +92,19 @@ export const SHOWCASE_MATERIALS = [
 const ORDER_STEPS = [
   { title: "Skriv namnen", text: "Ett namn per rad — eller ladda upp hela teamet från en Excel-lista." },
   { title: "Välj material och fäste", text: "Se skylten i 3D medan du väljer. Lägg till er logga om ni vill." },
-  { title: "Godkänn korrekturen", text: "Du får se varje skylt innan något graveras." },
-  { title: "Få skyltarna", text: "Skyltarna graveras och skickas inom fem arbetsdagar." },
+  { title: "Godkänn korrekturen", text: "Du får se varje skylt innan något tillverkas." },
+  { title: "Få skyltarna", text: "Skyltarna tillverkas och skickas inom fem arbetsdagar." },
 ];
 
 const FAQ = [
-  { question: "Hur lång är leveranstiden?", answer: "Skyltarna graveras och skickas inom fem arbetsdagar efter att korrekturen är godkänd." },
-  { question: "Får jag se skylten innan den graveras?", answer: "Ja. Du ser skylten i 3D när du beställer och godkänner en korrektur innan något graveras." },
+  { question: "Hur lång är leveranstiden?", answer: "Skyltarna tillverkas och skickas inom fem arbetsdagar efter att korrekturen är godkänd." },
+  { question: "Får jag se skylten innan den tillverkas?", answer: "Ja. Du ser skylten i 3D när du beställer och godkänner en korrektur innan något tillverkas." },
   { question: "Kan jag beställa till hela teamet på en gång?", answer: "Ja. Skriv ett namn per rad eller ladda upp en Excel-lista — namn och titel hittas automatiskt." },
-  { question: "Vilka material finns?", answer: "Graverade metallskyltar i vitt, borstat guld och borstat silver, i fyra former." },
+  { question: "Vilka material finns?", answer: "Metallskyltar i vitt, borstat guld och borstat silver och plastskyltar i fyra färger, i fyra former." },
   { question: "Vilka fästen kan jag välja?", answer: "Nål, magnet eller klämma. Magneten är skonsam mot kläderna." },
-  { question: "Kan vår logga graveras på skylten?", answer: "Ja. Ladda upp loggan i skyltmotorn så graveras den tillsammans med texten." },
+  { question: "Kan vi få vår logga på skylten?", answer: "Ja. Ladda upp loggan i skyltmotorn. En svartvit logga graveras med texten och en logga i färg trycks." },
   { question: "Blir det billigare om vi beställer fler?", answer: "Ja. Priset per skylt sjunker vid större beställningar — ju fler, desto lägre pris per skylt." },
-  { question: "Kan jag ändra något efter beställningen?", answer: "Säg till innan du godkänt korrekturen, så rättar vi. Efter godkännandet går skyltarna direkt till gravyr." },
+  { question: "Kan jag ändra något efter beställningen?", answer: "Säg till innan du godkänt korrekturen, så rättar vi. Efter godkännandet går skyltarna direkt till tillverkning." },
 ];
 
 const pick = <T,>(list: readonly T[], indexes: readonly number[]) => indexes.flatMap((i) => (list[i] ? [list[i]] : []));
@@ -139,7 +139,7 @@ function templateBlocks(id: PageTemplateId, shop: TemplateShop, imageIds: readon
           imageId: image(1),
           imageSide: "right",
           title: "Gjort för att synas",
-          text: "Varje skylt graveras i Sverige med det namn och den titel ni skriver. Ni ser den i 3D innan ni beställer och godkänner en korrektur innan något graveras.",
+          text: "Varje skylt tillverkas i Sverige med det namn och den titel ni skriver. Ni ser den i 3D innan ni beställer och godkänner en korrektur innan något tillverkas.",
           buttonLabel: "Skapa er skylt",
           buttonHref: create,
         },
@@ -148,8 +148,8 @@ function templateBlocks(id: PageTemplateId, shop: TemplateShop, imageIds: readon
           id: b(),
           title: "Därför väljer kunderna oss",
           items: [
-            { title: "Snabbt", text: "Skyltarna graveras och skickas inom fem arbetsdagar." },
-            { title: "Rätt från början", text: "Korrektur innan gravyr — inga stavfel på skylten." },
+            { title: "Snabbt", text: "Skyltarna tillverkas och skickas inom fem arbetsdagar." },
+            { title: "Rätt från början", text: "Korrektur innan produktion — inga stavfel på skylten." },
             { title: "Hela teamet", text: "Alla namn på en gång, eller direkt från en Excel-lista." },
           ],
         },
@@ -181,7 +181,7 @@ function templateBlocks(id: PageTemplateId, shop: TemplateShop, imageIds: readon
           kind: "header",
           id: b(),
           title: "Material och sortiment",
-          lead: "Metallskyltar i vitt, borstat guld och borstat silver — alla graverade med ert namn.",
+          lead: "Metallskyltar i vitt, borstat guld och borstat silver — alla med ert namn.",
           imageId: null,
           align: "left",
         },
@@ -234,7 +234,7 @@ function templateBlocks(id: PageTemplateId, shop: TemplateShop, imageIds: readon
           imageId: image(0),
           imageSide: "right",
           title: "Klart på fem arbetsdagar",
-          text: "Skriv namnen, se skyltarna i 3D och godkänn korrekturen. Sedan graverar vi och skickar.",
+          text: "Skriv namnen, se skyltarna i 3D och godkänn korrekturen. Sedan tillverkar vi och skickar.",
           buttonLabel: "Skapa skyltar",
           buttonHref: create,
         },

@@ -129,7 +129,7 @@ export function SiteGate({ unlocked, children }: SiteGateProps) {
               </svg>
             )}
           </button>
-          <p className={styles.footnote}>Graverat i Sverige · Skylt &amp; Gravyrteknik</p>
+          <p className={styles.footnote}>Tillverkat i Sverige · Skylt &amp; Gravyrteknik</p>
         </form>
       </dialog>
     </div>

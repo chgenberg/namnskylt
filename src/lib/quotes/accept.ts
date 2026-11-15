@@ -26,7 +26,8 @@ export const MISSING_DELIVERY_ERROR = "Fyll i leveransadressen innan offerten go
  */
 export function acceptedDelivery(quote: Pick<StoredQuote, "delivery">, fromCustomer: DeliveryAddress | null): Delivery | null {
   const address = quote.delivery.to === "customer" ? (fromCustomer ?? quote.delivery.address) : quote.delivery.address;
-  return address ? { to: quote.delivery.to, address } : null;
+  // Fraktsättet följer med från offerten till ordern.
+  return address ? { to: quote.delivery.to, address, ...(quote.delivery.method && { method: quote.delivery.method }) } : null;
 }
 
 /**

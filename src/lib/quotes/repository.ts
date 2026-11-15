@@ -6,7 +6,7 @@ import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
 import { endPriceTable, type PriceModel } from "@/engine/price-model";
 import { requireDb } from "@/lib/db/client";
 import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages, withStoredLogoImages } from "@/lib/logo-images/repository";
-import { parseQuoteDelivery, quoteDeliverySchema, type QuoteDelivery } from "@/lib/orders/delivery";
+import { parseQuoteDelivery, quoteDeliverySchema, shippingMethodOf, type QuoteDelivery } from "@/lib/orders/delivery";
 import { isCustomPricing, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
 import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "@/lib/orders/price-lists";
 import { getPriceModel, parsePricing } from "@/lib/orders/repository";
@@ -81,7 +81,7 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
     status: isQuoteStatus(row.status) ? row.status : "draft",
     badges: badges.success ? badges.data : [],
     pricing: parsePricing(row.pricing),
-    ...priceListsFor(row.price_model, currentModel, audience, badges.success ? badges.data : []),
+    ...priceListsFor(row.price_model, currentModel, audience, badges.success ? badges.data : [], shippingMethodOf(parseQuoteDelivery(row.delivery))),
     totalSek: row.total_sek,
     totalInclVatSek: row.total_incl_vat_sek,
     message: row.message,
@@ -155,7 +155,7 @@ export async function createQuote(input: {
 }): Promise<{ quoteNo: string }> {
   const sql = requireDb();
   const model = await getPriceModel();
-  const price = priceWithPricing(input.badges, null, endPriceTable(model), shippingFor(model, input.badges));
+  const price = priceWithPricing(input.badges, null, endPriceTable(model), shippingFor(model, input.badges, shippingMethodOf(input.delivery)));
   // En logga i färg sparas en gång; skyltarna pekar på den. En bild som saknas stoppar offerten.
   if (await missingLogoImages(input.badges)) throw new Error(MISSING_LOGO_IMAGE_ERROR);
   const badges = await withStoredLogoImages(input.badges);
@@ -190,13 +190,14 @@ export async function updateQuote(
   const sql = requireDb();
   const currentModel = await getPriceModel();
   return sql.begin(async (tx) => {
-    const [row] = await tx<{ id: string; badges: unknown; status: string; pricing: unknown; price_model: unknown }[]>`
-      select id, badges, status, pricing, price_model from quotes where quote_no = ${quoteNo} and reseller_id = ${tenant} for update`;
+    const [row] = await tx<{ id: string; badges: unknown; status: string; pricing: unknown; price_model: unknown; delivery: unknown }[]>`
+      select id, badges, status, pricing, price_model, delivery from quotes where quote_no = ${quoteNo} and reseller_id = ${tenant} for update`;
     const badges = badgesSchema.safeParse(row?.badges);
     if (!row || !badges.success || !["draft", "sent", "declined"].includes(row.status)) return false;
     const pricing = patch.pricing !== undefined ? (isCustomPricing(patch.pricing) ? patch.pricing : null) : parsePricing(row.pricing);
     const model = storedPriceModel(row.price_model, currentModel);
-    const price = priceWithPricing(badges.data, pricing, endPriceTable(model), shippingFor(model, badges.data));
+    const method = shippingMethodOf(parseQuoteDelivery(row.delivery));
+    const price = priceWithPricing(badges.data, pricing, endPriceTable(model), shippingFor(model, badges.data, method));
     const status: QuoteStatus = row.status === "declined" ? "draft" : (row.status as QuoteStatus);
     await tx`
       update quotes set pricing = ${pricing ? tx.json(pricing as unknown as Json) : null},
@@ -213,15 +214,31 @@ export async function updateQuote(
   });
 }
 
-/** Vart offertens skyltar ska skickas. Går att ändra tills offerten är besvarad. */
+/**
+ * Vart och hur offertens skyltar ska skickas. Går att ändra tills offerten är
+ * besvarad. Frakten följer fraktsättet, så summan räknas om.
+ */
 export async function updateQuoteDelivery(tenant: string, quoteNo: string, delivery: QuoteDelivery): Promise<boolean> {
   const sql = requireDb();
   const parsed = quoteDeliverySchema.parse(delivery);
-  const [row] = await sql<{ id: string }[]>`
-    update quotes set delivery = ${sql.json(parsed as unknown as Json)}
-     where quote_no = ${quoteNo} and reseller_id = ${tenant} and status in ('draft', 'sent', 'declined')
-    returning id`;
-  return Boolean(row);
+  const currentModel = await getPriceModel();
+  return sql.begin(async (tx) => {
+    const [row] = await tx<{ id: string; badges: unknown; pricing: unknown; price_model: unknown }[]>`
+      select id, badges, pricing, price_model from quotes
+       where quote_no = ${quoteNo} and reseller_id = ${tenant} and status in ('draft', 'sent', 'declined') for update`;
+    if (!row) return false;
+    const badges = badgesSchema.safeParse(row.badges);
+    const model = storedPriceModel(row.price_model, currentModel);
+    const price = badges.success
+      ? priceWithPricing(badges.data, parsePricing(row.pricing), endPriceTable(model), shippingFor(model, badges.data, shippingMethodOf(parsed)))
+      : null;
+    await tx`
+      update quotes set delivery = ${tx.json(parsed as unknown as Json)},
+             total_sek = ${price ? price.totalSek : tx`total_sek`},
+             total_incl_vat_sek = ${price ? price.totalInclVatSek : tx`total_incl_vat_sek`}
+       where id = ${row.id}`;
+    return true;
+  });
 }
 
 /** Leveransen som gällde när offerten blev en order. Sparas på offerten så att den visar vart skyltarna gick. */

@@ -111,6 +111,42 @@
   color: var(--color-muted);
 }
 
+/* En grupp av fält med rubrik, som Företagsinformation eller Faktureringsadress. */
+.group {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3) var(--space-5) var(--space-5);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+}
+
+.group legend {
+  padding: 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+/* En kryssruta med sin text bredvid. */
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+/* Två lika breda fält, som förnamn och efternamn. */
+.half {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.half input {
+  width: 100%;
+}
+
 /* Två fält i bredd, som postnummer och ort. */
 .pair {
   display: grid;
@@ -144,6 +180,7 @@
   color: var(--color-muted);
 }
 
+.lead a,
 .foot a {
   color: var(--color-ink);
   text-decoration: underline;

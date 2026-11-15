@@ -1,5 +1,14 @@
 import "server-only";
-import { createBadgeDocument, priceItemsOf, priceOrder, resellerOrder, toOre, type BadgeDocument } from "@/engine";
+import {
+  createBadgeDocument,
+  priceItemsOf,
+  priceOrder,
+  resellerOrder,
+  toOre,
+  withShippingMethod,
+  type BadgeDocument,
+  type ShippingMethod,
+} from "@/engine";
 import { endPriceTable, orderShippingSek, provisionSplit, resellerPriceTable, type PriceModel } from "@/engine/price-model";
 import { toCsv } from "./csv";
 import { ORDER_STATUS_LABEL, type OrderStatus } from "./model";
@@ -22,9 +31,12 @@ export interface OrderShare {
   supplierSek: number;
 }
 
-/** Fördelningen för en order, räknad med modellen som gällde när ordern lades. */
-export function orderShare(badges: readonly BadgeDocument[], model: PriceModel): OrderShare {
-  const purchase = resellerOrder(badges, resellerPriceTable(model));
+/**
+ * Fördelningen för en order, räknad med modellen som gällde när ordern lades.
+ * Frakten följer orderns fraktsätt: upphämtning och express har ingen frakt på ordern.
+ */
+export function orderShare(badges: readonly BadgeDocument[], model: PriceModel, method: ShippingMethod = "standard"): OrderShare {
+  const purchase = resellerOrder(badges, withShippingMethod(resellerPriceTable(model), method));
   return {
     quantity: purchase.quantity,
     resellerSek: purchase.goodsSek,

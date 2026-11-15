@@ -1,5 +1,5 @@
 import "server-only";
-import { priceItemsOf, type BadgeDocument, type PriceTable } from "@/engine";
+import { priceItemsOf, withShippingMethod, type BadgeDocument, type PriceTable, type ShippingMethod } from "@/engine";
 import { endPriceTable, orderShippingSek, parseStoredPriceModel, resellerPriceTable, type PriceModel } from "@/engine/price-model";
 
 /**
@@ -18,9 +18,12 @@ export interface PriceLists {
   shippingSek: number;
 }
 
-/** Frakten för skyltarna enligt en prismodell. Samma belopp i alla led. */
-export function shippingFor(model: PriceModel, badges: readonly BadgeDocument[]): number {
-  return orderShippingSek(model, priceItemsOf(badges));
+/**
+ * Frakten för skyltarna enligt en prismodell. Samma belopp i alla led.
+ * Upphämtning och express har ingen frakt på ordern.
+ */
+export function shippingFor(model: PriceModel, badges: readonly BadgeDocument[], method: ShippingMethod = "standard"): number {
+  return orderShippingSek(model, priceItemsOf(badges), method);
 }
 
 /** Modellen som sparats på raden. Rader från före prismodellen saknar den och får dagens. */
@@ -37,11 +40,13 @@ export function priceListsFor(
   currentModel: PriceModel,
   audience: PriceAudience,
   badges: readonly BadgeDocument[],
+  method: ShippingMethod = "standard",
 ): PriceLists {
   const model = storedPriceModel(storedModel, currentModel);
   return {
     priceList: endPriceTable(model),
-    ...(audience === "reseller" && { purchaseList: resellerPriceTable(model) }),
-    shippingSek: shippingFor(model, badges),
+    // Inköpslistan följer radens fraktsätt, så att allt som räknas ur den får samma frakt som raden.
+    ...(audience === "reseller" && { purchaseList: withShippingMethod(resellerPriceTable(model), method) }),
+    shippingSek: shippingFor(model, badges, method),
   };
 }

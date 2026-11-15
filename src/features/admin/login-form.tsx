@@ -116,9 +116,10 @@ export function LoginForm({ kind }: { kind: keyof typeof LOGINS }) {
             <>
               Inget konto?{" "}
               <Link href="/aterforsaljare/ansok" className={styles.link}>
-                Ansök om att bli återförsäljare
+                Skapa konto
               </Link>
-              . Har du glömt lösenordet skickar namnskylt.com en länk där du väljer ett nytt.
+              <br />
+              Glömt lösenordet? Hör av dig till namnskylt.com, så får du en länk där du väljer ett nytt.
             </>
           ) : (
             <>

@@ -73,6 +73,22 @@ export default async function ResellersPage() {
                   )}
                   <dt>Fakturaadress</dt>
                   <dd style={{ whiteSpace: "pre-line" }}>{application.address}</dd>
+                  {application.invoiceEmail && (
+                    <>
+                      <dt>E-post faktura</dt>
+                      <dd>{application.invoiceEmail}</dd>
+                    </>
+                  )}
+                  {application.delivery && (
+                    <>
+                      <dt>Leveransadress</dt>
+                      <dd style={{ whiteSpace: "pre-line" }}>
+                        {[application.delivery.line1, application.delivery.line2, `${application.delivery.zip} ${application.delivery.city}`]
+                          .filter(Boolean)
+                          .join("\n")}
+                      </dd>
+                    </>
+                  )}
                   {application.website && (
                     <>
                       <dt>Hemsida</dt>

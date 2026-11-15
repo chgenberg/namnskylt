@@ -7,7 +7,15 @@ import { endPriceTable, type PriceModel } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { db, requireDb } from "@/lib/db/client";
 import { withStoredLogoImages } from "@/lib/logo-images/repository";
-import { deliveryAddressSchema, deliverySchema, parseDelivery, type Delivery, type DeliveryAddress } from "./delivery";
+import {
+  deliveryAddressSchema,
+  deliverySchema,
+  parseDelivery,
+  SHIPPING_METHOD_LABEL,
+  shippingMethodOf,
+  type Delivery,
+  type DeliveryAddress,
+} from "./delivery";
 import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "./price-lists";
 import { isCustomPricing, pricingSchema, priceWithPricing, type Pricing } from "./pricing";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
@@ -83,7 +91,7 @@ function toOrder(row: OrderRow, currentModel: PriceModel, audience: PriceAudienc
     status: isOrderStatus(row.status) ? row.status : "received",
     badges: badges.success ? badges.data : [],
     pricing: parsePricing(row.pricing),
-    ...priceListsFor(row.price_model, currentModel, audience, badges.success ? badges.data : []),
+    ...priceListsFor(row.price_model, currentModel, audience, badges.success ? badges.data : [], shippingMethodOf(parseDelivery(row.delivery))),
     totalSek: row.total_sek,
     totalInclVatSek: row.total_incl_vat_sek,
     supplierOrderNo: row.supplier_order_no,
@@ -235,7 +243,7 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
   const sql = requireDb();
   const pricing = isCustomPricing(order.pricing ?? null) ? (order.pricing ?? null) : null;
   const model = order.priceModel ?? (await getPriceModel());
-  const price = priceWithPricing(order.badges, pricing, endPriceTable(model), shippingFor(model, order.badges));
+  const price = priceWithPricing(order.badges, pricing, endPriceTable(model), shippingFor(model, order.badges, shippingMethodOf(order.delivery)));
   // En logga i färg sparas en gång; skyltarna pekar på den.
   const badges = await withStoredLogoImages(order.badges);
   const email = order.customer.email.trim().toLowerCase();
@@ -421,20 +429,33 @@ export async function applySupplierUpdate(
 }
 
 /**
- * Ny leveransadress på en order. Går bara medan ordern väntar på att skickas
- * till verkstaden; därefter är adressen deras.
+ * Ny leverans på en order: adress, mottagare eller fraktsätt. Går bara medan
+ * ordern väntar på att skickas till verkstaden; därefter är leveransen deras.
+ * Frakten följer fraktsättet, så summan räknas om.
  */
 export async function updateOrderDelivery(tenant: string, orderNo: string, delivery: Delivery): Promise<boolean> {
   const sql = requireDb();
   const parsed = deliverySchema.parse(delivery);
+  const currentModel = await getPriceModel();
   return sql.begin(async (tx) => {
-    const [row] = await tx<{ id: string; status: string }[]>`
-      update orders set delivery = ${tx.json(parsed as unknown as Json)}
-       where order_no = ${orderNo} and reseller_id = ${tenant} and supplier_sent_at is null
-      returning id, status`;
+    const [row] = await tx<{ id: string; status: string; badges: unknown; pricing: unknown; price_model: unknown }[]>`
+      select id, status, badges, pricing, price_model from orders
+       where order_no = ${orderNo} and reseller_id = ${tenant} and supplier_sent_at is null for update`;
     if (!row) return false;
+    const badges = badgesSchema.safeParse(row.badges);
+    const model = storedPriceModel(row.price_model, currentModel);
+    const method = shippingMethodOf(parsed);
+    const price = badges.success
+      ? priceWithPricing(badges.data, parsePricing(row.pricing), endPriceTable(model), shippingFor(model, badges.data, method))
+      : null;
+    await tx`
+      update orders set delivery = ${tx.json(parsed as unknown as Json)},
+             total_sek = ${price ? price.totalSek : tx`total_sek`},
+             total_incl_vat_sek = ${price ? price.totalInclVatSek : tx`total_incl_vat_sek`}
+       where id = ${row.id}`;
+    const how = method === "standard" ? "" : `${SHIPPING_METHOD_LABEL[method]}, `;
     await tx`insert into order_events (order_id, status, note)
-             values (${row.id}, ${row.status}, ${`Leverans: ${parsed.address.zip} ${parsed.address.city}`})`;
+             values (${row.id}, ${row.status}, ${`Leverans: ${how}${parsed.address.zip} ${parsed.address.city}`})`;
     return true;
   });
 }
@@ -533,13 +554,14 @@ export async function updateOrderPricing(tenant: string, orderNo: string, pricin
   const sql = requireDb();
   const currentModel = await getPriceModel();
   return sql.begin(async (tx) => {
-    const [row] = await tx<{ id: string; badges: unknown; status: string; price_model: unknown }[]>`
-      select id, badges, status, price_model from orders where order_no = ${orderNo} and reseller_id = ${tenant} for update`;
+    const [row] = await tx<{ id: string; badges: unknown; status: string; price_model: unknown; delivery: unknown }[]>`
+      select id, badges, status, price_model, delivery from orders where order_no = ${orderNo} and reseller_id = ${tenant} for update`;
     const badges = badgesSchema.safeParse(row?.badges);
     if (!row || !badges.success) return false;
     const custom = isCustomPricing(pricing) ? pricing : null;
     const model = storedPriceModel(row.price_model, currentModel);
-    const price = priceWithPricing(badges.data, custom, endPriceTable(model), shippingFor(model, badges.data));
+    const method = shippingMethodOf(parseDelivery(row.delivery));
+    const price = priceWithPricing(badges.data, custom, endPriceTable(model), shippingFor(model, badges.data, method));
     await tx`
       update orders set pricing = ${custom ? tx.json(custom as unknown as Json) : null},
              total_sek = ${price.totalSek}, total_incl_vat_sek = ${price.totalInclVatSek}

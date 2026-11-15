@@ -130,8 +130,11 @@ export interface SupplierBuyer {
   address?: string;
 }
 
-/** Leverantörens fraktsätt, samma koder som `Order.shippingMethod` i skyltmotorn. */
-export type SupplierShippingMethod = "postnord-varubrev" | "dhl-paket";
+/**
+ * Leverantörens fraktsätt, samma koder som `Order.shippingMethod` i skyltmotorn.
+ * Express har ingen kostnad i anropet: verkstaden sätter den efter storlek och vikt.
+ */
+export type SupplierShippingMethod = "postnord-varubrev" | "dhl-paket" | "postnord-express" | "pickup-hogsbo";
 
 export interface SupplierShipping {
   method: SupplierShippingMethod;

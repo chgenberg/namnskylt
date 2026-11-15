@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
 import { engravedRows, getColor, getMaterial, getMounting, shapeLabel } from "@/engine";
+import { shippingMethodOf } from "@/lib/orders/delivery";
 import { staffOrderAction, updateOrderPricingAction } from "@/features/admin/actions";
 import { PricingEditor } from "@/features/admin/pricing-editor";
 import { adminTenant } from "@/features/admin/guard";
@@ -84,6 +85,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
               title={`Ny personal hos ${customerName}`}
               label="Ny personal"
               submit={staffOrderAction.bind(null, order.orderNo)}
+              shippingMethod={shippingMethodOf(order.delivery)}
             />
           )}
           <DeleteOrderButton

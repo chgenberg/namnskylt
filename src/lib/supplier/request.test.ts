@@ -81,6 +81,15 @@ describe("ordern till verkstaden", () => {
     assert.deepEqual([large.shipping.method, large.shipping.costSek], ["dhl-paket", 159]);
   });
 
+  it("express och upphämtning skickas med verkstadens egna koder och utan fraktkostnad", () => {
+    const express = buildSupplierRequest(input([named("Anna Lind", 10)], { delivery: { ...DELIVERY, method: "express" } }));
+    assert.deepEqual([express.shipping.method, express.shipping.costSek], ["postnord-express", 0]);
+    const pickup = buildSupplierRequest(input([named("Anna Lind", 10)], { delivery: { ...DELIVERY, method: "pickup" } }));
+    assert.deepEqual([pickup.shipping.method, pickup.shipping.costSek], ["pickup-hogsbo", 0]);
+    // Varorna kostar detsamma oavsett fraktsätt.
+    assert.equal(pickup.goodsSek, buildSupplierRequest(input([named("Anna Lind", 10)])).goodsSek);
+  });
+
   it("en order från före frakten skickas utan fraktkostnad", () => {
     const request = buildSupplierRequest(input([named("Anna Lind", 10)], { purchaseList: resellerPriceTable({ ...DEFAULT_PRICE_MODEL, shipping: NO_SHIPPING }) }));
     assert.equal(request.shipping.costSek, 0);
@@ -154,6 +163,11 @@ describe("det som stoppar en order", () => {
     const company = { ...DEFAULT_COMPANY, name: "Exempelprofil AB", orgNumber: "556000-0000", email: "" };
     assert.equal(supplierBuyer("exempelprofil", company, "konto@example.se").email, "konto@example.se");
     assert.equal(supplierBuyer("exempelprofil", { ...company, email: "order@example.se" }, "konto@example.se").email, "order@example.se");
+    // Har företaget en egen adress för fakturor går verkstadens faktura dit.
+    assert.equal(
+      supplierBuyer("exempelprofil", { ...company, email: "order@example.se", invoiceEmail: "faktura@example.se" }, "konto@example.se").email,
+      "faktura@example.se",
+    );
     assert.equal(supplierBuyer("exempelprofil", company, null).email, "");
   });
 

@@ -3,12 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { DeliveryFields } from "@/components/delivery-fields";
+import { ShippingMethodPicker } from "@/components/shipping-method-picker";
 import { Segmented } from "@/components/ui/segmented";
+import { SHIPPING_METHODS, type ShippingMethod } from "@/engine";
 import {
   addressFromDraft,
   DELIVERY_TO_LABEL,
   deliveryLines,
   draftFromAddress,
+  SHIPPING_METHOD_INFO,
+  SHIPPING_METHOD_LABEL,
+  shippingMethodOf,
   type DeliveryAddress,
   type DeliveryDraft,
   type DeliveryOptions,
@@ -24,7 +29,7 @@ interface DeliveryPanelProps {
   /** Ordern eller offerten leveransen hör till. */
   target: { kind: "order"; orderNo: string } | { kind: "quote"; quoteNo: string };
   /** Nuvarande leverans. `null` på en order från före leveransadressen. */
-  delivery: { to: DeliveryTo; address: DeliveryAddress | null } | null;
+  delivery: { to: DeliveryTo; address: DeliveryAddress | null; method?: ShippingMethod } | null;
   /** Förifyllda adresser för de två valen. */
   options: DeliveryOptions;
   /** Varför leveransen inte går att ändra längre; `null` när den går att ändra. */
@@ -34,14 +39,16 @@ interface DeliveryPanelProps {
 const isEmpty = (draft: DeliveryDraft) => Object.values(draft).every((value) => !value.trim());
 
 /**
- * Vart skyltarna skickas: till kunden eller till återförsäljaren, med adress.
- * På en offert till kunden får adressen lämnas tom, eftersom kunden fyller i
- * den när offerten godkänns.
+ * Vart och hur skyltarna skickas: till kunden eller till återförsäljaren, med
+ * adress och leveranssätt. På en offert till kunden får adressen lämnas tom,
+ * eftersom kunden fyller i den när offerten godkänns. Frakten följer
+ * leveranssättet, så summan räknas om när det ändras.
  */
 export function DeliveryPanel({ target, delivery, options, locked }: DeliveryPanelProps) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [to, setTo] = useState<DeliveryTo>(delivery?.to ?? "customer");
+  const [method, setMethod] = useState<ShippingMethod>(shippingMethodOf(delivery));
   const [drafts, setDrafts] = useState<DeliveryOptions>(() =>
     delivery?.address ? { ...options, [delivery.to]: draftFromAddress(delivery.address) } : options,
   );
@@ -62,9 +69,9 @@ export function DeliveryPanel({ target, delivery, options, locked }: DeliveryPan
     startTransition(async () => {
       const result =
         target.kind === "quote"
-          ? await updateQuoteDeliveryAction(target.quoteNo, { to, address: parsed?.address ?? null })
+          ? await updateQuoteDeliveryAction(target.quoteNo, { to, address: parsed?.address ?? null, method })
           : parsed
-            ? await updateOrderDeliveryAction(target.orderNo, { to, address: parsed.address })
+            ? await updateOrderDeliveryAction(target.orderNo, { to, address: parsed.address, method })
             : { ok: false as const, error: "Fyll i leveransadressen" };
       if (!result.ok) {
         setError(result.error);
@@ -88,6 +95,7 @@ export function DeliveryPanel({ target, delivery, options, locked }: DeliveryPan
         {quote && to === "customer" && (
           <p className={styles.muted}>Lämna adressen tom om du inte har den. Kunden fyller då i den när offerten godkänns.</p>
         )}
+        <ShippingMethodPicker value={method} onChange={setMethod} methods={SHIPPING_METHODS} disabled={pending} />
         {error && (
           <p className={styles.error} role="alert">
             {error}
@@ -126,6 +134,14 @@ export function DeliveryPanel({ target, delivery, options, locked }: DeliveryPan
       ) : (
         <p className={styles.error} role="status">
           Leveransadress saknas. Ordern kan inte gå till verkstaden förrän den är ifylld.
+        </p>
+      )}
+      {shippingMethodOf(delivery) !== "standard" && (
+        <p>
+          <strong>{SHIPPING_METHOD_LABEL[shippingMethodOf(delivery)]}</strong>
+          <span style={{ display: "block" }} className={styles.muted}>
+            {SHIPPING_METHOD_INFO[shippingMethodOf(delivery)]}
+          </span>
         </p>
       )}
       {locked ? (

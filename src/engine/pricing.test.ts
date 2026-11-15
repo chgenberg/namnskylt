@@ -18,6 +18,7 @@ import {
   tierIndexFor,
   tierRangeLabel,
   withoutStartCost,
+  withShippingMethod,
   withStartInSign,
   type PriceItem,
 } from "./pricing";
@@ -535,5 +536,29 @@ describe("priceModelSchema", () => {
 
   it("godtar ören i återförsäljarens priser", () => {
     assert.equal(priceModelSchema.safeParse({ ...M, signs: { ...M.signs, premium: [73.5, 68, 64, 61] } }).success, true);
+  });
+});
+
+describe("fraktsätt", () => {
+  const list = resellerPriceTable(DEFAULT_PRICE_MODEL);
+  const four: PriceItem[] = [{ signClass: "premium", mounting: "pin", extraEngraving: false, customShape: false, quantity: 4 }];
+
+  it("standardfrakten följer fraktregeln och listan är orörd", () => {
+    assert.equal(withShippingMethod(list, "standard"), list);
+    assert.equal(orderShippingSek(DEFAULT_PRICE_MODEL, four), 159);
+    assert.equal(orderShippingSek(DEFAULT_PRICE_MODEL, four, "standard"), 159);
+  });
+
+  it("upphämtning och express har ingen frakt på ordern, och varorna kostar detsamma", () => {
+    for (const method of ["pickup", "express"] as const) {
+      const table = withShippingMethod(list, method);
+      assert.equal("shipping" in table, false, method);
+      assert.equal(priceItems(four, table).shippingSek, 0, method);
+      assert.equal(priceItems(four, table).goodsSek, priceItems(four, list).goodsSek, method);
+      assert.equal(priceItems(four, table).totalSek, priceItems(four, list).goodsSek, method);
+      assert.equal(orderShippingSek(DEFAULT_PRICE_MODEL, four, method), 0, method);
+    }
+    // Listan som skickades in ändras inte.
+    assert.ok(list.shipping);
   });
 });

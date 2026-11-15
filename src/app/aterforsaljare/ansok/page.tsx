@@ -3,19 +3,23 @@ import Link from "next/link";
 import { ApplyForm } from "@/features/invite/apply-form";
 import styles from "@/features/invite/invite.module.css";
 
-export const metadata: Metadata = { title: "Bli återförsäljare", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Skapa konto", robots: { index: false, follow: false } };
 
-/** Ansökan om att bli återförsäljare. Kontot finns först när namnskylt.com har godkänt den. */
+/** Skapa konto som återförsäljare. Kontot finns först när namnskylt.com har godkänt uppgifterna. */
 export default function ApplyPage() {
   return (
     <main className={styles.page}>
       <div className={`${styles.card} ${styles.wide}`}>
         <header>
-          <p className={styles.eyebrow}>namnskylt.com</p>
-          <h1 className={styles.title}>Bli återförsäljare</h1>
+          <p className={styles.eyebrow}>Återförsäljare</p>
+          <h1 className={styles.title}>Skapa konto</h1>
           <p className={styles.lead}>
-            Designa namnskyltar åt era kunder i skyltmotorn, skicka offerter med ert eget namn och er logga, och lägg ordrar
-            till era inköpspriser. Fyll i företagets uppgifter, så hör vi av oss.
+            Konton är till för företag som säljer namnskyltar vidare till sina kunder, och kopplas till ett
+            organisationsnummer. Med kontot designar ni skyltar åt era kunder, skickar offerter med ert eget namn och er
+            logga och lägger ordrar till era inköpspriser. Vi går igenom uppgifterna innan kontot öppnas.
+          </p>
+          <p className={styles.lead}>
+            Ska ni bara beställa skyltar till er själva? Då behövs inget konto: <Link href="/skapa">designa och beställ direkt</Link>.
           </p>
         </header>
         <ApplyForm />

@@ -10,6 +10,8 @@ import {
   guessAddress,
   parseDelivery,
   parseQuoteDelivery,
+  shippingMethodOf,
+  shippingNote,
   type DeliveryAddress,
 } from "./delivery";
 
@@ -115,6 +117,20 @@ describe("sparad leverans", () => {
   it("en offert från före leveransadressen går till kunden, som fyller i adressen", () => {
     assert.deepEqual(parseQuoteDelivery(null), { to: "customer", address: null });
     assert.deepEqual(parseQuoteDelivery({ to: "reseller", address: ADDRESS }), { to: "reseller", address: ADDRESS });
+  });
+
+  it("fraktsättet följer med leveransen, och en leverans utan det har standardfrakt", () => {
+    assert.equal(shippingMethodOf(parseDelivery({ to: "customer", address: ADDRESS })), "standard");
+    assert.equal(shippingMethodOf(null), "standard");
+    assert.equal(shippingMethodOf(parseDelivery({ to: "customer", address: ADDRESS, method: "pickup" })), "pickup");
+    assert.equal(shippingMethodOf(parseQuoteDelivery({ to: "customer", address: null, method: "express" })), "express");
+    assert.equal(deliverySchema.safeParse({ to: "customer", address: ADDRESS, method: "drönare" }).success, false);
+  });
+
+  it("express och upphämtning får en egen fraktrad, utan verkstadens namn eller adress", () => {
+    assert.equal(shippingNote("standard"), null);
+    assert.deepEqual(shippingNote("express"), { label: "Frakt, express", value: "tillkommer" });
+    assert.deepEqual(shippingNote("pickup"), { label: "Frakt, hämtas", value: "0 kr" });
   });
 
   it("schemat godtar inga andra länder än Sverige", () => {

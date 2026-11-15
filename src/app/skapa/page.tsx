@@ -35,9 +35,9 @@ export async function generateMetadata({ searchParams }: SkapaPageProps): Promis
     url: `${await siteOrigin()}/api/share-image?d=${encodeURIComponent(code)}`,
     width: 1200,
     height: 630,
-    alt: "Graverad namnskylt",
+    alt: "Namnskylt",
   };
-  const description = "Se skylten i 3D och gör din egen — graverad i Sverige.";
+  const description = "Se skylten i 3D och gör din egen — tillverkad i Sverige.";
   return {
     title,
     description,

@@ -70,7 +70,7 @@ export async function renderShopMockup(shop: Shop, logoPlate: string | null): Pr
     `<svg x="${badgeX}" y="${badgeY}" width="${badgeW}" height="${badgeH}" `,
   );
 
-  const eyebrow = `GRAVERADE NAMNSKYLTAR FRÅN ${profile.name.toUpperCase()}`;
+  const eyebrow = `NAMNSKYLTAR FRÅN ${profile.name.toUpperCase()}`;
   const textX = win.x + 56;
   const inputY = win.y + 430;
 

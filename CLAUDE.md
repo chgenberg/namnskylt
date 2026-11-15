@@ -50,7 +50,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (797 tester, grönt 2026-11-15).
+# Kvalitetsgrinden. Kör den innan något lämnas (808 tester, grönt 2026-11-15).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -161,9 +161,12 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     längre. Mjuka, halvgenomskinliga kanter i en logga (en skugga eller ett sken) klipps i 3D-vyn,
     eftersom ytan följer siluetten; ritningen visar hela bilden.
 - **Ordval:** sajten säger inte "graverad" om hela sortimentet, eftersom loggor i färg trycks.
-  Startsidan säger "Vi gör resten", "tillverkad i Sverige" och "Korrektur innan produktion"
-  (2026-11-15). Där texten gäller just gravyren (skyltens text, "Graverad ram") står ordet kvar.
-  Övriga sidor (flikens titel, butikernas sidfot, korrekturet m.fl.) är inte genomgångna.
+  Sajten säger "namnskyltar", "tillverkas", "till tillverkningen" och "Korrektur innan
+  produktion" (beslut av ägaren 2026-11-15), även i flikens titel, butikernas sidfot,
+  korrekturet, offertens PDF och mallarna för nya butikssidor. Där texten gäller just gravyren
+  (skyltens text, "Graverad ram", en graverad logga, exemplen i inspirationsbanken) står ordet
+  kvar. Inte ändrat: utskickets mejltext (`src/lib/outreach/copy.ts`) och innehåll som redan är
+  sparat i butikerna.
 - **Äldre material och former** (mässing, akryl, epoxy, gravyrplast, sexkant m.fl.) ligger kvar
   i motorn så att sparade ordrar, offerter och butiker går att rita. En äldre skylt som öppnas
   i designern flyttas till närmaste yta och ämne (`toOfferedDocument`).
@@ -264,8 +267,28 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
     antalet i skyltmotorn är skyltarna, "exkl. moms och frakt". Frakten visas först i kassan,
     alltså i beställningsformuläret och i återförsäljarens leveranssteg, på en egen rad med
     summan under (`OrderTotals` i `order-section.tsx`). Återförsäljarens inköp, kundpris och
-    marginal i skyltmotorn är också utan frakt. Kunden väljer inte fraktsätt än; verkstadens egen
-    kassa har dessutom upphämtning och express.
+    marginal i skyltmotorn är också utan frakt.
+  - **Leveranssättet väljs i kassan** (beslut av ägaren 2026-11-15, samma val som i verkstadens
+    egen kassa): `standard` följer fraktregeln, `pickup` är "Hämta i Högsbo" utan frakt och
+    `express` är PostNord Express, där verkstaden sätter priset i efterhand, så ordern har ingen
+    frakt när den läggs (`SHIPPING_METHODS`, `withShippingMethod` i `pricing.ts`).
+    - Valet ligger på leveransen (`Delivery.method` i `delivery.ts`, i JSON-kolumnen `delivery`,
+      ingen migrering). En leverans utan det har standardfrakt (`shippingMethodOf`).
+    - `priceListsFor` tar fraktsättet och ger både frakten och en inköpslista utan fraktregel
+      när frakten inte följer den. Allt som räknas ur radens inköpslista får därför rätt frakt.
+    - Väljaren är `ShippingMethodPicker` (`src/components/`). Den finns i skyltmotorns kassa,
+      i återförsäljarens leveranssteg och i `DeliveryPanel` på order och offert. Ändras
+      leveranssättet där räknas radens summa om (`updateOrderDelivery`, `updateQuoteDelivery`).
+    - I en återförsäljares butik visas inte upphämtningen, eftersom den pekar ut verkstadens
+      adress för butikens kund. `POST /api/orders` nekar den också där.
+    - Offerten och dess PDF visar "Frakt, express: tillkommer" eller "Frakt, hämtas: 0 kr"
+      (`shippingNote`), utan verkstadens namn. Fraktsättet följer med från offert till order, och
+      "Beställ igen" och "Ny personal" ärver det.
+    - Verkstaden får koderna `postnord-express` och `pickup-hogsbo`, utan fraktkostnad.
+    - Kända brister: expressfrakten läggs inte in av sig själv när verkstaden har satt priset,
+      utan får läggas som en extrarad på ordern. Upphämtning kräver fortfarande en ifylld
+      adress. Kunden kan inte välja leveranssätt när en offert godkänns; återförsäljaren sätter
+      det på offerten.
   - Frakten beror bara på skyltarna. Återförsäljarens egna priser, rabatter och extrarader och
     butikens påslag ändrar den inte. Den visas som egen rad på offert, PDF, ordersida och
     fakturaunderlag.
@@ -338,9 +361,14 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
   `POST /api/reseller/session`. Kontot skapas via en godkänd ansökan (nedan), via en
   butiksinbjudan (`/aterforsaljare/[token]`) eller med `pnpm reseller:create`.
 - **Ansökan som admin godkänner** (beslut av ägaren 2026-11-14, migrering 021):
-  - Ett företag ansöker på `/aterforsaljare/ansok` (öppen förbi sajtspärren): företag,
-    organisationsnummer, kontakt, e-post och fakturaadress (`reseller_applications`,
-    `resellerApplicationSchema`). Formuläret begränsas per klient och har ett dolt robotfält.
+  - Ett företag ansöker på `/aterforsaljare/ansok` (öppen förbi sajtspärren). Sidan heter
+    "Skapa konto" och har samma rubriker och fält som när ett företag skapar konto hos
+    Skylt & Gravyrteknik (besked via ägaren 2026-11-15): Företagsinformation, Faktureringsadress
+    med adressrad 2 och e-post för faktura, Leveransadress ("Samma som faktureringsadressen")
+    och Kontaktinformation (`reseller_applications`, `resellerApplicationSchema`, migrering 023
+    för `invoice_email` och `delivery`). Godkännandet är kvar; lösenordet väljs via länken.
+    E-posten för faktura blir `CompanyProfile.invoiceEmail`, som verkstadens faktura går till
+    (`supplierBuyer`), och leveransadressen blir den som fylls i för "Till oss". Formuläret begränsas per klient och har ett dolt robotfält.
     En ny ansökan med samma e-post skriver över den som väntar.
   - Admin godkänner eller avslår under `/admin/aterforsaljare`. Godkännandet ger en länk
     (`/aterforsaljare/konto/<kod>`, 14 dagar) som admin kopierar eller mejlar själv, eftersom
@@ -590,7 +618,8 @@ Luckor i kontraktet:
 - Egen form skickas som deras fria polygon (`shape: "freeform"`, `customShapePoints`), men hos dem
   är den bara tillåten för metallskärning. De behöver öppna den för graverad plast.
 - Fästet skickas som text i stället för artikelkod.
-- Deras fraktsätt har också upphämtning och express. Vi skickar bara varubrev eller paket.
+- Vi skickar deras fyra fraktsätt: varubrev, paket, `postnord-express` och `pickup-hogsbo`.
+  Hur expressfraktens pris kommer tillbaka till ordern är inte bestämt.
 - En logga i färg skickas som bildlager med `renderMode: "print"`. Deras format har läget, men
   ingen har bekräftat att verkstaden trycker namnskyltar eller vilken upplösning som krävs.
 - Lambda tar högst 6 MB per anrop. Bilderna skickas en gång och anropet stoppas vid 5,5 MB,

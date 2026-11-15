@@ -18,6 +18,18 @@ const OLDER: PriceModel = {
 };
 
 describe("prislistor per part", () => {
+  it("upphämtning och express ger ingen frakt åt någon part, och inköpslistan räknar likadant", () => {
+    for (const method of ["pickup", "express"] as const) {
+      const customer = priceListsFor(M, M, "customer", THREE, method);
+      const reseller = priceListsFor(M, M, "reseller", THREE, method);
+      assert.equal(customer.shippingSek, 0, method);
+      assert.equal(reseller.shippingSek, 0, method);
+      assert.equal(engine.resellerOrder(THREE, reseller.purchaseList ?? endPriceTable(M)).shippingSek, 0, method);
+      assert.equal(shippingFor(M, THREE, method), 0, method);
+    }
+    assert.equal(priceListsFor(M, M, "reseller", THREE, "standard").shippingSek, 75);
+  });
+
   it("kunden får bara sin egen prislista, aldrig inköpspriserna", () => {
     const lists = priceListsFor(M, M, "customer", THREE);
     assert.deepEqual(Object.keys(lists), ["priceList", "shippingSek"]);

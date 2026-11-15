@@ -33,7 +33,7 @@ export function ShopPageView({ slug, name, badgeFont, contact, blocks, today, ed
         <div className={styles.glow} aria-hidden="true" />
         <HomeHero
           createPath={`/butik/${slug}/skapa`}
-          eyebrow={`Graverade namnskyltar från ${name}`}
+          eyebrow={`Namnskyltar från ${name}`}
           branded
           badgeFont={badgeFont}
           howHref={howHref}

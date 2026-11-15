@@ -1,14 +1,23 @@
 import { z } from "zod";
+import { deliveryAddressSchema, type DeliveryAddress } from "@/lib/orders/delivery";
 
-/** Det ett företag fyller i för att bli återförsäljare. Blir kontots uppgifter när ansökan godkänns. */
+/**
+ * Det ett företag fyller i för att skapa konto. Blir kontots uppgifter när
+ * namnskylt.com har godkänt och den sökande har valt lösenord. Fälten är
+ * desamma som när ett företag skapar konto hos Skylt & Gravyrteknik.
+ */
 export interface ResellerApplicationInput {
   company: string;
   orgNumber: string;
   contactName: string;
   email: string;
   phone: string;
-  /** Fakturaadressen: gatuadress på första raden, postnummer och ort på andra. */
+  /** Fakturaadressen: gatuadress, en andra adressrad om den finns, och postnummer och ort på sista raden. */
   address: string;
+  /** Dit fakturorna ska mejlas. Tom = samma som `email`. */
+  invoiceEmail: string;
+  /** Dit skyltarna skickas när de ska till företaget självt. `null` på ansökningar från före fältet. */
+  delivery: DeliveryAddress | null;
   website: string;
   message: string;
 }
@@ -49,6 +58,11 @@ export const resellerApplicationSchema = z.object({
     .transform((value) => value.trim().toLowerCase()),
   phone: text(40),
   address: z.string().trim().min(5, "Fakturaadress krävs").max(300),
+  invoiceEmail: z
+    .union([z.literal(""), z.email("Ange en giltig e-postadress för fakturor").max(200)])
+    .default("")
+    .transform((value) => value.trim().toLowerCase()),
+  delivery: deliveryAddressSchema.nullable().default(null),
   website: text(200),
   message: text(1000),
 }) satisfies z.ZodType<ResellerApplicationInput, unknown>;

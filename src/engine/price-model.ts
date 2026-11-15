@@ -5,11 +5,13 @@ import {
   tierIndexFor,
   toOre,
   unitPriceParts,
+  withShippingMethod,
   type PriceItem,
   type PriceOptionId,
   type PriceOptions,
   type PricePart,
   type PriceTable,
+  type ShippingMethod,
   type ShippingRule,
 } from "./pricing";
 import type { SignClass } from "./types";
@@ -193,10 +195,11 @@ export function endPriceTable(model: PriceModel): PriceTable {
 /**
  * Orderns frakt. Den är samma i alla led (beslut 2026-11-15): Skylt &
  * Gravyrtekniks regel gäller det återförsäljaren betalar verkstaden för
- * varorna, och kunden betalar samma belopp som återförsäljaren.
+ * varorna, och kunden betalar samma belopp som återförsäljaren. Regeln gäller
+ * standardfrakten; upphämtning och express har ingen frakt på ordern.
  */
-export function orderShippingSek(model: PriceModel, items: readonly PriceItem[]): number {
-  return priceItems(items, resellerPriceTable(model)).shippingSek;
+export function orderShippingSek(model: PriceModel, items: readonly PriceItem[], method: ShippingMethod = "standard"): number {
+  return priceItems(items, withShippingMethod(resellerPriceTable(model), method)).shippingSek;
 }
 
 export interface ProvisionSplit {

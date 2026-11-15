@@ -35,7 +35,7 @@ export function ProofForm({ token, decided }: { token: string; decided: Decision
           <strong>{result === "approved" ? "Tack — skyltarna är godkända" : "Tack — vi tittar på ändringarna"}</strong>
           <p>
             {result === "approved"
-              ? "De går nu vidare till gravyren. Du får besked när de skickas."
+              ? "De går nu vidare till tillverkningen. Du får besked när de skickas."
               : "Du får en ny korrektur så snart ändringarna är gjorda."}
           </p>
         </div>

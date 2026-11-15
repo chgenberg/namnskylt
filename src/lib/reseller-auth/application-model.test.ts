@@ -9,6 +9,17 @@ const APPLICATION: ResellerApplicationInput = {
   email: "Anna@Example.se",
   phone: "070-123 45 67",
   address: "Storgatan 1\n111 22 Stockholm",
+  invoiceEmail: "",
+  delivery: {
+    name: "Exempelprofil AB",
+    contactName: "Anna Lind",
+    line1: "Lagervägen 4",
+    line2: null,
+    zip: "111 22",
+    city: "Stockholm",
+    country: "SE",
+    phone: null,
+  },
   website: "exempelprofil.se",
   message: "",
 };
@@ -39,6 +50,34 @@ describe("ansökan om att bli återförsäljare", () => {
     assert.equal(resellerApplicationSchema.safeParse({ ...APPLICATION, email: "inte en adress" }).success, false);
     assert.equal(resellerApplicationSchema.safeParse({ ...APPLICATION, address: "" }).success, false);
     assert.equal(resellerApplicationSchema.safeParse({ ...APPLICATION, phone: "", website: "", message: "" }).success, true);
+  });
+});
+
+describe("fakturans e-post och leveransadressen", () => {
+  it("e-posten för fakturor får vara tom, och sparas annars med små bokstäver", () => {
+    const empty = resellerApplicationSchema.safeParse(APPLICATION);
+    assert.equal(empty.success && empty.data.invoiceEmail, "");
+    const filled = resellerApplicationSchema.safeParse({ ...APPLICATION, invoiceEmail: "Faktura@Example.se" });
+    assert.equal(filled.success && filled.data.invoiceEmail, "faktura@example.se");
+    const wrong = resellerApplicationSchema.safeParse({ ...APPLICATION, invoiceEmail: "inte en adress" });
+    assert.equal(!wrong.success && wrong.error.issues[0]?.message, "Ange en giltig e-postadress för fakturor");
+  });
+
+  it("leveransadressen följer samma regler som på en order: postnumret skrivs 123 45", () => {
+    const parsed = resellerApplicationSchema.safeParse({ ...APPLICATION, delivery: { ...APPLICATION.delivery, zip: "41103", line2: "" } });
+    assert.equal(parsed.success && parsed.data.delivery?.zip, "411 03");
+    assert.equal(parsed.success && parsed.data.delivery?.line2, null);
+    const wrong = resellerApplicationSchema.safeParse({ ...APPLICATION, delivery: { ...APPLICATION.delivery, zip: "12" } });
+    assert.equal(!wrong.success && wrong.error.issues[0]?.message, "Postnumret ska ha fem siffror");
+  });
+
+  it("en ansökan från före fälten saknar båda och går fortfarande att läsa", () => {
+    const old: Record<string, unknown> = { ...APPLICATION };
+    delete old.invoiceEmail;
+    delete old.delivery;
+    const parsed = resellerApplicationSchema.safeParse(old);
+    assert.equal(parsed.success && parsed.data.invoiceEmail, "");
+    assert.equal(parsed.success && parsed.data.delivery, null);
   });
 });
 

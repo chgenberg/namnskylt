@@ -23,7 +23,7 @@ async function loadShop(slug: string) {
 export async function generateMetadata({ params }: ShopLayoutProps): Promise<Metadata> {
   const shop = await loadShop((await params).slug);
   if (!shop) return {};
-  const description = `Designa och beställ graverade namnskyltar hos ${shop.profile.name}.`;
+  const description = `Designa och beställ namnskyltar hos ${shop.profile.name}.`;
   const icon = shop.profile.logo ? `/butik/${shop.slug}/ikon` : undefined;
   return {
     title: { absolute: `Namnskyltar · ${shop.profile.name}` },

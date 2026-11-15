@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState, type Dispatch, type FormEvent } from "react";
 import { DeliveryFields } from "@/components/delivery-fields";
+import { ShippingMethodPicker } from "@/components/shipping-method-picker";
 import { usePriceList } from "@/components/price-list-provider";
 import { ProgressBanner } from "@/components/ui/progress-banner";
 import { Segmented } from "@/components/ui/segmented";
@@ -17,6 +18,7 @@ import {
   VAT_RATE,
   withStartInSign,
   type BadgeDocument,
+  type ShippingMethod,
   type ShownPricePart,
 } from "@/engine";
 import { useOrderShipping } from "@/hooks/use-order-shipping";
@@ -67,6 +69,10 @@ const sek = new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK",
 const FORM_OPEN_MS = 380;
 
 const DELIVERY_TO_OPTIONS = (["customer", "reseller"] as const).map((id) => ({ id, label: DELIVERY_TO_LABEL[id] }));
+/** Leveranssätten i kassan, samma som i verkstadens egen kassa. */
+const ALL_METHODS = ["standard", "express", "pickup"] as const satisfies readonly ShippingMethod[];
+/** I en återförsäljares butik visas inte upphämtningen: den pekar ut verkstadens adress för butikens kund. */
+const SHOP_METHODS = ["standard", "express"] as const satisfies readonly ShippingMethod[];
 
 /** Radernas namn i specifikationen per skylt. Startkostnaden ligger på skylten och har ingen egen rad. */
 function partLabel(part: ShownPricePart, doc: BadgeDocument): string {
@@ -99,6 +105,8 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
   const [order, setOrder] = useState<OrderState>({ status: "idle" });
   // Återförsäljaren väljer mottagare och har båda adresserna förifyllda; en kund som beställer själv fyller i sin.
   const [deliverTo, setDeliverTo] = useState<DeliveryTo>("customer");
+  const [method, setMethod] = useState<ShippingMethod>("standard");
+  const methods = shop ? SHOP_METHODS : ALL_METHODS;
   const [addresses, setAddresses] = useState<DeliveryOptions>(
     () => reseller?.delivery ?? { customer: EMPTY_DELIVERY_DRAFT, reseller: EMPTY_DELIVERY_DRAFT },
   );
@@ -124,7 +132,9 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
   const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, priceList, 0) } : listPrice;
   // Frakten är samma för kunden och återförsäljaren. Återförsäljaren räknar den ur sin inköpslista,
   // en kund får den av servern när kassan öppnas.
-  const shipping = useOrderShipping(badges, reseller?.purchaseList, Boolean(reseller) || formOpen);
+  const standardShipping = useOrderShipping(badges, reseller?.purchaseList, Boolean(reseller) || formOpen);
+  // Upphämtning har ingen frakt. Expressfrakten sätter verkstaden i efterhand, så den är inte med i summan.
+  const shipping = method === "standard" ? standardShipping : 0;
   const checkoutSek = price.totalSek + (shipping ?? 0);
   const checkoutInclVatSek = checkoutSek + Math.round(checkoutSek * VAT_RATE);
   // Specifikationen gäller skylten i editorn, på trappsteget för hela orderns antal.
@@ -164,7 +174,7 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
           badges,
           badgeShot: captureShot?.() ?? undefined,
           project: context.project,
-          ...(delivery && { delivery: { to: deliverTo, address: delivery.address } }),
+          ...(delivery && { delivery: { to: deliverTo, address: delivery.address, method } }),
         }),
       });
       const body = await response.json();
@@ -196,6 +206,7 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
           badgeShot: captureShot?.() ?? undefined,
           shop: shop?.slug,
           delivery: delivery.address,
+          shippingMethod: method,
         }),
       });
       const body = await response.json();
@@ -307,7 +318,9 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
             <Segmented label="Skyltarna skickas" value={deliverTo} options={DELIVERY_TO_OPTIONS} onChange={setDeliverTo} />
           </div>
           <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
-          <OrderTotals label="Kundens pris" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} vat={false} />
+          <p className={styles.specTitle}>Leveranssätt</p>
+          <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} disabled={order.status === "sending"} />
+          <OrderTotals label="Kundens pris" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} method={method} vat={false} />
         </div>
       )}
 
@@ -334,7 +347,7 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
             : reseller.mode === "quote"
               ? `Skapa offert till ${reseller.customerName}`
               : order.status === "form"
-                ? `Lägg ordern · ${sek.format(checkoutSek)} exkl. moms`
+                ? `Lägg ordern · ${sek.format(checkoutSek)} exkl. moms${method === "express" ? " + frakt" : ""}`
                 : `Lägg order åt ${reseller.customerName}`}
         </button>
       )}
@@ -372,7 +385,11 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
               <p className={styles.specTitle}>Leveransadress</p>
               <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
             </div>
-            <OrderTotals label="Att betala" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} vat />
+            <div className={styles.delivery}>
+              <p className={styles.specTitle}>Leveranssätt</p>
+              <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} disabled={order.status === "sending"} />
+            </div>
+            <OrderTotals label="Att betala" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} method={method} vat />
             {formError && (
               <p className={styles.issue} data-severity="error" role="alert">
                 {formError}
@@ -381,7 +398,7 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
             <button type="submit" className="btn btn--ink btn--block" disabled={order.status === "sending"}>
               {order.status === "sending"
                 ? "Skickar…"
-                : shipping === null
+                : shipping === null || method === "express"
                   ? "Skicka order"
                   : `Skicka order · ${sek.format(checkoutInclVatSek)} inkl. moms`}
             </button>
@@ -427,13 +444,15 @@ interface OrderTotalsProps {
   goodsSek: number;
   /** Orderns frakt; `null` när den inte är känd än. */
   shippingSek: number | null;
+  method: ShippingMethod;
   /** Kunden som beställer själv ser momsen och summan med moms. */
   vat: boolean;
 }
 
 /** Kassans summering: skyltarna för sig, frakten för sig och summan. Frakten visas först här, aldrig i priset per skylt. */
-function OrderTotals({ label, quantity, goodsSek, shippingSek, vat }: OrderTotalsProps) {
-  const known = shippingSek !== null;
+function OrderTotals({ label, quantity, goodsSek, shippingSek, method, vat }: OrderTotalsProps) {
+  // Expressfrakten sätter verkstaden i efterhand: summan här är utan den.
+  const known = shippingSek !== null && method !== "express";
   const totalSek = goodsSek + (shippingSek ?? 0);
   const vatSek = Math.round(totalSek * VAT_RATE);
   return (
@@ -445,8 +464,8 @@ function OrderTotals({ label, quantity, goodsSek, shippingSek, vat }: OrderTotal
           <dd>{sek.format(goodsSek)}</dd>
         </div>
         <div>
-          <dt>Frakt</dt>
-          <dd>{known ? sek.format(shippingSek) : "tillkommer"}</dd>
+          <dt>{method === "pickup" ? "Frakt, hämtas i Högsbo" : method === "express" ? "Frakt, PostNord Express" : "Frakt"}</dt>
+          <dd>{known ? sek.format(shippingSek ?? 0) : "tillkommer"}</dd>
         </div>
         {vat && (
           <div>

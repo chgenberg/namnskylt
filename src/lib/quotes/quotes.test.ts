@@ -120,6 +120,14 @@ describe("leveransen när offerten godkänns", () => {
     assert.deepEqual(acceptedDelivery(quote({ delivery: { to: "customer", address: stored } }), typed), { to: "customer", address: typed });
   });
 
+  it("fraktsättet på offerten följer med till ordern", () => {
+    assert.deepEqual(acceptedDelivery(quote({ delivery: { to: "customer", address: stored, method: "express" } }), typed), {
+      to: "customer",
+      address: typed,
+      method: "express",
+    });
+  });
+
   it("till kunden utan ny adress: offertens adress gäller, och utan någon adress stoppas godkännandet", () => {
     assert.deepEqual(acceptedDelivery(quote({ delivery: { to: "customer", address: stored } }), null), { to: "customer", address: stored });
     assert.equal(acceptedDelivery(quote(), null), null);

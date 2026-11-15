@@ -14,11 +14,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "namnskylt.com — graverade namnskyltar",
+    default: "namnskylt.com — namnskyltar i metall och plast",
     template: "%s · namnskylt.com",
   },
   description:
-    "Skriv ditt namn och se din graverade namnskylt i 3D direkt. Tillverkas i Sverige av Skylt & Gravyrteknik.",
+    "Skriv ditt namn och se din namnskylt i 3D direkt. Tillverkas i Sverige av Skylt & Gravyrteknik.",
 };
 
 export const viewport: Viewport = {

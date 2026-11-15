@@ -82,6 +82,18 @@ describe("fördelningen av en återförsäljares order", () => {
   });
 });
 
+describe("fraktsättet i fördelningen", () => {
+  const withShipping: PriceModel = { ...M, shipping: DEFAULT_PRICE_MODEL.shipping };
+
+  it("upphämtning och express har ingen frakt, och provisionen är densamma", () => {
+    const standard = orderShare(badges(10), withShipping);
+    assert.equal(standard.shippingSek, 159);
+    for (const method of ["pickup", "express"] as const) {
+      assert.deepEqual(orderShare(badges(10), withShipping, method), { ...standard, shippingSek: 0 }, method);
+    }
+  });
+});
+
 describe("summor", () => {
   const rows = [row("alfa", 10, 1300), row("beta", 150, 18000), row("alfa", 1, 299)];
 

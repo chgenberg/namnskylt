@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { BadgePreview } from "@/components/badge-preview";
 import { usePriceList } from "@/components/price-list-provider";
-import { priceOrder, type BadgeDocument } from "@/engine";
+import { priceOrder, type BadgeDocument, type ShippingMethod } from "@/engine";
 import { useOrderShipping } from "@/hooks/use-order-shipping";
 import { formatSek } from "@/lib/format";
 import { staffBadges } from "@/lib/orders/repeat";
@@ -18,10 +18,12 @@ interface NewNamesButtonProps {
   label: string;
   variant?: "primary" | "ghost";
   submit: (names: string, quantity: number) => Promise<ActionResult>;
+  /** Leveranssättet den nya ordern ärver. Utelämnat = standardfrakt. */
+  shippingMethod?: ShippingMethod;
 }
 
 /** Samma design med nya namn: en rad per person, som designerns "Fler namn". */
-export function NewNamesButton({ template, title, label, variant = "ghost", submit }: NewNamesButtonProps) {
+export function NewNamesButton({ template, title, label, variant = "ghost", submit, shippingMethod = "standard" }: NewNamesButtonProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   const [names, setNames] = useState("");
@@ -31,8 +33,10 @@ export function NewNamesButton({ template, title, label, variant = "ghost", subm
   const [opened, setOpened] = useState(false);
   const badges = useMemo(() => staffBadges(template, names, quantity), [template, names, quantity]);
   const preview = badges[0] ?? template;
-  // Frakten hämtas först när dialogen öppnas.
-  const shipping = useOrderShipping(badges, undefined, opened);
+  // Frakten hämtas först när dialogen öppnas. Upphämtning och express har ingen frakt på ordern.
+  const standard = shippingMethod === "standard";
+  const standardShipping = useOrderShipping(badges, undefined, opened && standard);
+  const shipping = standard ? standardShipping : 0;
   const price = priceOrder(badges, usePriceList(), shipping ?? 0);
 
   const send = () => {

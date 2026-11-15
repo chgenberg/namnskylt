@@ -65,7 +65,7 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft }: QuoteDe
           <strong>{result.kind === "accepted" ? "Tack! Offerten är godkänd" : "Tack för beskedet"}</strong>
           <p>
             {result.kind === "accepted"
-              ? `Ordern ${result.orderNo ?? ""} är lagd och skyltarna går till gravyren. Du får besked när de skickas.`
+              ? `Ordern ${result.orderNo ?? ""} är lagd och skyltarna går till tillverkningen. Du får besked när de skickas.`
               : "Vi hör av oss om något kan ändras."}
           </p>
         </div>

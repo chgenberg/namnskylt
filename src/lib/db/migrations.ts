@@ -480,6 +480,15 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       create index notices_unread on notices (reseller_id, created_at desc) where read_at is null;
     `,
   },
+  {
+    // Formuläret för att skapa konto har samma fält som hos Skylt & Gravyrteknik: en egen
+    // e-postadress för fakturor och en leveransadress. Äldre ansökningar saknar båda.
+    id: "023_application_invoice_email_and_delivery",
+    sql: `
+      alter table reseller_applications add column invoice_email text;
+      alter table reseller_applications add column delivery jsonb;
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

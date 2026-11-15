@@ -4,13 +4,14 @@ import {
   renderBadgeSvg,
   resellerOrder,
   shippingKind,
+  withShippingMethod,
   type BadgeDocument,
   type BadgeLogo,
   type FontEngine,
   type PriceTable,
 } from "@/engine";
 import type { CompanyProfile } from "@/lib/company/profile";
-import type { Delivery, DeliveryAddress } from "@/lib/orders/delivery";
+import { shippingMethodOf, type Delivery, type DeliveryAddress } from "@/lib/orders/delivery";
 import { splitByProducer } from "@/lib/orders/partner";
 import { toSupplierSignDocument } from "./map";
 import type {
@@ -28,6 +29,14 @@ const IMAGE_REF_PREFIX = "image:";
 
 const SHIPPING_METHOD = { letter: "postnord-varubrev", parcel: "dhl-paket" } as const satisfies Record<string, SupplierShippingMethod>;
 
+/** Verkstadens kod för orderns fraktsätt. Standardfrakten blir varubrev eller paket efter varuvärdet. */
+function supplierShippingMethod(delivery: Delivery, goodsSek: number, purchaseList: PriceTable): SupplierShippingMethod {
+  const method = shippingMethodOf(delivery);
+  if (method === "express") return "postnord-express";
+  if (method === "pickup") return "pickup-hogsbo";
+  return SHIPPING_METHOD[shippingKind(goodsSek, purchaseList) ?? "letter"];
+}
+
 /** Det som saknas för att en order ska gå att skicka till verkstaden. Tom lista = klar att skicka. */
 export function dispatchProblems(order: { badges: readonly BadgeDocument[]; delivery: Delivery | null }, buyer: SupplierBuyer | null): string[] {
   const problems: string[] = [];
@@ -38,13 +47,13 @@ export function dispatchProblems(order: { badges: readonly BadgeDocument[]; deli
   return problems;
 }
 
-/** Beställaren hos verkstaden ur återförsäljarens uppgifter. E-posten är företagets, annars kontots. */
+/** Beställaren hos verkstaden ur återförsäljarens uppgifter. E-posten är företagets adress för fakturor, annars företagets, annars kontots. */
 export function supplierBuyer(tenant: string, company: CompanyProfile, accountEmail: string | null): SupplierBuyer {
   return {
     id: tenant,
     name: company.name,
     orgNumber: company.orgNumber,
-    email: company.email || accountEmail || "",
+    email: company.invoiceEmail || company.email || accountEmail || "",
     ...(company.phone && { phone: company.phone }),
     ...(company.address && { address: company.address }),
   };
@@ -98,7 +107,8 @@ export interface SupplierRequestInput {
  * i panelen.
  */
 export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrderRequest {
-  const price = resellerOrder(input.badges, input.purchaseList);
+  // Frakten följer orderns fraktsätt: upphämtning och express har ingen fraktkostnad i anropet.
+  const price = resellerOrder(input.badges, withShippingMethod(input.purchaseList, shippingMethodOf(input.delivery)));
   const { workshop } = splitByProducer(input.badges);
   const images: Record<string, string> = {};
   const lines = input.badges.flatMap((badge, i) => {
@@ -127,7 +137,7 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
       ...(input.customer.company && { company: input.customer.company }),
     },
     shipping: {
-      method: SHIPPING_METHOD[shippingKind(price.goodsSek, input.purchaseList) ?? "letter"],
+      method: supplierShippingMethod(input.delivery, price.goodsSek, input.purchaseList),
       costSek: price.shippingSek,
       address: supplierAddress(input.delivery.address),
     },

@@ -61,7 +61,7 @@ export const SCENES: readonly Scene[] = [
     title: "En skylt säger något om hur ni ser på varandra.",
     body: [
       "Vi har alla sett den handskrivna lappen i en plastficka, med blekt bläck och ett hörn som vikt sig. Den fungerar. Men den säger också att det här var en efterhandstanke.",
-      "En graverad skylt i samma typsnitt och färg för hela teamet säger motsatsen: här är vi ett lag, och det är värt att göra ordentligt. Texten är graverad i materialet, så den nöts inte bort som tryck gör.",
+      "En riktig namnskylt i samma typsnitt och färg för hela teamet säger motsatsen: här är vi ett lag, och det är värt att göra ordentligt. Texten är graverad i materialet, så den nöts inte bort.",
     ],
   },
 ];
@@ -81,7 +81,7 @@ export const HOW = {
       body: "Ett namn och en titel per rad, gärna direkt från ett kalkylark. Ni ser varje skylt innan ni beställer, och blir ett namn för långt säger vi till.",
     },
     {
-      title: "Vi graverar och skickar",
+      title: "Vi tillverkar och skickar",
       body: "Skylt & Gravyrteknik tillverkar i Sverige och skickar inom fem arbetsdagar.",
     },
   ],

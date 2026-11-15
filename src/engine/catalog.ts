@@ -89,7 +89,7 @@ export const MATERIALS: readonly BadgeMaterial[] = [
     // Preliminärt tills verkstaden bekräftat: artikelkod, tjocklek och gravyrens färg.
     id: "metal",
     name: "Metall",
-    tagline: "Graverad, i tre ytor",
+    tagline: "Stilren, i tre ytor",
     description: "Tunn metallskylt med graverad text, i vitt, borstat guld eller borstat silver.",
     finish: "aluminium",
     producer: "skylt-gravyr",

@@ -14,7 +14,7 @@ export interface HowItWorksStep {
 export const HOW_IT_WORKS = {
   eyebrow: "Så funkar det",
   title: "Från ett namn till en skylt på bröstet",
-  body: "Ingen mall att ladda ner, ingen offert att vänta på. Du skriver, ser resultatet direkt och vi graverar — fem steg, oftast några minuter.",
+  body: "Ingen mall att ladda ner, ingen offert att vänta på. Du skriver, ser resultatet direkt och vi tillverkar — fem steg, oftast några minuter.",
   stripLabel: "Stegen i korthet",
   steps: [
     {
@@ -32,7 +32,7 @@ export const HOW_IT_WORKS = {
       flow: "design",
       short: "Formge",
       title: "Välj yta och form",
-      lead: "Samma motor som leverantören graverar efter.",
+      lead: "Samma motor som verkstaden tillverkar efter.",
       body: [
         "Välj mellan vitt, borstat guld och borstat silver. Vrid skylten i 3D, se gravyren i ljuset och kontrollera måtten i ritningsvyn.",
       ],
@@ -68,10 +68,10 @@ export const HOW_IT_WORKS = {
     {
       flow: "deliver",
       short: "Leverans",
-      title: "Vi graverar och skickar",
+      title: "Vi tillverkar och skickar",
       lead: "Tillverkat i Sverige inom fem arbetsdagar.",
       body: [
-        "Ordern går direkt till Skylt & Gravyrteknik som en exakt produktionsfil — samma linjer du såg på skärmen. De graverar, kontrollerar och skickar hem till dig eller till kontoret.",
+        "Ordern går direkt till Skylt & Gravyrteknik som en exakt produktionsfil — samma linjer du såg på skärmen. De tillverkar, kontrollerar och skickar hem till dig eller till kontoret.",
       ],
     },
   ],

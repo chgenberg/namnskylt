@@ -176,8 +176,8 @@ export type ShopContent = z.infer<typeof shopContentSchema>;
 
 const DEFAULT_STEPS: BlockOf<"steps">["items"] = [
   { title: "Skriv namnet", text: "Börja med namn och titel. Hela teamet går att lägga till på en gång — en rad per person." },
-  { title: "Se skylten i 3D", text: "Välj material, färg, form och fäste. Lägg till er logga så graveras den med texten." },
-  { title: "Beställ", text: "Skyltarna graveras och skickas inom fem arbetsdagar. Korrektur innan gravyr ingår." },
+  { title: "Se skylten i 3D", text: "Välj material, färg, form och fäste. Lägg till er logga, så kommer den med på skylten." },
+  { title: "Beställ", text: "Skyltarna tillverkas och skickas inom fem arbetsdagar. Korrektur innan produktion ingår." },
 ];
 
 let counter = 0;
@@ -223,7 +223,7 @@ export function newBlock(kind: BlockKind, title?: string): Block {
         kind,
         id: blockId,
         title: "Vanliga frågor",
-        items: [{ question: "Hur lång är leveranstiden?", answer: "Skyltarna graveras och skickas inom fem arbetsdagar." }],
+        items: [{ question: "Hur lång är leveranstiden?", answer: "Skyltarna tillverkas och skickas inom fem arbetsdagar." }],
       };
     case "banner":
       return { kind, id: blockId, text: "Lägre pris per skylt på större beställningar", href: "", until: "" };

@@ -28,7 +28,7 @@ export default async function EmbedPage({ params }: { params: Promise<{ slug: st
       <ShopBeacon slug={shop.slug} kind="embed" />
       <HomeHero
         createPath={`/butik/${shop.slug}/skapa`}
-        eyebrow={`Graverade namnskyltar från ${shop.profile.name}`}
+        eyebrow={`Namnskyltar från ${shop.profile.name}`}
         branded
         embedded
         badgeFont={engravingFontFor(shop.font)}

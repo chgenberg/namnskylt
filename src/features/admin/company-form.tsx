@@ -172,6 +172,10 @@ export function CompanyForm({ profile }: { profile: CompanyProfile }) {
               <input className={styles.input} type="email" maxLength={200} {...input("email")} />
             </label>
             <label className={styles.formRow}>
+              <span className={styles.formLabel}>E-post för faktura</span>
+              <input className={styles.input} type="email" maxLength={200} placeholder="Samma som e-post" {...input("invoiceEmail")} />
+            </label>
+            <label className={styles.formRow}>
               <span className={styles.formLabel}>Telefon</span>
               <input className={styles.input} type="tel" maxLength={40} {...input("phone")} />
             </label>
@@ -341,14 +345,14 @@ function QuotePreview({ profile }: { profile: CompanyProfile }) {
           <span>1 240 kr</span>
         </div>
         <div className={styles.qpPromise}>
-          {["Korrektur innan gravyr", "Svensk tillverkning"].map((p) => (
+          {["Korrektur innan produktion", "Svensk tillverkning"].map((p) => (
             <span key={p}>
               <i style={{ color: accent }}>✓</i> {p}
             </span>
           ))}
         </div>
         <div className={styles.qpAccept} style={{ background: primary, color: readableOn(primary) }}>
-          <b>Godkänn offerten</b> — ett klick så går skyltarna till gravyren.
+          <b>Godkänn offerten</b> — ett klick så går skyltarna till tillverkningen.
         </div>
         <div className={styles.qpFoot}>
           {profile.quoteTerms.trim() && <span className={styles.qpTerms}>{profile.quoteTerms}</span>}

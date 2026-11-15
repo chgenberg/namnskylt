@@ -8,7 +8,7 @@ import { QuoteDecision } from "@/features/quote-public/quote-decision";
 import styles from "@/features/quote-public/quote-public.module.css";
 import { companyFooter, readableOn } from "@/lib/company/profile";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
-import { deliveryLines, draftForRecipient, draftFromAddress } from "@/lib/orders/delivery";
+import { deliveryLines, draftForRecipient, draftFromAddress, shippingMethodOf, shippingNote } from "@/lib/orders/delivery";
 import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import { displayStatus } from "@/lib/quotes/model";
@@ -39,12 +39,13 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
   } as React.CSSProperties;
   const status = displayStatus(quote);
   const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceList, quote.shippingSek);
+  const shipping = shippingNote(shippingMethodOf(quote.delivery));
   const firstName = quote.customer.name.split(" ")[0] ?? quote.customer.name;
   const saving = priced.savingsSek;
 
   const head =
     status === "accepted"
-      ? { title: "Tack för ordern!", text: "Skyltarna är på väg till gravyren. Du får besked när de skickas." }
+      ? { title: "Tack för ordern!", text: "Skyltarna är på väg till tillverkningen. Du får besked när de skickas." }
       : status === "declined"
         ? { title: "Du tackade nej", text: "Vi har fått beskedet och hör av oss om något kan ändras." }
         : status === "expired"
@@ -163,6 +164,12 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
               <>
                 <dt>Frakt</dt>
                 <dd>{formatSek(priced.shippingSek)}</dd>
+              </>
+            )}
+            {shipping && (
+              <>
+                <dt>{shipping.label}</dt>
+                <dd>{shipping.value}</dd>
               </>
             )}
             <dt className={styles.grand}>Totalt exkl. moms</dt>

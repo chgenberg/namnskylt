@@ -7,6 +7,8 @@ export interface CompanyProfile {
   orgNumber: string;
   address: string;
   email: string;
+  /** Dit verkstadens fakturor går. Tom = samma som `email`. */
+  invoiceEmail: string;
   phone: string;
   website: string;
   bankgiro: string;
@@ -20,10 +22,11 @@ export interface CompanyProfile {
 
 export const DEFAULT_COMPANY: CompanyProfile = {
   name: "namnskylt.com",
-  tagline: "Graverade namnskyltar",
+  tagline: "Namnskyltar i metall och plast",
   orgNumber: "",
   address: "",
   email: "",
+  invoiceEmail: "",
   phone: "",
   website: "namnskylt.com",
   bankgiro: "",
@@ -46,6 +49,8 @@ export const companyProfileSchema = z.object({
   orgNumber: text(20),
   address: text(300),
   email: z.union([z.literal(""), z.email().max(200)]),
+  // Uppgifter sparade före fältet saknar det.
+  invoiceEmail: z.union([z.literal(""), z.email().max(200)]).default(""),
   phone: text(40),
   website: text(200),
   bankgiro: text(20),

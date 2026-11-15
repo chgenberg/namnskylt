@@ -41,7 +41,7 @@ export default async function ProofPage({ params }: ProofPageProps) {
           </p>
           <h1 className={styles.title}>Stämmer skyltarna, {order.customer.name.split(" ")[0]}?</h1>
           <p className={styles.lead}>
-            Kontrollera stavning, titlar och logga. Godkänner du går de direkt till gravyren — det går inte att ändra
+            Kontrollera stavning, titlar och logga. Godkänner du går de direkt till tillverkningen — det går inte att ändra
             efteråt.
           </p>
         </header>
@@ -72,7 +72,7 @@ export default async function ProofPage({ params }: ProofPageProps) {
           <ProofForm token={proof.token} decided={proof.status === "pending" ? null : proof.status} />
         </section>
         <p className={styles.foot}>
-          {sender.ours ? "Graverat i Sverige av Skylt & Gravyrteknik · namnskylt.com" : `${sender.name} · Graverat i Sverige`}
+          {sender.ours ? "Tillverkat i Sverige av Skylt & Gravyrteknik · namnskylt.com" : `${sender.name} · Tillverkat i Sverige`}
         </p>
       </div>
     </main>

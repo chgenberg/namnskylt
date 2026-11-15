@@ -67,7 +67,7 @@ export function ShopFrame({ shop, logoPlate, pages, stepsId, children }: ShopFra
               ))}
           </div>
         </div>
-        <p className={styles.footerNote}>Graverade namnskyltar · Tillverkade i Sverige · Leverans inom 5 arbetsdagar</p>
+        <p className={styles.footerNote}>Namnskyltar i metall och plast · Tillverkade i Sverige · Leverans inom 5 arbetsdagar</p>
       </footer>
     </div>
   );
