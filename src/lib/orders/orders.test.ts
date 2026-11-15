@@ -47,6 +47,9 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     supplierSentAt: null,
     supplierError: null,
     supplierAttempts: 0,
+    payment: null,
+    expressShippingSek: null,
+    customerToken: "0".repeat(64),
     ...patch,
   };
 }

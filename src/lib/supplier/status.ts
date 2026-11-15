@@ -7,6 +7,7 @@ export const supplierOrderStateSchema = z.object({
   orderNumber: z.string().trim().min(1).max(64),
   status: z.enum(SUPPLIER_ORDER_STATUSES),
   trackingUrl: z.url().max(500).nullish(),
+  shippingCost: z.number().int().min(0).max(100_000).nullish(),
   changedAt: z.iso.datetime({ offset: true }),
 }) satisfies z.ZodType<SupplierOrderState>;
 

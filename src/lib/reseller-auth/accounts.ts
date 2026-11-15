@@ -33,9 +33,24 @@ export async function freeTenantId(base: string): Promise<string> {
   const root = TENANT_ID.test(base) && !isOwner(base) ? base : "aterforsaljare";
   for (let n = 1; n < 100; n++) {
     const id = n === 1 ? root : `${root.slice(0, 36)}-${n}`;
-    if (!(await accountExists(id))) return id;
+    if (!(await accountExists(id)) && !(await tenantHasData(id))) return id;
   }
   throw new Error("Inget ledigt konto-id");
+}
+
+/**
+ * Sant när id:t har kunder eller ordrar utan att ha ett konto: ett borttaget
+ * kontos ordrar som hör till bokföringen står kvar under dess id. Ett nytt
+ * konto får aldrig det id:t, eftersom det då skulle se de ordrarna.
+ */
+async function tenantHasData(id: string): Promise<boolean> {
+  const sql = requireDb();
+  const [row] = await sql`
+    select 1 from orders where reseller_id = ${id}
+    union all
+    select 1 from customers where reseller_id = ${id}
+    limit 1`;
+  return Boolean(row);
 }
 
 /** Nytt lösenord för ett konto. */

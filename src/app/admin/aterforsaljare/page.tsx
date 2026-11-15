@@ -1,3 +1,5 @@
+import { DeleteAccountButton } from "@/features/admin/delete-account-button";
+import { DeleteApplicationButton } from "@/features/admin/delete-application-button";
 import { adminTenant } from "@/features/admin/guard";
 import { NoticesSeen } from "@/features/admin/notices-seen";
 import { ApplicationControls, PasswordLinkButton } from "@/features/admin/reseller-admin";
@@ -147,7 +149,10 @@ export default async function ResellersPage() {
                     <td className={table.num}>{account.orders}</td>
                     <td>{account.shopSlug ?? ""}</td>
                     <td className={table.wrap}>
-                      <PasswordLinkButton accountId={account.id} name={account.name} email={account.email} />
+                      <div className={styles.actionBar}>
+                        <PasswordLinkButton accountId={account.id} name={account.name} email={account.email} />
+                        <DeleteAccountButton accountId={account.id} name={account.name} />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -174,6 +179,9 @@ export default async function ResellersPage() {
                   {application.email}
                   {application.decidedAt && ` · ${formatDay(application.decidedAt)}`}
                 </span>
+                <div className={styles.actionBar}>
+                  <DeleteApplicationButton id={application.id} company={application.company} hasAccount={Boolean(application.accountId)} />
+                </div>
               </li>
             ))}
           </ul>

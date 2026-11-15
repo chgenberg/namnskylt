@@ -20,6 +20,7 @@ const ICON: Record<AdminNavIcon, ReactNode> = {
   split: <path d="M9 3.5a7 7 0 1 0 7.5 7.5H9zM12 2.6a6.5 6.5 0 0 1 5.4 5.4H12z" />,
   workshop: <path d="M2.5 17V8.5l4.5 3v-3l4.5 3V4h3.5v13zM2.5 17h15M6 14h1.5M10 14h1.5" />,
   resellers: <path d="M3 17V6.5L10 3l7 3.5V17M3 17h14M7 17v-4h6v4M7 9.5h.01M10 9.5h.01M13 9.5h.01" />,
+  ops: <path d="M2.5 10.5h3.5l2-5.5 3.5 10 2-4.5h4" />,
   settings: <path d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM10 2v2M10 16v2M2 10h2M16 10h2M4.3 4.3l1.4 1.4M14.3 14.3l1.4 1.4M4.3 15.7l1.4-1.4M14.3 5.7l1.4-1.4" />,
 };
 

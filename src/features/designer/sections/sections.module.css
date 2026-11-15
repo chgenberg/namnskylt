@@ -768,6 +768,33 @@
   margin: 0;
 }
 
+/* Hur ordern betalas, och godkännandet av köpvillkoren. */
+.payNote {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-body);
+}
+
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.consent input {
+  margin-top: 3px;
+  accent-color: var(--color-ink);
+}
+
+.consent a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* Kassans summering: skyltarna, frakten och summan på egna rader. */
 .totals {
   display: grid;

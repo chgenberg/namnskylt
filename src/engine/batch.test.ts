@@ -127,6 +127,16 @@ describe("samma design", () => {
     assert.equal(sameDesign([]), true);
   });
 
+  it("hänvisningen till loggans originalfil hör inte till designen", () => {
+    const logo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 10 };
+    const plain = { ...doc, logo };
+    const pointed = { ...doc, logo: { ...logo, originalId: "ab".repeat(32) } };
+    assert.equal(sameDesign([plain, pointed]), true);
+    assert.equal(sameDesign([pointed, { ...pointed, logo: { ...pointed.logo, heightMm: 12 } }]), false);
+    // Jämförelsen ändrar inte skylten.
+    assert.equal(pointed.logo.originalId, "ab".repeat(32));
+  });
+
   it("en annan yta, form eller ett annat fäste är en annan design", () => {
     assert.equal(sameDesign([doc, { ...doc, colorId: "metal-silver" }]), false);
     assert.equal(sameDesign([doc, { ...doc, mounting: "magnet" }]), false);

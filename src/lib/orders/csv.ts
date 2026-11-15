@@ -1,4 +1,5 @@
 import { engravedRows, getColor, getMaterial, getMounting } from "@/engine";
+import { paymentLabel } from "@/lib/payments/model";
 import { badgeCount, ORDER_STATUS_LABEL, type StoredOrder } from "./model";
 import { priceWithPricing } from "./pricing";
 
@@ -47,6 +48,8 @@ export function invoiceCsv(orders: readonly StoredOrder[]): string {
     .filter((o) => o.status !== "cancelled")
     .flatMap((o) => {
       const priced = priceWithPricing(o.badges, o.pricing, o.priceList, o.shippingSek);
+      // En order som är betald med kort ska inte faktureras en gång till.
+      const paid = paymentLabel(o.payment);
       const rows = o.badges.map((badge, i) => {
         const unit = priced.lines[i]?.unitSek ?? 0;
         const text = engravedRows(badge)
@@ -65,23 +68,24 @@ export function invoiceCsv(orders: readonly StoredOrder[]): string {
           unit,
           unit * badge.quantity,
           25,
+          paid,
         ];
       });
       const customer = [o.orderNo, date(o.placedAt), o.customer.company ?? o.customer.name, o.customer.email] as const;
       return [
         ...rows,
         ...(priced.discountSek > 0
-          ? [[...customer, `Rabatt ${priced.discountPercent} %`, "", 1, -priced.discountSek, -priced.discountSek, 25]]
+          ? [[...customer, `Rabatt ${priced.discountPercent} %`, "", 1, -priced.discountSek, -priced.discountSek, 25, paid]]
           : []),
-        ...priced.extras.map((extra) => [...customer, extra.label, "Extra kostnad", 1, extra.amountSek, extra.amountSek, 25]),
+        ...priced.extras.map((extra) => [...customer, extra.label, "Extra kostnad", 1, extra.amountSek, extra.amountSek, 25, paid]),
         ...(priced.minimumTopUpSek > 0
-          ? [[...customer, "Upp till minsta ordervärde", "", 1, priced.minimumTopUpSek, priced.minimumTopUpSek, 25]]
+          ? [[...customer, "Upp till minsta ordervärde", "", 1, priced.minimumTopUpSek, priced.minimumTopUpSek, 25, paid]]
           : []),
-        ...(priced.shippingSek > 0 ? [[...customer, "Frakt", "", 1, priced.shippingSek, priced.shippingSek, 25]] : []),
+        ...(priced.shippingSek > 0 ? [[...customer, "Frakt", "", 1, priced.shippingSek, priced.shippingSek, 25, paid]] : []),
       ];
     });
   return toCsv(
-    ["Order", "Datum", "Kund", "E-post", "Benämning", "Artikel", "Antal", "À-pris exkl. moms", "Summa exkl. moms", "Moms %"],
+    ["Order", "Datum", "Kund", "E-post", "Benämning", "Artikel", "Antal", "À-pris exkl. moms", "Summa exkl. moms", "Moms %", "Betalning"],
     rows,
   );
 }

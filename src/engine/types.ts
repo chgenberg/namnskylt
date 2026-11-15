@@ -80,6 +80,12 @@ export interface BadgeLogo {
   offsetMm?: Offset;
   /** Finns bilden trycks loggan i färg; saknas den graveras banorna. */
   image?: LogoImage;
+  /**
+   * Filen loggan lästes från, sparad på servern under sin SHA-256. Bara en
+   * hänvisning till verkstadens underlag: den ändrar aldrig hur skylten ritas,
+   * graveras eller prissätts.
+   */
+  originalId?: string;
 }
 
 export interface BadgeDocument {

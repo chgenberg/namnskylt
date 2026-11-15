@@ -35,12 +35,19 @@ export interface OrderShare {
  * Fördelningen för en order, räknad med modellen som gällde när ordern lades.
  * Frakten följer orderns fraktsätt: upphämtning och express har ingen frakt på ordern.
  */
-export function orderShare(badges: readonly BadgeDocument[], model: PriceModel, method: ShippingMethod = "standard"): OrderShare {
+export function orderShare(
+  badges: readonly BadgeDocument[],
+  model: PriceModel,
+  method: ShippingMethod = "standard",
+  /** Expressfraktens pris när verkstaden har satt det. */
+  expressSek: number | null = null,
+): OrderShare {
   const purchase = resellerOrder(badges, withShippingMethod(resellerPriceTable(model), method));
   return {
     quantity: purchase.quantity,
     resellerSek: purchase.goodsSek,
-    shippingSek: purchase.shippingSek,
+    // Expressfrakten följer ingen regel: den är beloppet verkstaden satte, och 0 tills dess.
+    shippingSek: method === "express" ? (expressSek ?? 0) : purchase.shippingSek,
     ...provisionSplit(model, purchase.goodsSek, purchase.quantity),
   };
 }

@@ -52,6 +52,25 @@ export function PrivacyPage() {
       </section>
 
       <section className={styles.section}>
+        <h2>När du beställer skyltar</h2>
+        <p>
+          Vi sparar namn, e-post, företag, organisationsnummer och leveransadress för den som beställer, och texten som ska
+          stå på skyltarna. Uppgifterna används för att tillverka, leverera och fakturera ordern. Betalar du med kort
+          sköts betalningen av Stripe, och vi ser aldrig kortnumret. Den som ber om det får sina uppgifter borttagna.
+          Ordrar som hör till bokföringen måste sparas i sju år, men då utan namnen på skyltarna och utan
+          kontaktuppgifter.
+        </p>
+      </section>
+
+      <section className={styles.section}>
+        <h2>Statistik utan kakor</h2>
+        <p>
+          Vi räknar hur långt besök kommer i skyltmotorn, för att se var det är krångligt. Räkningen sparar inget i din
+          webbläsare och ingen IP-adress, och kan inte kopplas till en person.
+        </p>
+      </section>
+
+      <section className={styles.section}>
         <h2>Era rättigheter</h2>
         <p>
           Ni kan när som helst avregistrera er via länken i mejlet, begära ut eller rätta uppgifterna, eller be oss radera

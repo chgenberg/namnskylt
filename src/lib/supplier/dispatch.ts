@@ -1,6 +1,7 @@
 import "server-only";
 import { renderLogoPng } from "@/lib/ai/badge-image";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
+import { requireDb } from "@/lib/db/client";
 import { withInlineLogoImages } from "@/lib/logo-images/repository";
 import type { StoredOrder } from "@/lib/orders/model";
 import {
@@ -8,11 +9,12 @@ import {
   getCompanyProfile,
   getOrderForDispatch,
   markDispatched,
-  markDispatchFailed,
 } from "@/lib/orders/repository";
 import { accountEmail } from "@/lib/reseller-auth/accounts";
 import { createSupplierClient, supplierApiConfigured } from "./client";
 import { buildSupplierRequest, dispatchProblems, MAX_REQUEST_BYTES, requestBytes, supplierBuyer } from "./request";
+import { isPermanentFailure, PermanentDispatchError } from "./retry-rules";
+import { recordDispatchFailure } from "./retry-store";
 import { isTrackableSupplierOrder } from "./status";
 import type { SupplierBuyer, SupplierOrderRequest } from "./types";
 
@@ -67,7 +69,9 @@ export type DispatchOutcome =
 /**
  * Skickar en sparad order till Skylt & Gravyrteknik. Gör ingenting utan
  * `SUPPLIER_API_URL` och `SUPPLIER_API_KEY`: då ligger ordern kvar och väntar.
- * Ett fel sparas på ordern, som kan skickas igen från adminens översikt.
+ * Ett fel sparas på ordern, som kan skickas igen från adminens översikt. Ett
+ * fel som kan gå över (nätfel, fel hos verkstaden) provas också igen av
+ * schemat (`retryFailedDispatches`); ett nej från verkstaden gör det inte.
  */
 export async function dispatchOrder(orderNo: string): Promise<DispatchOutcome> {
   if (!supplierApiConfigured()) return { ok: false, reason: "not-configured", error: "Kopplingen till verkstaden är inte aktiverad" };
@@ -82,10 +86,10 @@ export async function dispatchOrder(orderNo: string): Promise<DispatchOutcome> {
   if (!(await claimForDispatch(order.id))) return { ok: false, reason: "busy", error: "Ordern skickas redan" };
   try {
     const request = await supplierRequestFor(order, buyer);
-    if (!request) throw new Error("Ordern går inte att skicka");
+    if (!request) throw new PermanentDispatchError("Ordern går inte att skicka");
     const bytes = requestBytes(request);
     if (bytes > MAX_REQUEST_BYTES) {
-      throw new Error(`Ordern är för stor för ett anrop (${(bytes / 1_000_000).toFixed(1)} MB). Dela upp den i flera ordrar.`);
+      throw new PermanentDispatchError(`Ordern är för stor för ett anrop (${(bytes / 1_000_000).toFixed(1)} MB). Dela upp den i flera ordrar.`);
     }
     const receipt = await createSupplierClient().placeOrder(request);
     await markDispatched(order.id, receipt.orderNumber);
@@ -93,7 +97,7 @@ export async function dispatchOrder(orderNo: string): Promise<DispatchOutcome> {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Okänt fel";
     console.error(`Order ${orderNo} kunde inte skickas till verkstaden`, error);
-    await markDispatchFailed(order.id, message);
+    await recordDispatchFailure(requireDb(), order.id, message, isPermanentFailure(error));
     return { ok: false, reason: "failed", error: message };
   }
 }

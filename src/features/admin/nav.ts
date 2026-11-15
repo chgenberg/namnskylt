@@ -39,6 +39,7 @@ export function adminNav({
       { href: "/admin/utskick", label: "Utskick", icon: "outreach" },
       { href: "/admin/prismodell", label: "Prismodell", icon: "purchase" },
       { href: "/admin/provision", label: "Provision", icon: "split" },
+      { href: "/admin/drift", label: "Drift", icon: "ops" },
       ...last,
     ];
   }

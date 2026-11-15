@@ -4,8 +4,10 @@ import type { PriceModel } from "@/engine/price-model";
 import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages } from "@/lib/logo-images/repository";
 import { badgeCountLabel, customerLabel } from "@/lib/notices/model";
 import { notify } from "@/lib/notices/notify";
+import type { OrderPayment } from "@/lib/payments/model";
 import { estimatedShipDate } from "@/lib/supplier/client";
 import { dispatchOrder } from "@/lib/supplier/dispatch";
+import { sendOrderConfirmation } from "./confirmation";
 import type { Delivery } from "./delivery";
 import { NOT_OFFERED_ERROR, allOffered, type OrderSource } from "./model";
 import type { Pricing } from "./pricing";
@@ -13,7 +15,7 @@ import { partnerRequestNumber, splitByProducer } from "./partner";
 import { createOrder, databaseConfigured } from "./repository";
 
 export interface PlaceOrderInput {
-  customer: { name: string; email: string; company?: string | null };
+  customer: { name: string; email: string; company?: string | null; orgNumber?: string | null };
   badges: BadgeDocument[];
   source: OrderSource;
   repeatOf?: string | null;
@@ -31,6 +33,8 @@ export interface PlaceOrderInput {
   project?: string | null;
   /** Vart skyltarna skickas. Utan leverans sparas ordern, men den skickas inte till verkstaden förrän adressen är ifylld. */
   delivery?: Delivery | null;
+  /** Betalningen, när kunden redan har betalat med kort. Utelämnad = ordern faktureras. */
+  payment?: OrderPayment | null;
   /** Återförsäljaren ordern tillhör; webbshoppen och butikerna är ägarens. */
   tenant: string;
 }
@@ -48,6 +52,8 @@ export interface PlaceOrderResult {
   estimatedShipDate?: string;
   partnerRequest?: string;
   supplierOrderNumber?: string;
+  /** Koden i länken till kundens ordersida. Saknas när ordern inte sparades. */
+  customerToken?: string;
 }
 
 /**
@@ -83,7 +89,13 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     partnerRequestNo: partnerRequest ?? null,
     note:
       input.note ??
-      (input.demo ? "Demoorder — skickas inte till tillverkningen" : partnerRequest ? `Partnerförfrågan ${partnerRequest}` : null),
+      (input.demo
+        ? "Demoorder — skickas inte till tillverkningen"
+        : partnerRequest
+          ? `Partnerförfrågan ${partnerRequest}`
+          : input.payment
+            ? "Betald med kort"
+            : null),
     demo: input.demo,
     pricing: input.pricing,
     priceModel: input.priceModel,
@@ -91,6 +103,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     shopSlug: input.shopSlug,
     project: input.project,
     delivery: input.delivery,
+    payment: input.payment,
     tenant: input.tenant,
   });
 
@@ -103,10 +116,13 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       detail: badgeCountLabel(input.badges.reduce((sum, badge) => sum + badge.quantity, 0)),
       orderId: saved.id,
     });
+    // Kunden får sin bekräftelse som mejl när sajtens mejl är påslagna. Mejlet väntar kunden inte på.
+    void sendOrderConfirmation(saved.orderNo);
   }
 
-  if (input.demo) return { orderNumber: saved.orderNo, status: "mock" };
-  if (workshop.length === 0) return { orderNumber: saved.orderNo, status: "request", partnerRequest };
+  const customerToken = saved.customerToken;
+  if (input.demo) return { orderNumber: saved.orderNo, status: "mock", customerToken };
+  if (workshop.length === 0) return { orderNumber: saved.orderNo, status: "request", partnerRequest, customerToken };
 
   const sent = await dispatchOrder(saved.orderNo);
   return sent.ok
@@ -116,6 +132,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         estimatedShipDate: sent.estimatedShipDate ?? estimatedShipDate(),
         partnerRequest,
         supplierOrderNumber: sent.supplierOrderNo,
+        customerToken,
       }
     : {
         orderNumber: saved.orderNo,
@@ -123,5 +140,6 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
         status: sent.reason === "not-configured" ? "mock" : "pending",
         estimatedShipDate: estimatedShipDate(),
         partnerRequest,
+        customerToken,
       };
 }

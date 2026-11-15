@@ -1,0 +1,56 @@
+/* Driftsidan: strömbrytare, jobbens utfall och felens detaljer. Resten delas med panelen. */
+
+.switch {
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  line-height: 1;
+  color: var(--color-muted);
+}
+
+.switch[data-on="true"] {
+  color: var(--color-success);
+}
+
+.state {
+  font-weight: 600;
+}
+
+.state[data-ok="true"] {
+  color: var(--color-success);
+}
+
+.state[data-ok="false"] {
+  color: var(--color-danger);
+}
+
+.headActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.detail summary {
+  cursor: pointer;
+}
+
+.detail summary:focus-visible {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 2px;
+}
+
+.detail pre {
+  max-width: min(72ch, 70vw);
+  max-height: 320px;
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  overflow: auto;
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -1,12 +1,13 @@
 import "server-only";
 import { randomBytes } from "node:crypto";
-import type { Sql } from "postgres";
+import type { Sql, TransactionSql } from "postgres";
 import { z } from "zod";
 import { badgeDocumentSchema, sameDesign, type BadgeDocument } from "@/engine";
 import { endPriceTable, type PriceModel } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { db, requireDb } from "@/lib/db/client";
 import { withStoredLogoImages } from "@/lib/logo-images/repository";
+import { parsePayment, type OrderPayment } from "@/lib/payments/model";
 import {
   deliveryAddressSchema,
   deliverySchema,
@@ -65,6 +66,9 @@ interface OrderRow {
   supplier_sent_at: Date | null;
   supplier_error: string | null;
   supplier_attempts: number;
+  payment: unknown;
+  express_shipping_sek: number | null;
+  customer_token: string;
   events: { status: string; note: string | null; at: string }[] | null;
 }
 
@@ -91,7 +95,14 @@ function toOrder(row: OrderRow, currentModel: PriceModel, audience: PriceAudienc
     status: isOrderStatus(row.status) ? row.status : "received",
     badges: badges.success ? badges.data : [],
     pricing: parsePricing(row.pricing),
-    ...priceListsFor(row.price_model, currentModel, audience, badges.success ? badges.data : [], shippingMethodOf(parseDelivery(row.delivery))),
+    ...priceListsFor(
+      row.price_model,
+      currentModel,
+      audience,
+      badges.success ? badges.data : [],
+      shippingMethodOf(parseDelivery(row.delivery)),
+      row.express_shipping_sek,
+    ),
     totalSek: row.total_sek,
     totalInclVatSek: row.total_incl_vat_sek,
     supplierOrderNo: row.supplier_order_no,
@@ -111,6 +122,9 @@ function toOrder(row: OrderRow, currentModel: PriceModel, audience: PriceAudienc
     supplierSentAt: row.supplier_sent_at?.toISOString() ?? null,
     supplierError: row.supplier_error,
     supplierAttempts: row.supplier_attempts,
+    payment: parsePayment(row.payment),
+    expressShippingSek: row.express_shipping_sek,
+    customerToken: row.customer_token,
   };
 }
 
@@ -129,7 +143,7 @@ function selectOrders(sql: Sql) {
     select o.id, o.order_no, o.status, o.badges, o.pricing, o.price_model, o.total_sek, o.total_incl_vat_sek,
            o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo, o.supplier_synced_at,
            o.badge_shot is not null as has_badge_shot, o.shop_slug, o.project, o.reseller_id,
-           o.delivery, o.supplier_sent_at, o.supplier_error, o.supplier_attempts,
+           o.delivery, o.supplier_sent_at, o.supplier_error, o.supplier_attempts, o.payment, o.express_shipping_sek, o.customer_token,
            r.order_no as repeat_of_order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email, c.is_demo as customer_demo,
            c.phone as customer_phone, c.org_number as customer_org_number, c.address as customer_address,
@@ -156,6 +170,23 @@ export async function getOrder(tenant: string, orderNo: string): Promise<StoredO
   const sql = requireDb();
   const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.order_no = ${orderNo} and o.reseller_id = ${tenant}`;
   return row ? toOrder(row, await getPriceModel(), "reseller") : null;
+}
+
+/** Adressen till kundens ordersida för ett ordernummer; `null` när ordern inte finns. */
+export async function customerOrderPath(orderNo: string): Promise<string | null> {
+  const [row] = await requireDb()<{ customer_token: string }[]>`select customer_token from orders where order_no = ${orderNo}`;
+  return row ? `/order/${row.customer_token}` : null;
+}
+
+/** Koden i länken till kundens ordersida: 64 hex-tecken, olika för varje order. */
+export const CUSTOMER_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
+
+/** Ordern bakom kundens hemliga länk, läst åt kunden: aldrig med inköpspriser. */
+export async function getOrderByCustomerToken(token: string): Promise<StoredOrder | null> {
+  if (!CUSTOMER_TOKEN_PATTERN.test(token)) return null;
+  const sql = requireDb();
+  const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.customer_token = ${token}`;
+  return row ? toOrder(row, await getPriceModel(), "customer") : null;
 }
 
 /** Utan hyresgäst — bara för kundens egna länkar (korrektur), där token är behörigheten. */
@@ -216,7 +247,7 @@ export async function listCustomerOrders(tenant: string, customerId: string): Pr
 }
 
 export interface NewOrder {
-  customer: { name: string; email: string; company?: string | null };
+  customer: { name: string; email: string; company?: string | null; orgNumber?: string | null };
   badges: BadgeDocument[];
   status: OrderStatus;
   source: OrderSource;
@@ -234,12 +265,14 @@ export interface NewOrder {
   project?: string | null;
   /** Vart skyltarna skickas. Utan leverans sparas ordern, men den går inte att skicka till verkstaden. */
   delivery?: Delivery | null;
+  /** Betalningen, när ordern är betald med kort. Utelämnad = faktura. */
+  payment?: OrderPayment | null;
   /** Återförsäljaren ordern tillhör; webbshoppen och butikerna är ägarens. */
   tenant: string;
 }
 
 /** Sparar ordern, kopplar den till kunden (samma e-post = samma kund) och loggar första steget. */
-export async function createOrder(order: NewOrder): Promise<{ id: string; orderNo: string }> {
+export async function createOrder(order: NewOrder): Promise<{ id: string; orderNo: string; customerToken: string }> {
   const sql = requireDb();
   const pricing = isCustomPricing(order.pricing ?? null) ? (order.pricing ?? null) : null;
   const model = order.priceModel ?? (await getPriceModel());
@@ -251,26 +284,28 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
   const tenant = order.tenant;
   return sql.begin(async (tx) => {
     const [customer] = await tx<{ id: string }[]>`
-      insert into customers (reseller_id, email, name, company, is_demo)
-      values (${tenant}, ${email}, ${order.customer.name}, ${order.customer.company ?? null}, ${order.demo ?? false})
+      insert into customers (reseller_id, email, name, company, org_number, is_demo)
+      values (${tenant}, ${email}, ${order.customer.name}, ${order.customer.company ?? null}, ${order.customer.orgNumber ?? null}, ${order.demo ?? false})
       on conflict (reseller_id, email) do update
-        set name = excluded.name, company = coalesce(excluded.company, customers.company)
+        set name = excluded.name, company = coalesce(excluded.company, customers.company),
+            org_number = coalesce(excluded.org_number, customers.org_number)
       returning id`;
     if (!customer) throw new Error("Kunden kunde inte sparas");
-    const [saved] = await tx<{ id: string; order_no: string }[]>`
+    const [saved] = await tx<{ id: string; order_no: string; customer_token: string }[]>`
       insert into orders (customer_id, status, badges, pricing, price_model, total_sek, total_incl_vat_sek,
                           supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug, reseller_id, project,
-                          delivery)
+                          delivery, payment)
       values (${customer.id}, ${order.status}, ${tx.json(badges as unknown as Json)},
               ${pricing ? tx.json(pricing as unknown as Json) : null}, ${tx.json(model as unknown as Json)},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
               ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false},
               ${order.badgeShot ?? null}, ${order.shopSlug ?? null}, ${tenant}, ${order.project ?? null},
-              ${order.delivery ? tx.json(order.delivery as unknown as Json) : null})
-      returning id, order_no`;
+              ${order.delivery ? tx.json(order.delivery as unknown as Json) : null},
+              ${order.payment ? tx.json(order.payment as unknown as Json) : null})
+      returning id, order_no, customer_token`;
     if (!saved) throw new Error("Ordern kunde inte sparas");
     await tx`insert into order_events (order_id, status, note, at) values (${saved.id}, ${order.status}, ${order.note ?? null}, ${placedAt})`;
-    return { id: saved.id, orderNo: saved.order_no };
+    return { id: saved.id, orderNo: saved.order_no, customerToken: saved.customer_token };
   });
 }
 
@@ -394,22 +429,69 @@ export async function saveCompanyProfile(tenant: string, profile: CompanyProfile
 export interface SupplierUpdate {
   status: OrderStatus | null;
   trackingUrl?: string | null;
+  /** Expressfraktens pris i hela kronor, exklusive moms, när verkstaden har satt det. */
+  expressShippingSek?: number | null;
   at: string;
+}
+
+export interface SupplierUpdateResult {
+  found: boolean;
+  /** Statusen flyttades framåt. */
+  changed: boolean;
+  /** Ordern och statusen den fick, när den ändrades. */
+  orderNo?: string;
+  status?: OrderStatus;
+}
+
+/**
+ * Sätter expressfraktens pris på en order och räknar om summan. Gäller bara en
+ * order med expressfrakt. `false` när ordern har ett annat fraktsätt eller
+ * priset redan är detsamma.
+ */
+async function applyExpressPrice(tx: TransactionSql, orderId: string, sek: number, currentModel: PriceModel, who: string): Promise<boolean> {
+  const [row] = await tx<{ status: string; badges: unknown; pricing: unknown; price_model: unknown; delivery: unknown; express_shipping_sek: number | null }[]>`
+    select status, badges, pricing, price_model, delivery, express_shipping_sek from orders where id = ${orderId} for update`;
+  if (!row || shippingMethodOf(parseDelivery(row.delivery)) !== "express" || row.express_shipping_sek === sek) return false;
+  const badges = badgesSchema.safeParse(row.badges);
+  if (!badges.success) return false;
+  const model = storedPriceModel(row.price_model, currentModel);
+  const price = priceWithPricing(badges.data, parsePricing(row.pricing), endPriceTable(model), sek);
+  await tx`
+    update orders set express_shipping_sek = ${sek}, total_sek = ${price.totalSek}, total_incl_vat_sek = ${price.totalInclVatSek}
+     where id = ${orderId}`;
+  await tx`insert into order_events (order_id, status, note) values (${orderId}, ${row.status}, ${`Expressfrakt ${sek} kr, ${who}`})`;
+  return true;
+}
+
+/**
+ * Admin sätter expressfraktens pris för hand, tills verkstadens system skickar
+ * det själv. Gäller alla återförsäljares ordrar: anroparen ansvarar för att
+ * bara admin når hit.
+ */
+export async function setExpressShipping(orderNo: string, sek: number): Promise<boolean> {
+  const sql = requireDb();
+  const currentModel = await getPriceModel();
+  return sql.begin(async (tx) => {
+    const [order] = await tx<{ id: string }[]>`select id from orders where order_no = ${orderNo} and not is_demo for update`;
+    return order ? applyExpressPrice(tx, order.id, sek, currentModel, "satt av namnskylt.com") : false;
+  });
 }
 
 /**
  * Leverantörens läge för en order. Statusen flyttas bara framåt (`canAdvance`
- * avgör), spårningslänken fylls på och avstämningstiden sparas oavsett.
+ * avgör), spårningslänken och expressfraktens pris fylls på och
+ * avstämningstiden sparas oavsett.
  */
 export async function applySupplierUpdate(
   supplierOrderNo: string,
   update: SupplierUpdate,
   canAdvance: (current: OrderStatus, next: OrderStatus) => boolean,
-): Promise<{ found: boolean; changed: boolean }> {
+): Promise<SupplierUpdateResult> {
   const sql = requireDb();
+  const currentModel = await getPriceModel();
   return sql.begin(async (tx) => {
-    const [order] = await tx<{ id: string; status: string }[]>`
-      select id, status from orders
+    const [order] = await tx<{ id: string; order_no: string; status: string }[]>`
+      select id, order_no, status from orders
        where supplier_order_no = ${supplierOrderNo} and not is_demo
        for update`;
     if (!order) return { found: false, changed: false };
@@ -424,7 +506,10 @@ export async function applySupplierUpdate(
       await tx`insert into order_events (order_id, status, note, at)
                values (${order.id}, ${next}, ${"Från tryckeriet"}, ${new Date(update.at)})`;
     }
-    return { found: true, changed: next !== null };
+    if (update.expressShippingSek != null) {
+      await applyExpressPrice(tx, order.id, update.expressShippingSek, currentModel, "satt av verkstaden");
+    }
+    return next ? { found: true, changed: true, orderNo: order.order_no, status: next } : { found: true, changed: false };
   });
 }
 
@@ -438,18 +523,20 @@ export async function updateOrderDelivery(tenant: string, orderNo: string, deliv
   const parsed = deliverySchema.parse(delivery);
   const currentModel = await getPriceModel();
   return sql.begin(async (tx) => {
-    const [row] = await tx<{ id: string; status: string; badges: unknown; pricing: unknown; price_model: unknown }[]>`
-      select id, status, badges, pricing, price_model from orders
+    const [row] = await tx<{ id: string; status: string; badges: unknown; pricing: unknown; price_model: unknown; express_shipping_sek: number | null }[]>`
+      select id, status, badges, pricing, price_model, express_shipping_sek from orders
        where order_no = ${orderNo} and reseller_id = ${tenant} and supplier_sent_at is null for update`;
     if (!row) return false;
     const badges = badgesSchema.safeParse(row.badges);
     const model = storedPriceModel(row.price_model, currentModel);
     const method = shippingMethodOf(parsed);
+    // Expressfraktens pris hör till expressfrakten: med ett annat fraktsätt gäller det inte längre.
+    const expressSek = method === "express" ? row.express_shipping_sek : null;
     const price = badges.success
-      ? priceWithPricing(badges.data, parsePricing(row.pricing), endPriceTable(model), shippingFor(model, badges.data, method))
+      ? priceWithPricing(badges.data, parsePricing(row.pricing), endPriceTable(model), shippingFor(model, badges.data, method, expressSek))
       : null;
     await tx`
-      update orders set delivery = ${tx.json(parsed as unknown as Json)},
+      update orders set delivery = ${tx.json(parsed as unknown as Json)}, express_shipping_sek = ${expressSek},
              total_sek = ${price ? price.totalSek : tx`total_sek`},
              total_incl_vat_sek = ${price ? price.totalInclVatSek : tx`total_incl_vat_sek`}
        where id = ${row.id}`;
@@ -487,12 +574,6 @@ export async function markDispatched(orderId: string, supplierOrderNo: string): 
     await tx`insert into order_events (order_id, status, note)
              values (${orderId}, ${row.status}, ${`Skickad till Skylt & Gravyrteknik, deras order ${supplierOrderNo}`})`;
   });
-}
-
-/** Försöket misslyckades. Ordern ligger kvar och kan skickas igen. */
-export async function markDispatchFailed(orderId: string, error: string): Promise<void> {
-  const sql = requireDb();
-  await sql`update orders set supplier_error = ${error.slice(0, 500)}, supplier_claimed_at = null where id = ${orderId}`;
 }
 
 /** Adressen kunden senast fick skyltar till, när de gick direkt till kunden. */
@@ -554,14 +635,15 @@ export async function updateOrderPricing(tenant: string, orderNo: string, pricin
   const sql = requireDb();
   const currentModel = await getPriceModel();
   return sql.begin(async (tx) => {
-    const [row] = await tx<{ id: string; badges: unknown; status: string; price_model: unknown; delivery: unknown }[]>`
-      select id, badges, status, price_model, delivery from orders where order_no = ${orderNo} and reseller_id = ${tenant} for update`;
+    const [row] = await tx<{ id: string; badges: unknown; status: string; price_model: unknown; delivery: unknown; express_shipping_sek: number | null }[]>`
+      select id, badges, status, price_model, delivery, express_shipping_sek from orders
+       where order_no = ${orderNo} and reseller_id = ${tenant} for update`;
     const badges = badgesSchema.safeParse(row?.badges);
     if (!row || !badges.success) return false;
     const custom = isCustomPricing(pricing) ? pricing : null;
     const model = storedPriceModel(row.price_model, currentModel);
     const method = shippingMethodOf(parseDelivery(row.delivery));
-    const price = priceWithPricing(badges.data, custom, endPriceTable(model), shippingFor(model, badges.data, method));
+    const price = priceWithPricing(badges.data, custom, endPriceTable(model), shippingFor(model, badges.data, method, row.express_shipping_sek));
     await tx`
       update orders set pricing = ${custom ? tx.json(custom as unknown as Json) : null},
              total_sek = ${price.totalSek}, total_incl_vat_sek = ${price.totalInclVatSek}

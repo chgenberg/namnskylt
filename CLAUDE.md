@@ -23,7 +23,11 @@ Läs dessa när du arbetar i respektive område:
   ocommittat arbete. Kör aldrig `git checkout -- <fil>`, `git stash`, `reset` eller `clean`.
 - **Skicka aldrig mejl.** `RESEND_API_KEY` ska vara tom tills användaren säger annat.
   Utskicket står i `dry_run` och är pausat. Sätt inte heller `NOTICE_FROM_EMAIL`, som slår på
-  mejl om besked till återförsäljarna (se avsnittet Besked).
+  sajtens egna mejl: besked till återförsäljarna, kundens orderbekräftelse, fraktbeskedet och
+  länken för glömt lösenord (se avsnittet Mejl från sajten).
+- **Slå aldrig på kortbetalningen.** `STRIPE_SECRET_KEY` och `STRIPE_WEBHOOK_SECRET` ska vara
+  tomma i driften tills användaren har ett Stripe-konto och säger till. Med dem satta betalar
+  privatpersoner med kort på riktigt. Se avsnittet Kassan, betalning och köpvillkor.
 - **Slå aldrig på kopplingen till verkstaden.** `SUPPLIER_API_URL` och `SUPPLIER_API_KEY` ska
   vara tomma i driften tills användaren säger till. Med dem satta skickas varje ny order till
   Skylt & Gravyrteknik, som tillverkar och fakturerar. Se avsnittet Ordern till verkstaden.
@@ -50,7 +54,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (808 tester, grönt 2026-11-15).
+# Kvalitetsgrinden. Kör den innan något lämnas (949 tester, grönt 2026-11-15).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -89,6 +93,9 @@ pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
 | `src/lib/outreach/` | Utskicket till återförsäljare (se nedan). 42 filer i en platt mapp, vilket är känd skuld. |
 | `src/lib/email/` | Transport: `ResendEmailSender` och `MockEmailSender`, som skriver `.eml` till `tmp/outreach-outbox`. |
 | `src/lib/notices/` | Besked till panelens ägare när en kund har svarat eller beställt: texter (`model.ts`), lagring, `notify` och mejlet bakom en strömbrytare. |
+| `src/lib/payments/` | Kortbetalning via Stripe bakom en strömbrytare: `stripe.ts` (anrop och signatur med `fetch`, utan SDK), `checkout.ts` (kassan som väntar på betalning och blir en order), `model.ts`. |
+| `src/lib/maintenance/` | Fellogg (`error-log.ts`), bakgrundsjobb i processen (`scheduler.ts`, `jobs.ts`) och driftsidans lägen (`status.ts`). |
+| `src/lib/designer-work/`, `designer-stats/`, `seo/` | Skyltmotorns sparade arbete i webbläsaren, tratten över var besök slutar, och reglerna för `robots.txt` och sitemapen. |
 | `src/lib/format/` | `formatSek`, `formatDate`, `formatDay`, `formatRelative` (Europe/Stockholm). |
 | `src/features/` | En mapp per vy: designer (3D), shop, shop-editor, admin, outreach, outreach-landing m.fl. |
 | `src/app/` | Routes. Publika vägar är svenska (`/skapa`, `/butik`, `/for/[token]`), API-vägar engelska. |
@@ -157,9 +164,28 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     byts den mot bildens ruta (`encodeShareCode`); en graverad logga med mycket detaljer tappas
     fortfarande ur länken.
   - Priset är samma som för en graverad logga ("extra gravyr eller print").
-  - Kända brister: bilder tas aldrig bort ur `logo_images`, även när ingen skylt pekar på dem
-    längre. Mjuka, halvgenomskinliga kanter i en logga (en skugga eller ett sken) klipps i 3D-vyn,
-    eftersom ytan följer siluetten; ritningen visar hela bilden.
+  - **Originalfilen sparas** (2026-11-15, migrering 024, tabellen `logo_originals`). Skyltmotorn
+    laddar upp filen kunden valde (SVG, PNG, JPEG, WebP, GIF eller PDF, högst 10 MB) i bakgrunden
+    till `POST /api/logo-originals`, som läser typen ur innehållet och sparar filen under sin
+    SHA-256. Loggan bär `BadgeLogo.originalId`, som aldrig påverkar ritning, pris eller banor.
+    Går uppladdningen inte fungerar allt som förut, utan fältet.
+    - Filen hämtas i panelen: "Originalfil för loggan" på order och offert och "Loggans original"
+      i Tillverkning. `GET /api/logo-originals/<id>` kräver inloggning i panelen och svarar alltid
+      som nedladdning, så att en SVG aldrig visas i sidan.
+    - Koden ligger i `src/lib/logo-images/` (`original-model.ts`, `originals.ts`).
+      `withStoredLogoImages` tar bort ett `originalId` som inte finns på servern. Delningskoden
+      behåller fältet när det ryms och stryker det först om koden blir för lång.
+    - En logga hämtad från en hemsida i skyltmotorn sparar bilden servern hämtade, inte sajtens
+      SVG. Butikernas förvalda loggor och utskickets skyltar får inget original.
+    - Originalet skickas inte till verkstaden, eftersom anropet har en gräns på 6 MB. Hur
+      verkstaden ska få filen är inte bestämt; i dag hämtas den för hand i panelen.
+    - Beställer kunden innan uppladdningen är klar blir ordern utan `originalId`.
+  - **Loggor som ingen använder städas bort** en gång per dygn (`deleteUnusedLogoFiles` i
+    `cleanup.ts`, jobbet `logo-cleanup`): bilder och original som är äldre än 30 dagar och som
+    ingen JSON-kolumn i databasen pekar på. Följden är att en delad länk som aldrig blev order
+    eller offert tappar sin logga i färg efter 30 dagar.
+  - Känd brist: mjuka, halvgenomskinliga kanter i en logga (en skugga eller ett sken) klipps i
+    3D-vyn, eftersom ytan följer siluetten; ritningen visar hela bilden.
 - **Ordval:** sajten säger inte "graverad" om hela sortimentet, eftersom loggor i färg trycks.
   Sajten säger "namnskyltar", "tillverkas", "till tillverkningen" och "Korrektur innan
   produktion" (beslut av ägaren 2026-11-15), även i flikens titel, butikernas sidfot,
@@ -285,10 +311,19 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
       (`shippingNote`), utan verkstadens namn. Fraktsättet följer med från offert till order, och
       "Beställ igen" och "Ny personal" ärver det.
     - Verkstaden får koderna `postnord-express` och `pickup-hogsbo`, utan fraktkostnad.
-    - Kända brister: expressfrakten läggs inte in av sig själv när verkstaden har satt priset,
-      utan får läggas som en extrarad på ordern. Upphämtning kräver fortfarande en ifylld
-      adress. Kunden kan inte välja leveranssätt när en offert godkänns; återförsäljaren sätter
-      det på offerten.
+    - **Kunden väljer leveranssätt när en offert godkänns** (2026-11-15), om skyltarna ska
+      till kunden: namnskylt.coms kunder bland alla tre, en återförsäljares kund bland
+      standard och express, och alltid det sätt som redan står på offerten
+      (`quoteShippingMethods`, `acceptedDelivery`). Knappen visar summan för valet. Ska
+      skyltarna till återförsäljaren gäller offertens fraktsätt.
+    - **Expressfraktens pris** (migrering 028, `orders.express_shipping_sek`) läggs på ordern
+      när verkstaden har satt det: av sig självt när verkstadens status bär `shippingCost`
+      (`applySupplierUpdate`), och tills deras system finns av admin i Tillverkning
+      (`ExpressPriceField`, `setExpressShipping`). Summan räknas om, kunden ser beloppet på sin
+      ordersida, och återförsäljarens inköpslista bär samma belopp som fast frakt
+      (`priceListsFor`). Byts fraktsättet bort från express nollas priset.
+    - Kända brister: upphämtning kräver fortfarande en ifylld adress. En kortbetald order
+      kan inte ha expressfrakt, eftersom priset inte är känt när kunden betalar.
   - Frakten beror bara på skyltarna. Återförsäljarens egna priser, rabatter och extrarader och
     butikens påslag ändrar den inte. Den visas som egen rad på offert, PDF, ordersida och
     fakturaunderlag.
@@ -379,7 +414,12 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
     kontots id blir företagsnamnet som slug (`tenantSlug`, `freeTenantId`).
   - Samma sida ger admin en **lösenordslänk** per konto (3 dagar, gäller en gång). En ny länk
     gör äldre länkar ogiltiga. Återförsäljaren byter själv lösenord under Inställningar
-    (`changePasswordAction`). "Glömt lösenord" med mejl finns inte än.
+    (`changePasswordAction`).
+  - **Glömt lösenord** (2026-11-15): `/aterforsaljare/glomt` mejlar en länk som gäller i två
+    timmar (`requestPasswordReset` i `src/lib/reseller-auth/forgot.ts`). Svaret är detsamma
+    oavsett om adressen har ett konto, och formuläret har en gräns per klient och per adress.
+    Sidan fungerar först när sajtens mejl är påslagna; tills dess hänvisar den och
+    inloggningen till namnskylt.com.
   - Lösenordets minsta längd ligger i `src/lib/reseller-auth/limits.ts`, en fil utan
     Node-moduler, eftersom formulären i webbläsaren läser den.
 - Vägarna tar bara emot sina egna fält (`z.strictObject`), så det ena formuläret kan aldrig ge det
@@ -461,15 +501,27 @@ verkstaden sin provision per period.
   nästa med samma design utan text. Den nya räknas inte in förrän den ändrats. Priset räknas på hela ordern, så trappsteg,
   startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom
   bilden bara visar en av dem, och panelen fyller inte heller i en bild i efterhand
-  (`sameDesign` i motorn, `missingBadgeShots`). Korgen ligger i minnet och försvinner om sidan
-  laddas om.
+  (`sameDesign` i motorn, `missingBadgeShots`).
+- **Skyltmotorns arbete sparas i webbläsaren** (2026-11-15, `useSavedWork`, regler i
+  `src/lib/designer-work/`): skylten i editorn, namnlistan och varukorgen ligger i
+  `localStorage` och finns kvar när sidan laddas om. En nyckel per sammanhang (webben, en
+  butik, en återförsäljares kund), sparat 300 ms efter senaste ändringen.
+  - Det sparade kastas om det är trasigt, äldre än 14 dagar eller innehåller en skylt som
+    inte säljs längre, och rensas när ordern är mottagen. Vid kortbetalning ligger det kvar
+    tills ordern är betald, eftersom kunden kan avbryta.
+  - Öppnas sidan med en annan skylt än den sparade (en delad länk eller ett nytt namn från
+    startsidan) gäller den nya i editorn, och varukorgen kommer tillbaka (`restoredWork`).
+  - Raden "Vi hämtade tillbaka din varukorg" har knappen "Börja om", som tömmer direkt utan
+    att fråga. Får det sparade inte plats sparas ingenting, hellre än en halv varukorg.
+  - En inbäddad butik på en återförsäljares sajt kan sakna `localStorage`; då sparas inget.
 - `/verkstad`, produktionssidan här i projektet, visar fortfarande bara demoordrar. Riktiga
   ordrar är tänkta att gå via kopplingen till verkstadens eget system.
 - Öppet: underlaget per period räknar på månaden ordern lades, inte när den skickades eller
   fakturerades. Ingen har bestämt vilket som gäller för plattformens faktura till verkstaden.
-- **Mejl skickas inte.** Offertens länk går från återförsäljarens eget mejlprogram. När kunden
-  svarar får återförsäljaren ett besked i panelen (se avsnittet Besked), men inget mejl, och
-  kunden får ingen orderbekräftelse. Resend är beslutat men inte inkopplat.
+- **Mejl skickas inte än.** Offertens länk går från återförsäljarens eget mejlprogram. När
+  kunden svarar får återförsäljaren ett besked i panelen (se avsnittet Besked). Kundens
+  orderbekräftelse och fraktbesked är byggda men avstängda, se avsnittet Mejl från sajten.
+  Resend är beslutat men inte inkopplat.
 - Kontrollerat 2026-11-14 mot en låtsasverkstad på datorn (produktionsbygget med kopplingen
   på): en ny order skickas en gång, ett fel går att göra om, en väntande order skickas från
   översikten och statusen kommer tillbaka. Aldrig provat mot verkstadens riktiga system.
@@ -512,6 +564,8 @@ som syns i panelen. Det återförsäljaren gör själv ger inget besked.
   Kundens egna ord (skälet till ett nej, ändringen som önskas) står inom citattecken.
 - Adminens meny visar också antalet ansökningar som väntar på Återförsäljare
   (`countPendingApplications`).
+- **Verkstaden har skickat** ger också ett besked (`order-shipped`, 2026-11-15), eftersom det
+  är något som hänt utan att panelens ägare gjort det (`announceShipped`).
 - **Mejl om besked är byggt men avstängt.** Det skickas först när `RESEND_API_KEY` är satt och
   avsändaren står i `NOTICE_FROM_EMAIL` (`noticeEmailSettings`); `OUTREACH_DISABLED=true` stänger
   också av det. Mottagaren är adressen i företagets uppgifter, annars kontots inloggningsadress.
@@ -519,7 +573,170 @@ som syns i panelen. Det återförsäljaren gör själv ger inget besked.
   förfrågans värdnamn. Mejlet väntar kunden inte på, och `notices.emailed_at` sätts när Resend
   har tagit emot det. Aldrig provat mot Resend.
 - Kända brister: lästa besked visas ingenstans (historiken står i orderns och offertens
-  tidslinje) och tas aldrig bort. Kunden får fortfarande inget mejl.
+  tidslinje) och tas aldrig bort.
+
+## Mejl från sajten — läge 2026-11-15
+
+Sajten har fyra egna mejl utöver utskicket. Alla är byggda och avstängda, bakom samma
+strömbrytare: `RESEND_API_KEY` och `NOTICE_FROM_EMAIL` (`noticeEmailSettings`,
+`sendTransactional` i `src/lib/email/transactional.ts`). Inget av dem är provat mot Resend.
+
+- **Besked** till panelens ägare, se avsnittet Besked.
+- **Orderbekräftelse** till en kund som har beställt själv, i webbshoppen eller en butik
+  (`sendOrderConfirmation`, `composeOrderConfirmation` i `src/lib/orders/`): skyltar, frakt,
+  moms, summa, betalning, leveransadress och länken till kundens ordersida. Avsändarens namn
+  är säljaren (butiken eller namnskylt.com) och svar går till säljarens adress.
+  `orders.confirmation_emailed_at` sätts när Resend har tagit emot mejlet. En order som
+  återförsäljaren lägger åt kunden, eller en godkänd offert, ger ingen bekräftelse.
+- **Fraktbesked** till kunden när verkstaden har skickat (`announceShipped`,
+  `composeShippedEmail`), med spårningslänken och länken till ordersidan. Går skyltarna till
+  återförsäljaren får kunden inget mejl; återförsäljaren får beskedet i panelen.
+- **Glömt lösenord**, se avsnittet Inlogg.
+- Länkar byggs på `publicOrigin()` (`src/lib/http/public-url.ts`, `NOTICE_PUBLIC_URL`), aldrig
+  på förfrågans värdnamn. Kundens namn och butikens namn rensas från radbrytningar innan de
+  hamnar i ämnesrad och avsändare.
+
+## Kassan, betalning och köpvillkor — läge 2026-11-15
+
+Beslut av ägaren 2026-11-15, samma upplägg som hos Skylt & Gravyrteknik: **företag beställer
+på faktura, privatpersoner betalar med kort.**
+
+- **Företag:** kassan kräver företagsnamn och organisationsnummer (tio siffror,
+  `orgNumberSchema` i `src/lib/company/org-number.ts`), både på namnskylt.com och i butikerna.
+  Numret sparas på kunden (`customers.org_number`). Ordern läggs direkt, som förut.
+- **Privatpersoner** kan bara beställa på namnskylt.com och bara när kortbetalningen är
+  påslagen (`paymentsConfigured`: `STRIPE_SECRET_KEY` och `STRIPE_WEBHOOK_SECRET`). Då visar
+  kassan valet Företag eller Privatperson. Utan nycklarna finns valet inte, och bara företag
+  kan beställa. I en butik säljer återförsäljaren och fakturerar själv, så där finns ingen
+  kortbetalning.
+- **Ingen order finns förrän betalningen är klar.** `POST /api/orders` med
+  `customerType: "private"` sparar en väntande kassa (`checkouts`, migrering 024) och svarar
+  med adressen hos Stripe (`startCheckout`). Ordern läggs av `completeCheckout`, som anropas
+  både av Stripes webhook (`POST /api/payments/webhook`, öppen förbi sajtspärren, kräver
+  Stripes signatur) och av sidan kunden kommer tillbaka till (`/betalning/klar`).
+  - Stripes eget svar avgör om sessionen är betald, aldrig adressen kunden kom på. Belopp,
+    valuta och referens jämförs med kassan, och skiljer de läggs ingen order.
+  - Raden låses, så webhooken och sidan ger samma order hur de än körs. Ordernumret läses i
+    en egen fråga efter låset; i samma fråga syns inte en order som en annan körning just lade.
+  - Ordern sparas med prismodellen från kassan och bär betalningen (`orders.payment`,
+    `OrderPayment`). Panelen visar "Betald med kort", och fakturaunderlaget har kolumnen
+    Betalning, så att en betald order inte faktureras en gång till.
+  - Avbryter kunden kommer den till `/betalning/avbruten`, som länkar tillbaka till skylten.
+    En kassa som aldrig betalas tas bort efter 7 dagar (jobbet `checkout-prune`).
+- **Begränsningar med kort:** ingen expressfrakt (priset är inte känt när kunden betalar) och
+  inga skyltar som tillverkas på förfrågan. En återbetalning görs i Stripe, inte i panelen.
+- **Kontrollerat** mot en påhittad Stripe på datorn, i tester
+  (`src/lib/payments/checkout.integration.test.ts`) och i webbläsaren. Aldrig provat mot
+  Stripes riktiga system. Stripe anropas med `fetch` och formulärkodning; kontrollera mot
+  Stripes dokumentation när nycklarna läggs in.
+- **Köpvillkor** finns på `/villkor` och, för butiker, `/butik/<slug>/villkor`
+  (`TermsPage` i `src/features/terms/`). Sidorna är öppna förbi sajtspärren. Säljaren läses ur
+  företagsuppgifterna: namnskylt.com på vår sajt, butikens ägare i en butik. Kassan kräver ett
+  kryss i "Jag godkänner köpvillkoren" (`acceptedTerms`).
+  - Texten utgår från Skylt & Gravyrtekniks villkor och det sajten redan lovar. **Antaganden
+    som ägaren inte har bekräftat:** 30 dagars betalningstid på faktura (`INVOICE_DAYS`) och
+    formuleringarna om reklamation. Texten är inte granskad av en jurist.
+  - Ägarens företagsuppgifter saknar organisationsnummer, så det står inte under Säljare.
+- **Integritetssidan** (`/integritet`) har fått två stycken: vad som sparas när någon
+  beställer, och statistiken utan kakor. Resten gäller fortfarande utskicket och har
+  platshållare.
+
+## Kundens ordersida — läge 2026-11-15
+
+Varje order har en hemlig länk till kunden: `/order/<kod>` (`orders.customer_token`, 64
+hex-tecken, migrering 028, `getOrderByCustomerToken`). Koden är behörigheten, som för en
+offert, och sidan är öppen förbi sajtspärren. Sidan läses åt kunden, aldrig med inköpspriser.
+
+- **Sidan visar** orderns status som en tidslinje (`customerTimeline` i
+  `src/lib/orders/customer-view.ts`; korrekturens steg bara när ett korrektur skickades),
+  spårningslänken när verkstaden har lämnat en, skyltarna, summan, betalningen och leveransen.
+  En borttagen kunds länk ger 404.
+- **Kunden hittar länken** i kvittot efter beställningen, på sidan efter kortbetalningen, på
+  en godkänd offert och, när mejlen är på, i orderbekräftelsen och fraktbeskedet. Panelens
+  ordersida har raden "Kundens ordersida", som återförsäljaren kan skicka vidare.
+- **Beställ fler med samma design** (nyanställda är det återkommande köpet): kunden skriver
+  namnen, ett per rad, och får en **offert som är klar att godkänna** (`createReorderQuote` i
+  `src/lib/quotes/reorder.ts`, `quotes.reorder_of`). Kunden ser priset, bekräftar leveransen
+  och godkänner som vilken offert som helst, och återförsäljaren får sitt besked då. Inget
+  beställs förrän offerten är godkänd.
+  - Mallen är orderns första skylt (`staffBadges`), som i panelens "Ny personal".
+  - Priset är dagens listpris. En order från en butik följer butikens priser, och kundens
+    rabatt i procent följer med (`reorderPricing`); à-priser och extrarader gör det inte.
+  - En kortbetald order går inte att fakturera, så där länkar sidan till skyltmotorn med
+    designen i stället (`reorderMode`).
+  - Formuläret har en gräns per klient och per order.
+- Kända brister: en order med flera designer kan bara beställas om med den första. Kunden kan
+  inte öppna sitt korrektur från ordersidan; det har en egen länk.
+
+## Radering — läge 2026-11-15
+
+Kunder, ansökningar och konton går att ta bort, så att en begäran om radering går att uppfylla
+och testdata går att städa bort. Reglerna ligger i `src/lib/orders/erase-model.ts`.
+
+- **En order hör till bokföringen och behålls** när den inte är demo eller avbruten och har
+  gått till verkstaden, är i produktion, skickad eller levererad, eller är betald med kort
+  (`isBookkeepingOrder`). Andra ordrar får tas bort. "Ta bort order" i panelen nekar en
+  bokföringsorder.
+- **Ta bort kund** (`/admin/kunder/<id>`, återförsäljaren för sina egna kunder, `eraseCustomer`
+  i `src/lib/orders/erase.ts`): kundens offerter, mallar och övriga ordrar raderas. Finns
+  bokföringsordrar kvar avidentifieras kunden i stället: namnet blir "Borttagen kund",
+  e-posten `borttagen-<id>@borttagen.invalid`, telefon och adress töms och `erased_at` sätts;
+  företag och organisationsnummer står kvar. I de ordrarna töms stillbilden, tidslinjens
+  noter och korrekturets kommentar, skyltarnas text blir "Borttaget", och kontaktperson och
+  telefon tas ur leveransen. Dialogen säger i förväg vad som tas bort och vad som behålls.
+- En borttagen kund syns inte i kundlistan eller i väljarna för ny order och offert, och kan
+  inte få nya ordrar (`isErasedCustomer`, känns igen på e-postadressen).
+- **Ta bort ansökan** och **Ta bort konto** finns under `/admin/aterforsaljare`, bara för
+  admin (`src/lib/reseller-auth/erase.ts`). Ett konto tar med sig sina kunder (enligt regeln
+  ovan), offerter, besked, inställningar, butiker och ansökningar. Bokföringsordrar står kvar
+  under kontots id, och `freeTenantId` ger aldrig ett nytt konto samma id.
+- Kända brister: `orders.project` och extraradernas etiketter är återförsäljarens fritext och
+  töms inte. `pnpm reseller:create` kontrollerar inte om id:t har kvarvarande ordrar. När en
+  övertagen butik raderas tappar utskickets lead sin `shop_slug`; hur `/for/[token]` beter sig
+  då är inte kontrollerat.
+
+## Drift — läge 2026-11-15
+
+- **Fellogg utan extern tjänst:** `src/instrumentation.ts` sparar serverfel i `error_log`
+  (`onRequestError`, `logServerError`). Rutten sparas som mönster (`/offert/[token]`), aldrig
+  den verkliga sökvägen, och e-postadresser tas bort ur meddelandet. Loggen rensas efter 30
+  dagar och håller högst 2 000 rader.
+- **Bakgrundsjobb i processen** (`startScheduler`, `JOBS` i `src/lib/maintenance/jobs.ts`):
+  varje jobb körs under ett eget advisory lock och avbryts efter fem minuter. Ett nytt jobb
+  är en rad i `JOBS`. Senaste körning sparas i `settings` under `maintenance_jobs`. Schemat
+  körs även i `next dev`, mot utvecklingsdatabasen.
+  - `dispatch-retry` (var 10:e minut), `error-log-prune`, `checkout-prune`,
+    `designer-events-prune` och `logo-cleanup` (en gång per dygn).
+- **Omförsök av utskick till verkstaden** (`retryFailedDispatches` i
+  `src/lib/supplier/retry.ts`, migrering 027): gör ingenting med kopplingen av. Annars provas
+  ordrar som **redan har ett misslyckat försök** igen efter 10 min, 30 min, 2 h, 6 h och 24 h,
+  högst 6 försök. Ett nej från verkstaden (4xx utom 408 och 429, eller en för stor order) är
+  slutgiltigt och provas inte om. Ordrar som bara väntar skickas aldrig av sig själva; det
+  manuella utskicket från Tillverkning är oförändrat.
+- **Driftsidan** `/admin/drift` (bara admin): strömbrytarna (verkstaden, mejl, besked som
+  mejl, kortbetalning) som av eller på utan värden, jobbens senaste körning, misslyckade
+  utskick och de senaste felen.
+- **CI:** `.github/workflows/ci.yml` kör kvalitetsgrinden mot en tom Postgres på push och pull
+  request. Kedjan är provad lokalt mot en tom databas, men filen har aldrig körts på GitHub.
+- **Statistik över skyltmotorn** (`src/lib/designer-stats/`, migrering 028, tabellen
+  `designer_events`): varje besök räknas till det steg det kom längst till: öppnad, text
+  skriven, val gjort, kassan öppnad, order skickad och order mottagen, med varukorgen som
+  sidospår. `/admin/statistik` har delen "Skyltmotorn" för 30 dagar, med steget där flest
+  lämnar utpekat. Admin ser webben och butikerna, en återförsäljare bara sina butiker.
+  - **Inget sparas hos besökaren:** besökets id är slumpat och finns bara i sidans minne, och
+    varken IP-adress, namn eller text sparas. Därför behövs ingen samtyckesruta.
+  - `POST /api/designer-events` svarar alltid 204 och har en gräns per klient. En
+    återförsäljare som lägger order åt en kund räknas inte. En kortbetalning räknas som
+    mottagen order när den är betald (`visit` följer med kassan).
+  - Under 10 besök visas antal utan andelar. Rader äldre än ett halvår rensas
+    (`designer-events-prune`).
+- **Sökmotorer:** med sajtspärren på säger `robots.txt` nej till allt och sitemapen är tom.
+  Utan spärr gäller de vanliga reglerna, och `/sitemap.xml` listar de publika sidorna
+  (`robotsFor`, `sitemapFor` i `src/lib/seo/crawl.ts`). Kundens ordersida, offerter och
+  betalsidorna märks alltid `noindex`.
+- **Säkerhetskopior är inte kontrollerade.** Railway-projektet ligger på Pro, där volymen kan
+  säkerhetskopieras på schema, men om ett schema finns syns inte i CLI:t. Kontrolleras under
+  Postgres-tjänstens flik Backups.
 
 ## AI i produkten
 
@@ -619,7 +836,8 @@ Luckor i kontraktet:
   är den bara tillåten för metallskärning. De behöver öppna den för graverad plast.
 - Fästet skickas som text i stället för artikelkod.
 - Vi skickar deras fyra fraktsätt: varubrev, paket, `postnord-express` och `pickup-hogsbo`.
-  Hur expressfraktens pris kommer tillbaka till ordern är inte bestämt.
+  Expressfraktens pris läses ur statusen de skickar (`SupplierOrderState.shippingCost`, hela
+  kronor exklusive moms); de behöver skicka fältet.
 - En logga i färg skickas som bildlager med `renderMode: "print"`. Deras format har läget, men
   ingen har bekräftat att verkstaden trycker namnskyltar eller vilken upplösning som krävs.
 - Lambda tar högst 6 MB per anrop. Bilderna skickas en gång och anropet stoppas vid 5,5 MB,
@@ -642,6 +860,6 @@ Det projektet har egna, strikta regler i `Skyltochgravyr/.cursor/rules/`:
 - Hex-färger i `admin.module.css` (123) och `editor.module.css` (38).
 - 341 filer avviker från Prettier. Formatera i en egen ändring.
 - Runt 20 CSS-klasser ser oanvända ut men är inte borttagna, eftersom gränssnittet saknar tester.
-- README, licens och CI saknas.
+- README och licens saknas.
 
 **Säkerhetskopia** från före städningen 2026-11-10: `tmp/backup-fore-stadning.tgz`.

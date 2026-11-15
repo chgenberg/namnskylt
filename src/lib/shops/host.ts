@@ -35,7 +35,7 @@ export function resolveHost(raw: string | null | undefined, mainHosts: readonly 
 /** Sökvägen på butikens egen adress → vår interna /butik/<slug>/… */
 export function shopRewritePath(slug: string, pathname: string): string | null {
   if (pathname.startsWith("/butik/") || pathname.startsWith("/_next") || pathname.startsWith("/api/")) return null;
-  if (pathname.startsWith("/korrektur/") || pathname.startsWith("/offert/") || pathname.startsWith("/inbaddning/")) return null;
+  if (pathname.startsWith("/korrektur/") || pathname.startsWith("/offert/") || pathname.startsWith("/order/") || pathname.startsWith("/inbaddning/")) return null;
   if (/\.[a-z0-9]{2,5}$/i.test(pathname)) return null;
   return `/butik/${slug}${pathname === "/" ? "" : pathname}`;
 }

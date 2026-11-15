@@ -32,6 +32,8 @@ import {
   type DeliveryTo,
 } from "@/lib/orders/delivery";
 import { marginOf } from "@/lib/orders/purchase";
+import type { CheckoutStep } from "@/lib/designer-stats/model";
+import type { CustomerType } from "@/lib/payments/model";
 import { shopPrice, shopPriceParts } from "@/lib/shops/price-list";
 import type { ResellerOrderContext, ShopContext } from "../reseller";
 import type { DesignerAction } from "../state";
@@ -59,7 +61,7 @@ type OrderState =
   | { status: "idle" }
   | { status: "form"; message?: string }
   | { status: "sending" }
-  | { status: "done"; orderNumber: string; shipDate: string }
+  | { status: "done"; orderNumber: string; shipDate: string; orderPath: string | null }
   | { status: "requested"; requestNumber: string }
   | { status: "error"; message: string };
 
@@ -73,6 +75,12 @@ const DELIVERY_TO_OPTIONS = (["customer", "reseller"] as const).map((id) => ({ i
 const ALL_METHODS = ["standard", "express", "pickup"] as const satisfies readonly ShippingMethod[];
 /** I en återförsäljares butik visas inte upphämtningen: den pekar ut verkstadens adress för butikens kund. */
 const SHOP_METHODS = ["standard", "express"] as const satisfies readonly ShippingMethod[];
+/** Med kort betalas allt i förväg. Expressfraktens pris sätts i efterhand och går därför inte att välja. */
+const CARD_METHODS = ["standard", "pickup"] as const satisfies readonly ShippingMethod[];
+const CUSTOMER_TYPE_OPTIONS = [
+  { id: "company", label: "Företag" },
+  { id: "private", label: "Privatperson" },
+] as const satisfies readonly { id: CustomerType; label: string }[];
 
 /** Radernas namn i specifikationen per skylt. Startkostnaden ligger på skylten och har ingen egen rad. */
 function partLabel(part: ShownPricePart, doc: BadgeDocument): string {
@@ -99,14 +107,25 @@ interface OrderSectionProps {
   shop?: ShopContext;
   /** Stillbild av 3D-skylten till offerten och ordern; `null` när 3D-vyn inte visas. */
   captureShot?: () => string | null;
+  /** Privatpersoner kan betala med kort. Bara på namnskylt.com, och bara när kortbetalningen är påslagen. */
+  cardPayments?: boolean;
+  /** Säger till när kassan öppnas, när ordern skickas och när den är mottagen. */
+  onStep?: (step: CheckoutStep) => void;
+  /** Besökets id i statistiken. Det följer med till kortbetalningen, så att den betalda ordern räknas till samma besök. */
+  visitId?: () => string | null;
 }
 
-export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, shop, captureShot }: OrderSectionProps) {
+export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, shop, captureShot, cardPayments = false, onStep, visitId }: OrderSectionProps) {
   const [order, setOrder] = useState<OrderState>({ status: "idle" });
+  // Ett företag faktureras. En privatperson betalar med kort, där det går.
+  const [customerType, setCustomerType] = useState<CustomerType>("company");
+  const privateCustomer = cardPayments && !shop && customerType === "private";
   // Återförsäljaren väljer mottagare och har båda adresserna förifyllda; en kund som beställer själv fyller i sin.
   const [deliverTo, setDeliverTo] = useState<DeliveryTo>("customer");
-  const [method, setMethod] = useState<ShippingMethod>("standard");
-  const methods = shop ? SHOP_METHODS : ALL_METHODS;
+  const [chosenMethod, setMethod] = useState<ShippingMethod>("standard");
+  const methods: readonly ShippingMethod[] = shop ? SHOP_METHODS : privateCustomer ? CARD_METHODS : ALL_METHODS;
+  // Ett leveranssätt som inte finns för den som beställer faller tillbaka på standardfrakten.
+  const method = methods.includes(chosenMethod) ? chosenMethod : "standard";
   const [addresses, setAddresses] = useState<DeliveryOptions>(
     () => reseller?.delivery ?? { customer: EMPTY_DELIVERY_DRAFT, reseller: EMPTY_DELIVERY_DRAFT },
   );
@@ -179,6 +198,7 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "Något gick fel");
+      onStep?.("ordered");
       window.location.href = quote
         ? `/admin/offerter/${encodeURIComponent(body.quoteNo)}`
         : `/admin/ordrar/${encodeURIComponent(body.orderNumber)}`;
@@ -196,21 +216,35 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
       return;
     }
     setOrder({ status: "sending" });
+    onStep?.("submitted");
     try {
       const response = await fetch("/api/orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          customer: { name: form.get("name"), email: form.get("email") },
+          customerType: privateCustomer ? "private" : "company",
+          customer: {
+            name: form.get("name"),
+            email: form.get("email"),
+            ...(!privateCustomer && { company: form.get("company"), orgNumber: form.get("orgNumber") }),
+          },
           badges,
           badgeShot: captureShot?.() ?? undefined,
           shop: shop?.slug,
           delivery: delivery.address,
           shippingMethod: method,
+          acceptedTerms: form.get("acceptedTerms") === "on",
+          ...(privateCustomer && { visit: visitId?.() ?? undefined }),
         }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "Något gick fel");
+      // En privatperson betalar med kort hos Stripe. Ordern läggs när betalningen är klar.
+      if (body.status === "payment" && typeof body.url === "string") {
+        window.location.href = body.url;
+        return;
+      }
+      onStep?.("ordered");
       if (body.status === "request") {
         setOrder({ status: "requested", requestNumber: body.orderNumber });
         return;
@@ -219,6 +253,7 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
         status: "done",
         orderNumber: body.orderNumber,
         shipDate: body.estimatedShipDate,
+        orderPath: typeof body.customerToken === "string" ? `/order/${body.customerToken}` : null,
       });
     } catch (error) {
       setOrder({ status: "error", message: error instanceof Error ? error.message : "Något gick fel" });
@@ -302,7 +337,10 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
             type="button"
             className="btn btn--primary btn--lg"
             disabled={!valid}
-            onClick={() => setOrder({ status: "form" })}
+            onClick={() => {
+              setOrder({ status: "form" });
+              onStep?.("checkout");
+            }}
           >
             Beställ
           </button>
@@ -363,6 +401,29 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
           >
+            {cardPayments && !shop && (
+              <Segmented label="Jag beställer som" value={customerType} options={CUSTOMER_TYPE_OPTIONS} onChange={setCustomerType} />
+            )}
+            {!privateCustomer && (
+              <>
+                <label className="field">
+                  <span className="visually-hidden">Företagsnamn</span>
+                  <input name="company" placeholder="Företagsnamn" required minLength={2} maxLength={120} autoComplete="organization" />
+                </label>
+                <label className="field">
+                  <span className="visually-hidden">Organisationsnummer</span>
+                  <input
+                    name="orgNumber"
+                    placeholder="Organisationsnummer"
+                    required
+                    inputMode="numeric"
+                    maxLength={20}
+                    pattern="\d{6}[\s\-]?\d{4}"
+                    title="Tio siffror, till exempel 556123-4567"
+                  />
+                </label>
+              </>
+            )}
             <label className="field">
               <span className="visually-hidden">Namn</span>
               <input
@@ -390,6 +451,20 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
               <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} disabled={order.status === "sending"} />
             </div>
             <OrderTotals label="Att betala" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} method={method} vat />
+            <p className={styles.payNote}>
+              {privateCustomer
+                ? "Du betalar med kort i nästa steg. Ordern läggs när betalningen är klar."
+                : "Betalas mot faktura. Vi säljer till företag och verksamheter, så beställningen kräver ett organisationsnummer."}
+            </p>
+            <label className={styles.consent}>
+              <input type="checkbox" name="acceptedTerms" required />
+              <span>
+                Jag godkänner{" "}
+                <a href={shop ? `/butik/${shop.slug}/villkor` : "/villkor"} target="_blank" rel="noreferrer">
+                  köpvillkoren
+                </a>
+              </span>
+            </label>
             {formError && (
               <p className={styles.issue} data-severity="error" role="alert">
                 {formError}
@@ -400,7 +475,7 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
                 ? "Skickar…"
                 : shipping === null || method === "express"
                   ? "Skicka order"
-                  : `Skicka order · ${sek.format(checkoutInclVatSek)} inkl. moms`}
+                  : `${privateCustomer ? "Gå till betalning" : "Skicka order"} · ${sek.format(checkoutInclVatSek)} inkl. moms`}
             </button>
           </motion.form>
         )}
@@ -419,6 +494,12 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
         <motion.div className={styles.receipt} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} role="status">
           <strong>Order {order.orderNumber} mottagen.</strong> Beräknat skickdatum {order.shipDate}.
           {shop && ` ${shop.name} hör av sig med orderbekräftelse.`}
+          {order.orderPath && (
+            <>
+              {" "}
+              <a href={order.orderPath}>Följ din order</a>
+            </>
+          )}
         </motion.div>
       )}
       {order.status === "requested" && (

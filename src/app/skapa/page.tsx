@@ -5,7 +5,9 @@ import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
 import { siteOrigin } from "@/lib/http/origin";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
+import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { databaseConfigured, getCustomer, getPriceModel } from "@/lib/orders/repository";
+import { paymentsConfigured } from "@/lib/payments/stripe";
 import { currentTenant } from "@/lib/reseller-auth/session";
 import { genitive } from "@/lib/share/genitive";
 import { decodeShareCode } from "@/lib/share/share-link";
@@ -51,7 +53,7 @@ async function resellerContext(customerId: string | undefined, quote: boolean, p
   const tenant = customerId && databaseConfigured() ? await currentTenant() : null;
   if (!customerId || !tenant) return undefined;
   const customer = await getCustomer(tenant, customerId);
-  return customer
+  return customer && !isErasedCustomer(customer)
     ? {
         customerId: customer.id,
         customerName: customer.company ?? customer.name,
@@ -70,7 +72,12 @@ export default async function SkapaPage({ searchParams }: SkapaPageProps) {
   const reseller = await resellerContext(first(params.kund), first(params.offert) === "1", first(params.projekt));
   return (
     <main>
-      <Designer initialText={first(params.t) ?? ""} initialDoc={shared} reseller={reseller} />
+      <Designer
+        initialText={first(params.t) ?? ""}
+        initialDoc={shared}
+        reseller={reseller}
+        cardPayments={paymentsConfigured() && databaseConfigured()}
+      />
     </main>
   );
 }

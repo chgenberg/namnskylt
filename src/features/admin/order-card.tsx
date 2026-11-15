@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BadgePreview } from "@/components/badge-preview";
 import { formatRelative, formatSek } from "@/lib/format";
+import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { badgeCount, ORDER_SOURCE_LABEL, type StoredOrder } from "@/lib/orders/model";
 import { atPrinter } from "@/lib/supplier/sync";
 import { DeleteOrderButton } from "./delete-order-button";
@@ -53,7 +54,7 @@ export function OrderCard({ order }: { order: StoredOrder }) {
               atPrinter={atPrinter(order)}
               compact
             />
-            <RepeatButton order={order} compact />
+            {!isErasedCustomer(order.customer) && <RepeatButton order={order} compact />}
           </div>
         </div>
       </div>

@@ -9,8 +9,11 @@ import {
   renderBadgeSvg,
   type FontEngine,
 } from "./index";
+import { DEFAULT_PRICE_MODEL } from "./default-price-model";
 import { logoImageRef, logoImageRefId, traceLogoMask, type RgbaPixels } from "./logo";
 import { colorLogo, hasColor, visibleMask, withoutWhiteBackground } from "./logo-color";
+import { endPriceTable } from "./price-model";
+import { priceBadge } from "./pricing";
 import type { BadgeDocument, BadgeLogo } from "./types";
 
 type Rgba = readonly [number, number, number, number];
@@ -207,6 +210,40 @@ describe("en logga i färg på skylten", () => {
       const svg = renderBadgeSvg(doc, layout, { mode: "production", fonts });
       assert.ok(!svg.includes("<image"));
       assert.ok(!svg.includes(layout.logo?.d ?? "saknas"));
+    }
+  });
+});
+
+describe("loggans originalfil", () => {
+  const id = "c3".repeat(32);
+  const parse = (originalId: unknown) =>
+    badgeDocumentSchema.safeParse(withLogo({ ...ENGRAVED_LOGO, originalId } as BadgeLogo)).success;
+
+  it("pekas ut med filens SHA-256 och inget annat", () => {
+    assert.equal(parse(id), true);
+    assert.equal(badgeDocumentSchema.parse(withLogo({ ...COLOR_LOGO, originalId: id })).logo?.originalId, id);
+    assert.equal(parse(id.toUpperCase()), false);
+    assert.equal(parse(id.slice(1)), false);
+    assert.equal(parse(`/api/logo-originals/${id}`), false);
+    assert.equal(parse("https://example.se/logga.svg"), false);
+    assert.equal(parse(""), false);
+    assert.equal(parse(42), false);
+  });
+
+  it("ändrar varken layout, gravyr, ritning eller pris", () => {
+    for (const logo of [ENGRAVED_LOGO, COLOR_LOGO]) {
+      const plain = withLogo(logo);
+      const pointed = withLogo({ ...logo, originalId: id });
+      const layout = layoutBadge(plain, outlineFonts);
+      assert.deepEqual(layoutBadge(pointed, outlineFonts), layout);
+      assert.deepEqual(engravingPaths(layoutBadge(pointed, outlineFonts), outlineFonts), engravingPaths(layout, outlineFonts));
+      for (const mode of ["preview", "production"] as const) {
+        const svg = renderBadgeSvg(pointed, layoutBadge(pointed, outlineFonts), { mode, fonts: outlineFonts });
+        assert.equal(svg, renderBadgeSvg(plain, layout, { mode, fonts: outlineFonts }));
+        assert.ok(!svg.includes(id));
+      }
+      const list = endPriceTable(DEFAULT_PRICE_MODEL);
+      assert.deepEqual(priceBadge({ ...pointed, quantity: 25 }, list), priceBadge({ ...plain, quantity: 25 }, list));
     }
   });
 });

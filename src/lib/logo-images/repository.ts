@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { logoImageRef, type BadgeDocument } from "@/engine";
 import { db } from "@/lib/db/client";
 import { embeddedLogoImages, pngBytes, pngDataUrl, referencedLogoImages, replaceLogoImages } from "./model";
+import { withKnownLogoOriginals } from "./originals";
 import { insertLogoImage, selectLogoImages } from "./store";
 
 /** Designern gör bilden högst 640 px; allt större är inte en logga därifrån. */
@@ -45,6 +46,7 @@ export async function getLogoImage(id: string): Promise<Buffer | null> {
  * Skyltarna så som de ska sparas: en bild som ligger i en skylt flyttas till
  * servern och skylten pekar på den, så att en order med hundra namn sparar
  * loggan en gång. En bild som inte går att spara ligger kvar i skylten.
+ * En hänvisning till en originalfil som inte finns på servern tas bort.
  */
 export async function withStoredLogoImages(badges: readonly BadgeDocument[]): Promise<BadgeDocument[]> {
   const stored = new Map<string, string>();
@@ -52,7 +54,7 @@ export async function withStoredLogoImages(badges: readonly BadgeDocument[]): Pr
     const ref = await storeLogoImage(src);
     if (ref) stored.set(src, ref);
   }
-  return replaceLogoImages(badges, (src) => stored.get(src));
+  return withKnownLogoOriginals(replaceLogoImages(badges, (src) => stored.get(src)));
 }
 
 /**

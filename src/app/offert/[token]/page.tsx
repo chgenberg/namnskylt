@@ -4,15 +4,18 @@ import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
 import { engravedRows, getColor, getMaterial, getMounting, shapeLabel } from "@/engine";
 import { formatDay, formatSek } from "@/lib/format";
-import { QuoteDecision } from "@/features/quote-public/quote-decision";
+import { QuoteDecision, type QuoteShippingOption } from "@/features/quote-public/quote-decision";
 import styles from "@/features/quote-public/quote-public.module.css";
 import { companyFooter, readableOn } from "@/lib/company/profile";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { deliveryLines, draftForRecipient, draftFromAddress, shippingMethodOf, shippingNote } from "@/lib/orders/delivery";
-import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
+import { customerOrderPath, databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
+import { shippingFor } from "@/lib/orders/price-lists";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import { displayStatus } from "@/lib/quotes/model";
-import { getQuoteByToken } from "@/lib/quotes/repository";
+import { getQuoteByToken, quotePriceModel } from "@/lib/quotes/repository";
+import { quoteShippingMethods } from "@/lib/quotes/shipping";
+import { isOwner } from "@/lib/tenants/model";
 
 export const metadata: Metadata = {
   title: "Offert",
@@ -42,6 +45,16 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
   const shipping = shippingNote(shippingMethodOf(quote.delivery));
   const firstName = quote.customer.name.split(" ")[0] ?? quote.customer.name;
   const saving = priced.savingsSek;
+  const orderPath = status === "accepted" && quote.orderNo ? await customerOrderPath(quote.orderNo) : null;
+  // Ska skyltarna till kunden väljer kunden leveranssätt när offerten godkänns. Varje sätt har sin frakt och summa.
+  let shippingOptions: QuoteShippingOption[] = [];
+  if (status === "sent" && quote.delivery.to === "customer") {
+    const model = await quotePriceModel(quote.id);
+    shippingOptions = quoteShippingMethods(isOwner(quote.resellerId), shippingMethodOf(quote.delivery)).map((method) => {
+      const shippingSek = shippingFor(model, quote.badges, method);
+      return { method, shippingSek, totalInclVatSek: priceWithPricing(quote.badges, quote.pricing, quote.priceList, shippingSek).totalInclVatSek };
+    });
+  }
 
   const head =
     status === "accepted"
@@ -79,6 +92,13 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
           </p>
           <h1 className={styles.title}>{head.title}</h1>
           <p className={styles.lead}>{head.text}</p>
+          {orderPath && (
+            <p className={styles.lead}>
+              <a href={orderPath} className={styles.pdf}>
+                Följ din order
+              </a>
+            </p>
+          )}
         </header>
 
         {quote.message && status === "sent" && <p className={styles.message}>{quote.message}</p>}
@@ -202,6 +222,8 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
             <QuoteDecision
               token={quote.token}
               totalInclVatSek={priced.totalInclVatSek}
+              shippingOptions={shippingOptions}
+              shippingMethod={shippingMethodOf(quote.delivery)}
               deliveryDraft={
                 quote.delivery.to === "customer"
                   ? quote.delivery.address

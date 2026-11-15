@@ -1,4 +1,5 @@
 import "server-only";
+import { SupplierHttpError } from "./retry-rules";
 import { supplierOrderStateSchema } from "./status";
 import type { SupplierClient, SupplierOrderReceipt, SupplierOrderRequest, SupplierOrderState } from "./types";
 
@@ -57,7 +58,8 @@ class HttpSupplierClient implements SupplierClient {
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      throw new Error(`Leverantören svarade ${response.status}: ${detail.slice(0, 300)}`);
+      // Statusen följer med felet: ett nej (4xx) provas inte om av sig självt, ett fel hos verkstaden (5xx) gör det.
+      throw new SupplierHttpError(response.status, detail.slice(0, 300));
     }
     return (await response.json()) as SupplierOrderReceipt;
   }

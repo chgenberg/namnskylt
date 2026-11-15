@@ -1,7 +1,8 @@
 /**
  * Besked till den som äger panelen när någon annan har gjort något: kunden har
- * svarat på en offert eller ett korrektur, lagt en order själv, eller ett
- * företag har ansökt om konto. Det återförsäljaren gör själv ger inget besked.
+ * svarat på en offert eller ett korrektur, lagt en order själv, verkstaden har
+ * skickat en order, eller ett företag har ansökt om konto. Det återförsäljaren
+ * gör själv ger inget besked.
  */
 export const NOTICE_KINDS = [
   "quote-accepted",
@@ -9,6 +10,7 @@ export const NOTICE_KINDS = [
   "proof-approved",
   "proof-changes",
   "order-placed",
+  "order-shipped",
   "application",
 ] as const;
 export type NoticeKind = (typeof NOTICE_KINDS)[number];
@@ -83,6 +85,13 @@ export function noticeView(notice: PanelNotice): NoticeView {
       return { title: `${notice.who} vill ändra i sitt korrektur`, detail: quoted(notice.detail), href: orderHref(notice.orderNo), tone: "warn" };
     case "order-placed":
       return { title: `${notice.who} har lagt en order`, detail: notice.detail, href: orderHref(notice.orderNo), tone: "info" };
+    case "order-shipped":
+      return {
+        title: `${notice.who} har fått sin order${notice.orderNo ? ` ${notice.orderNo}` : ""} skickad från verkstaden`,
+        detail: notice.detail,
+        href: orderHref(notice.orderNo),
+        tone: "good",
+      };
     case "application":
       return {
         title: `${notice.who} har ansökt om att bli återförsäljare`,

@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
-import { useCallback, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { withPlaceholders } from "@/components/badge-preview";
 import { usePriceList } from "@/components/price-list-provider";
 import { ProgressBanner } from "@/components/ui/progress-banner";
@@ -27,6 +27,8 @@ import {
   type FontId,
 } from "@/engine";
 import { useFontEngine } from "@/hooks/use-font-engine";
+import { WEB_SCOPE } from "@/lib/designer-stats/model";
+import { openedWith, savedWorkKey, type RestoredWork } from "@/lib/designer-work/model";
 import { useVisualize } from "@/features/visualize/use-visualize";
 import { VisualizeView } from "@/features/visualize/visualize-view";
 import { BadgeEditor } from "./badge-editor";
@@ -47,6 +49,8 @@ import { SmartInput } from "@/features/home/smart-input";
 import { OnboardingDialog } from "./onboarding-dialog";
 import type { ResellerOrderContext, ShopContext } from "./reseller";
 import { designerReducer, type DesignerAction } from "./state";
+import { isChoice, useDesignerSteps } from "./use-designer-steps";
+import { useSavedWork } from "./use-saved-work";
 
 const Badge3D = dynamic(() => import("./badge-3d"), {
   ssr: false,
@@ -106,9 +110,11 @@ interface DesignerProps {
   shop?: ShopContext;
   /** Butikens gravyrtypsnitt — det som liknar deras sajt mest. */
   initialFont?: FontId;
+  /** Privatpersoner kan betala med kort i kassan. */
+  cardPayments?: boolean;
 }
 
-export function Designer({ initialText, initialDoc, reseller, shop, initialFont }: DesignerProps) {
+export function Designer({ initialText, initialDoc, reseller, shop, initialFont, cardPayments }: DesignerProps) {
   const [doc, dispatch] = useReducer(designerReducer, initialText, (text) => {
     // En delad eller äldre skylt kan bära ett material eller mått som inte säljs längre.
     if (initialDoc) return toOfferedDocument(initialDoc);
@@ -136,6 +142,47 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
   const [cart, setCart] = useState<BadgeGroup[]>([]);
   /** Skylten i editorn är ny och orörd efter "lägg till": den räknas inte in i ordern förrän den ändrats. */
   const [pending, setPending] = useState(false);
+  /** Det skyltmotorn öppnades med. Dit går "Börja om", och mot det jämförs det som är sparat i webbläsaren. */
+  const [opening] = useState(() => ({
+    doc,
+    fromAddress: Boolean(initialDoc) || initialText.trim() !== "",
+    opened: openedWith(initialText, initialDoc),
+    storageKey: savedWorkKey(
+      reseller
+        ? { kind: "reseller", customerId: reseller.customerId, mode: reseller.mode }
+        : shop
+          ? { kind: "shop", slug: shop.slug }
+          : { kind: "web" },
+    ),
+  }));
+  const work = useMemo(() => ({ doc, batchText, cart, pending, opened: opening.opened }), [doc, batchText, cart, pending, opening.opened]);
+  /** Rutorna som stängdes när det sparade lästes tillbaka. "Börja om" öppnar dem igen. */
+  const closedByRestore = useRef({ onboarding: false, starting: false });
+  /** Varukorgen och skylten sparas i webbläsaren och kommer tillbaka när sidan öppnas igen. */
+  const saved = useSavedWork({
+    storageKey: opening.storageKey,
+    incoming: opening.fromAddress ? opening.doc : null,
+    work,
+    onRestore: ({ work: restored, editor }: RestoredWork) => {
+      dispatch({ type: "load", doc: restored.doc });
+      setBatchText(restored.batchText);
+      setCart(restored.cart);
+      setPending(restored.pending);
+      // Skylten i editorn är kundens egen sedan förut: då behövs varken startrutan eller valen en gång till.
+      if (editor === "saved") {
+        closedByRestore.current = { onboarding, starting };
+        setOnboarding(false);
+        setStarting(false);
+      }
+    },
+  });
+  /** Hur långt besöket kommer i skyltmotorn. En återförsäljare som lägger en order åt en kund är inget besök. */
+  const { report: track, visitId } = useDesignerSteps(reseller ? null : (shop?.slug ?? WEB_SCOPE));
+  const hasText = doc.rows.some((row) => row.text.trim() !== "");
+  useEffect(() => track("open"), [track]);
+  useEffect(() => {
+    if (hasText) track("text");
+  }, [hasText, track]);
   const cartBadges = useMemo(() => cart.flatMap((group) => groupBadges(group)), [cart]);
   const batchEntries = useMemo(() => parseBatchInput(batchText, Infinity), [batchText]);
   const batch = useMemo(
@@ -209,12 +256,15 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
 
   const update = useCallback((action: DesignerAction) => {
     dispatch(action);
+    // Kommer i bakgrunden när loggans originalfil har sparats: kunden har inte ändrat något.
+    if (action.type === "logo/original") return;
+    if (isChoice(action)) track("choice");
     // En ny skylt räknas in i ordern så fort den ändras.
     setPending(false);
     if (action.type === "quantity") return;
     const side = action.type === "mounting" ? "back" : photo ? "hero" : "front";
     setFocus({ side, key: performance.now() });
-  }, [photo]);
+  }, [photo, track]);
 
   /** Kollegans skylt in i editorn; den som redigerades tar hennes plats i listan. */
   const openColleague = (index: number) => {
@@ -238,6 +288,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
     dispatch({ type: "load", doc: { ...withTexts(doc, [""]), quantity: 1 } });
     setPending(true);
     setFocus({ side: "front", key: performance.now() });
+    track("cart");
   };
 
   /** Öppnar en design ur ordern i editorn. Den som redigerades tar dess plats, om den inte var ny och orörd. */
@@ -255,6 +306,19 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
     // Utan något annat i ordern är skylten i editorn hela ordern, även om den är ny.
     if (cart.length === 1) setPending(false);
     setCart((groups) => groups.filter((_, i) => i !== index));
+  };
+
+  /** Kastar det som lästes tillbaka: skyltmotorn som den öppnades, med tom varukorg. */
+  const startOver = () => {
+    saved.dismiss();
+    setCart([]);
+    setBatchText("");
+    setPending(false);
+    dispatch({ type: "load", doc: opening.doc });
+    setFocus({ side: "front", key: performance.now() });
+    if (closedByRestore.current.onboarding) setOnboarding(true);
+    if (closedByRestore.current.starting) setStarting(true);
+    closedByRestore.current = { onboarding: false, starting: false };
   };
 
   /** Ångrar den nya skylten: senaste designen ur ordern tillbaka i editorn. */
@@ -372,7 +436,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
           )}
         </div>
 
-        {starting && reseller && (
+        {starting && reseller && saved.ready && (
           <div className={styles.startStage}>
             <p className={styles.startEyebrow}>
               {reseller.mode === "quote" ? "Offert till" : "Order åt"} {reseller.customerName}
@@ -506,6 +570,17 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
               </a>
             </div>
           )}
+          {saved.notice && (
+            <p className={styles.restored} role="status">
+              <span>{saved.notice === "cart" ? "Vi hämtade tillbaka din varukorg." : "Vi hämtade tillbaka din skylt."}</span>
+              <button type="button" className={styles.hintLink} onClick={startOver}>
+                Börja om
+              </button>
+              <button type="button" className={styles.restoredClose} aria-label="Stäng meddelandet" onClick={saved.dismiss}>
+                ×
+              </button>
+            </p>
+          )}
           <div className={styles.panelHead}>
             <p className="eyebrow">Skyltmotor</p>
             <h1 className={styles.panelTitle}>{reseller ? `Skylt till ${reseller.customerName}` : "Din namnskylt"}</h1>
@@ -550,12 +625,20 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont 
           dispatch={update}
           reseller={reseller}
           shop={shop}
+          cardPayments={cardPayments}
           designs={cart.length + (pending ? 0 : 1)}
           // Stillbilden visar bara skylten i editorn. En order med flera designer visas med sina ritningar i stället.
           captureShot={() => (cart.length > 0 ? null : (recorderRef.current?.still() ?? null))}
+          visitId={visitId}
+          onStep={(step) => {
+            track(step);
+            // Ordern är lagd: varukorgen ska inte komma tillbaka nästa gång.
+            if (step === "ordered") saved.finish();
+          }}
         />
       </aside>
-      {onboarding && <OnboardingDialog doc={doc} fonts={fonts} dispatch={update} onClose={finishOnboarding} />}
+      {/* Visas först när det sparade är läst, så att rutan inte blinkar förbi för den som kommer tillbaka. */}
+      {onboarding && saved.ready && <OnboardingDialog doc={doc} fonts={fonts} dispatch={update} onClose={finishOnboarding} />}
     </div>
   );
 }

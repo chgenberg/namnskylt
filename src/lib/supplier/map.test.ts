@@ -64,6 +64,17 @@ describe("toSupplierSignDocument", () => {
     assert.match(layer.data.vector.markup, /^<path d="M0 0L10 0L10 10L0 10Z" fill="#000000" fill-rule="evenodd"\/>$/);
   });
 
+  it("skickar aldrig hänvisningen till loggans originalfil, och dokumentet är detsamma med och utan den", () => {
+    const logo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 12 };
+    const originalId = "7c".repeat(32);
+    const plain = { ...createBadgeDocument(["Anna"]), logo };
+    const pointed = { ...plain, logo: { ...logo, originalId } };
+    const assets = { logoPng: "data:image/png;base64,AA" };
+    const supplier = toSupplierSignDocument(pointed, approxFonts, assets);
+    assert.ok(!JSON.stringify(supplier).includes(originalId));
+    assert.deepEqual(supplier, toSupplierSignDocument(plain, approxFonts, assets));
+  });
+
   it("skickar en logga i färg som tryckt bildlager med bilden själv, utan banor", () => {
     const src = "data:image/png;base64,iVBORw0KGgo=";
     const doc = {

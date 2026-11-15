@@ -71,9 +71,21 @@ function withFrameSilhouette(doc: BadgeDocument): BadgeDocument | null {
   return { ...doc, logo: { ...logo, d: `M0 0L${w} 0L${w} ${h}L0 ${h}Z` } };
 }
 
+/** Skylten utan hänvisningen till loggans originalfil. `null` när den inte har någon. */
+function withoutLogoOriginal(doc: BadgeDocument): BadgeDocument | null {
+  if (!doc.logo?.originalId) return null;
+  const logo = { ...doc.logo };
+  delete logo.originalId;
+  return { ...doc, logo };
+}
+
 export async function encodeShareCode(doc: BadgeDocument): Promise<ShareCode> {
   const code = await pack(doc);
   if (code.length <= SHARE_MAX_CHARS || !doc.logo) return { code, droppedLogo: false };
+  // Hänvisningen till originalfilen är det första som får stryka på foten: skylten ser likadan ut utan den.
+  const unpointed = withoutLogoOriginal(doc);
+  const unpointedCode = unpointed ? await pack(unpointed) : null;
+  if (unpointedCode && unpointedCode.length <= SHARE_MAX_CHARS) return { code: unpointedCode, droppedLogo: false };
   const framed = withFrameSilhouette(doc);
   const framedCode = framed ? await pack(framed) : null;
   if (framedCode && framedCode.length <= SHARE_MAX_CHARS) return { code: framedCode, droppedLogo: false };

@@ -1,4 +1,5 @@
 import { isOfferedDocument, type BadgeDocument, type PriceTable } from "@/engine";
+import type { OrderPayment } from "@/lib/payments/model";
 import type { Delivery } from "./delivery";
 import type { Pricing } from "./pricing";
 
@@ -120,6 +121,12 @@ export interface StoredOrder {
   supplierError: string | null;
   /** Antal försök att skicka ordern till verkstaden. */
   supplierAttempts: number;
+  /** Betalningen när ordern är betald med kort; `null` = ordern faktureras. */
+  payment: OrderPayment | null;
+  /** Expressfraktens pris när verkstaden har satt det; `null` = inte satt, eller ordern har ett annat fraktsätt. */
+  expressShippingSek: number | null;
+  /** Koden i den hemliga länken till kundens ordersida. */
+  customerToken: string;
 }
 
 export function isOrderStatus(value: string): value is OrderStatus {

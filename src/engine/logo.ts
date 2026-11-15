@@ -375,6 +375,9 @@ export function logoImageRefId(src: string): string | null {
   return LOGO_IMAGE_REF_PATTERN.test(src) ? src.slice(LOGO_IMAGE_REF_PREFIX.length) : null;
 }
 
+/** Id för loggans originalfil på servern: filens SHA-256 i hex. */
+export const LOGO_ORIGINAL_ID_PATTERN = /^[0-9a-f]{64}$/;
+
 /**
  * Loggans banor flyttade från egen ruta till skyltens mm: skalas `scale` och
  * förskjuts till (offsetX, offsetY). Koordinaterna kommer alltid i par.

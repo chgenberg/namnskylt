@@ -3,6 +3,7 @@ import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
 import { defaultQuoteDelivery } from "@/lib/orders/delivery-options";
+import { ERASED_CUSTOMER_ERROR, isErasedCustomer } from "@/lib/orders/erase-model";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { databaseConfigured, getCustomer } from "@/lib/orders/repository";
 import { createQuote } from "@/lib/quotes/repository";
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
 
   const customer = await getCustomer(tenant, parsed.data.customerId);
   if (!customer) return NextResponse.json({ error: "Kunden finns inte" }, { status: 404 });
+  if (isErasedCustomer(customer)) return NextResponse.json({ error: ERASED_CUSTOMER_ERROR }, { status: 409 });
   try {
     const { quoteNo } = await createQuote({
       tenant,

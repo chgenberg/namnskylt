@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
 import { orderFromDesignAction } from "@/features/admin/actions";
+import { DeleteCustomerButton } from "@/features/admin/delete-customer-button";
 import { DeleteDesignButton } from "@/features/admin/delete-design-button";
 import { adminTenant } from "@/features/admin/guard";
 import { NewNamesButton } from "@/features/admin/new-names-button";
@@ -9,6 +10,8 @@ import { OrderCard } from "@/features/admin/order-card";
 import { RepeatButton } from "@/features/admin/repeat-button";
 import styles from "@/features/admin/admin.module.css";
 import { formatDay, formatSek } from "@/lib/format";
+import { customerErasurePlan } from "@/lib/orders/erase";
+import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { badgeCount } from "@/lib/orders/model";
 import { getCustomer, listCustomerOrders, listDesigns } from "@/lib/orders/repository";
 
@@ -22,7 +25,13 @@ export default async function CustomerPage({ params }: CustomerPageProps) {
   const { id } = await params;
   const customer = await getCustomer(tenant, id);
   if (!customer) notFound();
-  const [orders, designs] = await Promise.all([listCustomerOrders(tenant, customer.id), listDesigns(tenant, customer.id)]);
+  const [orders, designs, erasure] = await Promise.all([
+    listCustomerOrders(tenant, customer.id),
+    listDesigns(tenant, customer.id),
+    customerErasurePlan(tenant, customer.id),
+  ]);
+  // En borttagen kund står kvar för bokföringens skull: bara ordrarna visas, och inget nytt går att lägga.
+  const erased = isErasedCustomer(customer);
   const counted = orders.filter((o) => o.status !== "cancelled");
   const revenue = counted.reduce((sum, o) => sum + o.totalSek, 0);
   const latest = orders[0];
@@ -39,19 +48,28 @@ export default async function CustomerPage({ params }: CustomerPageProps) {
             / {title}
           </p>
           <h1 className={styles.pageTitle}>{title}</h1>
-          <p className={styles.pageLead}>
-            {customer.name} ·{" "}
-            <a href={`mailto:${customer.email}`} className={styles.link}>
-              {customer.email}
-            </a>
-          </p>
+          {erased ? (
+            <p className={styles.pageLead}>
+              Kundens uppgifter är borttagna. Ordrarna nedan behålls utan personuppgifter, eftersom de hör till bokföringen.
+            </p>
+          ) : (
+            <p className={styles.pageLead}>
+              {customer.name} ·{" "}
+              <a href={`mailto:${customer.email}`} className={styles.link}>
+                {customer.email}
+              </a>
+            </p>
+          )}
         </div>
-        <div className={styles.actionBar}>
-          <Link href={`/admin/ny-order?kund=${customer.id}`} className={styles.ghostButton}>
-            + Ny order
-          </Link>
-          {latest && <RepeatButton order={latest} />}
-        </div>
+        {!erased && (
+          <div className={styles.actionBar}>
+            <Link href={`/admin/ny-order?kund=${customer.id}`} className={styles.ghostButton}>
+              + Ny order
+            </Link>
+            {latest && <RepeatButton order={latest} />}
+            {erasure && <DeleteCustomerButton customerId={customer.id} name={title} plan={erasure} />}
+          </div>
+        )}
       </header>
 
       <div className={styles.kpis}>
@@ -70,39 +88,41 @@ export default async function CustomerPage({ params }: CustomerPageProps) {
         </div>
       </div>
 
-      <section className={styles.section}>
-        <div className={styles.sectionHead}>
-          <h2 className={styles.sectionTitle}>Designbibliotek</h2>
-          <span className={styles.muted}>Spara en skylt som mall från en order — sedan räcker det att skriva namnen.</span>
-        </div>
-        {designs.length === 0 ? (
-          <div className={styles.empty}>
-            <strong>Inga mallar än</strong>
-            <span>Öppna en order och välj ”Spara som mall” på en skylt.</span>
+      {!erased && (
+        <section className={styles.section}>
+          <div className={styles.sectionHead}>
+            <h2 className={styles.sectionTitle}>Designbibliotek</h2>
+            <span className={styles.muted}>Spara en skylt som mall från en order — sedan räcker det att skriva namnen.</span>
           </div>
-        ) : (
-          <div className={styles.designGrid}>
-            {designs.map((design) => (
-              <figure key={design.id} className={styles.badgeTile}>
-                <BadgePreview doc={design.doc} label={`Mall: ${design.name}`} />
-                <figcaption className={styles.form}>
-                  <strong>{design.name}</strong>
-                  <div className={styles.badgeTileMeta}>
-                    <NewNamesButton
-                      template={design.doc}
-                      title={`Ny order från ”${design.name}”`}
-                      label="Ny order"
-                      variant="primary"
-                      submit={orderFromDesignAction.bind(null, design.id)}
-                    />
-                    <DeleteDesignButton designId={design.id} name={design.name} />
-                  </div>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
-        )}
-      </section>
+          {designs.length === 0 ? (
+            <div className={styles.empty}>
+              <strong>Inga mallar än</strong>
+              <span>Öppna en order och välj ”Spara som mall” på en skylt.</span>
+            </div>
+          ) : (
+            <div className={styles.designGrid}>
+              {designs.map((design) => (
+                <figure key={design.id} className={styles.badgeTile}>
+                  <BadgePreview doc={design.doc} label={`Mall: ${design.name}`} />
+                  <figcaption className={styles.form}>
+                    <strong>{design.name}</strong>
+                    <div className={styles.badgeTileMeta}>
+                      <NewNamesButton
+                        template={design.doc}
+                        title={`Ny order från ”${design.name}”`}
+                        label="Ny order"
+                        variant="primary"
+                        submit={orderFromDesignAction.bind(null, design.id)}
+                      />
+                      <DeleteDesignButton designId={design.id} name={design.name} />
+                    </div>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className={styles.section}>
         <div className={styles.sectionHead}>

@@ -9,6 +9,7 @@ import { insertDemoData, removeDemoData } from "@/lib/orders/demo-data";
 import { pricingSchema, type Pricing } from "@/lib/orders/pricing";
 import { companyProfileSchema, type CompanyProfile } from "@/lib/company/profile";
 import { deliverySchema, type Delivery } from "@/lib/orders/delivery";
+import { ERASED_CUSTOMER_ERROR, isBookkeepingOrder, isErasedCustomer } from "@/lib/orders/erase-model";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import { repeatBadges, staffBadges } from "@/lib/orders/repeat";
@@ -32,6 +33,7 @@ import {
 } from "@/lib/orders/repository";
 import { siteOrigin } from "@/lib/http/origin";
 import { requireReseller } from "@/lib/reseller-auth/session";
+import { isTrackableSupplierOrder } from "@/lib/supplier/status";
 import { isOwner } from "@/lib/tenants/model";
 
 export type ActionResult = { ok: true; orderNo?: string; url?: string } | { ok: false; error: string };
@@ -56,6 +58,7 @@ export async function repeatOrderAction(orderNo: string): Promise<ActionResult> 
   try {
     const original = await getOrder(tenant, orderNoSchema.parse(orderNo));
     if (!original || original.badges.length === 0) return { ok: false, error: "Ordern finns inte" };
+    if (isErasedCustomer(original.customer)) return { ok: false, error: ERASED_CUSTOMER_ERROR };
     if (!allOffered(original.badges)) return { ok: false, error: NOT_OFFERED_ERROR };
     const placed = await placeOrder({
       tenant,
@@ -81,6 +84,7 @@ export async function staffOrderAction(orderNo: string, names: string, quantity:
     const original = await getOrder(tenant, orderNoSchema.parse(orderNo));
     const template = original?.badges[0];
     if (!original || !template) return { ok: false, error: "Ordern finns inte" };
+    if (isErasedCustomer(original.customer)) return { ok: false, error: ERASED_CUSTOMER_ERROR };
     const badges = staffBadges(template, namesSchema.parse(names), quantitySchema.parse(quantity));
     if (badges.length === 0) return { ok: false, error: "Skriv minst ett namn" };
     if (badges.length > MAX_ORDER_BADGES) return { ok: false, error: `Högst ${MAX_ORDER_BADGES} namn per order` };
@@ -107,6 +111,7 @@ export async function orderFromDesignAction(designId: string, names: string, qua
     const design = await getDesign(tenant, z.uuid().parse(designId));
     const customer = design ? await getCustomer(tenant, design.customerId) : null;
     if (!design || !customer) return { ok: false, error: "Mallen finns inte" };
+    if (isErasedCustomer(customer)) return { ok: false, error: ERASED_CUSTOMER_ERROR };
     const badges = staffBadges(design.doc, namesSchema.parse(names), quantitySchema.parse(quantity));
     if (badges.length === 0) return { ok: false, error: "Skriv minst ett namn" };
     if (badges.length > MAX_ORDER_BADGES) return { ok: false, error: `Högst ${MAX_ORDER_BADGES} namn per order` };
@@ -144,6 +149,7 @@ export async function saveDesignAction(orderNo: string, badgeIndex: number, name
     const order = await getOrder(tenant, orderNoSchema.parse(orderNo));
     const badge = order?.badges[z.number().int().min(0).parse(badgeIndex)];
     if (!order || !badge) return { ok: false, error: "Skylten finns inte" };
+    if (isErasedCustomer(order.customer)) return { ok: false, error: ERASED_CUSTOMER_ERROR };
     await saveDesign(tenant, order.customer.id, z.string().trim().min(1).max(80).parse(name), badge);
     return done();
   } catch (error) {
@@ -154,7 +160,17 @@ export async function saveDesignAction(orderNo: string, badgeIndex: number, name
 export async function deleteOrderAction(orderNo: string): Promise<ActionResult> {
   const tenant = await requireReseller();
   try {
-    const ok = await deleteOrder(tenant, orderNoSchema.parse(orderNo));
+    const order = await getOrder(tenant, orderNoSchema.parse(orderNo));
+    if (!order) return { ok: false, error: "Ordern finns inte" };
+    // En order som har gått till verkstaden, tillverkats eller betalats med kort hör till bokföringen.
+    const bookkeeping = isBookkeepingOrder({
+      demo: order.demo,
+      status: order.status,
+      sentToWorkshop: Boolean(order.supplierSentAt) || isTrackableSupplierOrder(order.supplierOrderNo),
+      paid: order.payment !== null,
+    });
+    if (bookkeeping) return { ok: false, error: "Ordern hör till bokföringen och kan inte tas bort." };
+    const ok = await deleteOrder(tenant, order.orderNo);
     return ok ? done() : { ok: false, error: "Ordern finns inte" };
   } catch (error) {
     return fail(error, "Ordern kunde inte tas bort");
@@ -252,6 +268,7 @@ export async function startOrderAction(input: z.input<typeof startOrderSchema>):
             address: parsed.address || null,
           });
     if (!customer) return { ok: false, error: "Kunden finns inte" };
+    if (isErasedCustomer(customer)) return { ok: false, error: ERASED_CUSTOMER_ERROR };
     const params = new URLSearchParams({ kund: customer.id });
     if (parsed.mode === "quote") params.set("offert", "1");
     if (parsed.project?.trim()) params.set("projekt", parsed.project.trim());

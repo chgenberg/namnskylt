@@ -8,6 +8,7 @@ import { PricingEditor } from "@/features/admin/pricing-editor";
 import { adminTenant } from "@/features/admin/guard";
 import { DeleteOrderButton } from "@/features/admin/delete-order-button";
 import { DeliveryPanel } from "@/features/admin/delivery-panel";
+import { LogoOriginalLinks } from "@/features/admin/logo-original-links";
 import { NewNamesButton } from "@/features/admin/new-names-button";
 import { NoticesSeen } from "@/features/admin/notices-seen";
 import { OrderTimeline } from "@/features/admin/order-timeline";
@@ -20,8 +21,10 @@ import { formatDate, formatSek } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { countUnreadNotices } from "@/lib/notices/repository";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
+import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { badgeCount, ORDER_SOURCE_LABEL } from "@/lib/orders/model";
 import { getOrder, latestProof } from "@/lib/orders/repository";
+import { paymentLabel } from "@/lib/payments/model";
 import { atPrinter, refreshFromSupplier, supplierLink, type SupplierLink } from "@/lib/supplier/sync";
 
 const SYNC_NOTE: Record<SupplierLink, string> = {
@@ -57,6 +60,8 @@ export default async function OrderPage({ params }: OrderPageProps) {
       : null;
   const template = order.badges[0];
   const customerName = order.customer.company ?? order.customer.name;
+  // En borttagen kund får inga nya ordrar eller mallar; ordern står bara kvar för bokföringen.
+  const erased = isErasedCustomer(order.customer);
 
   return (
     <>
@@ -78,8 +83,8 @@ export default async function OrderPage({ params }: OrderPageProps) {
           </p>
         </div>
         <div className={styles.actionBar}>
-          <RepeatButton order={order} />
-          {template && (
+          {!erased && <RepeatButton order={order} />}
+          {template && !erased && (
             <NewNamesButton
               template={template}
               title={`Ny personal hos ${customerName}`}
@@ -124,12 +129,13 @@ export default async function OrderPage({ params }: OrderPageProps) {
                       <span>
                         {badge.quantity} st · {badge.size.widthMm}×{badge.size.heightMm}
                       </span>
-                      <SaveDesignButton orderNo={order.orderNo} badgeIndex={i} defaultName={`${customerName} – ${name}`} />
+                      {!erased && <SaveDesignButton orderNo={order.orderNo} badgeIndex={i} defaultName={`${customerName} – ${name}`} />}
                     </figcaption>
                   </figure>
                 );
               })}
             </div>
+            <LogoOriginalLinks badges={order.badges} />
           </section>
 
           <section className={styles.panel}>
@@ -156,12 +162,16 @@ export default async function OrderPage({ params }: OrderPageProps) {
                   {order.customer.name}
                 </Link>
               </dd>
-              <dt>E-post</dt>
-              <dd>
-                <a href={`mailto:${order.customer.email}`} className={styles.link}>
-                  {order.customer.email}
-                </a>
-              </dd>
+              {!erased && (
+                <>
+                  <dt>E-post</dt>
+                  <dd>
+                    <a href={`mailto:${order.customer.email}`} className={styles.link}>
+                      {order.customer.email}
+                    </a>
+                  </dd>
+                </>
+              )}
               {template && (
                 <>
                   <dt>Material</dt>
@@ -177,6 +187,20 @@ export default async function OrderPage({ params }: OrderPageProps) {
               <dt>Belopp</dt>
               <dd>
                 {formatSek(order.totalSek)} exkl. · {formatSek(order.totalInclVatSek)} inkl. moms
+              </dd>
+              <dt>Kundens ordersida</dt>
+              <dd>
+                <a href={`/order/${order.customerToken}`} target="_blank" rel="noreferrer" className={styles.link}>
+                  Öppna ↗
+                </a>{" "}
+                <span className={styles.muted}>Länken går att skicka till kunden, som följer ordern och beställer fler där.</span>
+              </dd>
+              <dt>Betalning</dt>
+              <dd>
+                {paymentLabel(order.payment)}
+                {order.payment && order.status === "cancelled" && (
+                  <span className={styles.muted}> · återbetalas i Stripe, det görs inte härifrån</span>
+                )}
               </dd>
               {order.shopSlug && (
                 <>

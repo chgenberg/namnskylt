@@ -15,6 +15,7 @@ import {
 import { matchColorCombo } from "@/lib/brand/match";
 import { requestBrand, type BrandProfile } from "../logo/brand-api";
 import { storeLogoImage } from "../logo/store-image";
+import { FETCHED_LOGO_NAME, dataUrlFile, storeLogoOriginal } from "../logo/store-original";
 import { traceImage, type LogoTrace } from "../logo/trace-image";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
@@ -40,6 +41,14 @@ const UPLOAD_STEPS = [
 ] as const;
 
 type Job = "scrape" | "upload";
+
+/** Filen som loggan på skylten lästes från, och dess id på servern när den har sparats. */
+interface LogoOrigin {
+  src: string;
+  /** Loggans banor just nu; "Invertera" ger nya banor ur samma fil. */
+  d: string;
+  originalId: string | null;
+}
 
 type Status =
   | { kind: "idle" }
@@ -69,6 +78,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
   const [source, setSource] = useState<{ src: string; invert: boolean } | null>(null);
   const [job, setJob] = useState<Job>("scrape");
   const abortRef = useRef<AbortController | null>(null);
+  const originRef = useRef<LogoOrigin | null>(null);
   const color = getColor(doc.materialId, doc.colorId);
   const working = status.kind === "working";
 
@@ -83,7 +93,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
     setStatus({ kind: "error", message: "Hämtningen avbröts." });
   };
 
-  const applyTrace = (trace: LogoTrace, placement?: LogoPlacement) => {
+  const applyTrace = (trace: LogoTrace, placement: LogoPlacement | undefined, originalId: string | null) => {
     const wide = trace.viewWidth / trace.viewHeight > WIDE_LOGO_ASPECT;
     const nextPlacement = placement ?? (wide ? "top" : "left");
     dispatch({
@@ -95,17 +105,40 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
         placement: nextPlacement,
         heightMm: doc.logo?.heightMm ?? (nextPlacement === "top" ? TOP_LOGO_HEIGHT_MM : LOGO_LIMITS.defaultHeightMm),
         ...(trace.image && { image: trace.image }),
+        // En ny logga ärver aldrig den förra loggans originalfil.
+        ...(originalId && { originalId }),
       },
     });
   };
 
-  const adoptImage = async (src: string, invert = false): Promise<LogoTrace | null> => {
+  /**
+   * Läser en bild till loggan på skylten. `file` är filen kunden laddade upp;
+   * utan den är `src` en bild som hämtats från hemsidan. Filen sparas på
+   * servern i bakgrunden, så att verkstaden kan få originalet.
+   */
+  const adoptImage = async (src: string, invert = false, file?: File): Promise<LogoTrace | null> => {
     const read = await traceImage(src, invert);
     if (!read) return null;
     // En logga i färg sparas på servern, så att skylten bara bär bildens adress.
     const trace = read.image ? { ...read, image: await storeLogoImage(read.image) } : read;
     setSource({ src, invert });
-    applyTrace(trace, doc.logo?.placement);
+    // Samma fil som förut ("Invertera"): originalet är redan sparat eller på väg.
+    const known = originRef.current?.src === src ? originRef.current : null;
+    const origin: LogoOrigin = known ?? { src, d: trace.d, originalId: null };
+    origin.d = trace.d;
+    originRef.current = origin;
+    applyTrace(trace, doc.logo?.placement, origin.originalId);
+    if (!known) {
+      const original = file ?? dataUrlFile(src);
+      if (original) {
+        void storeLogoOriginal(original, file?.name ?? FETCHED_LOGO_NAME).then((originalId) => {
+          if (!originalId) return;
+          origin.originalId = originalId;
+          // Bara om loggan ur den här filen fortfarande är den som ligger på skylten.
+          if (originRef.current === origin) dispatch({ type: "logo/original", d: origin.d, originalId });
+        });
+      }
+    }
     return trace;
   };
 
@@ -148,7 +181,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
     }
     start("upload");
     try {
-      const trace = await adoptImage(await readFile(file));
+      const trace = await adoptImage(await readFile(file), false, file);
       setStatus(trace ? { kind: "idle" } : { kind: "error", message: "Vi hittade ingen logga i bilden." });
     } catch {
       setStatus({ kind: "error", message: "Bilden gick inte att läsa. Prova PNG, JPG eller SVG." });
@@ -171,6 +204,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
   const remove = () => {
     dispatch({ type: "logo", logo: null });
     setSource(null);
+    originRef.current = null;
   };
 
   const heightRange = LOGO_LIMITS.maxHeightMm - LOGO_LIMITS.minHeightMm;

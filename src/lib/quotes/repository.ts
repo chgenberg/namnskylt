@@ -152,10 +152,15 @@ export async function createQuote(input: {
   project?: string | null;
   /** Utelämnad = till kunden, som fyller i adressen när offerten godkänns. */
   delivery?: QuoteDelivery | null;
-}): Promise<{ quoteNo: string }> {
+  /** Egna priser redan från början, till exempel butikens priser eller kundens rabatt. Utelämnad = listpris. */
+  pricing?: Pricing | null;
+  /** Ordern som kunden ville ha fler skyltar från. Offerten är då klar att godkänna direkt. */
+  reorderOf?: { orderId: string; orderNo: string } | null;
+}): Promise<{ quoteNo: string; token: string }> {
   const sql = requireDb();
   const model = await getPriceModel();
-  const price = priceWithPricing(input.badges, null, endPriceTable(model), shippingFor(model, input.badges, shippingMethodOf(input.delivery)));
+  const pricing = input.pricing && isCustomPricing(input.pricing) ? input.pricing : null;
+  const price = priceWithPricing(input.badges, pricing, endPriceTable(model), shippingFor(model, input.badges, shippingMethodOf(input.delivery)));
   // En logga i färg sparas en gång; skyltarna pekar på den. En bild som saknas stoppar offerten.
   if (await missingLogoImages(input.badges)) throw new Error(MISSING_LOGO_IMAGE_ERROR);
   const badges = await withStoredLogoImages(input.badges);
@@ -165,15 +170,23 @@ export async function createQuote(input: {
     // Kunden måste tillhöra samma återförsäljare — annars skapas ingen offert.
     const [row] = await tx<{ id: string; quote_no: string }[]>`
       insert into quotes (reseller_id, customer_id, badges, price_model, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project,
-                          delivery)
+                          delivery, pricing, reorder_of, status, sent_at)
       select ${input.tenant}, ${input.customerId}, ${tx.json(badges as unknown as Json)}, ${tx.json(model as unknown as Json)}, ${price.totalSek},
              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null}, ${input.project ?? null},
-             ${input.delivery ? tx.json(input.delivery as unknown as Json) : null}
+             ${input.delivery ? tx.json(input.delivery as unknown as Json) : null},
+             ${pricing ? tx.json(pricing as unknown as Json) : null}, ${input.reorderOf?.orderId ?? null},
+             ${input.reorderOf ? "sent" : "draft"}, ${input.reorderOf ? tx`now()` : null}
        where exists (select 1 from customers where id = ${input.customerId} and reseller_id = ${input.tenant})
       returning id, quote_no`;
     if (!row) throw new Error("Offerten kunde inte sparas");
-    await tx`insert into quote_events (quote_id, status, note) values (${row.id}, 'draft', 'Offert skapad i skyltmotorn')`;
-    return { quoteNo: row.quote_no };
+    if (input.reorderOf) {
+      // Kunden har själv bett om fler skyltar från sin ordersida. Offerten går att godkänna direkt.
+      await tx`insert into quote_events (quote_id, status, note)
+               values (${row.id}, 'sent', ${`Kunden bad om fler skyltar med samma design som ${input.reorderOf.orderNo}`})`;
+    } else {
+      await tx`insert into quote_events (quote_id, status, note) values (${row.id}, 'draft', 'Offert skapad i skyltmotorn')`;
+    }
+    return { quoteNo: row.quote_no, token };
   });
 }
 
@@ -244,7 +257,23 @@ export async function updateQuoteDelivery(tenant: string, quoteNo: string, deliv
 /** Leveransen som gällde när offerten blev en order. Sparas på offerten så att den visar vart skyltarna gick. */
 export async function saveAcceptedDelivery(quoteId: string, delivery: QuoteDelivery): Promise<void> {
   const sql = requireDb();
-  await sql`update quotes set delivery = ${sql.json(quoteDeliverySchema.parse(delivery) as unknown as Json)} where id = ${quoteId}`;
+  const parsed = quoteDeliverySchema.parse(delivery);
+  const currentModel = await getPriceModel();
+  await sql.begin(async (tx) => {
+    const [row] = await tx<{ badges: unknown; pricing: unknown; price_model: unknown }[]>`
+      select badges, pricing, price_model from quotes where id = ${quoteId} for update`;
+    const badges = badgesSchema.safeParse(row?.badges);
+    const model = storedPriceModel(row?.price_model, currentModel);
+    // Kunden kan ha valt ett annat leveranssätt än det som stod på offerten, och då är frakten en annan.
+    const price = badges.success
+      ? priceWithPricing(badges.data, parsePricing(row?.pricing), endPriceTable(model), shippingFor(model, badges.data, shippingMethodOf(parsed)))
+      : null;
+    await tx`
+      update quotes set delivery = ${tx.json(parsed as unknown as Json)},
+             total_sek = ${price ? price.totalSek : tx`total_sek`},
+             total_incl_vat_sek = ${price ? price.totalInclVatSek : tx`total_incl_vat_sek`}
+       where id = ${quoteId}`;
+  });
 }
 
 export async function markSent(tenant: string, quoteNo: string): Promise<StoredQuote | null> {

@@ -33,7 +33,8 @@ const designCount = (count: number) => (count === 1 ? "1 design" : `${count} des
 /**
  * Varukorgen: flera olika skyltar i samma order. En design läggs i korgen och
  * nästa börjar i editorn. Priset räknas på hela ordern, så trappsteget,
- * startkostnaden och frakten delas av alla skyltar.
+ * startkostnaden och frakten delas av alla skyltar. Korgen sparas i
+ * webbläsaren (`useSavedWork`) och kommer tillbaka när sidan laddas om.
  */
 export function CartSection({ groups, pending, canAdd, onAdd, onEdit, onRemove, onUndo }: CartSectionProps) {
   return (

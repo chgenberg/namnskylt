@@ -342,6 +342,39 @@
   text-underline-offset: 3px;
 }
 
+/* Raden som säger att varukorgen eller skylten har lästs tillbaka efter en omladdning. */
+.restored {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-navy-tint);
+  color: var(--color-navy);
+  font-size: var(--text-xs);
+}
+
+.restored span {
+  flex: 1;
+}
+
+.restoredClose {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font-size: var(--text-md);
+  line-height: 1;
+  cursor: pointer;
+}
+
 /* Återförsäljarens start: samma ruta som på startsidan, över scenen. */
 .startStage {
   position: absolute;

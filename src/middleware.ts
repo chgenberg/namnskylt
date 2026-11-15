@@ -22,7 +22,7 @@ const MAIN_HOSTS = (process.env.SITE_HOSTS ?? "namnskylt.com,www.namnskylt.com,l
   .filter(Boolean);
 
 /** Personliga länkar och butiker som inte ska indexeras, oavsett vad sidan själv säger. */
-const NOINDEX_PREFIXES = ["/for/", "/butik/", "/aterforsaljare/"];
+const NOINDEX_PREFIXES = ["/for/", "/butik/", "/aterforsaljare/", "/order/", "/offert/", "/betalning/"];
 
 const domainCache = new Map<string, { slug: string | null; until: number }>();
 
@@ -80,12 +80,14 @@ export async function middleware(request: NextRequest) {
   // Statistiken anropas från återförsäljarnas sajter, som saknar kakan.
   // Panelens två inloggningar har egna lösenord — återförsäljare känner inte sajtkoden.
   // Resend och cron saknar kakan; webhooken kräver Svix-signatur, ticken en hemlighet.
+  // Stripe saknar kakan; betalningens webhook kräver Stripes signatur.
   // En sparad logga i färg visas på sidor som själva är öppna utan sajtkoden: panelen, offerter
   // och korrektur. Adressen är bildens SHA-256 och går inte att gissa; uppladdningen är låst.
   if (
     (request.method === "GET" && requested.startsWith("/api/logo-images/")) ||
     requested === "/api/gate" ||
     requested === "/api/supplier/webhook" ||
+    requested === "/api/payments/webhook" ||
     requested === "/api/outreach/webhook" ||
     requested === "/api/outreach/tick" ||
     requested === "/api/shop-events" ||

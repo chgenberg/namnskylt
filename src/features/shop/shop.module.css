@@ -126,6 +126,12 @@
   color: var(--color-subtle);
 }
 
+.footerNote a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* ───────────── Startsidan ───────────── */
 
 /* Samma skylt som på namnskylt.com, i butikens färger. Menyn står ovanför, inte över. */

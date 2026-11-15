@@ -489,6 +489,93 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       alter table reseller_applications add column delivery jsonb;
     `,
   },
+  {
+    // Kortbetalning, radering, originalfiler och fellogg (2026-11-15).
+    // - checkouts: en privatpersons order som väntar på betalning. Ordern läggs först när
+    //   betalningen är klar, så en obetald order finns aldrig bland ordrarna.
+    // - orders.payment: betalningen på en order som är betald med kort. Tom = faktura.
+    // - orders.confirmation_emailed_at: när kunden fick sin orderbekräftelse som mejl.
+    // - customers.erased_at: kunden är borttagen men raden står kvar, utan personuppgifter,
+    //   för att ordrar som hör till bokföringen pekar på den.
+    // - logo_originals: filen kunden laddade upp, sparad en gång under sin SHA-256.
+    // - error_log: fel på servern, så att de syns i panelen utan en extern tjänst.
+    id: "024_payments_erasure_originals_errors",
+    sql: `
+      create table checkouts (
+        id uuid primary key default gen_random_uuid(),
+        payload jsonb not null,
+        price_model jsonb not null,
+        amount_ore integer not null check (amount_ore > 0),
+        session_id text unique,
+        order_id uuid references orders(id) on delete set null,
+        created_at timestamptz not null default now(),
+        completed_at timestamptz
+      );
+      create index checkouts_created on checkouts (created_at);
+      alter table orders add column payment jsonb;
+      alter table orders add column confirmation_emailed_at timestamptz;
+
+      alter table customers add column erased_at timestamptz;
+
+      create table logo_originals (
+        id text primary key check (id ~ '^[0-9a-f]{64}$'),
+        mime text not null,
+        name text,
+        bytes bytea not null,
+        created_at timestamptz not null default now()
+      );
+
+      create table error_log (
+        id bigserial primary key,
+        at timestamptz not null default now(),
+        source text not null,
+        route text,
+        message text not null,
+        detail text,
+        digest text
+      );
+      create index error_log_at on error_log (at desc);
+    `,
+  },
+  {
+    // Omförsök av utskick till verkstaden. `supplier_failed_at` är när det senaste försöket
+    // misslyckades, och schemat räknar nästa försök därifrån. `supplier_error_permanent` är sant
+    // när felet inte går över av sig självt (verkstaden nekade ordern), och då provas den inte om.
+    // Äldre fel saknar tid och provas aldrig om av sig själva.
+    id: "027_dispatch_retry",
+    sql: `
+      alter table orders add column supplier_failed_at timestamptz;
+      alter table orders add column supplier_error_permanent boolean not null default false;
+    `,
+  },
+  {
+    // Kundens egen ordersida, expressfraktens pris, fraktavisering och skyltmotorns statistik (2026-11-15).
+    // - orders.customer_token: den hemliga länken till kundens ordersida. Varje order får en egen kod.
+    // - orders.express_shipping_sek: expressfraktens pris när verkstaden har satt det. Tom = inte satt än.
+    // - orders.shipping_emailed_at: när kunden fick mejl om att ordern är skickad.
+    // - quotes.reorder_of: offerten kom till när kunden bad om fler skyltar med samma design.
+    // - designer_events: hur långt ett besök kom i skyltmotorn. `visit` är ett slumpat id som bara
+    //   finns i sidans minne, så inget sparas hos besökaren och inget pekar ut en person.
+    id: "028_customer_page_express_funnel",
+    sql: `
+      alter table orders add column customer_token text not null
+        default (replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''));
+      create unique index orders_customer_token on orders (customer_token);
+      alter table orders add column express_shipping_sek integer check (express_shipping_sek >= 0);
+      alter table orders add column shipping_emailed_at timestamptz;
+      alter table quotes add column reorder_of uuid references orders(id) on delete set null;
+
+      create table designer_events (
+        id bigserial primary key,
+        at timestamptz not null default now(),
+        visit text not null check (visit ~ '^[0-9a-f]{16,32}$'),
+        scope text not null,
+        step text not null,
+        unique (visit, step)
+      );
+      create index designer_events_at on designer_events (at desc);
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

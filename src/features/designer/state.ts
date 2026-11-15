@@ -44,6 +44,8 @@ export type DesignerAction =
   | { type: "corner"; cornerRadiusMm: number }
   | { type: "frame"; style: FrameStyle }
   | { type: "logo"; logo: BadgeLogo | null }
+  /** Originalfilen är sparad på servern. `d` pekar ut loggan den hör till. */
+  | { type: "logo/original"; d: string; originalId: string }
   | { type: "logo/placement"; placement: LogoPlacement }
   | { type: "logo/height"; heightMm: number }
   | { type: "move"; target: "text" | "logo"; offset: Offset }
@@ -155,6 +157,9 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       delete rest.logo;
       return rest;
     }
+    case "logo/original":
+      // Svaret kommer i efterhand: har kunden bytt eller tagit bort loggan under tiden gäller det inte längre.
+      return doc.logo && doc.logo.d === action.d ? { ...doc, logo: { ...doc.logo, originalId: action.originalId } } : doc;
     case "logo/placement": {
       // Ny placering = ny automatisk layout att utgå från.
       const reset = withoutOffsets(doc);

@@ -12,6 +12,7 @@ export type AdminNavIcon =
   | "split"
   | "workshop"
   | "resellers"
+  | "ops"
   | "settings";
 
 export interface AdminNavItem {

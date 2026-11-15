@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { deliverySchema } from "@/lib/orders/delivery";
+import { ERASED_CUSTOMER_ERROR, isErasedCustomer } from "@/lib/orders/erase-model";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
 
   const customer = await getCustomer(tenant, parsed.data.customerId);
   if (!customer) return NextResponse.json({ error: "Kunden finns inte" }, { status: 404 });
+  if (isErasedCustomer(customer)) return NextResponse.json({ error: ERASED_CUSTOMER_ERROR }, { status: 409 });
   try {
     const receipt = await placeOrder({
       tenant,

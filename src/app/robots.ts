@@ -1,12 +1,12 @@
 import type { MetadataRoute } from "next";
+import { publicOrigin } from "@/lib/http/public-url";
+import { robotsFor } from "@/lib/seo/crawl";
+import { gateEnabled } from "@/lib/site-gate/token";
 
-/** Personliga länkar och butiksförhandsvisningar ska aldrig hamna i sökmotorer. */
+/** Läses när den efterfrågas, inte vid bygget, så att sajtspärren i driftens miljö avgör. */
+export const dynamic = "force-dynamic";
+
+/** Med sajtlösenordet på får ingen sökmotor in. Utan det gäller reglerna i `robotsFor`. */
 export default function robots(): MetadataRoute.Robots {
-  return {
-    rules: {
-      userAgent: "*",
-      allow: "/",
-      disallow: ["/for/", "/avregistrera/", "/utskick/", "/aterforsaljare/", "/admin", "/api/"],
-    },
-  };
+  return robotsFor(gateEnabled(), publicOrigin());
 }

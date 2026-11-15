@@ -2,6 +2,7 @@ import Link from "next/link";
 import { adminTenant } from "@/features/admin/guard";
 import styles from "@/features/admin/admin.module.css";
 import { formatRelative, formatSek } from "@/lib/format";
+import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { listCustomers } from "@/lib/orders/repository";
 
 function initials(text: string): string {
@@ -16,7 +17,8 @@ function initials(text: string): string {
 export default async function CustomersPage() {
   const tenant = await adminTenant();
   if (!tenant) return null;
-  const customers = await listCustomers(tenant);
+  // En borttagen kund står bara kvar för bokföringens skull och visas inte här.
+  const customers = (await listCustomers(tenant)).filter((customer) => !isErasedCustomer(customer));
 
   return (
     <>

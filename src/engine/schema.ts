@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CUSTOM_SHAPE_LIMITS, LOGO_LIMITS, MATERIALS, MATERIAL_IDS, SHAPE_IDS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
 import { CUSTOM_OUTLINE_ISSUE_TEXT, customOutlineIssue } from "./custom-outline";
-import { LOGO_IMAGE_PATTERN, LOGO_IMAGE_REF_PATTERN, LOGO_PATH_PATTERN } from "./logo";
+import { LOGO_IMAGE_PATTERN, LOGO_IMAGE_REF_PATTERN, LOGO_ORIGINAL_ID_PATTERN, LOGO_PATH_PATTERN } from "./logo";
 import type { BadgeDocument } from "./types";
 
 /** Förflyttningen hålls inom skylten av layouten; schemat stoppar bara orimliga tal. */
@@ -64,6 +64,8 @@ export const badgeDocumentSchema = z
             ]),
           })
           .optional(),
+        // Originalfilen pekas ut med sitt id; själva filen ligger aldrig i skylten.
+        originalId: z.string().regex(LOGO_ORIGINAL_ID_PATTERN).optional(),
       })
       .optional(),
     mounting: z.enum(["pin", "magnet", "clip", "safety-pin"]),

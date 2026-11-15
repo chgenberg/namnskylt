@@ -1,9 +1,12 @@
 import "server-only";
 import { formatDate, formatDay } from "@/lib/format";
+import { logoOriginalHref, referencedLogoOriginals } from "@/lib/logo-images/original-model";
+import { SHIPPING_METHOD_LABEL, shippingMethodOf } from "@/lib/orders/delivery";
 import { badgeCount } from "@/lib/orders/model";
 import type { DispatchOrder } from "@/lib/orders/repository";
 import type { DispatchState, DispatchStatus } from "@/lib/supplier/dispatch";
 import { DispatchButton } from "./dispatch-button";
+import { ExpressPriceField } from "./express-price-field";
 import admin from "./admin.module.css";
 import styles from "./reseller-orders.module.css";
 
@@ -92,7 +95,14 @@ export function DispatchQueue({ rows, connected }: { rows: DispatchRow[]; connec
                     {order.delivery ? (
                       <>
                         {order.delivery.address.zip} {order.delivery.address.city}
-                        <span className={styles.sub}>{order.delivery.to === "customer" ? "Till kunden" : "Till återförsäljaren"}</span>
+                        <span className={styles.sub}>
+                          {order.delivery.to === "customer" ? "Till kunden" : "Till återförsäljaren"}
+                          {shippingMethodOf(order.delivery) !== "standard" && ` · ${SHIPPING_METHOD_LABEL[shippingMethodOf(order.delivery)]}`}
+                        </span>
+                        {/* Expressfraktens pris sätter verkstaden. Tills deras system skickar det skrivs det in här. */}
+                        {shippingMethodOf(order.delivery) === "express" && status.state !== "cancelled" && (
+                          <ExpressPriceField orderNo={order.orderNo} sek={order.expressShippingSek} />
+                        )}
                       </>
                     ) : (
                       <span className={admin.muted}>Saknas</span>
@@ -115,6 +125,14 @@ export function DispatchQueue({ rows, connected }: { rows: DispatchRow[]; connec
                         Underlag
                       </a>
                     )}{" "}
+                    {/* Filen loggan lästes från. En sparad order pekar bara på filer som finns. */}
+                    {referencedLogoOriginals(order.badges).map((id) => (
+                      <span key={id}>
+                        <a href={logoOriginalHref(id)} download className={admin.link}>
+                          Loggans original
+                        </a>{" "}
+                      </span>
+                    ))}
                     {connected && (status.state === "waiting" || status.state === "failed") && (
                       <DispatchButton orderNo={order.orderNo} retry={status.state === "failed"} />
                     )}

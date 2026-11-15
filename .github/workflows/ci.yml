@@ -1,0 +1,78 @@
+# Kvalitetsgrinden på varje push och pull request: samma steg som i CLAUDE.md,
+# mot en tom databas som migreras från början.
+#
+# Inga hemligheter sätts här. Utan RESEND_API_KEY lämnar inget mejl servern,
+# utan SUPPLIER_API_URL och SUPPLIER_API_KEY skickas ingen order till verkstaden,
+# och utan OPENAI_API_KEY är AI-funktionerna avstängda.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  grind:
+    name: Typer, lint, tester och bygge
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: namnskylt
+          POSTGRES_PASSWORD: namnskylt
+          POSTGRES_DB: namnskylt_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U namnskylt -d namnskylt_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      # Bara testdatabasen i den här körningen, aldrig driftens.
+      TEST_DATABASE_URL: postgres://namnskylt:namnskylt@localhost:5432/namnskylt_ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Versionen läses ur packageManager i package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Installera
+        run: pnpm install --frozen-lockfile
+
+      - name: Migrera en tom databas
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+      - name: Typer
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Tester
+        run: pnpm test
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+
+      # Utan DATABASE_URL, precis som när Railway bygger Docker-bilden.
+      - name: Bygge
+        run: pnpm build

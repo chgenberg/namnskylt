@@ -17,6 +17,7 @@ interface ShareRow {
   badges: unknown;
   price_model: unknown;
   delivery: unknown;
+  express_shipping_sek: number | null;
   total_sek: number;
   placed_at: Date;
   reseller_id: string;
@@ -36,7 +37,7 @@ interface ShareRow {
  */
 export async function listResellerOrders(sql: Sql | TransactionSql, currentModel: PriceModel): Promise<ResellerOrderRow[]> {
   const rows = await sql<ShareRow[]>`
-    select o.order_no, o.status, o.badges, o.price_model, o.delivery, o.total_sek, o.placed_at, o.reseller_id,
+    select o.order_no, o.status, o.badges, o.price_model, o.delivery, o.express_shipping_sek, o.total_sek, o.placed_at, o.reseller_id,
            a.name as reseller_name, c.name as customer_name, c.company as customer_company
       from orders o
       join customers c on c.id = o.customer_id
@@ -58,7 +59,12 @@ export async function listResellerOrders(sql: Sql | TransactionSql, currentModel
         resellerName: row.reseller_name ?? row.reseller_id,
         customer: row.customer_company ?? row.customer_name,
         customerSek: row.total_sek,
-        share: orderShare(badges.data, storedPriceModel(row.price_model, currentModel), shippingMethodOf(parseDelivery(row.delivery))),
+        share: orderShare(
+          badges.data,
+          storedPriceModel(row.price_model, currentModel),
+          shippingMethodOf(parseDelivery(row.delivery)),
+          row.express_shipping_sek,
+        ),
       },
     ];
   });

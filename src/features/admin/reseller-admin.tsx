@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { formatDay } from "@/lib/format";
+import { DeleteApplicationButton } from "./delete-application-button";
 import { approveApplicationAction, passwordLinkAction, rejectApplicationAction, type LinkResult } from "./reseller-admin-actions";
 import styles from "./admin.module.css";
 
@@ -86,6 +87,7 @@ export function ApplicationControls({ id, company, approved }: { id: string; com
               Avslå
             </button>
           )}
+          <DeleteApplicationButton id={id} company={company} hasAccount={false} />
         </div>
       )}
       {error && (

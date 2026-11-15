@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
 import { DeliveryPanel } from "@/features/admin/delivery-panel";
+import { LogoOriginalLinks } from "@/features/admin/logo-original-links";
 import { adminTenant } from "@/features/admin/guard";
 import { NoticesSeen } from "@/features/admin/notices-seen";
 import { PricingEditor } from "@/features/admin/pricing-editor";
@@ -95,6 +96,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
                 </figure>
               ))}
             </div>
+            <LogoOriginalLinks badges={quote.badges} />
           </section>
 
           <section className={styles.panel}>

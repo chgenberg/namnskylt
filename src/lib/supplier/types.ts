@@ -201,6 +201,11 @@ export interface SupplierOrderState {
   orderNumber: string;
   status: SupplierOrderStatus;
   trackingUrl?: string | null;
+  /**
+   * Fraktens pris i hela kronor, exklusive moms, när verkstaden har satt det.
+   * Läses bara för en order med expressfrakt, där priset inte är känt när ordern läggs.
+   */
+  shippingCost?: number | null;
   /** När statusen sattes hos leverantören (ISO 8601). */
   changedAt: string;
 }

@@ -29,11 +29,13 @@ export const viewport: Viewport = {
 const OPEN_PATHS = [
   "/korrektur/",
   "/offert/",
+  "/order/",
   "/butik/",
   "/inbaddning/",
   "/aterforsaljare/",
   "/forhandsvisning/",
   "/integritet",
+  "/villkor",
   "/for/",
 ];
 /** Panelen och återförsäljarens inloggningssida har egen inloggning; de behåller sajtens meny. */

@@ -26,11 +26,15 @@ export interface AccessLink {
  * Skapar en hemlig länk och gör äldre länkar för samma ansökan eller konto
  * ogiltiga. Länkens kod finns bara i svaret: i databasen ligger dess SHA-256.
  */
-export async function createAccessLink(target: { applicationId: string } | { accountId: string }): Promise<{ token: string; expiresAt: string }> {
+export async function createAccessLink(
+  target: { applicationId: string } | { accountId: string },
+  /** Kortare giltighet än vanligt, till exempel för en länk som mejlas när någon har glömt sitt lösenord. */
+  validMs?: number,
+): Promise<{ token: string; expiresAt: string }> {
   const sql = requireDb();
   const kind: AccessLinkKind = "applicationId" in target ? "activate" : "reset";
   const token = randomBytes(24).toString("base64url");
-  const expiresAt = new Date(Date.now() + VALID_DAYS[kind] * DAY_MS);
+  const expiresAt = new Date(Date.now() + (validMs ?? VALID_DAYS[kind] * DAY_MS));
   await sql.begin(async (tx) => {
     if ("applicationId" in target) {
       await tx`update reseller_access_links set used_at = now() where application_id = ${target.applicationId} and used_at is null`;

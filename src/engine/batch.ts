@@ -85,6 +85,12 @@ function designKey(doc: BadgeDocument): string {
   const design: Partial<BadgeDocument> = { ...doc };
   delete design.rows;
   delete design.quantity;
+  // Hänvisningen till loggans originalfil ändrar inte hur skylten ser ut.
+  if (design.logo?.originalId) {
+    const logo = { ...design.logo };
+    delete logo.originalId;
+    design.logo = logo;
+  }
   return JSON.stringify(design);
 }
 

@@ -1,10 +1,13 @@
 import "server-only";
-import type { Delivery, DeliveryAddress } from "@/lib/orders/delivery";
+import type { ShippingMethod } from "@/engine";
+import { shippingMethodOf, type Delivery, type DeliveryAddress } from "@/lib/orders/delivery";
+import { isOwner } from "@/lib/tenants/model";
 import { customerLabel } from "@/lib/notices/model";
 import { notify } from "@/lib/notices/notify";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import type { StoredQuote } from "./model";
+import { quoteShippingMethods } from "./shipping";
 import {
   claimForAcceptance,
   completeAcceptance,
@@ -15,7 +18,8 @@ import {
   saveAcceptedDelivery,
 } from "./repository";
 
-export type AcceptResult = { ok: true; orderNo: string } | { ok: false; error: string };
+/** `orderPath` är kundens egen ordersida, när ordern har en. */
+export type AcceptResult = { ok: true; orderNo: string; orderPath: string | null } | { ok: false; error: string };
 
 export const MISSING_DELIVERY_ERROR = "Fyll i leveransadressen innan offerten godkänns.";
 
@@ -23,11 +27,18 @@ export const MISSING_DELIVERY_ERROR = "Fyll i leveransadressen innan offerten go
  * Vart den godkända offertens skyltar ska. Ska de till kunden gäller adressen
  * kunden nyss fyllt i, annars den som redan står på offerten. Ska de till
  * återförsäljaren gäller offertens adress, och kunden kan inte ändra den.
+ * `chosen` är leveranssättet kunden valde när den godkände; det gäller bara
+ * när skyltarna ska till kunden. Annars följer offertens fraktsätt med.
  */
-export function acceptedDelivery(quote: Pick<StoredQuote, "delivery">, fromCustomer: DeliveryAddress | null): Delivery | null {
-  const address = quote.delivery.to === "customer" ? (fromCustomer ?? quote.delivery.address) : quote.delivery.address;
-  // Fraktsättet följer med från offerten till ordern.
-  return address ? { to: quote.delivery.to, address, ...(quote.delivery.method && { method: quote.delivery.method }) } : null;
+export function acceptedDelivery(
+  quote: Pick<StoredQuote, "delivery">,
+  fromCustomer: DeliveryAddress | null,
+  chosen: ShippingMethod | null = null,
+): Delivery | null {
+  const toCustomer = quote.delivery.to === "customer";
+  const address = toCustomer ? (fromCustomer ?? quote.delivery.address) : quote.delivery.address;
+  const method = (toCustomer ? chosen : null) ?? shippingMethodOf(quote.delivery);
+  return address ? { to: quote.delivery.to, address, ...(method !== "standard" && { method }) } : null;
 }
 
 /**
@@ -40,12 +51,17 @@ export async function acceptQuote(
   quoteNo: string,
   byReseller: boolean,
   address: DeliveryAddress | null = null,
+  /** Leveranssättet kunden valde när den godkände. Utelämnat = det som står på offerten. */
+  method: ShippingMethod | null = null,
 ): Promise<AcceptResult> {
   const before = await getQuote(tenant, quoteNo);
   if (!before) return { ok: false, error: "Offerten finns inte" };
   // En äldre offert kan gälla ett material eller mått som inte säljs längre.
   if (!allOffered(before.badges)) return { ok: false, error: NOT_OFFERED_ERROR };
-  const delivery = acceptedDelivery(before, address);
+  if (method && !quoteShippingMethods(isOwner(tenant), shippingMethodOf(before.delivery)).includes(method)) {
+    return { ok: false, error: "Leveranssättet går inte att välja för den här offerten." };
+  }
+  const delivery = acceptedDelivery(before, address, method);
   if (!delivery) return { ok: false, error: MISSING_DELIVERY_ERROR };
   const quote = await claimForAcceptance(tenant, quoteNo, byReseller);
   if (!quote) return { ok: false, error: "Offerten kan inte godkännas längre" };
@@ -76,7 +92,7 @@ export async function acceptQuote(
         orderNo: placed.orderNumber,
       });
     }
-    return { ok: true, orderNo: placed.orderNumber };
+    return { ok: true, orderNo: placed.orderNumber, orderPath: placed.customerToken ? `/order/${placed.customerToken}` : null };
   } catch (error) {
     await releaseAcceptance(quote.id, before.status);
     console.error(`Offert ${quoteNo} kunde inte bli order`, error);

@@ -1,6 +1,7 @@
 import "server-only";
 import { isOpen, type StoredOrder } from "@/lib/orders/model";
 import { applySupplierUpdate } from "@/lib/orders/repository";
+import { announceShipped } from "@/lib/orders/shipped";
 import { createSupplierClient, supplierApiConfigured } from "./client";
 import { advancesTo, isTrackableSupplierOrder, toOrderStatus } from "./status";
 import type { SupplierOrderState } from "./types";
@@ -22,11 +23,14 @@ export function atPrinter(order: StoredOrder): string | null {
 }
 
 export async function applySupplierState(state: SupplierOrderState): Promise<{ found: boolean; changed: boolean }> {
-  return applySupplierUpdate(
+  const result = await applySupplierUpdate(
     state.orderNumber,
-    { status: toOrderStatus(state.status), trackingUrl: state.trackingUrl, at: state.changedAt },
+    { status: toOrderStatus(state.status), trackingUrl: state.trackingUrl, expressShippingSek: state.shippingCost, at: state.changedAt },
     advancesTo,
   );
+  // Kunden och återförsäljaren får veta att skyltarna är på väg. Ingen av dem väntar på det här.
+  if (result.status === "shipped" && result.orderNo) void announceShipped(result.orderNo);
+  return { found: result.found, changed: result.changed };
 }
 
 /** Hämtar statusen när den kan ha ändrats. Fel loggas — sidan visas med det vi redan vet. */

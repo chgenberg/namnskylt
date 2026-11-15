@@ -1,3 +1,4 @@
+import { DesignerFunnel } from "@/features/admin/designer-funnel";
 import { adminTenant } from "@/features/admin/guard";
 import { WeeklyChart } from "@/features/admin/weekly-chart";
 import styles from "@/features/admin/admin.module.css";
@@ -9,9 +10,15 @@ import { orderStats } from "@/lib/orders/stats";
 const RING_R = 52;
 const RING_C = 2 * Math.PI * RING_R;
 
-export default async function StatsPage() {
+interface StatsPageProps {
+  /** `motor` väljer vilken skyltmotor tratten visar: namnskylt.com eller en butik. */
+  searchParams: Promise<{ motor?: string | string[] }>;
+}
+
+export default async function StatsPage({ searchParams }: StatsPageProps) {
   const tenant = await adminTenant();
   if (!tenant) return null;
+  const { motor } = await searchParams;
   const orders = await listOrders(tenant);
   const stats = orderStats(orders, new Date(), 12);
   const lastFour = stats.weeks.slice(-4).reduce((sum, w) => sum + w.revenueSek, 0);
@@ -124,6 +131,8 @@ export default async function StatsPage() {
           )}
         </section>
       </div>
+
+      <DesignerFunnel tenant={tenant} selected={Array.isArray(motor) ? motor[0] : motor} path="/admin/statistik" />
     </>
   );
 }

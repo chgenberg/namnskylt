@@ -25,7 +25,13 @@ const LOGINS = {
 /** Panelens startsida. Återförsäljaren kommer dit från sin egen inloggningssida. */
 const PANEL_PATH = "/admin";
 
-export function LoginForm({ kind }: { kind: keyof typeof LOGINS }) {
+interface LoginFormProps {
+  kind: keyof typeof LOGINS;
+  /** Återförsäljaren kan få en länk för nytt lösenord på mejlen. Annars hänvisar formuläret till namnskylt.com. */
+  canReset?: boolean;
+}
+
+export function LoginForm({ kind, canReset = false }: LoginFormProps) {
   const login = LOGINS[kind];
   const withEmail = kind === "reseller";
   const [email, setEmail] = useState("");
@@ -119,7 +125,13 @@ export function LoginForm({ kind }: { kind: keyof typeof LOGINS }) {
                 Skapa konto
               </Link>
               <br />
-              Glömt lösenordet? Hör av dig till namnskylt.com, så får du en länk där du väljer ett nytt.
+              {canReset ? (
+                <Link href="/aterforsaljare/glomt" className={styles.link}>
+                  Glömt lösenordet?
+                </Link>
+              ) : (
+                "Glömt lösenordet? Hör av dig till namnskylt.com, så får du en länk där du väljer ett nytt."
+              )}
             </>
           ) : (
             <>

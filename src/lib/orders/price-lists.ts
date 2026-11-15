@@ -20,10 +20,28 @@ export interface PriceLists {
 
 /**
  * Frakten för skyltarna enligt en prismodell. Samma belopp i alla led.
- * Upphämtning och express har ingen frakt på ordern.
+ * Upphämtning har ingen frakt. Expressfraktens pris sätter verkstaden i
+ * efterhand: tills dess är frakten 0, därefter beloppet i `expressSek`.
  */
-export function shippingFor(model: PriceModel, badges: readonly BadgeDocument[], method: ShippingMethod = "standard"): number {
+export function shippingFor(
+  model: PriceModel,
+  badges: readonly BadgeDocument[],
+  method: ShippingMethod = "standard",
+  expressSek: number | null = null,
+): number {
+  if (method === "express") return expressSek ?? 0;
   return orderShippingSek(model, priceItemsOf(badges), method);
+}
+
+/**
+ * Återförsäljarens lista för en rad med ett visst fraktsätt. När verkstaden har
+ * satt expressfraktens pris bär listan det som en fast frakt, så att allt som
+ * räknas ur listan får samma frakt som kunden betalar.
+ */
+function purchaseListFor(model: PriceModel, method: ShippingMethod, expressSek: number | null): PriceTable {
+  const list = withShippingMethod(resellerPriceTable(model), method);
+  if (method !== "express" || expressSek === null) return list;
+  return { ...list, shipping: { letterSek: expressSek, parcelSek: expressSek, letterMaxSek: 0 } };
 }
 
 /** Modellen som sparats på raden. Rader från före prismodellen saknar den och får dagens. */
@@ -41,12 +59,14 @@ export function priceListsFor(
   audience: PriceAudience,
   badges: readonly BadgeDocument[],
   method: ShippingMethod = "standard",
+  /** Expressfraktens pris när verkstaden har satt det. */
+  expressSek: number | null = null,
 ): PriceLists {
   const model = storedPriceModel(storedModel, currentModel);
   return {
     priceList: endPriceTable(model),
     // Inköpslistan följer radens fraktsätt, så att allt som räknas ur den får samma frakt som raden.
-    ...(audience === "reseller" && { purchaseList: withShippingMethod(resellerPriceTable(model), method) }),
-    shippingSek: shippingFor(model, badges, method),
+    ...(audience === "reseller" && { purchaseList: purchaseListFor(model, method, expressSek) }),
+    shippingSek: shippingFor(model, badges, method, expressSek),
   };
 }
