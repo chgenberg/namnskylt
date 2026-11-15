@@ -6,10 +6,22 @@ import type { AdminNavItem } from "./nav-item";
  * till `AdminShell`, så att adminens egna sidor (namn och adresser) aldrig
  * finns i JavaScript som en återförsäljares webbläsare laddar.
  */
-export function adminNav({ owner, shopSlug }: { owner: boolean; shopSlug: string | null }): AdminNavItem[] {
+export function adminNav({
+  owner,
+  shopSlug,
+  pendingOrders = 0,
+  pendingApplications = 0,
+}: {
+  owner: boolean;
+  shopSlug: string | null;
+  /** Ordrar som väntar på att någon gör något. */
+  pendingOrders?: number;
+  /** Ansökningar som väntar på beslut. Bara admin har sidan. */
+  pendingApplications?: number;
+}): AdminNavItem[] {
   const first: AdminNavItem[] = [
     { href: "/admin", label: "Översikt", icon: "overview" },
-    { href: "/admin/ordrar", label: "Ordrar", icon: "orders" },
+    { href: "/admin/ordrar", label: "Ordrar", icon: "orders", badge: pendingOrders },
     { href: "/admin/offerter", label: "Offerter", icon: "quotes" },
     { href: "/admin/kunder", label: "Kunder", icon: "customers" },
     { href: "/admin/statistik", label: "Statistik", icon: "stats" },
@@ -22,7 +34,7 @@ export function adminNav({ owner, shopSlug }: { owner: boolean; shopSlug: string
     return [
       ...first,
       { href: "/admin/tillverkning", label: "Tillverkning", icon: "workshop" },
-      { href: "/admin/aterforsaljare", label: "Återförsäljare", icon: "resellers" },
+      { href: "/admin/aterforsaljare", label: "Återförsäljare", icon: "resellers", badge: pendingApplications },
       { href: "/admin/butiker", label: "Butiker", icon: "shops" },
       { href: "/admin/utskick", label: "Utskick", icon: "outreach" },
       { href: "/admin/prismodell", label: "Prismodell", icon: "purchase" },

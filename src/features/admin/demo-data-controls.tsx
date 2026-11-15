@@ -31,12 +31,19 @@ export function DemoBanner({ count }: { count: number }) {
   );
 }
 
-export function FillDemoButton({ label = "Fyll med demodata", onDark = false }: { label?: string; onDark?: boolean }) {
+interface FillDemoButtonProps {
+  label?: string;
+  onDark?: boolean;
+  /** En länk i löpande text i stället för en knapp, när demodatan inte är huvudsaken. */
+  quiet?: boolean;
+}
+
+export function FillDemoButton({ label = "Fyll med demodata", onDark = false, quiet = false }: FillDemoButtonProps) {
   const [pending, startTransition] = useTransition();
   return (
     <button
       type="button"
-      className={onDark ? `btn btn--lg ${styles.onDarkButton}` : "btn btn--primary"}
+      className={quiet ? styles.quietLink : onDark ? `btn btn--lg ${styles.onDarkButton}` : "btn btn--primary"}
       disabled={pending}
       onClick={() =>
         startTransition(async () => {

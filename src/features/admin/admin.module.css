@@ -94,6 +94,11 @@
   text-align: center;
 }
 
+/* Olästa besked: en kund har svarat eller beställt. */
+.navBadge[data-tone="news"] {
+  background: var(--color-success);
+}
+
 .sidebarFoot {
   margin-top: auto;
   display: grid;
@@ -1089,6 +1094,26 @@
   background: #f1eee6;
 }
 
+.attentionItem[data-tone="good"] {
+  background: #e9f3ec;
+}
+
+.attentionItem[data-tone="good"] .attentionIcon {
+  color: var(--color-success);
+}
+
+/* Listan "Nytt sedan sist" står överst på översikten, före nyckeltalen eller välkomsttexten. */
+.noticePanel {
+  margin-bottom: var(--space-5);
+}
+
+/* Kundens egna ord eller en kort uppgift under beskedets rubrik. */
+.noticeDetail {
+  display: block;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
 .attentionIcon {
   display: grid;
   place-items: center;
@@ -1584,6 +1609,30 @@
   --btn-fg: #0a0a0b;
   --btn-border: transparent;
   margin-top: var(--space-2);
+}
+
+/* Andrahandsvalen bredvid huvudknappen på den mörka välkomstytan. */
+.onDarkGhost {
+  --btn-bg: transparent;
+  --btn-fg: #fff;
+  --btn-border: rgb(255 255 255 / 0.4);
+  margin-top: var(--space-2);
+}
+
+.welcomeActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.quietLink {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.quietLink:disabled {
+  opacity: 0.6;
 }
 
 /* ───────────── Inloggning ───────────── */

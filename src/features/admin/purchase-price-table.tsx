@@ -34,6 +34,7 @@ export function PurchasePriceTable({ purchase, list, marginPercent }: PurchasePr
     { name: "Logga på skylten", ...option("extraEngraving") },
     ...(OFFERED_MATERIALS.some((m) => m.customShape) ? [{ name: "Egen form", ...option("customShape") }] : []),
   ];
+  const shipping = purchase.shipping;
   const tierHead = (
     <>
       <span className={styles.headLabel}>Antal i ordern</span>
@@ -105,10 +106,26 @@ export function PurchasePriceTable({ purchase, list, marginPercent }: PurchasePr
             <dd>{formatSek(purchase.minOrderSek)}</dd>
             <small>per order, exkl. moms</small>
           </div>
+          {shipping && shipping.letterSek + shipping.parcelSek > 0 && (
+            <div className={styles.result}>
+              <dt>Frakt</dt>
+              <dd>
+                {formatSek(shipping.letterSek)} eller {formatSek(shipping.parcelSek)}
+              </dd>
+              <small>
+                per order: {formatSek(shipping.letterSek)} när varorna kostar dig högst {formatSek(shipping.letterMaxSek)},
+                annars {formatSek(shipping.parcelSek)}. Kunden betalar frakt efter samma prislista, räknad på sitt pris.
+              </small>
+            </div>
+          )}
         </dl>
         <p className={styles.muted}>
           Alla priser är exkl. moms. Det rekommenderade kundpriset ger dig {String(marginPercent).replace(".", ",")} %
           marginal; du sätter ditt eget pris på varje order och offert och i din butik.
+        </p>
+        <p className={styles.muted}>
+          Skylt &amp; Gravyrteknik tillverkar och skickar skyltarna, och fakturerar dig inköpspriset och frakten. Du
+          fakturerar själv din kund.
         </p>
       </section>
     </div>

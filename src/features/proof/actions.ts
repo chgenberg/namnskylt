@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { decideProof } from "@/lib/orders/repository";
+import { answerProof } from "@/lib/orders/proof-answer";
 
 const decisionSchema = z.object({
   token: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
@@ -16,7 +16,7 @@ export async function decideProofAction(input: z.input<typeof decisionSchema>): 
   const { token, approved, comment } = parsed.data;
   if (!approved && !comment) return { ok: false, error: "Skriv vad som ska ändras" };
   try {
-    const ok = await decideProof(token, approved, comment || null);
+    const ok = await answerProof(token, approved, comment || null);
     return ok ? { ok: true } : { ok: false, error: "Korrekturen är redan besvarad" };
   } catch (error) {
     console.error("Korrektursvaret kunde inte sparas", error);

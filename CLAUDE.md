@@ -22,7 +22,8 @@ Läs dessa när du arbetar i respektive område:
 - **Committa, pusha eller deploya aldrig** utan att användaren ber om det. Det finns mycket
   ocommittat arbete. Kör aldrig `git checkout -- <fil>`, `git stash`, `reset` eller `clean`.
 - **Skicka aldrig mejl.** `RESEND_API_KEY` ska vara tom tills användaren säger annat.
-  Utskicket står i `dry_run` och är pausat.
+  Utskicket står i `dry_run` och är pausat. Sätt inte heller `NOTICE_FROM_EMAIL`, som slår på
+  mejl om besked till återförsäljarna (se avsnittet Besked).
 - **Slå aldrig på kopplingen till verkstaden.** `SUPPLIER_API_URL` och `SUPPLIER_API_KEY` ska
   vara tomma i driften tills användaren säger till. Med dem satta skickas varje ny order till
   Skylt & Gravyrteknik, som tillverkar och fakturerar. Se avsnittet Ordern till verkstaden.
@@ -49,7 +50,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (756 tester, grönt 2026-11-14).
+# Kvalitetsgrinden. Kör den innan något lämnas (777 tester, grönt 2026-11-15).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -87,6 +88,7 @@ pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
 | `src/lib/reseller-auth/` | Återförsäljarnas konton, inlogg, ansökningar (`applications.ts`) och hemliga länkar för att välja lösenord (`access-links.ts`). |
 | `src/lib/outreach/` | Utskicket till återförsäljare (se nedan). 42 filer i en platt mapp, vilket är känd skuld. |
 | `src/lib/email/` | Transport: `ResendEmailSender` och `MockEmailSender`, som skriver `.eml` till `tmp/outreach-outbox`. |
+| `src/lib/notices/` | Besked till panelens ägare när en kund har svarat eller beställt: texter (`model.ts`), lagring, `notify` och mejlet bakom en strömbrytare. |
 | `src/lib/format/` | `formatSek`, `formatDate`, `formatDay`, `formatRelative` (Europe/Stockholm). |
 | `src/features/` | En mapp per vy: designer (3D), shop, shop-editor, admin, outreach, outreach-landing m.fl. |
 | `src/app/` | Routes. Publika vägar är svenska (`/skapa`, `/butik`, `/for/[token]`), API-vägar engelska. |
@@ -316,6 +318,9 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
     Node-moduler, eftersom formulären i webbläsaren läser den.
 - Vägarna tar bara emot sina egna fält (`z.strictObject`), så det ena formuläret kan aldrig ge det
   andra inlogget. `authenticate` och `createAccount` vägrar ägarens id.
+- En återförsäljare utan ordrar möts av "Gör din första offert" med knappar för ny offert, ny
+  order och inställningarna; namnskylt.com ser demodatans välkomstyta. Översikten har knapparna
+  Ny offert och Ny order.
 - Formuläret är `LoginForm` (`kind: "admin" | "reseller"`) i `src/features/admin/login-form.tsx`.
   Sajtens meny länkar "Logga in" till `/aterforsaljare` och visar "Admin" eller "Mina sidor".
 - **Bara admin** ser Tillverkning, Återförsäljare, Butiker, Utskick, Prismodell och Provision
@@ -386,17 +391,66 @@ verkstaden sin provision per period.
   med annan design" lägger undan skylten i editorn och börjar på nästa med samma design utan
   text. Den nya räknas inte in förrän den ändrats. Priset räknas på hela ordern, så trappsteg,
   startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom
-  bilden bara visar en av dem. Korgen ligger i minnet och försvinner om sidan laddas om.
+  bilden bara visar en av dem, och panelen fyller inte heller i en bild i efterhand
+  (`sameDesign` i motorn, `missingBadgeShots`). Korgen ligger i minnet och försvinner om sidan
+  laddas om.
 - `/verkstad`, produktionssidan här i projektet, visar fortfarande bara demoordrar. Riktiga
   ordrar är tänkta att gå via kopplingen till verkstadens eget system.
 - Öppet: underlaget per period räknar på månaden ordern lades, inte när den skickades eller
   fakturerades. Ingen har bestämt vilket som gäller för plattformens faktura till verkstaden.
-- **Mejl skickas inte.** Offertens länk går från återförsäljarens eget mejlprogram. Ingen får
-  besked när en kund godkänner en offert, och det finns ingen orderbekräftelse. Resend är
-  beslutat men inte inkopplat.
+- **Mejl skickas inte.** Offertens länk går från återförsäljarens eget mejlprogram. När kunden
+  svarar får återförsäljaren ett besked i panelen (se avsnittet Besked), men inget mejl, och
+  kunden får ingen orderbekräftelse. Resend är beslutat men inte inkopplat.
 - Kontrollerat 2026-11-14 mot en låtsasverkstad på datorn (produktionsbygget med kopplingen
   på): en ny order skickas en gång, ett fel går att göra om, en väntande order skickas från
   översikten och statusen kommer tillbaka. Aldrig provat mot verkstadens riktiga system.
+- Kontrollerat i produktion 2026-11-14 med kopplingen av, för alla roller: ansökan, godkännande,
+  val av lösenord, order med leverans, offert med två designer, kundens godkännande och nej,
+  korrektur, en kunds egen beställning och adminens sidor. Testordrarna togs bort genom
+  gränssnittet. **Kvar i produktionens databas** ligger ett testkonto som heter
+  `TEST Flödeskontroll … (ta bort)` med sin ansökan, sina två offerter och sin kund, och en
+  testkund under namnskylt.com. Det finns ingen funktion för att ta bort konton, ansökningar
+  eller kunder, och databasen nås inte utifrån.
+- Skyltmotorn på mobil och låga skärmar: beställningsformuläret öppnas sist i panelen, och
+  sidan rullar dit först när formuläret har vecklat ut sig (`FORM_OPEN_MS`, `[data-order-form]`
+  med `scroll-margin-top`). Rullas det direkt avbryts rullningen av att sidan ändrar höjd.
+- `/verkstad` ligger bakom sajtspärren: utan sajtkoden nekas verkstadens inloggning (401).
+
+## Besked — läge 2026-11-15
+
+När någon annan än panelens ägare har gjort något sparas ett besked (`notices`, migrering 022)
+som syns i panelen. Det återförsäljaren gör själv ger inget besked.
+
+- **Det som ger besked** (`NOTICE_KINDS` i `src/lib/notices/model.ts`):
+  - kunden godkänner en offert via sin länk (`acceptQuote`, inte när återförsäljaren godkänner
+    åt kunden) eller tackar nej (`declineByCustomer`),
+  - kunden godkänner sitt korrektur eller vill ändra (`answerProof` i `src/lib/orders/proof-answer.ts`),
+  - en kund lägger en order själv i webbshoppen eller i en butik (`placeOrder`, källorna `web`
+    och `shop`, inte demoordrar),
+  - ett företag ansöker om konto (`saveApplication`), som går till namnskylt.com.
+- **Alla krokar anropar `notify`** (`src/lib/notices/notify.ts`), som aldrig kastar: kundens svar
+  är redan sparat, och ett besked som inte går att spara får inte ge kunden ett fel.
+- **I panelen:** översikten visar listan "Nytt sedan sist" överst (`NoticeList`), även för en
+  återförsäljare utan ordrar. Menyn visar antalet olästa på Översikt, och antalet står först i
+  flikens titel, `(2) Admin`. `AdminShell` frågar `GET /api/admin/notices` en gång i minuten och
+  när fliken visas igen, så siffran kommer av sig själv i en öppen panel. Layouten läses inte om
+  vid navigering, därför hålls siffran i klienten.
+- **Läst** blir ett besked när sidan det gäller öppnas: ordern, offerten eller sidan för
+  återförsäljare (`NoticesSeen`), eller med "Markera alla som lästa". Det görs från webbläsaren
+  och inte när servern ritar sidan, eftersom sidor också ritas i förväg för länkar.
+- Ett besked hör till ordern, offerten eller ansökan det gäller och försvinner med den
+  (`on delete cascade`). Texten och länken kommer ur `noticeView`, samma i panelen och i mejlet.
+  Kundens egna ord (skälet till ett nej, ändringen som önskas) står inom citattecken.
+- Adminens meny visar också antalet ansökningar som väntar på Återförsäljare
+  (`countPendingApplications`).
+- **Mejl om besked är byggt men avstängt.** Det skickas först när `RESEND_API_KEY` är satt och
+  avsändaren står i `NOTICE_FROM_EMAIL` (`noticeEmailSettings`); `OUTREACH_DISABLED=true` stänger
+  också av det. Mottagaren är adressen i företagets uppgifter, annars kontots inloggningsadress.
+  Länken byggs på `NOTICE_PUBLIC_URL` (standard `https://www.namnskylt.com`), aldrig på
+  förfrågans värdnamn. Mejlet väntar kunden inte på, och `notices.emailed_at` sätts när Resend
+  har tagit emot det. Aldrig provat mot Resend.
+- Kända brister: lästa besked visas ingenstans (historiken står i orderns och offertens
+  tidslinje) och tas aldrig bort. Kunden får fortfarande inget mejl.
 
 ## AI i produkten
 

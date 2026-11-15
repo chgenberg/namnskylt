@@ -12,6 +12,7 @@ import {
   priceOrder,
   removeBatchEntry,
   replaceBatchEntry,
+  sameDesign,
   withTexts,
 } from "./index";
 import { endPriceTable } from "./price-model";
@@ -113,5 +114,22 @@ describe("en design med sina namn", () => {
     assert.equal(groupBadges({ doc, batchText: many }).length, MAX_ORDER_BADGES);
     assert.equal(groupBadges({ doc, batchText: many }, 10).length, 10);
     assert.deepEqual(groupBadges({ doc, batchText: many }, 0), []);
+  });
+});
+
+describe("samma design", () => {
+  const doc = createBadgeDocument(["Anna Lind", "Säljare"]);
+
+  it("skyltar som bara skiljer i namn, antal rader och antal har samma design", () => {
+    const group = groupBadges({ doc, batchText: "Bo Ek\nCia Dal, Kock" });
+    assert.equal(sameDesign([...group, { ...doc, quantity: 7 }]), true);
+    assert.equal(sameDesign([doc]), true);
+    assert.equal(sameDesign([]), true);
+  });
+
+  it("en annan yta, form eller ett annat fäste är en annan design", () => {
+    assert.equal(sameDesign([doc, { ...doc, colorId: "metal-silver" }]), false);
+    assert.equal(sameDesign([doc, { ...doc, mounting: "magnet" }]), false);
+    assert.equal(sameDesign([doc, { ...doc, materialId: "plastic", colorId: "white-black" }]), false);
   });
 });

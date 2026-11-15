@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { DemoBanner } from "./demo-data-controls";
 import type { AdminNavIcon, AdminNavItem } from "./nav-item";
 import styles from "./admin.module.css";
@@ -33,11 +33,68 @@ function NavIcon({ name }: { name: AdminNavIcon }) {
   );
 }
 
+/** Så ofta panelen frågar servern om nya besked medan den är öppen. */
+const NOTICE_POLL_MS = 60_000;
+
+/**
+ * Antalet olästa besked, hållet aktuellt medan panelen är öppen: servern frågas
+ * en gång i minuten och när fliken visas igen. Antalet står också först i
+ * flikens titel, så att det syns när panelen ligger i en flik i bakgrunden.
+ */
+function useUnreadNotices(fromServer: number): number {
+  const [unread, setUnread] = useState(fromServer);
+  const [seenFromServer, setSeenFromServer] = useState(fromServer);
+  // Ett nytt antal från servern, till exempel efter att besked märkts som lästa, gäller före det senast hämtade.
+  if (seenFromServer !== fromServer) {
+    setSeenFromServer(fromServer);
+    setUnread(fromServer);
+  }
+
+  useEffect(() => {
+    let stopped = false;
+    const check = async () => {
+      try {
+        const response = await fetch("/api/admin/notices", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { unread?: unknown };
+        if (!stopped && typeof data.unread === "number") setUnread(data.unread);
+      } catch {
+        // Nätet är nere. Nästa försök går om en minut.
+      }
+    };
+    const whenShown = () => {
+      if (document.visibilityState === "visible") void check();
+    };
+    const timer = window.setInterval(() => void check(), NOTICE_POLL_MS);
+    document.addEventListener("visibilitychange", whenShown);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", whenShown);
+    };
+  }, []);
+
+  useEffect(() => {
+    const apply = () => {
+      const title = document.title.replace(/^\(\d+\) /, "");
+      const wanted = unread > 0 ? `(${unread}) ${title}` : title;
+      if (document.title !== wanted) document.title = wanted;
+    };
+    apply();
+    // Sidans titel sätts om när en ny sida visas, och vid första laddningen efter att det här har körts.
+    const observer = new MutationObserver(apply);
+    observer.observe(document.head, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
+  }, [unread]);
+
+  return unread;
+}
+
 interface AdminShellProps {
   /** Menyn för den inloggade, byggd på servern (`adminNav`). Adminens sidor finns aldrig i klientkoden. */
   nav: AdminNavItem[];
-  /** Ordrar som väntar på att någon gör något — visas som siffra i menyn. */
-  pending: number;
+  /** Olästa besked: en kund har svarat eller beställt. Visas som siffra på Översikt. */
+  unread?: number;
   /** Antal demoordrar — visas som en banner över varje sida. */
   demoCount?: number;
   /** Företagets namn från inställningarna. */
@@ -47,8 +104,9 @@ interface AdminShellProps {
   children: ReactNode;
 }
 
-export function AdminShell({ nav, pending, demoCount = 0, companyName = "namnskylt.com", owner = false, children }: AdminShellProps) {
+export function AdminShell({ nav, unread = 0, demoCount = 0, companyName = "namnskylt.com", owner = false, children }: AdminShellProps) {
   const pathname = usePathname();
+  const unreadNow = useUnreadNotices(unread);
   const isCurrent = (href: string) => (href === "/admin" ? pathname === href : pathname.startsWith(href));
 
   const logout = async () => {
@@ -73,7 +131,12 @@ export function AdminShell({ nav, pending, demoCount = 0, companyName = "namnsky
             >
               <NavIcon name={item.icon} />
               {item.label}
-              {item.icon === "orders" && pending > 0 && <span className={styles.navBadge}>{pending}</span>}
+              {item.icon === "overview" && unreadNow > 0 && (
+                <span className={styles.navBadge} data-tone="news" aria-label={`${unreadNow} nya besked`}>
+                  {unreadNow}
+                </span>
+              )}
+              {Boolean(item.badge) && <span className={styles.navBadge}>{item.badge}</span>}
             </Link>
           ))}
         </nav>

@@ -332,6 +332,18 @@
   }
 }
 
+/* Sidan rullar till formuläret när det öppnas. Lite luft ovanför, så att det inte ligger kant i kant. */
+.order [data-order-form] {
+  scroll-margin-top: var(--space-4);
+}
+
+/* På mobil står skylten fast överst (se designer.module.css): formuläret ska hamna under den, inte bakom. */
+@media (max-width: 900px) {
+  .order [data-order-form] {
+    scroll-margin-top: calc(var(--header-height) + 48dvh + var(--space-3));
+  }
+}
+
 /*
  * Antal och pris till vänster, specifikationen per skylt till höger om priset.
  * Stegaren och snabbvalen står på en egen rad ovanför.
@@ -505,6 +517,11 @@
   font-size: var(--text-xs);
   font-weight: 400;
   color: var(--color-muted);
+}
+
+/* Frakten står på en egen rad under beloppet. */
+.purchase dd .purchaseNote {
+  display: block;
 }
 
 .purchase [data-tone="good"] dd {

@@ -1,8 +1,10 @@
 import { adminTenant } from "@/features/admin/guard";
+import { NoticesSeen } from "@/features/admin/notices-seen";
 import { ApplicationControls, PasswordLinkButton } from "@/features/admin/reseller-admin";
 import styles from "@/features/admin/admin.module.css";
 import table from "@/features/admin/reseller-orders.module.css";
 import { formatDay } from "@/lib/format";
+import { countUnreadNotices } from "@/lib/notices/repository";
 import { listAccounts } from "@/lib/reseller-auth/accounts";
 import { APPLICATION_STATUS_LABEL } from "@/lib/reseller-auth/application-model";
 import { listApplications } from "@/lib/reseller-auth/applications";
@@ -14,13 +16,18 @@ export default async function ResellersPage() {
   const tenant = await adminTenant();
   // Ansökningar och konton är namnskylt.coms. En återförsäljare får aldrig se andra återförsäljare.
   if (!tenant || !isOwner(tenant)) return null;
-  const [applications, accounts] = await Promise.all([listApplications(), listAccounts()]);
+  const [applications, accounts, unread] = await Promise.all([
+    listApplications(),
+    listAccounts(),
+    countUnreadNotices(tenant, { kind: "application" }),
+  ]);
   // En godkänd ansökan utan konto väntar på att den sökande väljer lösenord.
   const open = applications.filter((a) => a.status === "pending" || (a.status === "approved" && !a.accountId));
   const closed = applications.filter((a) => !open.includes(a));
 
   return (
     <>
+      {unread > 0 && <NoticesSeen target={{ kind: "application" }} />}
       <header className={styles.pageHead}>
         <div>
           <p className={styles.eyebrow}>Återförsäljare</p>

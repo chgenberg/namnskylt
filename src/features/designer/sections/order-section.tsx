@@ -54,11 +54,14 @@ type OrderState =
   | { status: "idle" }
   | { status: "form"; message?: string }
   | { status: "sending" }
-  | { status: "done"; orderNumber: string; shipDate: string; mock: boolean }
+  | { status: "done"; orderNumber: string; shipDate: string }
   | { status: "requested"; requestNumber: string }
   | { status: "error"; message: string };
 
 const sek = new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 });
+
+/** Så länge tar det för beställningsformuläret att veckla ut sig. */
+const FORM_OPEN_MS = 380;
 
 const DELIVERY_TO_OPTIONS = (["customer", "reseller"] as const).map((id) => ({ id, label: DELIVERY_TO_LABEL[id] }));
 
@@ -100,10 +103,17 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
   );
   const sectionRef = useRef<HTMLElement>(null);
   const formOpen = order.status === "form" || order.status === "sending";
-  // Formuläret öppnas under priset. På en låg skärm hamnar det annars utanför det som syns.
+  // Formuläret öppnas under priset. På mobil och låga skärmar ligger det då sist i panelen, långt
+  // utanför det som syns. Rullningen väntar tills formuläret har vecklat ut sig: börjar den medan
+  // sidan ändrar höjd avbryts den, och den som beställer blir kvar högst upp utan formulär.
   useEffect(() => {
-    if (formOpen) sectionRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    if (!formOpen) return;
+    const timer = window.setTimeout(() => {
+      sectionRef.current?.querySelector("[data-order-form]")?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }, FORM_OPEN_MS);
+    return () => window.clearTimeout(timer);
   }, [formOpen]);
+  const formError = order.status === "form" && order.message ? order.message : null;
   const address = addresses[deliverTo];
   const setAddress = (draft: DeliveryDraft) => setAddresses((all) => ({ ...all, [deliverTo]: draft }));
   const priceList = usePriceList();
@@ -188,7 +198,6 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
         status: "done",
         orderNumber: body.orderNumber,
         shipDate: body.estimatedShipDate,
-        mock: body.status === "mock",
       });
     } catch (error) {
       setOrder({ status: "error", message: error instanceof Error ? error.message : "Något gick fel" });
@@ -285,13 +294,19 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
       {reseller && <PurchaseSummary badges={badges} reseller={reseller} saleSek={price.totalSek} />}
 
       {reseller && reseller.mode === "order" && formOpen && (
-        <div className={styles.delivery}>
+        <div className={styles.delivery} data-order-form>
           <div className={styles.deliveryHead}>
             <p className={styles.specTitle}>Leverans</p>
             <Segmented label="Skyltarna skickas" value={deliverTo} options={DELIVERY_TO_OPTIONS} onChange={setDeliverTo} />
           </div>
           <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
         </div>
+      )}
+
+      {reseller && formError && (
+        <p className={styles.issue} data-severity="error" role="alert">
+          {formError}
+        </p>
       )}
 
       {reseller && (
@@ -321,6 +336,7 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
           <motion.form
             key="form"
             className={styles.orderForm}
+            data-order-form
             onSubmit={submit}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
@@ -328,7 +344,17 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
           >
             <label className="field">
               <span className="visually-hidden">Namn</span>
-              <input name="name" placeholder="Ditt namn" required autoComplete="name" />
+              <input
+                name="name"
+                placeholder="Ditt namn"
+                required
+                autoComplete="name"
+                // Den som beställer är oftast också mottagaren. Namnet behöver inte skrivas två gånger.
+                onBlur={(event) => {
+                  const name = event.target.value.trim();
+                  if (name && !address.name.trim()) setAddress({ ...address, name });
+                }}
+              />
             </label>
             <label className="field">
               <span className="visually-hidden">E-post</span>
@@ -338,6 +364,11 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
               <p className={styles.specTitle}>Leveransadress</p>
               <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
             </div>
+            {formError && (
+              <p className={styles.issue} data-severity="error" role="alert">
+                {formError}
+              </p>
+            )}
             <button type="submit" className="btn btn--ink btn--block" disabled={order.status === "sending"}>
               {order.status === "sending" ? "Skickar…" : `Skicka order · ${sek.format(price.totalInclVatSek)} inkl. moms`}
             </button>
@@ -358,7 +389,6 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
         <motion.div className={styles.receipt} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} role="status">
           <strong>Order {order.orderNumber} mottagen.</strong> Beräknat skickdatum {order.shipDate}.
           {shop && ` ${shop.name} hör av sig med orderbekräftelse.`}
-          {order.mock && !shop && <span className={styles.priceNote}> Testläge — leverantörs-API:t är inte kopplat än.</span>}
         </motion.div>
       )}
       {order.status === "requested" && (
@@ -367,7 +397,7 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
           leveranstid.
         </motion.div>
       )}
-      {(order.status === "error" || (order.status === "form" && order.message)) && (
+      {order.status === "error" && (
         <p className={styles.issue} data-severity="error" role="alert">
           {order.message}
         </p>
@@ -394,7 +424,7 @@ function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
         <dd>
           {formatSek(purchase.totalSek)}
           {quantity > 1 && <span> · {formatSek(toOre(purchase.goodsSek / quantity))} / st</span>}
-          {purchase.shippingSek > 0 && <span> · varav frakt {formatSek(purchase.shippingSek)}</span>}
+          {purchase.shippingSek > 0 && <span className={styles.purchaseNote}>varav frakt {formatSek(purchase.shippingSek)}</span>}
         </dd>
       </div>
       <div>

@@ -147,7 +147,7 @@ export function QuoteSendPanel({ quoteNo, customerName, email, totalSek, link: i
           {pending ? "Skickar…" : sent ? "Skicka igen" : "Skicka offerten"}
         </button>
       )}
-      <p className={styles.muted}>Kunden ser skyltarna i 3D-bild, priset och kan godkänna eller tacka nej direkt på sidan.</p>
+      <p className={styles.muted}>Kunden ser skyltarna och priset, och kan godkänna eller tacka nej direkt på sidan.</p>
       {error && (
         <p className={styles.error} role="alert">
           {error}

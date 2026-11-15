@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { FillDemoButton } from "@/features/admin/demo-data-controls";
 import { adminTenant } from "@/features/admin/guard";
+import { NoticeList } from "@/features/admin/notice-list";
 import { OrderCard } from "@/features/admin/order-card";
 import { RepeatButton } from "@/features/admin/repeat-button";
 import { Sparkline } from "@/features/admin/sparkline";
 import styles from "@/features/admin/admin.module.css";
 import { formatRelative, formatSek } from "@/lib/format";
+import { listUnreadNotices } from "@/lib/notices/repository";
 import { badgeCount, type StoredOrder } from "@/lib/orders/model";
 import { listOrders } from "@/lib/orders/repository";
 import { orderStats } from "@/lib/orders/stats";
+import { isOwner } from "@/lib/tenants/model";
 
 const DAY_MS = 86_400_000;
 /** Efter så lång tid utan ny order föreslår panelen att höra av sig. */
@@ -29,10 +32,11 @@ function changesRequested(order: StoredOrder): boolean {
 export default async function AdminOverviewPage() {
   const tenant = await adminTenant();
   if (!tenant) return null;
-  const orders = await listOrders(tenant);
+  const [orders, notices] = await Promise.all([listOrders(tenant), listUnreadNotices(tenant)]);
   const now = new Date();
   if (orders.length === 0) {
-    return (
+    // En återförsäljare börjar med att göra en offert eller order åt en kund. namnskylt.com får sina ordrar från sajten.
+    const welcome = isOwner(tenant) ? (
       <section className={styles.welcome}>
         <p className={styles.eyebrow}>Välkommen</p>
         <h1 className={styles.welcomeTitle}>Här hamnar alla ordrar från namnskylt.com</h1>
@@ -42,6 +46,36 @@ export default async function AdminOverviewPage() {
         </p>
         <FillDemoButton onDark />
       </section>
+    ) : (
+      <section className={styles.welcome}>
+        <p className={styles.eyebrow}>Välkommen</p>
+        <h1 className={styles.welcomeTitle}>Gör din första offert</h1>
+        <p className={styles.muted}>
+          Designa skyltarna åt kunden i skyltmotorn, sätt ditt pris och skicka en länk som kunden godkänner. Lägg först in
+          er logga under Inställningar, så står den på offerten tillsammans med företagets uppgifter.
+        </p>
+        <div className={styles.welcomeActions}>
+          <Link href="/admin/ny-offert" className={`btn btn--lg ${styles.onDarkButton}`}>
+            Ny offert
+          </Link>
+          <Link href="/admin/ny-order" className={`btn btn--lg ${styles.onDarkGhost}`}>
+            Ny order
+          </Link>
+          <Link href="/admin/installningar" className={`btn btn--lg ${styles.onDarkGhost}`}>
+            Logga och uppgifter
+          </Link>
+        </div>
+        <p className={styles.muted}>
+          Vill du bara se hur panelen fungerar? <FillDemoButton label="Fyll den med demodata" onDark quiet />
+        </p>
+      </section>
+    );
+    // Ett nej till en offert, eller en ny ansökan, kan komma innan första ordern finns.
+    return (
+      <>
+        <NoticeList notices={notices} now={now} />
+        {welcome}
+      </>
     );
   }
   const stats = orderStats(orders, now, 8);
@@ -80,10 +114,20 @@ export default async function AdminOverviewPage() {
               : "Inga nya ordrar som väntar just nu."}
           </p>
         </div>
-        <Link href="/admin/ordrar" className="btn btn--primary">
-          Alla ordrar
-        </Link>
+        <div className={styles.actionBar}>
+          <Link href="/admin/ny-offert" className="btn btn--primary">
+            Ny offert
+          </Link>
+          <Link href="/admin/ny-order" className="btn">
+            Ny order
+          </Link>
+          <Link href="/admin/ordrar" className={styles.ghostButton}>
+            Alla ordrar
+          </Link>
+        </div>
       </header>
+
+      <NoticeList notices={notices} now={now} />
 
       <div className={styles.kpis}>
         <div className={styles.kpi} data-tone="navy">

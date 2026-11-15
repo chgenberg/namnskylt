@@ -19,6 +19,8 @@
 
 .brand {
   display: inline-flex;
+  /* Loggan behåller sin storlek. Annars trycker menyn ihop den till oläslighet på en mobil. */
+  flex: none;
   align-items: center;
   border-radius: var(--radius-sm);
   transition: opacity var(--duration-fast) var(--ease-out);
@@ -125,8 +127,8 @@
     width: calc(100% - 24px);
   }
 
-  /* "Så funkar det" finns som knapp under rutan. */
-  :global(body:has([data-home])) .link:first-child {
+  /* "Så funkar det" ryms inte bredvid loggan på en mobil. På startsidan finns den som knapp under rutan. */
+  .link:first-child {
     display: none;
   }
 

@@ -2,6 +2,8 @@ import "server-only";
 import type { BadgeDocument } from "@/engine";
 import type { PriceModel } from "@/engine/price-model";
 import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages } from "@/lib/logo-images/repository";
+import { badgeCountLabel, customerLabel } from "@/lib/notices/model";
+import { notify } from "@/lib/notices/notify";
 import { estimatedShipDate } from "@/lib/supplier/client";
 import { dispatchOrder } from "@/lib/supplier/dispatch";
 import type { Delivery } from "./delivery";
@@ -91,6 +93,17 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     delivery: input.delivery,
     tenant: input.tenant,
   });
+
+  // En order kunden själv har lagt, i webbshoppen eller i en butik, kommer utan att panelens ägare har gjort något.
+  if (!input.demo && (input.source === "web" || input.source === "shop")) {
+    await notify({
+      tenant: input.tenant,
+      kind: "order-placed",
+      who: customerLabel(input.customer),
+      detail: badgeCountLabel(input.badges.reduce((sum, badge) => sum + badge.quantity, 0)),
+      orderId: saved.id,
+    });
+  }
 
   if (input.demo) return { orderNumber: saved.orderNo, status: "mock" };
   if (workshop.length === 0) return { orderNumber: saved.orderNo, status: "request", partnerRequest };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { applyAction } from "./apply-actions";
 import styles from "./invite.module.css";
 
@@ -9,6 +9,11 @@ export function ApplyForm() {
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [pending, startTransition] = useTransition();
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  // Formuläret är långt: felet ska synas även när fältet det gäller står högst upp.
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [error]);
 
   if (sent) {
     return (
@@ -61,7 +66,7 @@ export function ApplyForm() {
         <input name="email" type="email" required maxLength={200} autoComplete="email" />
       </label>
       <label className={styles.field}>
-        <span>Telefon</span>
+        <span>Telefon (valfritt)</span>
         <input name="phone" type="tel" maxLength={40} autoComplete="tel" />
       </label>
       <label className={styles.field}>
@@ -79,7 +84,7 @@ export function ApplyForm() {
         </label>
       </div>
       <label className={styles.field}>
-        <span>Hemsida</span>
+        <span>Hemsida (valfritt)</span>
         <input name="website" maxLength={200} placeholder="exempel.se" autoComplete="url" />
       </label>
       <label className={styles.field}>
@@ -89,7 +94,7 @@ export function ApplyForm() {
       {/* Dolt för människor. En robot som fyller i alla fält avslöjar sig här. */}
       <input name="fax" tabIndex={-1} autoComplete="off" aria-hidden="true" className="visually-hidden" />
       {error && (
-        <p className={styles.error} role="alert">
+        <p ref={errorRef} className={styles.error} role="alert">
           {error}
         </p>
       )}

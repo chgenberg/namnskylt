@@ -2,9 +2,9 @@
 
 import { z } from "zod";
 import { deliveryAddressSchema } from "@/lib/orders/delivery";
-import { acceptQuote } from "@/lib/quotes/accept";
+import { acceptQuote, declineByCustomer } from "@/lib/quotes/accept";
 import { canCustomerAnswer } from "@/lib/quotes/model";
-import { declineQuote, getQuoteByToken } from "@/lib/quotes/repository";
+import { getQuoteByToken } from "@/lib/quotes/repository";
 
 const decisionSchema = z.object({
   token: z.string().regex(/^[A-Za-z0-9_-]{16,64}$/),
@@ -27,7 +27,7 @@ export async function decideQuoteAction(input: z.input<typeof decisionSchema>): 
     const quote = await getQuoteByToken(token);
     if (!quote || !canCustomerAnswer(quote)) return { ok: false, error: "Offerten går inte att besvara längre" };
     if (!accept) {
-      const ok = await declineQuote(token, reason || null);
+      const ok = await declineByCustomer(quote, reason || null);
       return ok ? { ok: true } : { ok: false, error: "Offerten är redan besvarad" };
     }
     const result = await acceptQuote(quote.resellerId, quote.quoteNo, false, delivery ?? null);

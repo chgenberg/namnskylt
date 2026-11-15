@@ -1,11 +1,14 @@
 import "server-only";
 import type { Delivery, DeliveryAddress } from "@/lib/orders/delivery";
+import { customerLabel } from "@/lib/notices/model";
+import { notify } from "@/lib/notices/notify";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import type { StoredQuote } from "./model";
 import {
   claimForAcceptance,
   completeAcceptance,
+  declineQuote,
   getQuote,
   quotePriceModel,
   releaseAcceptance,
@@ -62,10 +65,38 @@ export async function acceptQuote(
     });
     await saveAcceptedDelivery(quote.id, delivery);
     await completeAcceptance(quote.id, placed.orderNumber, byReseller ? "Godkänd av återförsäljaren" : "Godkänd av kunden");
+    // Återförsäljaren får besked när kunden själv har godkänt, inte när den gjorde det åt kunden.
+    if (!byReseller) {
+      await notify({
+        tenant,
+        kind: "quote-accepted",
+        who: customerLabel(quote.customer),
+        quoteId: quote.id,
+        orderNo: placed.orderNumber,
+      });
+    }
     return { ok: true, orderNo: placed.orderNumber };
   } catch (error) {
     await releaseAcceptance(quote.id, before.status);
     console.error(`Offert ${quoteNo} kunde inte bli order`, error);
     return { ok: false, error: "Ordern kunde inte läggas. Försök igen." };
   }
+}
+
+/** Kunden tackar nej via sin länk, och återförsäljaren får besked. `false` när offerten redan är besvarad. */
+export async function declineByCustomer(
+  quote: Pick<StoredQuote, "id" | "token" | "resellerId" | "customer">,
+  reason: string | null,
+): Promise<boolean> {
+  const declined = await declineQuote(quote.token, reason);
+  if (declined) {
+    await notify({
+      tenant: quote.resellerId,
+      kind: "quote-declined",
+      who: customerLabel(quote.customer),
+      detail: reason,
+      quoteId: quote.id,
+    });
+  }
+  return declined;
 }

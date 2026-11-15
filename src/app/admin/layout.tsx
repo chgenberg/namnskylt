@@ -5,7 +5,9 @@ import { LoginForm } from "@/features/admin/login-form";
 import { adminNav } from "@/features/admin/nav";
 import { Notice } from "@/features/admin/notice";
 import { ShotBackfill } from "@/features/admin/shot-backfill";
+import { countUnreadNotices } from "@/lib/notices/repository";
 import { databaseConfigured, getCompanyProfile, listOrders, missingBadgeShots } from "@/lib/orders/repository";
+import { countPendingApplications } from "@/lib/reseller-auth/applications";
 import { currentTenant, resellerPass } from "@/lib/reseller-auth/session";
 import { shopsOwnedBy } from "@/lib/shops/editor-repository";
 import { isOwner } from "@/lib/tenants/model";
@@ -41,7 +43,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   if (!databaseConfigured()) {
     return (
       <main>
-        <AdminShell nav={adminNav({ owner: isOwner(tenant), shopSlug: null })} pending={0} owner={isOwner(tenant)}>
+        <AdminShell nav={adminNav({ owner: isOwner(tenant), shopSlug: null })} owner={isOwner(tenant)}>
           <Notice title="Databasen är inte kopplad">
             Ordrar skickas fortfarande till tillverkningen men sparas inte. Lägg till en Postgres-databas och sätt{" "}
             <code>DATABASE_URL</code>.
@@ -50,19 +52,21 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       </main>
     );
   }
-  const [orders, company, missing, ownedShops] = await Promise.all([
+  const [orders, company, missing, ownedShops, unread, pendingApplications] = await Promise.all([
     listOrders(tenant),
     getCompanyProfile(tenant),
     missingBadgeShots(tenant, MISSING_SHOTS_PER_VIEW),
     isOwner(tenant) ? Promise.resolve([]) : shopsOwnedBy(tenant),
+    countUnreadNotices(tenant),
+    isOwner(tenant) ? countPendingApplications() : Promise.resolve(0),
   ]);
-  const pending = orders.filter((o) => o.status === "received").length;
+  const pendingOrders = orders.filter((o) => o.status === "received").length;
   const demoCount = orders.filter((o) => o.demo).length;
   return (
     <main>
       <AdminShell
-        nav={adminNav({ owner: isOwner(tenant), shopSlug: ownedShops[0] ?? null })}
-        pending={pending}
+        nav={adminNav({ owner: isOwner(tenant), shopSlug: ownedShops[0] ?? null, pendingOrders, pendingApplications })}
+        unread={unread}
         demoCount={demoCount}
         companyName={company.name}
         owner={isOwner(tenant)}

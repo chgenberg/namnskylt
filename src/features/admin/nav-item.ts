@@ -18,4 +18,6 @@ export interface AdminNavItem {
   href: string;
   label: string;
   icon: AdminNavIcon;
+  /** Siffra bredvid namnet: något som väntar på beslut. Visas inte när den är 0. */
+  badge?: number;
 }

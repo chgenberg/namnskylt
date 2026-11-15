@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import type { Sql } from "postgres";
 import { z } from "zod";
-import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
+import { badgeDocumentSchema, sameDesign, type BadgeDocument } from "@/engine";
 import { endPriceTable, type PriceModel } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { db, requireDb } from "@/lib/db/client";
@@ -294,17 +294,22 @@ export interface MissingShot {
 /** Ordrar och offerter från innan stillbilderna fanns — panelen ritar dem i efterhand. */
 export async function missingBadgeShots(tenant: string, limit: number): Promise<MissingShot[]> {
   const sql = requireDb();
-  const rows = await sql<{ kind: ShotKind; id: string; badge: unknown }[]>`
-    (select 'order' as kind, order_no as id, badges->0 as badge, placed_at as at from orders
+  // Fler rader än som behövs: de med flera designer hoppas över och ska inte ta platsen för de andra.
+  const rows = await sql<{ kind: ShotKind; id: string; badges: unknown }[]>`
+    (select 'order' as kind, order_no as id, badges, placed_at as at from orders
       where badge_shot is null and jsonb_array_length(badges) > 0 and reseller_id = ${tenant})
     union all
-    (select 'quote', quote_no, badges->0, created_at from quotes
+    (select 'quote', quote_no, badges, created_at from quotes
       where badge_shot is null and jsonb_array_length(badges) > 0 and reseller_id = ${tenant})
-    order by at desc limit ${limit}`;
-  return rows.flatMap((row) => {
-    const badge = badgeDocumentSchema.safeParse(row.badge);
-    return badge.success ? [{ kind: row.kind, id: row.id, badge: badge.data }] : [];
-  });
+    order by at desc limit ${limit * 4}`;
+  return rows
+    .flatMap((row) => {
+      const badges = badgesSchema.safeParse(row.badges);
+      const first = badges.success ? badges.data[0] : undefined;
+      // Bilden visar första skylten. I en order med flera designer vore den missvisande, så där visas ritningarna.
+      return first && badges.success && sameDesign(badges.data) ? [{ kind: row.kind, id: row.id, badge: first }] : [];
+    })
+    .slice(0, limit);
 }
 
 /** Sparar bara där bilden saknas — en riktig bild från skyltmotorn skrivs aldrig över. */
@@ -738,19 +743,34 @@ export async function getProof(token: string): Promise<{ proof: Proof; order: St
   };
 }
 
-/** Kundens svar. Ett beslut är slutgiltigt — en ny ändring kräver en ny länk. */
-export async function decideProof(token: string, approved: boolean, comment: string | null): Promise<boolean> {
+/** Ordern ett korrektur gäller: vems den är och vilken kund som svarade. */
+export interface ProofOrder {
+  orderId: string;
+  tenant: string;
+  /** Kundens företag, eller namnet när företag saknas. */
+  customerLabel: string;
+}
+
+/**
+ * Kundens svar. Ett beslut är slutgiltigt — en ny ändring kräver en ny länk.
+ * Svarar med ordern det gällde, eller `null` när korrekturet redan är besvarat.
+ */
+export async function decideProof(token: string, approved: boolean, comment: string | null): Promise<ProofOrder | null> {
   const sql = requireDb();
   return sql.begin(async (tx) => {
     const [proof] = await tx<{ order_id: string }[]>`
       update proofs set status = ${approved ? "approved" : "changes"}, comment = ${comment}, decided_at = now()
        where token = ${token} and status = 'pending'
       returning order_id`;
-    if (!proof) return false;
+    if (!proof) return null;
     const status: OrderStatus = approved ? "approved" : "received";
     const note = approved ? "Kunden godkände korrekturen" : `Kunden vill ändra: ${comment ?? ""}`.trim();
     await tx`update orders set status = ${status} where id = ${proof.order_id}`;
     await tx`insert into order_events (order_id, status, note) values (${proof.order_id}, ${status}, ${note})`;
-    return true;
+    const [order] = await tx<{ reseller_id: string; label: string }[]>`
+      select o.reseller_id, coalesce(nullif(trim(c.company), ''), c.name) as label
+        from orders o join customers c on c.id = o.customer_id
+       where o.id = ${proof.order_id}`;
+    return order ? { orderId: proof.order_id, tenant: order.reseller_id, customerLabel: order.label } : null;
   });
 }

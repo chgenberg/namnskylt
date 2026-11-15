@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { DeliveryFields } from "@/components/delivery-fields";
 import { formatSek } from "@/lib/format";
 import { addressFromDraft, type DeliveryDraft } from "@/lib/orders/delivery";
@@ -26,6 +26,11 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft }: QuoteDe
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  // Felet står ovanför knapparna, men på en mobil kan även det hamna utanför det som syns.
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [error]);
 
   const send = (accept: boolean) => {
     setError(null);
@@ -91,6 +96,11 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft }: QuoteDe
               {pending ? "Skickar…" : "Tacka nej"}
             </button>
           </div>
+          {error && (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          )}
         </>
       ) : (
         <>
@@ -99,6 +109,11 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft }: QuoteDe
               <p className={styles.label}>Vart ska skyltarna skickas?</p>
               <DeliveryFields value={address} onChange={setAddress} disabled={pending} />
             </div>
+          )}
+          {error && (
+            <p ref={errorRef} className={styles.error} role="alert">
+              {error}
+            </p>
           )}
           <div className={styles.buttons}>
             <button type="button" className="btn btn--ghost btn--lg" onClick={() => setDeclining(true)}>
@@ -109,11 +124,6 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft }: QuoteDe
             </button>
           </div>
         </>
-      )}
-      {error && (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
       )}
     </div>
   );

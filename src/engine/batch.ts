@@ -79,3 +79,23 @@ export function groupBadges(group: BadgeGroup, max = MAX_ORDER_BADGES): BadgeDoc
 export function groupQuantity(group: BadgeGroup): number {
   return groupBadges(group).reduce((total, badge) => total + Math.max(1, Math.floor(badge.quantity)), 0);
 }
+
+/** Skyltens design utan texter och antal: det som avgör hur den ser ut och tillverkas. */
+function designKey(doc: BadgeDocument): string {
+  const design: Partial<BadgeDocument> = { ...doc };
+  delete design.rows;
+  delete design.quantity;
+  return JSON.stringify(design);
+}
+
+/**
+ * Sant när alla skyltar har samma design och bara namnen skiljer. En bild av
+ * den första skylten visar då hur alla ser ut; i en order med flera designer
+ * gör den inte det.
+ */
+export function sameDesign(badges: readonly BadgeDocument[]): boolean {
+  const first = badges[0];
+  if (!first) return true;
+  const key = designKey(first);
+  return badges.every((badge) => designKey(badge) === key);
+}

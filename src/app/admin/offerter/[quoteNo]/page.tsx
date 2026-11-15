@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
 import { DeliveryPanel } from "@/features/admin/delivery-panel";
 import { adminTenant } from "@/features/admin/guard";
+import { NoticesSeen } from "@/features/admin/notices-seen";
 import { PricingEditor } from "@/features/admin/pricing-editor";
 import { updateQuotePricingAction } from "@/features/admin/quote-actions";
 import { QuoteDecisionButtons, QuoteSendPanel, QuoteTermsForm } from "@/features/admin/quote-controls";
@@ -10,6 +11,7 @@ import { QuoteFlow, QuoteStatusPill } from "@/features/admin/quote-parts";
 import styles from "@/features/admin/admin.module.css";
 import { formatDate, formatDay, formatSek } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
+import { countUnreadNotices } from "@/lib/notices/repository";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { badgeCount } from "@/lib/orders/model";
 import { canEditQuote, displayStatus } from "@/lib/quotes/model";
@@ -27,12 +29,17 @@ export default async function QuotePage({ params }: QuotePageProps) {
   if (!quote) notFound();
   const status = displayStatus(quote);
   const editable = canEditQuote(quote);
-  const [origin, addresses] = await Promise.all([siteOrigin(), deliveryOptions(tenant, quote.customer)]);
+  const [origin, addresses, unread] = await Promise.all([
+    siteOrigin(),
+    deliveryOptions(tenant, quote.customer),
+    countUnreadNotices(tenant, { quoteNo: quote.quoteNo }),
+  ]);
   const link = quote.status === "sent" || status === "expired" ? `${origin}/offert/${quote.token}` : null;
   const name = quote.customer.company ?? quote.customer.name;
 
   return (
     <>
+      {unread > 0 && <NoticesSeen target={{ quoteNo: quote.quoteNo }} />}
       <header className={styles.pageHead}>
         <div>
           <p className={styles.eyebrow}>

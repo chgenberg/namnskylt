@@ -458,6 +458,28 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       );
     `,
   },
+  {
+    // Besked till den som äger panelen när någon annan har gjort något: kunden har svarat på en
+    // offert eller ett korrektur, lagt en order själv, eller ett företag har ansökt om konto.
+    // Beskedet försvinner med ordern, offerten eller ansökan det gäller.
+    id: "022_notices",
+    sql: `
+      create table notices (
+        id uuid primary key default gen_random_uuid(),
+        reseller_id text not null,
+        kind text not null,
+        who text not null,
+        detail text,
+        quote_id uuid references quotes(id) on delete cascade,
+        order_id uuid references orders(id) on delete cascade,
+        application_id uuid references reseller_applications(id) on delete cascade,
+        created_at timestamptz not null default now(),
+        read_at timestamptz,
+        emailed_at timestamptz
+      );
+      create index notices_unread on notices (reseller_id, created_at desc) where read_at is null;
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

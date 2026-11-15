@@ -8,6 +8,7 @@ import { adminTenant } from "@/features/admin/guard";
 import { DeleteOrderButton } from "@/features/admin/delete-order-button";
 import { DeliveryPanel } from "@/features/admin/delivery-panel";
 import { NewNamesButton } from "@/features/admin/new-names-button";
+import { NoticesSeen } from "@/features/admin/notices-seen";
 import { OrderTimeline } from "@/features/admin/order-timeline";
 import { ProofPanel } from "@/features/admin/proof-panel";
 import { RepeatButton } from "@/features/admin/repeat-button";
@@ -16,6 +17,7 @@ import { StatusPill } from "@/features/admin/status-pill";
 import styles from "@/features/admin/admin.module.css";
 import { formatDate, formatSek } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
+import { countUnreadNotices } from "@/lib/notices/repository";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { badgeCount, ORDER_SOURCE_LABEL } from "@/lib/orders/model";
 import { getOrder, latestProof } from "@/lib/orders/repository";
@@ -41,10 +43,11 @@ export default async function OrderPage({ params }: OrderPageProps) {
   if (!stored) notFound();
   const order = (await refreshFromSupplier(stored)) ? ((await getOrder(tenant, orderNumber)) ?? stored) : stored;
   const link = supplierLink(order);
-  const [proof, origin, addresses] = await Promise.all([
+  const [proof, origin, addresses, unread] = await Promise.all([
     latestProof(tenant, order.orderNo),
     siteOrigin(),
     deliveryOptions(tenant, order.customer),
+    countUnreadNotices(tenant, { orderNo: order.orderNo }),
   ]);
   const deliveryLocked = order.supplierSentAt
     ? "Ordern har gått till verkstaden. Hör av dig till namnskylt.com om adressen ska ändras."
@@ -56,6 +59,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
 
   return (
     <>
+      {unread > 0 && <NoticesSeen target={{ orderNo: order.orderNo }} />}
       <header className={styles.pageHead}>
         <div>
           <p className={styles.eyebrow}>
