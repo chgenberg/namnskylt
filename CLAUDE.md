@@ -54,7 +54,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (958 tester, grönt 2026-11-16).
+# Kvalitetsgrinden. Kör den innan något lämnas (969 tester, grönt 2026-11-16).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -109,8 +109,25 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
 - **Material:** bara material med `offered: true` i `src/engine/catalog.ts` går att välja.
   - `metal`: tre ytor, `metal-white` (lackad), `metal-gold` och `metal-silver` (borstade).
     Färdiga ämnen (`precut`), så verkstaden graverar bara.
-  - `plastic`: tvålagers gravyrplast 1,5 mm (verkstadens kod `plastic-1.5mm`) i vit/svart,
-    svart/vit, guld/svart och silver/svart. Skärs ur ark och får därför ha egen form (`customShape`).
+  - `plastic`: tvålagers gravyrplast 1,5 mm (verkstadens kod `plastic-1.5mm`). Skärs ur ark och
+    får därför ha egen form (`customShape`).
+    - **Alla verkstadens 18 färgkombinationer för 1,5 mm säljs** (beslut av ägaren 2026-11-16),
+      och alla kostar lika: 14 framsidor, där vit finns med svart, blå eller röd kärna, gul med
+      svart eller röd och grön med vit eller svart. Listan är `PLASTIC_15_COLORS` i
+      `catalog.ts`, med de fyra klassiska namnskyltsfärgerna först.
+    - Id:n, namn och färgkoder är verkstadens egna (deras `PLASTIC_15_COLOR_COMBOS`), och id:t
+      skickas rakt av i ordern. `src/lib/supplier/catalog-sync.test.ts` jämför listan med deras
+      katalog när deras projekt ligger bredvid på datorn, och hoppas över i CI. När deras API
+      finns ska listan hämtas därifrån.
+    - **Färgen väljs i två steg** (`colorChoices` i `src/engine/color-choice.ts`, `ColorPicker`):
+      först framsidan, en prick per färg, och sedan gravyrens färg på en egen rad, bara där
+      framsidan finns med flera. Skylten bär fortfarande kombinationens id (`colorId`), så
+      ritning, 3D, pris och underlaget till verkstaden är orörda. Metallen har en kombination
+      per yta och ser ut som förut.
+    - En skylt i äldre plast behåller sin färg när den flyttas till dagens plast
+      (`toOfferedDocument`), eftersom id:na är desamma.
+    - När kunden hämtar sin logga från hemsidan väljs den kombination som ligger närmast
+      varumärkets färg (`matchColorCombo`), och den har nu fler att välja bland.
 - **Ämnen:** `BLANKS` har fyra färdiga former med fast mått: rektangel, oval, stor rektangel
   och kudde (formen `cushion`, en superellips). De gäller både metall och plast.
 - **Egen form** (bara plast, tillägg i prismodellen): `shape: "custom"` med `customOutline`,
@@ -125,7 +142,9 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     för plastskyltar", så att ingen missar funktionen (besked via ägaren 2026-11-15,
     `BlankPicker` i `pickers.tsx`). Startrutan och panelen visar samma former, även
     "Egen form" (besked via ägaren 2026-11-16): båda frågar `useCustomShapeChoice`
-    (`custom-shape-choice.ts`). Väljs formen i startrutan ritas den i nästa steg.
+    (`custom-shape-choice.ts`). Väljs formen i startrutan ritas den i nästa steg: rutan
+    "Egen form" bär där raden "Välj exakt form i nästa steg" (`CustomShapeChoice.hint`,
+    besked via ägaren 2026-11-16), och efter valet står att formen på bilden är ett förslag.
   - PDF läses med `pdfjs-dist`, låst till `~5.4.624` eftersom nyare kräver Node 22. Bara första
     sidan läses.
   - Kända brister: bara provat i Chrome; en ritad form försvinner om kunden väljer ett ämne och
@@ -139,11 +158,23 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Byter kunden till metall med klämma vald blir fästet nål (`designerReducer`). En
     metallskylt med klämma är inte i sortimentet (`isOfferedDocument`), så en äldre order
     med den går inte att beställa igen, och `toOfferedDocument` ger den nål.
-  - **Ikonerna och 3D-fästena** är ritade efter samma förlagor från ägaren: nålen med spets
+  - **Ikonerna i panelen** är förenklade teckningar efter ägarens förlagor: nålen med spets
     och ögla, hästskomagneten med sina poler och klämman med flik och öppning
-    (`mounting-section.tsx`, `three/mounting.tsx`). Måtten är i mm med tak, så fästet växer
-    inte med en stor skylt. `footprint` använder samma mått, och `fitHardware`
-    (`src/engine/hardware-fit.ts`) flyttar och förminskar fästet på en egen form.
+    (`mounting-section.tsx`).
+  - **3D-fästena är byggda efter foton av verkstadens egna fästen** (underlag från ägaren
+    2026-11-16, `three/mounting.tsx`), och ser alltså inte ut som ikonerna:
+    - nålen är en svart plastlist på en vit skumtejp, med gångjärn i ena änden, lås med
+      rundad kåpa i den andra och en stålnål som står öppen (`NEEDLE_OPEN`),
+    - magneten är en tunn förnicklad platta på skylten och en svart hållare med rundade ändar,
+      som vilar på två klackar och bär texten CAUTION MAGNETIC. Texten byggs ur typsnitten
+      (`fonts` skickas till `Mounting`); innan de har laddats ritas hållaren utan text,
+    - klämman är en stålplatta nästan lika lång som skylten, med en fjäderarm vikt över ena
+      änden, ett fönster med en tunga i armen och en uppvikt läpp längst ut.
+  - Fästena ritas i mm i en grupp som är vänd som de ses bakifrån (x åt höger, z ut från
+    baksidan). Måtten har tak, så fästet växer inte med en stor skylt, och är uppskattade
+    från fotona. `footprint` använder samma mått, och `fitHardware`
+    (`src/engine/hardware-fit.ts`) flyttar och förminskar fästet på en egen form. På en oval
+    skylt kortas klämman till det som ryms (`clipSize`).
   - Skyltmotorn vänder själv skylten en stund när ett fäste väljs, så att fästet syns.
   - Känd brist: prismodellens kalkyl i `/admin/prismodell` låter fortfarande klämman väljas
     ihop med Premium, fast den kombinationen inte går att beställa.

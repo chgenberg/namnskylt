@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import {
   BLANKS,
   OFFERED_MATERIALS,
+  colorChoices,
   createBadgeDocument,
   getMaterial,
   outlinePath,
@@ -162,6 +163,8 @@ export type CustomShapeChoice =
       /** Tillägget per skylt för slutkunden. */
       priceSek: number;
       onSelect: () => void;
+      /** En rad under priset, till exempel att formen väljs i nästa steg. */
+      hint?: string;
     }
   | {
       available: false;
@@ -201,6 +204,7 @@ export function BlankPicker({ value, onChange, custom }: BlankPickerProps) {
           <CustomShapeIcon />
           <span>Egen form</span>
           <span className={`mono ${styles.blankSize}`}>+{custom.priceSek} kr</span>
+          {custom.hint && <span className={styles.blankNote}>{custom.hint}</span>}
         </button>
       )}
       {custom && !custom.available && (
@@ -221,30 +225,52 @@ interface ColorPickerProps {
   onChange: (colorId: string) => void;
 }
 
+/**
+ * Färgväljaren i två steg. Först framsidans färg, en prick per färg. Finns den
+ * framsidan med flera färger i kärnan (vit med svart, blå eller röd) visas en
+ * rad till, där gravyrens färg väljs. Ett material där varje yta har en enda
+ * kombination, som metallen, ser ut som förut.
+ */
 export function ColorPicker({ materialId, value, onChange }: ColorPickerProps) {
   const material = getMaterial(materialId);
   const isMetal = material.finish === "aluminium" || material.finish === "steel" || material.finish === "brass";
+  const { fronts, cores } = colorChoices(material.colors, value);
   return (
-    <div className={styles.swatches} role="radiogroup" aria-label="Färg">
-      {material.colors.map((c) => (
-        <button
-          key={c.id}
-          type="button"
-          role="radio"
-          aria-checked={c.id === value}
-          aria-label={c.name}
-          title={c.name}
-          className={styles.swatch}
-          onClick={() => onChange(c.id)}
-        >
-          <span
-            className={styles.swatchFill}
-            data-metallic={c.metallic ?? false}
-            data-brushed={isMetal && !c.lacquered}
-            style={{ "--surface": c.surface, "--engraving": c.engraving } as CSSProperties}
-          />
-        </button>
-      ))}
+    <div className={styles.colorPicker}>
+      <div className={styles.swatches} role="radiogroup" aria-label="Färg">
+        {fronts.map(({ name, combo, selected }) => (
+          <button
+            key={combo.surface}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            aria-label={name}
+            title={combo.name}
+            className={styles.swatch}
+            onClick={() => onChange(combo.id)}
+          >
+            <span
+              className={styles.swatchFill}
+              data-metallic={combo.metallic ?? false}
+              data-brushed={isMetal && !combo.lacquered}
+              style={{ "--surface": combo.surface, "--engraving": combo.engraving } as CSSProperties}
+            />
+          </button>
+        ))}
+      </div>
+      {cores.length > 0 && (
+        <div className={styles.coreRow}>
+          <span className={styles.coreLabel}>Gravyrens färg</span>
+          <div className={styles.cores} role="radiogroup" aria-label="Gravyrens färg">
+            {cores.map(({ name, combo, selected }) => (
+              <button key={combo.id} type="button" role="radio" aria-checked={selected} className={styles.core} onClick={() => onChange(combo.id)}>
+                <span className={styles.coreDot} style={{ "--engraving": combo.engraving } as CSSProperties} aria-hidden="true" />
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

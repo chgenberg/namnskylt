@@ -15,7 +15,7 @@ function pointsOf(doc: BadgeDocument, inset = 0) {
 }
 
 describe("sortimentet", () => {
-  it("säljer verkstadens metallskylt i tre ytor och plastskylt i fyra färger", () => {
+  it("säljer verkstadens metallskylt i tre ytor och plastskylt i verkstadens arton färger", () => {
     assert.deepEqual(
       OFFERED_MATERIALS.map((m) => [m.id, m.producer, m.priceClass]),
       [
@@ -27,8 +27,10 @@ describe("sortimentet", () => {
       getMaterial("metal").colors.map((c) => c.id),
       ["metal-white", "metal-gold", "metal-silver"],
     );
+    // De fyra klassiska namnskyltsfärgerna står först; hela listan vaktas i `color-choice.test.ts`.
+    assert.equal(getMaterial("plastic").colors.length, 18);
     assert.deepEqual(
-      getMaterial("plastic").colors.map((c) => c.id),
+      getMaterial("plastic").colors.slice(0, 4).map((c) => c.id),
       ["white-black", "black-white", "gold-black", "silver-black"],
     );
   });

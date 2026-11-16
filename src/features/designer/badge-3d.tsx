@@ -178,6 +178,7 @@ function BadgeMesh({
       />
       <Mounting
         doc={doc}
+        fonts={fonts}
         widthUnits={metrics.widthUnits}
         heightUnits={metrics.heightUnits}
         backZ={metrics.backZ}

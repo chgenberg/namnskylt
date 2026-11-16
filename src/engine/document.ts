@@ -199,7 +199,9 @@ export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
   const material = offeredMaterial ? getMaterial(doc.materialId) : nearestOfferedMaterial(doc);
   if (!material) return doc;
   const offeredColor = offeredMaterial && material.colors.some((c) => c.id === doc.colorId);
-  const moved: BadgeDocument = offeredColor ? doc : { ...doc, materialId: material.id, colorId: nearestColor(doc, material).id };
+  // Finns samma kombination i det nya materialet (äldre plast till dagens plast) behålls den. Annars den som ligger närmast.
+  const colorId = material.colors.some((c) => c.id === doc.colorId) ? doc.colorId : nearestColor(doc, material).id;
+  const moved: BadgeDocument = offeredColor ? doc : { ...doc, materialId: material.id, colorId };
   const offeredShape = blankOf(moved) !== null || isValidCustomShape(moved);
   // Fästet ska både säljas och finnas på materialet skylten hamnar på: klämman finns inte på metall.
   const offeredMounting = getMounting(doc.mounting).offered && mountingFits(doc.mounting, moved.materialId);

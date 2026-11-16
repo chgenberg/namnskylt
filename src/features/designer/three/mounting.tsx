@@ -1,62 +1,102 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Path, Shape } from "three";
-import { fitHardware, type BadgeDocument, type HardwareFootprint, type MountingId } from "@/engine";
-import { UNITS_PER_MM } from "./geometry";
+import {
+  availableHalfWidth,
+  fitHardware,
+  type BadgeDocument,
+  type FontEngine,
+  type HardwareFootprint,
+  type MountingId,
+} from "@/engine";
+import { glyphShapes, UNITS_PER_MM } from "./geometry";
 
-const HARDWARE_STEEL = "#c9ced4";
-/** Fästplattan under nålen, en nyans mörkare så att nålen syns mot den. */
-const HARDWARE_STEEL_DARK = "#9aa1a9";
-/** Magnetens kropp: mörkt stål, så att den syns både mot en svart plastbaksida och mot ljus metall. */
-const MAGNET_BODY = "#6b7178";
+/**
+ * Fästena på skyltens baksida, byggda efter foton av verkstadens egna fästen
+ * (underlag från ägaren 2026-11-16):
+ * - nålen: en svart plastlist på en vit skumtejp, med gångjärn i ena änden,
+ *   lås i den andra och en stålnål som står öppen,
+ * - magneten: en tunn förnicklad platta på skylten och en svart hållare med
+ *   rundade ändar och texten CAUTION MAGNETIC,
+ * - klämman: en lång stålplatta med en fjäderarm vikt över ena änden, ett
+ *   fönster med en tunga i armen och en uppvikt läpp längst ut.
+ *
+ * Ikonerna i panelen (`mounting-section.tsx`) är förenklade och ritas för sig.
+ * Måtten är i mm och har tak, så fästet växer inte med en stor skylt. Samma
+ * mått styr ytan fästet tar på baksidan (`footprint`).
+ */
+
+/** Satinmatt stål, som klämman: ljust från alla håll, utan att spegla rummet. */
+const STEEL = "#d3d7dc";
+/** Plåten under klämmans arm ligger i skugga. */
+const STEEL_SHADE = "#a3a9b1";
+const NICKEL = "#dfe2e5";
+const BLACK_PLASTIC = "#1b1c1f";
+const FOAM_TAPE = "#e8e8e4";
 /** Hur högt över skyltens mitt fästet sitter, som andel av höjden. */
-const HARDWARE_RISE: Record<MountingId, number> = { pin: 0.1, magnet: 0, clip: 0, "safety-pin": 0.12 };
+const HARDWARE_RISE: Record<MountingId, number> = { pin: 0.08, magnet: 0, clip: 0, "safety-pin": 0.12 };
+/** Luft mellan klämman och skyltens kant på en rundad skylt. */
+const CLIP_EDGE_MM = 1.5;
 
 const mm = UNITS_PER_MM;
 
+interface HardwareSize {
+  /** Längs skylten. */
+  longMm: number;
+  /** Tvärs över skylten. */
+  wideMm: number;
+}
+
+function pinSize(widthMm: number): HardwareSize {
+  return { longMm: Math.min(widthMm * 0.46, 34), wideMm: 7 };
+}
+
+function magnetSize(widthMm: number, heightMm: number): HardwareSize {
+  return { longMm: Math.min(widthMm * 0.6, 45), wideMm: Math.min(heightMm * 0.52, 13) };
+}
+
 /**
- * Fästenas mått i mm. Formerna är desamma som ikonerna i panelen: nålen med
- * sin ögla, hästskomagneten med sina poler och klämman med sin flik. Samma tal
- * styr både geometrin och ytan fästet tar på baksidan (`footprint`).
+ * Klämman är nästan lika lång som skylten. På en oval skylt är skylten smalare
+ * där klämmans hörn hamnar, så där kortas klämman till det som ryms. En egen
+ * form passas in av `fitHardware` i stället.
  */
-function pinSize(widthMm: number) {
-  const shaftMm = Math.min(widthMm * 0.5, 44);
-  return { shaftMm, tipMm: 5, ringMm: 2.6, wireMm: 0.55, baseMm: shaftMm * 0.6 };
+function clipSize(doc: BadgeDocument): HardwareSize {
+  const { widthMm, heightMm } = doc.size;
+  const wideMm = Math.min(heightMm * 0.84, 21);
+  const longMm = Math.min(widthMm * 0.92, 72);
+  if (doc.shape === "custom") return { longMm, wideMm };
+  const roomMm = availableHalfWidth(doc, CLIP_EDGE_MM, (heightMm - wideMm) / 2, (heightMm + wideMm) / 2) * 2;
+  return { longMm: Math.max(Math.min(longMm, roomMm), wideMm), wideMm };
 }
 
-function magnetSize(heightMm: number) {
-  const tallMm = Math.min(heightMm * 0.64, 18);
-  const wideMm = tallMm * 0.94;
-  return { tallMm, wideMm, legMm: wideMm * 0.31, depthMm: 2.4 };
-}
-
-function clipSize(heightMm: number) {
-  const plateMm = Math.min(heightMm * 0.8, 22);
-  return { plateMm, plateWideMm: 11, flapMm: plateMm * 0.62, flapWideMm: 12, rollMm: 1.3 };
+function hardwareSize(doc: BadgeDocument): HardwareSize {
+  const { widthMm, heightMm } = doc.size;
+  switch (doc.mounting) {
+    case "pin":
+      return pinSize(widthMm);
+    case "magnet":
+      return magnetSize(widthMm, heightMm);
+    case "clip":
+      return clipSize(doc);
+    case "safety-pin":
+      return { longMm: widthMm * 0.56 + 4, wideMm: 3 };
+  }
 }
 
 /** Ytan fästet täcker på baksidan, i mm — samma mått som geometrin nedan. */
-function footprint(mounting: MountingId, widthMm: number, heightMm: number): HardwareFootprint {
-  const centerYMm = heightMm * (0.5 - HARDWARE_RISE[mounting]);
-  switch (mounting) {
-    case "pin": {
-      const pin = pinSize(widthMm);
-      return { widthMm: pin.shaftMm + pin.tipMm + pin.ringMm * 2, heightMm: pin.ringMm * 2 + pin.wireMm * 2, centerYMm };
-    }
-    case "magnet": {
-      const magnet = magnetSize(heightMm);
-      return { widthMm: magnet.wideMm, heightMm: magnet.tallMm, centerYMm };
-    }
-    case "clip": {
-      const clip = clipSize(heightMm);
-      return { widthMm: clip.flapWideMm, heightMm: clip.plateMm, centerYMm };
-    }
-    case "safety-pin":
-      return { widthMm: widthMm * 0.56 + 4, heightMm: 3, centerYMm };
-  }
+function footprint(doc: BadgeDocument, size: HardwareSize): HardwareFootprint {
+  // Nålens skumtejp sticker ut en halv millimeter runt listen.
+  const tape = doc.mounting === "pin" ? 1 : 0;
+  return {
+    widthMm: size.longMm + tape,
+    heightMm: size.wideMm + tape,
+    centerYMm: doc.size.heightMm * (0.5 - HARDWARE_RISE[doc.mounting]),
+  };
 }
 
 interface MountingProps {
   doc: BadgeDocument;
+  /** Typsnitten, för magnetens präglade text. Utan dem ritas magneten utan text. */
+  fonts: FontEngine;
   widthUnits: number;
   heightUnits: number;
   backZ: number;
@@ -66,27 +106,41 @@ interface MountingProps {
  * Fästet på baksidan. På en egen form flyttas det i höjdled och förminskas vid
  * behov, så att det inte sticker ut bakom en udd eller ett smalt parti.
  */
-export function Mounting({ doc, widthUnits, heightUnits, backZ }: MountingProps) {
+export function Mounting({ doc, fonts, widthUnits, heightUnits, backZ }: MountingProps) {
   const { mounting } = doc;
-  const fit = useMemo(() => fitHardware(doc, footprint(doc.mounting, doc.size.widthMm, doc.size.heightMm)), [doc]);
+  const { size, fit } = useMemo(() => {
+    const hardware = hardwareSize(doc);
+    return { size: hardware, fit: fitHardware(doc, footprint(doc, hardware)) };
+  }, [doc]);
   const lift = (doc.size.heightMm / 2 - fit.centerYMm) * UNITS_PER_MM - HARDWARE_RISE[mounting] * heightUnits * fit.scale;
   return (
     <group position={[0, lift, 0]} scale={[fit.scale, fit.scale, 1]}>
       <group position={[0, heightUnits * HARDWARE_RISE[mounting], backZ]}>
-        {mounting === "pin" && <Pin widthMm={doc.size.widthMm} />}
-        {mounting === "magnet" && <Magnet heightMm={doc.size.heightMm} />}
-        {mounting === "clip" && <Clip heightMm={doc.size.heightMm} />}
-        {mounting === "safety-pin" && <SafetyPin widthUnits={widthUnits} />}
+        {mounting === "safety-pin" ? (
+          <SafetyPin widthUnits={widthUnits} />
+        ) : (
+          // Fästena är ritade som de ses bakifrån, i mm: x åt höger, y uppåt och z ut från skyltens baksida.
+          <group rotation={[0, Math.PI, 0]} scale={mm}>
+            {mounting === "pin" && <Pin size={size} />}
+            {mounting === "magnet" && <Magnet size={size} fonts={fonts} />}
+            {mounting === "clip" && <Clip size={size} />}
+          </group>
+        )}
       </group>
     </group>
   );
 }
 
-function Steel({ dark = false }: { dark?: boolean }) {
-  return <meshStandardMaterial color={dark ? HARDWARE_STEEL_DARK : HARDWARE_STEEL} metalness={1} roughness={dark ? 0.42 : 0.26} />;
+function Steel({ tone = "satin" }: { tone?: "satin" | "shade" | "nickel" }) {
+  if (tone === "nickel") return <meshStandardMaterial color={NICKEL} metalness={0.85} roughness={0.3} />;
+  return <meshStandardMaterial color={tone === "shade" ? STEEL_SHADE : STEEL} metalness={0.7} roughness={0.46} />;
 }
 
-/** En rektangel med rundade hörn, med mitten i origo. Måtten är i scenens enheter. */
+function BlackPlastic() {
+  return <meshStandardMaterial color={BLACK_PLASTIC} metalness={0.05} roughness={0.55} />;
+}
+
+/** En rektangel med rundade hörn. `target` är en form eller ett hål i en form. */
 function roundedRect(target: Shape | Path, width: number, height: number, radius: number, centerX = 0, centerY = 0): void {
   const r = Math.min(radius, width / 2, height / 2);
   const left = centerX - width / 2;
@@ -104,152 +158,306 @@ function roundedRect(target: Shape | Path, width: number, height: number, radius
   target.absarc(left + r, bottom + r, r, Math.PI, Math.PI * 1.5, false);
 }
 
-/** Skivan en form pressas ur: tjockleken och en liten fas, så att kanten fångar ljuset. */
-const plate = (depthMm: number, bevelMm = 0.12) => ({
-  depth: depthMm * mm,
-  bevelEnabled: true,
-  bevelThickness: bevelMm * mm,
-  bevelSize: bevelMm * mm,
-  bevelSegments: 2,
+function roundedRectShape(width: number, height: number, radius: number, centerX = 0, centerY = 0): Shape {
+  const shape = new Shape();
+  roundedRect(shape, width, height, radius, centerX, centerY);
+  return shape;
+}
+
+/** En form ur raka kanter, punkt för punkt. */
+function polygon(points: readonly (readonly [number, number])[]): Shape {
+  const shape = new Shape();
+  points.forEach(([x, y], i) => (i === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y)));
+  shape.closePath();
+  return shape;
+}
+
+/**
+ * En skiva: en form med tjocklek. Med `bevel` rundas kanten, och skivan blir
+ * då så mycket större åt alla håll.
+ */
+const slab = (depth: number, bevel = 0) => ({
+  depth,
+  bevelEnabled: bevel > 0,
+  bevelThickness: bevel,
+  bevelSize: bevel,
+  bevelSegments: bevel > 0.3 ? 6 : 2,
   curveSegments: 24,
 });
 
 /**
- * Nålen: en smal fästplatta mot skylten, och på den en nål med spets och ögla.
- * Öglan sitter till vänster sett framifrån, alltså till höger när skylten vänds,
- * som i ikonen.
+ * En plåtprofil ritad i sidovy, med x åt höger och formens y ut från skylten,
+ * pressad över `width` och lagd mitt på fästet i höjdled. Så byggs bockad plåt:
+ * klämmans vikning ser ut som den gör från kanten.
  */
-function Pin({ widthMm }: { widthMm: number }) {
-  const { shaftMm, tipMm, ringMm, wireMm, baseMm } = pinSize(widthMm);
-  const base = useMemo(() => {
-    const shape = new Shape();
-    roundedRect(shape, baseMm * mm, 3.4 * mm, 1.7 * mm);
-    return shape;
-  }, [baseMm]);
-  // Nålen ligger en bit från plattan, buren av två små stolpar.
-  const needleZ = -1.7 * mm;
-  // Öglan är lite bredare än spetsen är lång: skaftet skjuts så att hela nålen hamnar mitt på skylten.
-  const shaftCenterX = ((ringMm * 2 - tipMm) / 2) * mm;
+function SideProfile({ shape, width, children }: { shape: Shape; width: number; children: ReactNode }) {
+  return (
+    <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, width / 2, 0]}>
+      <extrudeGeometry args={[shape, slab(width)]} />
+      {children}
+    </mesh>
+  );
+}
+
+/** Hur mycket nålen står öppen, i radianer. På fotot står den ungefär så här. */
+const NEEDLE_OPEN = 0.46;
+
+/**
+ * Nålen. Listen sitter på en skumtejp. I vänstra änden sitter gångjärnet, där
+ * nålen är fäst, och i den högra låset med sin rundade kåpa. Nålen står öppen,
+ * som på fotot, så att det syns att den är en nål.
+ */
+function Pin({ size }: { size: HardwareSize }) {
+  const { longMm, wideMm } = size;
+  const hingeX = -longMm / 2 + 3.4;
+  const catchX = longMm / 2 - 3.4;
+  const pivotX = hingeX - 0.6;
+  const needleMm = catchX - pivotX + 1.2;
+  const { pad, bar, hinge, cap } = useMemo(() => {
+    const barShape = roundedRectShape(longMm, wideMm, 1);
+    // Den lilla springan mitt på listen.
+    const slot = new Path();
+    roundedRect(slot, 3.2, 1.1, 0.3);
+    barShape.holes.push(slot);
+    // Gångjärnets hus har en ränna mot låset, där nålen ligger när den är stängd.
+    const left = hingeX - 3;
+    const right = hingeX + 3;
+    const half = (wideMm - 0.8) / 2;
+    const groove = 1;
+    return {
+      pad: roundedRectShape(longMm + 1, wideMm + 1, 1.3),
+      bar: barShape,
+      hinge: polygon([
+        [left, -half],
+        [right, -half],
+        [right, -groove],
+        [pivotX - 1, -groove],
+        [pivotX - 1, groove],
+        [right, groove],
+        [right, half],
+        [left, half],
+      ]),
+      cap: roundedRectShape(4, wideMm - 2.8, 1.4, catchX),
+    };
+  }, [longMm, wideMm, hingeX, catchX, pivotX]);
+  const pivotZ = 3.7;
   return (
     <group>
-      <mesh position={[0, 0, -0.75 * mm]}>
-        <extrudeGeometry args={[base, plate(0.5)]} />
-        <Steel dark />
+      <mesh position={[0, 0, 0.02]}>
+        <extrudeGeometry args={[pad, slab(1)]} />
+        <meshStandardMaterial color={FOAM_TAPE} metalness={0} roughness={1} />
       </mesh>
-      {[-1, 1].map((side) => (
-        <mesh key={side} position={[side * baseMm * 0.36 * mm, 0, -1.2 * mm]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.7 * mm, 0.7 * mm, 1 * mm, 16]} />
-          <Steel dark />
+      <mesh position={[0, 0, 1.1]}>
+        <extrudeGeometry args={[bar, slab(1.2, 0.1)]} />
+        <BlackPlastic />
+      </mesh>
+      <mesh position={[0, 0, 2.5]}>
+        <extrudeGeometry args={[hinge, slab(2.1, 0.2)]} />
+        <BlackPlastic />
+      </mesh>
+      {/* Låsets kåpa är rundad upptill, som en liten kudde. */}
+      <mesh position={[0, 0, 3.1]}>
+        <extrudeGeometry args={[cap, slab(1.2, 0.8)]} />
+        <BlackPlastic />
+      </mesh>
+      {/* Axeln som nålen vrider sig kring. */}
+      <mesh position={[pivotX, 0, pivotZ]}>
+        <cylinderGeometry args={[0.5, 0.5, 2.6, 16]} />
+        <Steel tone="nickel" />
+      </mesh>
+      {/* Nålen är fäst i gångjärnet och pekar upp ur listen, mot låset. */}
+      <group position={[pivotX, 0, pivotZ]} rotation={[0, -NEEDLE_OPEN, 0]}>
+        <mesh position={[(needleMm - 2.8) / 2, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.36, 0.36, needleMm - 2.8, 14]} />
+          <Steel tone="nickel" />
         </mesh>
-      ))}
-      <group position={[shaftCenterX, 0, needleZ]}>
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[wireMm * mm, wireMm * mm, shaftMm * mm, 16]} />
-          <Steel />
-        </mesh>
-        {/* Spetsen pekar åt höger sett framifrån. */}
-        <mesh position={[(shaftMm / 2 + tipMm / 2) * mm, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <coneGeometry args={[wireMm * mm, tipMm * mm, 16]} />
-          <Steel />
-        </mesh>
-        <mesh position={[-(shaftMm / 2 + ringMm - wireMm * 0.6) * mm, 0, 0]}>
-          <torusGeometry args={[ringMm * mm, wireMm * mm, 14, 40]} />
-          <Steel />
+        <mesh position={[needleMm - 1.4, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+          <coneGeometry args={[0.36, 2.8, 14]} />
+          <Steel tone="nickel" />
         </mesh>
       </group>
     </group>
   );
 }
 
-/** Magneten: en hästsko med polerna uppåt. Kroppen är mörk och polerna blanka. */
-function Magnet({ heightMm }: { heightMm: number }) {
-  const { tallMm, wideMm, legMm, depthMm } = magnetSize(heightMm);
-  const { body, poles } = useMemo(() => {
-    const outer = (wideMm / 2) * mm;
-    const inner = outer - legMm * mm;
-    const top = (tallMm / 2) * mm;
-    // Bågens mitt: ytterbågen når precis ner till hästskons botten.
-    const arcY = outer - top;
-    const poleMm = (tallMm - wideMm / 2) * 0.42;
-    const poleY = top - poleMm * mm;
-    // En smal springa skiljer polerna från kroppen, som strecket i ikonen.
-    const gap = 0.07 * mm;
-    const bodyShape = new Shape();
-    bodyShape.moveTo(-outer, poleY - gap);
-    bodyShape.lineTo(-inner, poleY - gap);
-    bodyShape.lineTo(-inner, arcY);
-    bodyShape.absarc(0, arcY, inner, Math.PI, Math.PI * 2, false);
-    bodyShape.lineTo(inner, poleY - gap);
-    bodyShape.lineTo(outer, poleY - gap);
-    bodyShape.lineTo(outer, arcY);
-    bodyShape.absarc(0, arcY, outer, 0, -Math.PI, true);
-    bodyShape.lineTo(-outer, poleY - gap);
-    // Polerna är raka mot kroppen och rundade upptill.
-    const round = legMm * 0.3 * mm;
-    const poleShapes = [-1, 1].map((side) => {
-      const left = side < 0 ? -outer : inner;
-      const right = side < 0 ? -inner : outer;
-      const pole = new Shape();
-      pole.moveTo(left, poleY + gap);
-      pole.lineTo(right, poleY + gap);
-      pole.lineTo(right, top - round);
-      pole.absarc(right - round, top - round, round, 0, Math.PI / 2, false);
-      pole.lineTo(left + round, top);
-      pole.absarc(left + round, top - round, round, Math.PI / 2, Math.PI, false);
-      pole.lineTo(left, poleY + gap);
-      return pole;
-    });
-    return { body: bodyShape, poles: poleShapes };
-  }, [tallMm, wideMm, legMm]);
-  const z = -(depthMm + 0.2) * mm;
+/** Magnetens präglade text, två rader mitt på hållaren. Tom utan laddade typsnitt. */
+function useMagnetText(fonts: FontEngine, longMm: number, wideMm: number): Shape[] {
+  return useMemo(() => {
+    if (!fonts.outline) return [];
+    try {
+      const face = { fontId: "arial", bold: true } as const;
+      const capMm = wideMm * 0.2;
+      const font = { ...face, sizeMm: capMm / fonts.capHeightRatio(face) };
+      const lines = ["CAUTION", "MAGNETIC"];
+      const gapMm = capMm * 0.6;
+      const top = (wideMm - (capMm * lines.length + gapMm)) / 2;
+      const paths = lines.map((line, i) => ({
+        d: fonts.outline?.(line, font, (longMm - fonts.measure(line, font)) / 2, top + capMm * (i + 1) + gapMm * i) ?? "",
+        fillRule: "nonzero" as const,
+      }));
+      return glyphShapes({ size: { widthMm: longMm, heightMm: wideMm } }, paths);
+    } catch {
+      // Texten är en detalj: går konturerna inte att läsa ritas magneten utan den.
+      return [];
+    }
+  }, [fonts, longMm, wideMm]);
+}
+
+/**
+ * Magneten. Plattan sitter på skylten och den svarta hållaren utanpå plagget.
+ * Hållaren vilar på två klackar i ändarna, där magneterna sitter, och är
+ * urtagen på mitten.
+ */
+function Magnet({ size, fonts }: { size: HardwareSize; fonts: FontEngine }) {
+  const { longMm, wideMm } = size;
+  const text = useMagnetText(fonts, longMm, wideMm);
+  // Hållaren är en aning mindre än plattan, så att plattans kant syns runt om.
+  const holderLong = longMm - 1.6;
+  const holderWide = wideMm - 1.2;
+  const round = 0.5;
+  const { plate, top, feet } = useMemo(() => {
+    const r = holderWide / 2;
+    const end = holderLong / 2;
+    const inner = holderLong * 0.17;
+    const left = new Shape();
+    left.moveTo(-inner, -r);
+    left.lineTo(-end + r, -r);
+    left.absarc(-end + r, 0, r, Math.PI * 1.5, Math.PI / 2, true);
+    left.lineTo(-inner, r);
+    left.lineTo(-inner, -r);
+    const right = new Shape();
+    right.moveTo(inner, r);
+    right.lineTo(end - r, r);
+    right.absarc(end - r, 0, r, Math.PI / 2, -Math.PI / 2, true);
+    right.lineTo(inner, -r);
+    right.lineTo(inner, r);
+    return {
+      plate: roundedRectShape(longMm, wideMm, 1.2),
+      // Hållaren har helt rundade ändar. Rundningen lägger till `round` runt om, så formen ritas så mycket mindre.
+      top: roundedRectShape(holderLong - round * 2, holderWide - round * 2, r - round),
+      feet: [left, right],
+    };
+  }, [longMm, wideMm, holderLong, holderWide]);
   return (
-    <group position={[0, 0, z]}>
-      <mesh>
-        <extrudeGeometry args={[body, plate(depthMm, 0.12)]} />
-        <meshStandardMaterial color={MAGNET_BODY} metalness={0.9} roughness={0.46} />
+    <group>
+      <mesh position={[0, 0, 0.08]}>
+        <extrudeGeometry args={[plate, slab(0.6, 0.06)]} />
+        <Steel tone="nickel" />
       </mesh>
-      {poles.map((pole, i) => (
-        <mesh key={i}>
-          <extrudeGeometry args={[pole, plate(depthMm, 0.12)]} />
-          <Steel />
+      {feet.map((foot, i) => (
+        <mesh key={i} position={[0, 0, 0.74]}>
+          <extrudeGeometry args={[foot, slab(2.3)]} />
+          <BlackPlastic />
         </mesh>
       ))}
+      <mesh position={[0, 0, 3.5]}>
+        <extrudeGeometry args={[top, slab(1.4, round)]} />
+        <BlackPlastic />
+      </mesh>
+      {text.length > 0 && (
+        // Konturerna kommer i scenens enheter, så skalan i gruppen ovanför tas tillbaka här.
+        <group position={[0, 0, 5.38]} scale={1 / mm}>
+          <mesh>
+            <extrudeGeometry args={[text, { depth: 0.14 * mm, bevelEnabled: false, curveSegments: 6 }]} />
+            <meshStandardMaterial color="#26272b" metalness={0.1} roughness={0.3} />
+          </mesh>
+        </group>
+      )}
     </group>
   );
 }
 
 /**
- * Klämman: en platta mot skylten, och över dess övre del en flik med en
- * avlång öppning. Fliken och plattan hålls ihop av en rulle upptill.
+ * Klämman. Plattan sitter längs skylten. I vänstra änden är plåten vikt runt
+ * och går tillbaka som en fjäderarm, som trycker mot plattan. Armen har ett
+ * fönster med en tunga som pekar ner mot plattan, och slutar i en uppvikt läpp.
  */
-function Clip({ heightMm }: { heightMm: number }) {
-  const { plateMm, plateWideMm, flapMm, flapWideMm, rollMm } = clipSize(heightMm);
-  const { back, flap } = useMemo(() => {
-    const backShape = new Shape();
-    roundedRect(backShape, plateWideMm * mm, plateMm * mm, 1.6 * mm);
-    const flapShape = new Shape();
-    // Fliken hänger från plattans överkant.
-    const flapY = ((plateMm - flapMm) / 2) * mm;
-    roundedRect(flapShape, flapWideMm * mm, flapMm * mm, 1.8 * mm, 0, flapY);
-    const slot = new Path();
-    roundedRect(slot, 1.9 * mm, flapMm * 0.42 * mm, 0.95 * mm, 0, flapY - flapMm * 0.04 * mm);
-    flapShape.holes.push(slot);
-    return { back: backShape, flap: flapShape };
-  }, [plateMm, plateWideMm, flapMm, flapWideMm]);
+function Clip({ size }: { size: HardwareSize }) {
+  const { longMm, wideMm } = size;
+  const sheet = 0.5;
+  const bend = 2;
+  const armMm = longMm * 0.64;
+  const armWideMm = wideMm - 0.8;
+  const foldX = -longMm / 2 + bend;
+  const armZ = bend * 2 - sheet;
+  // Armen lutar från vikningens höjd ner mot plattan, som den nästan når längst ut.
+  const tilt = Math.atan((armZ - sheet - 0.15) / armMm);
+  const windowMm = armMm * 0.44;
+  const windowWideMm = armWideMm * 0.34;
+  const windowX = armMm * 0.42;
+  const tongueMm = windowMm * 0.74;
+  const tongueX = windowX + windowMm / 2;
+  // Tungan viks ner tills spetsen nästan når plattan.
+  const tongueDrop = Math.asin(Math.min(0.5, Math.sin(tilt) + (armZ - tongueX * Math.tan(tilt) - sheet - 0.35) / tongueMm));
+  const lipMm = Math.min(5.5, armMm * 0.14);
+  const { base, fold, arm, lip, tongue } = useMemo(() => {
+    const foldShape = new Shape();
+    foldShape.moveTo(foldX, bend * 2);
+    foldShape.absarc(foldX, bend, bend, Math.PI / 2, Math.PI * 1.5, false);
+    foldShape.lineTo(foldX, sheet);
+    foldShape.absarc(foldX, bend, bend - sheet, Math.PI * 1.5, Math.PI / 2, true);
+    foldShape.lineTo(foldX, bend * 2);
+    const half = armWideMm / 2;
+    const armShape = polygon([
+      [0, -half],
+      [armMm, -half],
+      [armMm, half],
+      [0, half],
+    ]);
+    const opening = new Path();
+    roundedRect(opening, windowMm, windowWideMm, 0.8, windowX);
+    armShape.holes.push(opening);
+    // Läppen är armens fortsättning, med rundade hörn längst ut.
+    const corner = Math.min(3.5, half * 0.6, lipMm * 0.8);
+    const lipShape = new Shape();
+    lipShape.moveTo(0, -half);
+    lipShape.lineTo(lipMm - corner, -half);
+    lipShape.absarc(lipMm - corner, -half + corner, corner, -Math.PI / 2, 0, false);
+    lipShape.lineTo(lipMm, half - corner);
+    lipShape.absarc(lipMm - corner, half - corner, corner, 0, Math.PI / 2, false);
+    lipShape.lineTo(0, half);
+    lipShape.lineTo(0, -half);
+    return {
+      base: roundedRectShape(longMm, wideMm, 1.2),
+      fold: foldShape,
+      arm: armShape,
+      lip: lipShape,
+      tongue: roundedRectShape(tongueMm, windowWideMm * 0.56, 0.7, -tongueMm / 2),
+    };
+  }, [longMm, wideMm, armMm, armWideMm, foldX, windowMm, windowWideMm, windowX, tongueMm, lipMm]);
   return (
-    <group>
-      <mesh position={[0, 0, -0.85 * mm]}>
-        <extrudeGeometry args={[back, plate(0.6)]} />
-        <Steel dark />
+    <group position={[0, 0, 0.02]}>
+      <mesh>
+        <extrudeGeometry args={[base, slab(sheet)]} />
+        <Steel tone="shade" />
       </mesh>
-      <mesh position={[0, 0, -3.1 * mm]}>
-        <extrudeGeometry args={[flap, plate(0.6)]} />
+      <SideProfile shape={fold} width={armWideMm}>
         <Steel />
-      </mesh>
-      <mesh position={[0, (plateMm / 2 - rollMm * 0.4) * mm, -(rollMm + 0.75) * mm]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[rollMm * mm, rollMm * mm, flapWideMm * mm, 24]} />
-        <Steel />
-      </mesh>
+      </SideProfile>
+      <group position={[foldX, 0, armZ]} rotation={[0, tilt, 0]}>
+        <mesh>
+          <extrudeGeometry args={[arm, slab(sheet)]} />
+          <Steel />
+        </mesh>
+        {/* Tungan sitter fast i fönstrets kant närmast läppen och pekar ner mot plattan. */}
+        <group position={[tongueX, 0, 0]} rotation={[0, -tongueDrop, 0]}>
+          <mesh>
+            <extrudeGeometry args={[tongue, slab(sheet)]} />
+            <Steel />
+          </mesh>
+        </group>
+        <group position={[armMm, 0, 0]} rotation={[0, -0.6, 0]}>
+          {/* Bocken mellan armen och läppen. */}
+          <mesh position={[0, 0, sheet / 2]}>
+            <cylinderGeometry args={[sheet / 2, sheet / 2, armWideMm, 12]} />
+            <Steel />
+          </mesh>
+          <mesh>
+            <extrudeGeometry args={[lip, slab(sheet)]} />
+            <Steel />
+          </mesh>
+        </group>
+      </group>
     </group>
   );
 }

@@ -25,6 +25,8 @@ const Badge3D = dynamic(() => import("./badge-3d"), { ssr: false, loading: () =>
 /** Närmare än i skyltmotorn — rutan är låg. */
 const PREVIEW_CAMERA_Z = 3.7;
 const noop = () => {};
+/** Står på rutan "Egen form", så att det syns redan före valet att formen bestäms i nästa steg. */
+const CUSTOM_SHAPE_HINT = "Välj exakt form i nästa steg";
 
 interface OnboardingDialogProps {
   doc: BadgeDocument;
@@ -46,7 +48,9 @@ export function OnboardingDialog({ doc, fonts, dispatch, tierIndex, onClose }: O
   const shapeName = shapeLabel(doc);
   const severalMaterials = OFFERED_MATERIALS.length > 1;
   // Samma former som i panelen till höger, även "Egen form", så att ingen missar den här.
-  const customChoice = useCustomShapeChoice(doc, dispatch, tierIndex);
+  const customShape = useCustomShapeChoice(doc, dispatch, tierIndex);
+  // Rutan har inget ritverktyg: formen som visas är ett förslag, och den riktiga väljs i nästa steg.
+  const customChoice = customShape?.available ? { ...customShape, hint: CUSTOM_SHAPE_HINT } : customShape;
 
   useEffect(() => {
     const dialog = ref.current;
@@ -136,7 +140,12 @@ export function OnboardingDialog({ doc, fonts, dispatch, tierIndex, onClose }: O
               Form
             </h3>
             <BlankPicker value={blank?.id ?? null} onChange={(blankId) => dispatch({ type: "blank", blankId })} custom={customChoice} />
-            {doc.shape === "custom" && <p className={styles.note}>Du ritar och justerar formen i nästa steg.</p>}
+            {doc.shape === "custom" && (
+              <p className={styles.note}>
+                Formen på bilden är ett förslag. Du väljer exakt form i nästa steg: ett annat förslag, en egen ritning eller en
+                uppladdad fil.
+              </p>
+            )}
           </section>
         </div>
 

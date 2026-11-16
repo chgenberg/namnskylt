@@ -84,6 +84,44 @@ const PLASTIC_COLORS: readonly ColorCombo[] = [
   { id: "darkbrown-white", name: "Mörkbrun / Vit", surface: "#4A2412", engraving: WHITE },
 ];
 
+/** Finns bara i verkstadens 1,5 mm (deras `PLASTIC_15_COLOR_COMBOS`). */
+const GREEN_BLACK: ColorCombo = { id: "green-black", name: "Grön / Svart", surface: "#00A33A", engraving: BLACK };
+
+/**
+ * Tvålagersplasten i 1,5 mm: alla verkstadens kombinationer, med deras id:n
+ * och färgkoder (beslut av ägaren 2026-11-16). Alla kostar lika. De fyra
+ * klassiska namnskyltsfärgerna står först, sedan följer verkstadens ordning.
+ * Id:t skickas rakt av i ordern till verkstaden, så listan ska stämma med
+ * deras; `src/lib/supplier/catalog-sync.test.ts` jämför när deras projekt
+ * ligger bredvid på datorn.
+ */
+const PLASTIC_15_ORDER = [
+  "white-black",
+  "black-white",
+  "gold-black",
+  "silver-black",
+  "yellow-black",
+  "red-white",
+  "blue-white",
+  "darkblue-white",
+  "green-white",
+  "green-black",
+  "darkgreen-white",
+  "orange-white",
+  "white-blue",
+  "white-red",
+  "yellow-red",
+  "gray-white",
+  "brown-white",
+  "darkbrown-white",
+] as const;
+
+const PLASTIC_15_COLORS: readonly ColorCombo[] = PLASTIC_15_ORDER.map((id) => {
+  const combo = [...PLASTIC_COLORS, GREEN_BLACK].find((c) => c.id === id);
+  if (!combo) throw new Error(`Okänd plastfärg: ${id}`);
+  return combo;
+});
+
 export const MATERIALS: readonly BadgeMaterial[] = [
   {
     // Preliminärt tills verkstaden bekräftat: artikelkod, tjocklek och gravyrens färg.
@@ -119,12 +157,7 @@ export const MATERIALS: readonly BadgeMaterial[] = [
     supplierCode: "plastic-1.5mm",
     thicknessMm: 1.5,
     priceClass: "standard",
-    colors: [
-      { id: "white-black", name: "Vit / Svart", surface: WHITE, engraving: BLACK },
-      { id: "black-white", name: "Svart / Vit", surface: BLACK, engraving: WHITE },
-      { id: "gold-black", name: "Guld / Svart", surface: "#D4A017", engraving: BLACK },
-      { id: "silver-black", name: "Silver / Svart", surface: "#C5CDD4", engraving: BLACK },
-    ],
+    colors: PLASTIC_15_COLORS,
   },
   {
     id: "brass",
