@@ -37,6 +37,8 @@ export default async function ShopDesignerPage({ params, searchParams }: ShopDes
       <ShopPriceProvider priceList={shop.priceList}>
         <Designer
           initialText={first(query.t) ?? ""}
+          // Butikens startsida skickar alltid med `t`, även tomt: då visas startrutan utan namn också.
+          fromStart={first(query.t) !== undefined}
           initialDoc={shared}
           shop={{ slug: shop.slug, name: shop.profile.name, priceList: shop.priceList ?? null }}
           initialFont={engravingFontFor(shop.font)}

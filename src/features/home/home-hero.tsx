@@ -72,7 +72,6 @@ export function HomeHero({
   const recorderRef = useRef<BadgeRecorder | null>(null);
   const [value, setValue] = useState("");
   const [focused, setFocused] = useState(false);
-  const [shake, setShake] = useState(0);
   const [canvasReady, setCanvasReady] = useState(false);
   const [focus, setFocus] = useState<SpinFocus | null>(null);
   const [example, setExample] = useState<string>(EXAMPLES[0] ?? "");
@@ -104,11 +103,8 @@ export function HomeHero({
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (rows.length === 0) {
-      setShake((n) => n + 1);
-      inputRef.current?.focus();
-      return;
-    }
+    // Utan namn öppnas skyltmotorn ändå, med samma startruta, och namnet skrivs i editorn.
+    // `t` följer med även när det är tomt: det är så skyltmotorn vet att besöket kommer härifrån.
     const target = `${createPath}?${new URLSearchParams({ t: rows.join("|") })}`;
     // I en ram på någon annans sajt ska motorn inte öppnas inuti rutan.
     if (embedded) window.open(target, "_top");
@@ -166,13 +162,7 @@ export function HomeHero({
         </h1>
 
         <form className={styles.form} onSubmit={handleSubmit} role="search">
-          <motion.div
-            key={shake}
-            className={styles.field}
-            data-active={typing}
-            animate={shake ? { x: [0, -8, 8, -5, 5, 0] } : undefined}
-            transition={{ duration: 0.4 }}
-          >
+          <div className={styles.field} data-active={typing}>
             <label htmlFor="badge-text" className="visually-hidden">
               Text på namnskylten
             </label>
@@ -202,7 +192,7 @@ export function HomeHero({
                 />
               </svg>
             </button>
-          </motion.div>
+          </div>
 
           <div className={styles.below}>
             <AnimatePresence initial={false} mode="wait">

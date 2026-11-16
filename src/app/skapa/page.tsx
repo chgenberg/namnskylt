@@ -77,6 +77,8 @@ export default async function SkapaPage({ searchParams }: SkapaPageProps) {
         initialDoc={shared}
         reseller={reseller}
         cardPayments={paymentsConfigured() && databaseConfigured()}
+        // Startsidans ruta skickar alltid med `t`, även tomt: då visas startrutan utan namn också.
+        fromStart={first(params.t) !== undefined}
       />
     </main>
   );

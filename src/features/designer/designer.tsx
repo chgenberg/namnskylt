@@ -71,6 +71,8 @@ type View = "3d" | "drawing" | "person";
 
 /** Samplingar per pixel innan fotoläget räknas som klart. */
 const PHOTO_SAMPLES = 160;
+/** Fältet för skyltens första rad i panelen (`TextSection`). Dit ställs markören när skylten saknar namn. */
+const FIRST_ROW_LABEL = "Rad 1";
 /** Ett varv runt skylten i 3D-filmen. */
 const VIDEO_SECONDS = 6;
 const VIDEO_STEPS = [
@@ -112,9 +114,15 @@ interface DesignerProps {
   initialFont?: FontId;
   /** Privatpersoner kan betala med kort i kassan. */
   cardPayments?: boolean;
+  /**
+   * Besöket kommer från startsidans ruta, med eller utan namn. Då visas
+   * startrutan för material och form även när skylten saknar text, och namnet
+   * skrivs i editorn efteråt.
+   */
+  fromStart?: boolean;
 }
 
-export function Designer({ initialText, initialDoc, reseller, shop, initialFont, cardPayments }: DesignerProps) {
+export function Designer({ initialText, initialDoc, reseller, shop, initialFont, cardPayments, fromStart = false }: DesignerProps) {
   const [doc, dispatch] = useReducer(designerReducer, initialText, (text) => {
     // En delad eller äldre skylt kan bära ett material eller mått som inte säljs längre.
     if (initialDoc) return toOfferedDocument(initialDoc);
@@ -122,7 +130,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
     return initialFont ? { ...created, font: initialFont } : created;
   });
   const [view, setView] = useState<View>("3d");
-  const [onboarding, setOnboarding] = useState(() => !initialDoc && initialText.trim() !== "");
+  const [onboarding, setOnboarding] = useState(() => !initialDoc && (initialText.trim() !== "" || (fromStart && !reseller)));
   /** Återförsäljaren börjar som på startsidan: namnet först, sedan material och form. */
   const [starting, setStarting] = useState(() => Boolean(reseller) && !initialDoc && initialText.trim() === "");
   const [spinning, setSpinning] = useState(false);
@@ -235,7 +243,9 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
   const finishOnboarding = useCallback(() => {
     setOnboarding(false);
     setEngrave(performance.now());
-  }, []);
+    // Kom besökaren hit utan namn skrivs det nu: markören ställs i skyltens första rad.
+    if (!hasText) requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`input[aria-label="${FIRST_ROW_LABEL}"]`)?.focus());
+  }, [hasText]);
 
   const [sharing, setSharing] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);

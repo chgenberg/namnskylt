@@ -66,7 +66,6 @@ export function SmartInput({ target = "/skapa", onSubmit, baseDoc }: SmartInputP
   const [value, setValue] = useState("");
   const [focused, setFocused] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const [shake, setShake] = useState(0);
 
   const rows = useMemo(() => parseSmartInput(value), [value]);
   const doc = useMemo(() => (baseDoc ? withTexts(baseDoc, rows) : createBadgeDocument(rows)), [rows, baseDoc]);
@@ -111,11 +110,7 @@ export function SmartInput({ target = "/skapa", onSubmit, baseDoc }: SmartInputP
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (rows.length === 0) {
-      setShake((n) => n + 1);
-      inputRef.current?.focus();
-      return;
-    }
+    // Namnet går att skriva senare, i editorn. Utan text går det vidare med en tom skylt.
     if (onSubmit) {
       onSubmit(rows);
       return;
@@ -135,12 +130,7 @@ export function SmartInput({ target = "/skapa", onSubmit, baseDoc }: SmartInputP
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
         role="search"
       >
-        <motion.div
-          key={shake}
-          className={styles.inputRow}
-          animate={shake ? { x: [0, -8, 8, -5, 5, 0] } : undefined}
-          transition={{ duration: 0.4 }}
-        >
+        <div className={styles.inputRow}>
           <svg className={styles.icon} viewBox="0 0 24 24" aria-hidden="true">
             <rect x="3" y="7" width="18" height="10" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
             <path d="M7 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -168,7 +158,7 @@ export function SmartInput({ target = "/skapa", onSubmit, baseDoc }: SmartInputP
               <path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
-        </motion.div>
+        </div>
 
         <AnimatePresence initial={false}>
           {rows.length > 0 && (

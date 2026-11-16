@@ -504,6 +504,12 @@ verkstaden sin provision per period.
   startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom
   bilden bara visar en av dem, och panelen fyller inte heller i en bild i efterhand
   (`sameDesign` i motorn, `missingBadgeShots`).
+- **Startsidan fungerar utan namn** (besked av ägaren 2026-11-16): "Skapa skylt" öppnar
+  skyltmotorn även när rutan är tom. Startsidans ruta skickar alltid med `t`, även tomt, och
+  sidan ger då `fromStart` till `Designer`, som visar startrutan för material och form utan
+  text och sedan ställer markören i skyltens första rad. En direkt länk till `/skapa` utan `t`
+  visar ingen startruta, som förut. Samma sak gäller butikernas startsida och rutan där en
+  återförsäljare börjar en order (`SmartInput`).
 - **Skyltmotorns arbete sparas i webbläsaren** (2026-11-15, `useSavedWork`, regler i
   `src/lib/designer-work/`): skylten i editorn, namnlistan och varukorgen ligger i
   `localStorage` och finns kvar när sidan laddas om. En nyckel per sammanhang (webben, en
