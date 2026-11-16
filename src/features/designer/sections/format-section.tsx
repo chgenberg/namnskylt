@@ -4,18 +4,12 @@ import { AnimatePresence, motion } from "motion/react";
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Segmented } from "@/components/ui/segmented";
-import { FRAME_STYLES, OFFERED_MATERIALS, SHAPE_PRESETS, blankOf, getMaterial, type BadgeDocument } from "@/engine";
+import { FRAME_STYLES, blankOf, type BadgeDocument } from "@/engine";
+import { useCustomShapeChoice } from "../custom-shape-choice";
 import { CustomShapeEditor } from "../custom-shape/custom-shape-editor";
 import { BlankPicker } from "../pickers";
-import { useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
-
-/** Förslaget en egen form börjar från. */
-const FIRST_PRESET_ID = SHAPE_PRESETS[0]?.id ?? "shield";
-/** Egen form skärs ur ark, och i dagens sortiment är det bara plasten som gör det. */
-const CUSTOM_SHAPE_OFFERED = OFFERED_MATERIALS.some((material) => material.customShape);
-const CUSTOM_SHAPE_ELSEWHERE = "Endast möjlig för plastskyltar";
 
 interface FormatSectionProps {
   doc: BadgeDocument;
@@ -31,7 +25,8 @@ interface FormatSectionProps {
  */
 export function FormatSection({ doc, dispatch, tierIndex }: FormatSectionProps) {
   const { widthMm, heightMm } = doc.size;
-  const { customShapePrice } = useShopPrices(tierIndex);
+  // Samma val som i startrutan, så att de två alltid visar samma former.
+  const customChoice = useCustomShapeChoice(doc, dispatch, tierIndex);
   const custom = doc.shape === "custom";
 
   return (
@@ -39,20 +34,7 @@ export function FormatSection({ doc, dispatch, tierIndex }: FormatSectionProps) 
       <BlankPicker
         value={blankOf(doc)?.id ?? null}
         onChange={(blankId) => dispatch({ type: "blank", blankId })}
-        custom={
-          getMaterial(doc.materialId).customShape
-            ? {
-                available: true,
-                checked: custom,
-                priceSek: customShapePrice(doc.materialId),
-                onSelect: () => {
-                  if (!custom) dispatch({ type: "custom/preset", presetId: FIRST_PRESET_ID });
-                },
-              }
-            : CUSTOM_SHAPE_OFFERED
-              ? { available: false, note: CUSTOM_SHAPE_ELSEWHERE }
-              : undefined
-        }
+        custom={customChoice}
       />
 
       <AnimatePresence initial={false}>

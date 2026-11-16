@@ -14,6 +14,7 @@ import {
   type FontEngine,
 } from "@/engine";
 import type { BadgeRecorder } from "./three/recorder";
+import { useCustomShapeChoice } from "./custom-shape-choice";
 import { BlankPicker, ColorPicker, MaterialPicker } from "./pickers";
 import styles from "./onboarding-dialog.module.css";
 import type { DesignerAction } from "./state";
@@ -29,11 +30,13 @@ interface OnboardingDialogProps {
   doc: BadgeDocument;
   fonts: FontEngine;
   dispatch: Dispatch<DesignerAction>;
+  /** Trappsteget för orderns antal, som tillägget för egen form följer. */
+  tierIndex: number;
   onClose: () => void;
 }
 
 /** Visas när kunden kommer från startsidan med sin text: välj det viktigaste först. */
-export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDialogProps) {
+export function OnboardingDialog({ doc, fonts, dispatch, tierIndex, onClose }: OnboardingDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const recorderRef = useRef<BadgeRecorder | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
@@ -42,6 +45,8 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
   const blank = blankOf(doc);
   const shapeName = shapeLabel(doc);
   const severalMaterials = OFFERED_MATERIALS.length > 1;
+  // Samma former som i panelen till höger, även "Egen form", så att ingen missar den här.
+  const customChoice = useCustomShapeChoice(doc, dispatch, tierIndex);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -130,7 +135,8 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
             <h3 id="onboarding-shape" className={styles.groupTitle}>
               Form
             </h3>
-            <BlankPicker value={blank?.id ?? null} onChange={(blankId) => dispatch({ type: "blank", blankId })} />
+            <BlankPicker value={blank?.id ?? null} onChange={(blankId) => dispatch({ type: "blank", blankId })} custom={customChoice} />
+            {doc.shape === "custom" && <p className={styles.note}>Du ritar och justerar formen i nästa steg.</p>}
           </section>
         </div>
 

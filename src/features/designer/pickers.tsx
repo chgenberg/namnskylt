@@ -155,7 +155,7 @@ export function MaterialPicker({ value, onChange, layoutId, compact = false }: M
  * ark. På övriga material syns det ändå, med en rad om var det finns, så att
  * ingen missar att formen går att rita själv.
  */
-type CustomShapeChoice =
+export type CustomShapeChoice =
   | {
       available: true;
       checked: boolean;

@@ -123,7 +123,9 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     (`src/engine/outline-trace.ts`, `outline-edit.ts`). Valet "Egen form" går bara att välja på
     material med `customShape`. På metall syns det ändå, streckat och med raden "Endast möjlig
     för plastskyltar", så att ingen missar funktionen (besked via ägaren 2026-11-15,
-    `BlankPicker` i `pickers.tsx`).
+    `BlankPicker` i `pickers.tsx`). Startrutan och panelen visar samma former, även
+    "Egen form" (besked via ägaren 2026-11-16): båda frågar `useCustomShapeChoice`
+    (`custom-shape-choice.ts`). Väljs formen i startrutan ritas den i nästa steg.
   - PDF läses med `pdfjs-dist`, låst till `~5.4.624` eftersom nyare kräver Node 22. Bara första
     sidan läses.
   - Kända brister: bara provat i Chrome; en ritad form försvinner om kunden väljer ett ämne och

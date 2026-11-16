@@ -638,7 +638,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
         />
       </aside>
       {/* Visas först när det sparade är läst, så att rutan inte blinkar förbi för den som kommer tillbaka. */}
-      {onboarding && saved.ready && <OnboardingDialog doc={doc} fonts={fonts} dispatch={update} onClose={finishOnboarding} />}
+      {onboarding && saved.ready && <OnboardingDialog doc={doc} fonts={fonts} dispatch={update} tierIndex={tierIndex} onClose={finishOnboarding} />}
     </div>
   );
 }
