@@ -4,6 +4,8 @@ import {
   OFFERED_MATERIALS,
   SHAPES,
   TEXT_LIMITS,
+  blankFits,
+  clipOrientations,
   getBlank,
   getColor,
   getMaterial,
@@ -15,7 +17,7 @@ import {
 } from "./catalog";
 import { customOutlineIssue, scaleOutline } from "./custom-outline";
 import { getShapePreset, presetOutline } from "./shape-presets";
-import type { BadgeDocument, BadgeTextRow, BlankId, MaterialFinish, Mm } from "./types";
+import type { BadgeDocument, BadgeTextRow, BlankId, ClipOrientation, MaterialFinish, Mm, MountingId } from "./types";
 
 /** Versalhöjd per rad i ett nytt dokument: namn stort, titel mindre. */
 const DEFAULT_ROW_CAP_MM: readonly Mm[] = [6, 3.4, 2.8];
@@ -136,8 +138,10 @@ export function isValidCustomShape(doc: BadgeDocument): boolean {
 function nearestBlank(doc: BadgeDocument): BadgeBlank {
   const family = (shape: BadgeDocument["shape"]) =>
     shape === "oval" || shape === "round" ? "ellipse" : shape === "cushion" ? "cushion" : "rect";
-  const sameFamily = BLANKS.filter((b) => family(b.shape) === family(doc.shape));
-  const candidates = sameFamily.length > 0 ? sameFamily : BLANKS;
+  // Bara ämnen som finns på skyltens material: den långa rektangeln finns inte i metall.
+  const offered = BLANKS.filter((b) => blankFits(b, doc.materialId));
+  const sameFamily = offered.filter((b) => family(b.shape) === family(doc.shape));
+  const candidates = sameFamily.length > 0 ? sameFamily : offered;
   return candidates.reduce((best, b) =>
     Math.abs(b.heightMm - doc.size.heightMm) < Math.abs(best.heightMm - doc.size.heightMm) ? b : best,
   );
@@ -156,18 +160,78 @@ function colorDistance(a: string, b: string): number {
   return (r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2;
 }
 
+/** Skylten ligger på ett ämne som finns på dess material. */
+function hasOfferedBlank(doc: BadgeDocument): boolean {
+  const blank = blankOf(doc);
+  return blank !== null && blankFits(blank, doc.materialId);
+}
+
+/**
+ * Sant när fästet går att få på just den här skylten: det finns på materialet,
+ * och klämman ryms på måttet i någon riktning. Utan `mountingId` prövas
+ * skyltens eget fäste.
+ */
+export function mountingFitsDocument(
+  doc: Pick<BadgeDocument, "materialId" | "size" | "mounting">,
+  mountingId: MountingId = doc.mounting,
+): boolean {
+  if (!mountingFits(mountingId, doc.materialId)) return false;
+  return mountingId !== "clip" || clipOrientations(doc.size).length > 0;
+}
+
+/**
+ * Riktningen klämman sitter i: den valda när den ryms, annars den som ryms,
+ * liggande först. `null` när fästet inte är klämma eller klämman inte ryms.
+ */
+export function clipOrientationOf(doc: Pick<BadgeDocument, "mounting" | "size" | "clipOrientation">): ClipOrientation | null {
+  if (doc.mounting !== "clip") return null;
+  const fitting = clipOrientations(doc.size);
+  return doc.clipOrientation && fitting.includes(doc.clipOrientation) ? doc.clipOrientation : (fitting[0] ?? null);
+}
+
+/** Fästets namn så som det ska läsas av kund och verkstad: klämman med sin riktning. */
+export function mountingLabel(doc: Pick<BadgeDocument, "mounting" | "size" | "clipOrientation">): string {
+  const { name } = getMounting(doc.mounting);
+  const orientation = clipOrientationOf(doc);
+  if (!orientation) return name;
+  return `${name}, ${orientation === "vertical" ? "vertikalt" : "horisontellt"}`;
+}
+
+/** Byter fäste. Riktningen hör till klämman och följer inte med till ett annat fäste. */
+export function withMounting(doc: BadgeDocument, mountingId: MountingId): BadgeDocument {
+  const rest = { ...doc, mounting: mountingId };
+  if (mountingId !== "clip") delete rest.clipOrientation;
+  return rest;
+}
+
+/**
+ * Skylten efter att materialet, formen eller måttet har ändrats: en klämma som
+ * inte längre ryms eller finns byts mot nålen, och en riktning som inte ryms
+ * släpps, så att den som ryms gäller.
+ */
+export function withFittingMounting(doc: BadgeDocument): BadgeDocument {
+  if (!mountingFitsDocument(doc)) return withMounting(doc, "pin");
+  if (doc.clipOrientation && clipOrientationOf(doc) !== doc.clipOrientation) {
+    const rest = { ...doc };
+    delete rest.clipOrientation;
+    return rest;
+  }
+  return doc;
+}
+
 /**
  * Går att beställa i dag: ett material som säljs, i en av dess ytor, på ett av
- * ämnena eller i en giltig egen form, med ett fäste som säljs och finns på materialet.
+ * materialets ämnen eller i en giltig egen form, med ett fäste som säljs och
+ * går att få på skylten (klämman kräver plast och minst 80 × 25 mm).
  */
 export function isOfferedDocument(doc: BadgeDocument): boolean {
   const material = getMaterial(doc.materialId);
   return (
     material.offered &&
     material.colors.some((c) => c.id === doc.colorId) &&
-    (blankOf(doc) !== null || isValidCustomShape(doc)) &&
+    (hasOfferedBlank(doc) || isValidCustomShape(doc)) &&
     getMounting(doc.mounting).offered &&
-    mountingFits(doc.mounting, doc.materialId)
+    mountingFitsDocument(doc)
   );
 }
 
@@ -202,15 +266,14 @@ export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
   // Finns samma kombination i det nya materialet (äldre plast till dagens plast) behålls den. Annars den som ligger närmast.
   const colorId = material.colors.some((c) => c.id === doc.colorId) ? doc.colorId : nearestColor(doc, material).id;
   const moved: BadgeDocument = offeredColor ? doc : { ...doc, materialId: material.id, colorId };
-  const offeredShape = blankOf(moved) !== null || isValidCustomShape(moved);
-  // Fästet ska både säljas och finnas på materialet skylten hamnar på: klämman finns inte på metall.
-  const offeredMounting = getMounting(doc.mounting).offered && mountingFits(doc.mounting, moved.materialId);
+  const offeredShape = hasOfferedBlank(moved) || isValidCustomShape(moved);
+  const shaped = offeredShape ? moved : withBlank(moved, nearestBlank(moved).id);
+  // Fästet ska både säljas och gå att få på skylten där den hamnar: klämman finns inte på metall
+  // och inte på en skylt under 80 × 25 mm.
+  const offeredMounting = getMounting(doc.mounting).offered && mountingFitsDocument(shaped);
   if (offeredColor && offeredShape && offeredMounting) return doc;
-  return {
-    ...(offeredShape ? moved : withBlank(moved, nearestBlank(moved).id)),
-    // Säkerhetsnålen är en nål; den vanliga nålen är närmast. Den gäller också när fästet inte finns på materialet.
-    ...(offeredMounting ? {} : { mounting: "pin" as const }),
-  };
+  // Säkerhetsnålen är en nål; den vanliga nålen är närmast. Den gäller också när fästet inte går att få på skylten.
+  return offeredMounting ? shaped : withMounting(shaped, "pin");
 }
 
 /** Text som faktiskt graveras — tomma rader kostar inget och ritas inte. */

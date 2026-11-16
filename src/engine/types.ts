@@ -10,9 +10,11 @@ export type FontId = "arial" | "arial-narrow";
 export type TextAlign = "left" | "center" | "right";
 export type BadgeShape = "rectangle" | "rounded" | "stadium" | "oval" | "round" | "hexagon" | "octagon" | "cushion" | "custom";
 /** Färdigskurna ämnen som skylten graveras på — fast form och fast mått. */
-export type BlankId = "rectangle" | "oval" | "rectangle-large" | "cushion";
+export type BlankId = "rectangle" | "oval" | "rectangle-large" | "cushion" | "rectangle-long";
 export type FrameStyle = "none" | "solid" | "double";
 export type MountingId = "pin" | "magnet" | "clip" | "safety-pin";
+/** Hur klämman sitter på baksidan: längs skylten eller på höjden. */
+export type ClipOrientation = "horizontal" | "vertical";
 /** Gravyr fräser ner i ytan, print trycker på den. */
 export type MarkingMode = "engrave" | "print";
 /** Hur namn och logga märks: en metod för båda, eller en kombination. Se `marking.ts`. */
@@ -85,6 +87,13 @@ export interface BadgeLogo {
   /** Loggan i färg. Den trycks som den är när loggan printas; graveras loggan används bara banorna. */
   image?: LogoImage;
   /**
+   * Gravyrformen av en logga i färg, i samma ruta som `d`: det som fräses när
+   * loggan graveras, med vitt inuti loggan och detaljer i en annan färg som
+   * urtag. `d` är då loggans siluett, som trycket och 3D-ytan följer. Saknas
+   * fältet graveras loggan ur `d`. Läs alltid med `logoEngravingPath`.
+   */
+  engraveD?: string;
+  /**
    * Filen loggan lästes från, sparad på servern under sin SHA-256. Bara en
    * hänvisning till verkstadens underlag: den ändrar aldrig hur skylten ritas,
    * graveras eller prissätts.
@@ -119,6 +128,11 @@ export interface BadgeDocument {
    */
   marking?: MarkingMethod;
   mounting: MountingId;
+  /**
+   * Klämmans riktning, när fästet är klämma. Saknas den, eller ryms den inte
+   * på måttet, gäller riktningen som ryms. Läs alltid med `clipOrientationOf`.
+   */
+  clipOrientation?: ClipOrientation;
   quantity: number;
 }
 

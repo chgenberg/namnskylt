@@ -38,7 +38,7 @@ export const HOW_IT_WORKS = {
       ],
       options: [
         { title: "Form", body: "Fyra färdiga former: rektangel, oval, stor rektangel och kudde." },
-        { title: "Fäste", body: "Nål, magnet utan hål i plagget eller klämma." },
+        { title: "Fäste", body: "Nål eller magnet utan hål i plagget. Plastskyltar på minst 80 × 25 mm kan få klämma." },
       ],
     },
     {

@@ -345,6 +345,14 @@ export function traceLogoMask(
   return null;
 }
 
+/**
+ * Banorna loggan graveras ur: gravyrformen när loggan har en (en logga i färg),
+ * annars loggans egna banor. Det som printas följer alltid `d`.
+ */
+export function logoEngravingPath(logo: { d: string; engraveD?: string }): string {
+  return logo.engraveD ?? logo.d;
+}
+
 const LOGO_PATH_TOKEN = /[MLZ]|-?\d+(?:\.\d+)?/g;
 
 /** Det enda banformat loggan får ha — valideras på servern innan något ritas. */

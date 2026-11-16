@@ -18,6 +18,21 @@ import { PriceCalculator } from "./price-calculator";
 import { PriceGroup } from "./price-group";
 import styles from "../price-model.module.css";
 
+/**
+ * Kortens rubriker i den ordning de ligger på sidan. Sidan är lång, och utan
+ * länkarna högst upp är ett kort mitt på sidan lätt att missa (besked via
+ * ägaren 2026-11-16, som inte hittade Märkningsmetod).
+ */
+const SECTIONS: readonly { id: string; name: string }[] = [
+  { id: "price-model-tiers", name: "Trappsteg och provision" },
+  { id: "price-model-signs", name: "Typ av skylt" },
+  { id: "price-model-options", name: "Tillbehör och tillval" },
+  { id: "price-model-marking", name: "Märkningsmetod" },
+  { id: "price-model-order", name: "Per order" },
+  { id: "price-model-shipping", name: "Frakt" },
+  { id: "price-model-calc", name: "Vid order" },
+];
+
 const SIGN_ROWS: readonly { id: SignClass; name: string; note: string }[] = [
   { id: "premium", name: "Premium", note: "Metallskyltarna" },
   { id: "standard", name: "Standard", note: "Plastskyltarna" },
@@ -27,7 +42,7 @@ const OPTION_ROWS: readonly { id: PriceOptionId; name: string; note: string }[] 
   { id: "pin", name: "Nål", note: "Fäste" },
   { id: "clip", name: "Militärklämma", note: "Fäste, heter Klämma på sajten" },
   { id: "magnet", name: "Magnet", note: "Fäste" },
-  { id: "extraEngraving", name: "Extra gravyr eller print", note: "Loggan på skylten" },
+  { id: "extraEngraving", name: "Logga på skylten", note: "Med 0 kr ingår loggan. Kombinerad märkning har egna priser nedan." },
   { id: "customShape", name: "Egen design, max 12 × 12 cm", note: "Plast i egen form" },
 ];
 
@@ -98,6 +113,13 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
 
   return (
     <div className={styles.layout}>
+      <nav className={styles.jump} aria-label="Hoppa till">
+        {SECTIONS.map((section) => (
+          <a key={section.id} href={`#${section.id}`} className={styles.jumpLink}>
+            {section.name}
+          </a>
+        ))}
+      </nav>
       <section className={styles.card} aria-labelledby="price-model-tiers">
         <div className={styles.cardTop}>
           <div className={styles.cardHead}>

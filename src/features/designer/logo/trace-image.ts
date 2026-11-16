@@ -2,6 +2,7 @@ import {
   LOGO_LIMITS,
   colorLogo,
   inkMask,
+  traceLogoEngraving,
   traceLogoMask,
   visibleMask,
   type LogoImage,
@@ -22,8 +23,10 @@ const COLOR_BUCKET_SHIFT = 4;
 export interface LogoTrace extends TracedLogo {
   /** Loggans mest använda varumärkesfärg, om den har någon. */
   inkColor: string | null;
-  /** Loggan i färg. Finns den trycks loggan som den är, i stället för att graveras. */
+  /** Loggan i färg. Den trycks som den är när loggan printas. */
   image?: LogoImage;
+  /** Gravyrformen av en logga i färg, när den skiljer sig från siluetten. Den fräses när loggan graveras. */
+  engraveD?: string;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -97,29 +100,59 @@ function dominantInkColor({ data }: { data: ArrayLike<number> }, mask: Uint8Arra
   return toHex([best.r / best.count, best.g / best.count, best.b / best.count]);
 }
 
+/** Bilden gick inte att läsa som en logga i färg: den är svartvit, eller för tung även som minst. */
+const NOT_COLOR = Symbol("svartvit");
+
 /**
- * En bild i färg blir en logga som trycks: bilden frilagd och beskuren, och
- * dess siluett som banor i samma ruta. `null` när bilden är svartvit, eller
- * för tung även som minst.
+ * En bild i färg blir en logga med tre delar i samma ruta: bilden frilagd och
+ * beskuren (trycks när loggan printas), dess siluett som banor, och
+ * gravyrformen (fräses när loggan graveras), när den skiljer sig från
+ * siluetten. `invert` vänder bläck och urtag i gravyrformen; `null` när
+ * den då blir tom.
  */
-function colorTrace(image: HTMLImageElement): LogoTrace | null {
+function colorTrace(image: HTMLImageElement, invert: boolean): LogoTrace | null | typeof NOT_COLOR {
   const logo = colorLogo(pixels(image, COLOR_MAX_PX));
-  if (!logo) return null;
+  if (!logo) return NOT_COLOR;
   const mask = visibleMask(logo);
   const traced = traceLogoMask(mask, logo.width, logo.height, { keepFrame: true });
   const src = traced ? encodePng(logo) : null;
-  return traced && src ? { ...traced, inkColor: dominantInkColor(logo, mask), image: { src } } : null;
+  if (!traced || !src) return NOT_COLOR;
+  const engraving = traceLogoEngraving(logo, invert);
+  if (engraving.kind === "empty") return null;
+  return {
+    ...traced,
+    inkColor: dominantInkColor(logo, mask),
+    image: { src },
+    ...(engraving.kind === "detail" && { engraveD: engraving.d }),
+  };
 }
 
 /**
- * Läser en bild (data- eller objekt-URL) till en logga. En bild i färg trycks
- * som den är; en svartvit spåras till banor som graveras. `invert` vänder
- * bläck och botten och gäller därför bara gravyr. `null` = ingen logga i bilden.
+ * Gravyrformen till en logga i färg som saknar den: en skylt som sparades
+ * innan gravyrformen fanns, eller kom i en delad länk. Räknas ur loggans bild,
+ * ritad i banornas ruta. `null` när siluetten är gravyrformen, eller bilden
+ * inte går att läsa.
+ */
+export async function engravingFromImage(src: string, viewWidth: number, viewHeight: number): Promise<string | null> {
+  const image = await loadImage(src);
+  const width = Math.max(1, Math.round(viewWidth));
+  const height = Math.max(1, Math.round(viewHeight));
+  const { context } = canvasOf(width, height);
+  context.drawImage(image, 0, 0, width, height);
+  const engraving = traceLogoEngraving(context.getImageData(0, 0, width, height));
+  return engraving.kind === "detail" ? engraving.d : null;
+}
+
+/**
+ * Läser en bild (data- eller objekt-URL) till en logga. En bild i färg kan
+ * både printas som den är och graveras i sin gravyrform; en svartvit spåras
+ * till banor. `invert` vänder bläck och botten, och gäller bara det som
+ * graveras eller printas i en färg. `null` = ingen logga i bilden.
  */
 export async function traceImage(src: string, invert = false): Promise<LogoTrace | null> {
   const image = await loadImage(src);
-  const colored = invert ? null : colorTrace(image);
-  if (colored) return colored;
+  const colored = colorTrace(image, invert);
+  if (colored !== NOT_COLOR) return colored;
   const imageData = pixels(image, TRACE_MAX_PX);
   const mask = inkMask(imageData, invert);
   const traced = traceLogoMask(mask, imageData.width, imageData.height);

@@ -37,7 +37,7 @@ export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps
   const { markingPrice } = useShopPrices(tierIndex);
   const selected = getMarkingMethod(markingOf(doc));
   return (
-    <PanelSection step={3} title="Märkningsmetod" aside="1 metod ingår">
+    <PanelSection step={2} title="Märkningsmetod" aside="1 metod ingår">
       <div className={styles.markingList} role="radiogroup" aria-label="Märkningsmetod">
         {MARKING_METHODS.map((method) => {
           const available = markingFits(method.id, doc);
@@ -56,7 +56,7 @@ export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps
               <span className={styles.markingText}>
                 <span className={styles.markingName}>{method.name}</span>
                 <span className={styles.markingNote}>
-                  {available ? method.description : `${method.description}. Lägg till en logotyp för att välja.`}
+                  {available ? method.description : `${method.description}. Lägg till en logotyp nedan för att välja.`}
                 </span>
               </span>
               <span className={styles.markingPrice}>{priceLabel(markingPrice(method.id, doc.materialId))}</span>

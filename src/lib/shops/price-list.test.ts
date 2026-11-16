@@ -5,8 +5,17 @@ import { endPriceTable } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { shopOrderPricing, shopPrice, shopPriceListSchema, shopPriceParts, shopUnitPrices } from "./price-list";
 
+/**
+ * Kalkylen med ett eget pris på loggan, som den var före 2026-11-16. Sedan dess ingår loggan
+ * (priset är 0 kr), men räknereglerna för en prissatt logga gäller om ägaren sätter ett pris igen.
+ */
+const KALKYL: typeof DEFAULT_PRICE_MODEL = {
+  ...DEFAULT_PRICE_MODEL,
+  options: { ...DEFAULT_PRICE_MODEL.options, extraEngraving: [19, 19, 19, 19] },
+};
+
 /** Kundens prislista enligt kalkylen, utan startkostnad: den har egna tester i motorn. */
-const M = endPriceTable({ ...DEFAULT_PRICE_MODEL, startSek: 0, shipping: NO_SHIPPING });
+const M = endPriceTable({ ...KALKYL, startSek: 0, shipping: NO_SHIPPING });
 const metal = { ...createBadgeDocument(["Anna Berg", "Receptionist"]), quantity: 24 };
 const plastic = { ...createBadgeDocument(["Erik"]), materialId: "plastic-2-layer" as const, colorId: "white-black", quantity: 1 };
 
@@ -33,7 +42,7 @@ describe("butikens prislista", () => {
   });
 
   it("specifikationen per skylt summerar till butikens à-pris, med och utan påslag", () => {
-    const withStart = endPriceTable(DEFAULT_PRICE_MODEL);
+    const withStart = endPriceTable(KALKYL);
     const logo = { d: "M0 0h1v1z", viewWidth: 1, viewHeight: 1, placement: "top" as const, heightMm: 10 };
     for (const percent of [0, 7, 20, 35, -15]) {
       for (const quantity of [1, 6, 24, 101, 350]) {

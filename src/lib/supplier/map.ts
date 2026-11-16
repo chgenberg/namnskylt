@@ -4,9 +4,10 @@ import {
   getFont,
   getMarkingMethod,
   getMaterial,
-  getMounting,
+  mountingLabel,
   hasStraightSides,
   layoutBadge,
+  logoEngravingPath,
   logoMarking,
   markingOf,
   nameMarking,
@@ -134,7 +135,7 @@ export function toSupplierSignDocument(
                   renderMode: "engrave",
                   lockAspect: true,
                   vector: {
-                    markup: `<path d="${doc.logo.d}" fill="#000000" fill-rule="evenodd"/>`,
+                    markup: `<path d="${logoEngravingPath(doc.logo)}" fill="#000000" fill-rule="evenodd"/>`,
                     viewWidth: doc.logo.viewWidth,
                     viewHeight: doc.logo.viewHeight,
                   },
@@ -157,7 +158,7 @@ export function toSupplierSignDocument(
     ...(doc.shape === "custom" && { customShapePoints: doc.customOutline ?? [] }),
     // Fästet ligger inte i skyltmotorns hålmodell — det skickas som namn tills
     // leverantören har en artikelkod per fäste.
-    mounting: getMounting(doc.mounting).name,
+    mounting: mountingLabel(doc),
     holes: { type: "none", count: 0, diameterMm: 3.2, placement: "none" },
     layers: [...frameLayers, ...logoLayers, ...textLayers],
     ...(method !== "engrave" && { productionNote: markingNote(doc) }),

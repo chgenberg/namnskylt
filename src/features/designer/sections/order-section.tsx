@@ -11,7 +11,7 @@ import {
   badgeDocumentSchema,
   getMarkingMethod,
   getMaterial,
-  getMounting,
+  mountingLabel,
   isPartnerMade,
   markingOf,
   priceOrder,
@@ -90,7 +90,7 @@ function partLabel(part: ShownPricePart, doc: BadgeDocument): string {
     case "sign":
       return `Skylt, ${getMaterial(doc.materialId).name.toLowerCase()}`;
     case "mounting":
-      return `Fäste, ${getMounting(doc.mounting).name.toLowerCase()}`;
+      return `Fäste, ${mountingLabel(doc).toLowerCase()}`;
     case "extraEngraving":
       return "Logga";
     case "customShape":
@@ -201,6 +201,12 @@ export function OrderSection({
   const checkoutInclVatSek = checkoutSek + Math.round(checkoutSek * VAT_RATE);
   // Specifikationen gäller skylten i editorn, på trappsteget för hela orderns antal.
   const parts = withStartInSign(shopPriceParts(doc, price.quantity, shop?.priceList, priceList));
+  // Mängdrabatten: vad samma skylt hade kostat ensam i ordern, mot vad den kostar med orderns antal.
+  // Varje skylt till sänker priset per skylt, och det ska synas (besked via ägaren 2026-11-16).
+  const partsSek = (items: readonly { sek: number }[]) => items.reduce((total, item) => total + item.sek, 0);
+  const aloneSek = partsSek(shopPriceParts(doc, 1, shop?.priceList, priceList));
+  const discountSek = price.quantity > 1 ? aloneSek - partsSek(parts) : 0;
+  const discountPercent = aloneSek > 0 ? Math.round((discountSek / aloneSek) * 100) : 0;
   const mixed = designs > 1;
   const names = badges.length;
   const nextTier = priceList.tiers[price.tierIndex + 1];
@@ -376,6 +382,17 @@ export function OrderSection({
                 </div>
               ))}
             </dl>
+            {discountSek > 0 && discountPercent > 0 && (
+              <div className={styles.specDiscount}>
+                <p>
+                  <span>Mängdrabatt</span>
+                  <span className={styles.specDiscountValue}>−{discountPercent} %</span>
+                </p>
+                <p className={styles.specDiscountNote}>
+                  {sek.format(discountSek)} lägre per skylt än vid 1 st ({sek.format(aloneSek)})
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

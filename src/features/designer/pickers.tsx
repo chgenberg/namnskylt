@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import {
   BLANKS,
   OFFERED_MATERIALS,
+  blankFits,
   colorChoices,
   createBadgeDocument,
   getMaterial,
@@ -175,15 +176,17 @@ export type CustomShapeChoice =
 interface BlankPickerProps {
   /** `null` för en äldre skylt som inte ligger på något ämne, och för en egen form. */
   value: BlankId | null;
+  /** Bara ämnen som finns på materialet visas: den långa rektangeln finns bara i plast. */
+  materialId: MaterialId;
   onChange: (blankId: BlankId) => void;
   /** Utelämnas där en egen form inte ska visas alls. */
   custom?: CustomShapeChoice;
 }
 
-export function BlankPicker({ value, onChange, custom }: BlankPickerProps) {
+export function BlankPicker({ value, materialId, onChange, custom }: BlankPickerProps) {
   return (
     <div className={styles.blankGrid} role="radiogroup" aria-label="Form">
-      {BLANKS.map((blank) => (
+      {BLANKS.filter((blank) => blankFits(blank, materialId)).map((blank) => (
         <button
           key={blank.id}
           type="button"

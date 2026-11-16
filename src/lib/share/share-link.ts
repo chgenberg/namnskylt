@@ -60,6 +60,30 @@ export interface ShareCode {
   droppedLogo: boolean;
 }
 
+/** Loggans ruta som bana: det minsta som kan stå i stället för en siluett. */
+function frameOf(logo: { viewWidth: number; viewHeight: number }): string {
+  const { viewWidth: w, viewHeight: h } = logo;
+  return `M0 0L${w} 0L${w} ${h}L0 ${h}Z`;
+}
+
+/**
+ * En logga i färg bär två banor: siluetten (`d`), som trycket följer, och
+ * gravyrformen (`engraveD`), som fräses. Bara den ena ritas. Här tas den andra
+ * bort, så att loggan ryms i en länk utan att skylten ser annorlunda ut: en
+ * logga som printas tappar gravyrformen, och en som graveras får sin ruta som
+ * siluett. `null` när loggan inte har någon gravyrform.
+ */
+function withoutUndrawnPath(doc: BadgeDocument): BadgeDocument | null {
+  const { logo } = doc;
+  if (!logo?.engraveD) return null;
+  if (logoMarking(doc) === "print") {
+    const printed = { ...logo };
+    delete printed.engraveD;
+    return { ...doc, logo: printed };
+  }
+  return { ...doc, logo: { ...logo, d: frameOf(logo) } };
+}
+
 /**
  * En logga i färg som ligger på servern och printas ritas ur sin bild; banorna
  * är bara dess siluett. I en länk räcker bildens ruta som siluett, så att
@@ -68,8 +92,15 @@ export interface ShareCode {
 function withFrameSilhouette(doc: BadgeDocument): BadgeDocument | null {
   const { logo } = doc;
   if (!logo?.image || logoImageRefId(logo.image.src) === null || logoMarking(doc) !== "print") return null;
-  const { viewWidth: w, viewHeight: h } = logo;
-  return { ...doc, logo: { ...logo, d: `M0 0L${w} 0L${w} ${h}L0 ${h}Z` } };
+  return { ...doc, logo: { ...logo, d: frameOf(logo) } };
+}
+
+/** En logga som graveras ur sin siluett, utan gravyrformen: så som den såg ut före gravyrformen fanns. */
+function withoutEngravingForm(doc: BadgeDocument): BadgeDocument | null {
+  if (!doc.logo?.engraveD || logoMarking(doc) !== "engrave") return null;
+  const logo = { ...doc.logo };
+  delete logo.engraveD;
+  return { ...doc, logo };
 }
 
 /** Skylten utan hänvisningen till loggans originalfil. `null` när den inte har någon. */
@@ -83,13 +114,20 @@ function withoutLogoOriginal(doc: BadgeDocument): BadgeDocument | null {
 export async function encodeShareCode(doc: BadgeDocument): Promise<ShareCode> {
   const code = await pack(doc);
   if (code.length <= SHARE_MAX_CHARS || !doc.logo) return { code, droppedLogo: false };
-  // Hänvisningen till originalfilen är det första som får stryka på foten: skylten ser likadan ut utan den.
-  const unpointed = withoutLogoOriginal(doc);
-  const unpointedCode = unpointed ? await pack(unpointed) : null;
-  if (unpointedCode && unpointedCode.length <= SHARE_MAX_CHARS) return { code: unpointedCode, droppedLogo: false };
-  const framed = withFrameSilhouette(doc);
-  const framedCode = framed ? await pack(framed) : null;
-  if (framedCode && framedCode.length <= SHARE_MAX_CHARS) return { code: framedCode, droppedLogo: false };
+  // Loggan görs lättare steg för steg, och det första som ryms gäller. Först det som inte syns:
+  // den av loggans två banor som inte ritas. Sedan siluetten hos en logga som printas, och sist
+  // gravyrformen, så att loggan hellre graveras som siluett än försvinner ur länken.
+  const lean = withoutUndrawnPath(doc);
+  const shapes = [doc, lean, withFrameSilhouette(lean ?? doc), withoutEngravingForm(doc)];
+  for (const shape of shapes) {
+    if (!shape) continue;
+    // Hänvisningen till originalfilen är det första som får stryka på foten: skylten ser likadan ut utan den.
+    for (const candidate of [shape, withoutLogoOriginal(shape)]) {
+      if (!candidate || candidate === doc) continue;
+      const lighter = await pack(candidate);
+      if (lighter.length <= SHARE_MAX_CHARS) return { code: lighter, droppedLogo: false };
+    }
+  }
   const withoutLogo = { ...doc };
   delete withoutLogo.logo;
   return { code: await pack(withoutLogo), droppedLogo: true };

@@ -2,18 +2,25 @@ import {
   CUSTOM_SHAPE_LIMITS,
   LOGO_LIMITS,
   TEXT_LIMITS,
+  blankFits,
+  blankOf,
+  clipOrientations,
   createRow,
+  getBlank,
   getMaterial,
   markingFits,
-  mountingFits,
+  mountingFitsDocument,
   resizeCustomShape,
   withBlank,
+  withFittingMounting,
   withLogoMarking,
   withMarking,
+  withMounting,
   withShapePreset,
   type BadgeDocument,
   type BadgeLogo,
   type BlankId,
+  type ClipOrientation,
   type FontId,
   type FrameStyle,
   type LogoPlacement,
@@ -48,7 +55,10 @@ export type DesignerAction =
   | { type: "custom/replace"; points: { x: number; y: number }[]; widthMm: number; heightMm: number }
   | { type: "corner"; cornerRadiusMm: number }
   | { type: "frame"; style: FrameStyle }
-  | { type: "logo"; logo: BadgeLogo | null }
+  /** `keepMarking`: samma logga i en ny form ("Invertera"), så metoden kunden har valt står kvar. */
+  | { type: "logo"; logo: BadgeLogo | null; keepMarking?: boolean }
+  /** Gravyrformen till en logga i färg som saknade den, räknad i efterhand ur bilden. `d` pekar ut loggan. */
+  | { type: "logo/engraving"; d: string; engraveD: string }
   /** Originalfilen är sparad på servern. `d` pekar ut loggan den hör till. */
   | { type: "logo/original"; d: string; originalId: string }
   | { type: "logo/placement"; placement: LogoPlacement }
@@ -58,6 +68,8 @@ export type DesignerAction =
   | { type: "move"; target: "text" | "logo"; offset: Offset }
   | { type: "move/reset" }
   | { type: "mounting"; mounting: MountingId }
+  /** Klämmans riktning. Gäller bara när fästet är klämma och riktningen ryms på skylten. */
+  | { type: "clip/orientation"; orientation: ClipOrientation }
   | { type: "quantity"; quantity: number }
   /** Byter hela skylten, när en annan design i ordern öppnas i editorn. */
   | { type: "load"; doc: BadgeDocument };
@@ -133,28 +145,34 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     case "material": {
       const material = getMaterial(action.materialId);
       const colorId = material.colors.some((c) => c.id === doc.colorId) ? doc.colorId : material.colors[0]!.id;
-      // Ett fäste som inte finns på det nya materialet (klämman på metall) byts mot nålen.
-      const mounting = mountingFits(doc.mounting, action.materialId) ? doc.mounting : "pin";
-      const next = { ...doc, materialId: action.materialId, colorId, mounting };
-      // Bara material som skärs ur ark kan ha en egen form; annars tillbaka till ett ämne.
-      return next.shape === "custom" && !material.customShape ? withBlank(next, "rectangle") : next;
+      const next = { ...doc, materialId: action.materialId, colorId };
+      const blank = blankOf(next);
+      // Bara material som skärs ur ark kan ha en egen form, och den långa rektangeln finns bara i plast:
+      // annars tillbaka till rektangeln, som finns på alla material.
+      const leavesShape = (next.shape === "custom" && !material.customShape) || (blank !== null && !blankFits(blank, action.materialId));
+      // Ett fäste som inte går att få på den nya skylten (klämman på metall) byts mot nålen.
+      return withFittingMounting(leavesShape ? withBlank(next, "rectangle") : next);
     }
     case "color":
       return { ...doc, colorId: action.colorId };
     case "blank":
-      return withBlank(doc, action.blankId);
+      // Ett ämne som inte finns på materialet går inte att välja, hur klicket än kom hit.
+      // Formen ändrar måttet: en klämma som inte längre ryms byts mot nålen.
+      return blankFits(getBlank(action.blankId), doc.materialId) ? withFittingMounting(withBlank(doc, action.blankId)) : doc;
     case "custom/preset":
-      return getMaterial(doc.materialId).customShape ? withShapePreset(doc, action.presetId) : doc;
+      return getMaterial(doc.materialId).customShape ? withFittingMounting(withShapePreset(doc, action.presetId)) : doc;
     case "custom/outline":
       return doc.shape === "custom" ? { ...doc, customOutline: action.points } : doc;
     case "custom/size":
-      return resizeCustomShape(doc, action);
+      return withFittingMounting(resizeCustomShape(doc, action));
     case "custom/replace":
       // En fil som lästs klart efter att kunden bytt till metall får inte ge en ogiltig skylt.
       if (!getMaterial(doc.materialId).customShape) return doc;
-      return resizeCustomShape(
-        { ...doc, shape: "custom", size: { widthMm: action.widthMm, heightMm: action.heightMm }, customOutline: action.points },
-        {},
+      return withFittingMounting(
+        resizeCustomShape(
+          { ...doc, shape: "custom", size: { widthMm: action.widthMm, heightMm: action.heightMm }, customOutline: action.points },
+          {},
+        ),
       );
     case "corner":
       return { ...doc, cornerRadiusMm: clamp(action.cornerRadiusMm, 0, CUSTOM_SHAPE_LIMITS.maxCornerRadiusMm) };
@@ -162,6 +180,7 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       return { ...doc, frame: { ...doc.frame, style: action.style } };
     case "logo": {
       // En ny logga får ett förslag på metod: i färg printas den, svartvit följer den namnet. Kunden kan byta sedan.
+      if (action.logo && action.keepMarking && doc.logo) return { ...doc, logo: action.logo };
       if (action.logo) return withLogoMarking({ ...doc, logo: action.logo });
       const rest = { ...doc };
       delete rest.logo;
@@ -170,6 +189,11 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     }
     case "marking":
       return markingFits(action.method, doc) ? withMarking(doc, action.method) : doc;
+    case "logo/engraving":
+      // Svaret kommer i efterhand: gäller bara om samma logga ligger kvar och fortfarande saknar gravyrform.
+      return doc.logo && doc.logo.d === action.d && !doc.logo.engraveD
+        ? { ...doc, logo: { ...doc.logo, engraveD: action.engraveD } }
+        : doc;
     case "logo/original":
       // Svaret kommer i efterhand: har kunden bytt eller tagit bort loggan under tiden gäller det inte längre.
       return doc.logo && doc.logo.d === action.d ? { ...doc, logo: { ...doc.logo, originalId: action.originalId } } : doc;
@@ -189,8 +213,12 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
           }
         : doc;
     case "mounting":
-      // Ett fäste som inte finns på materialet går inte att välja, hur klicket än kom hit.
-      return mountingFits(action.mounting, doc.materialId) ? { ...doc, mounting: action.mounting } : doc;
+      // Ett fäste som inte går att få på skylten går inte att välja, hur klicket än kom hit.
+      return mountingFitsDocument(doc, action.mounting) ? withMounting(doc, action.mounting) : doc;
+    case "clip/orientation":
+      return doc.mounting === "clip" && clipOrientations(doc.size).includes(action.orientation)
+        ? { ...doc, clipOrientation: action.orientation }
+        : doc;
     case "quantity":
       return { ...doc, quantity: clamp(Math.round(action.quantity) || 1, 1, 10_000) };
     case "load":

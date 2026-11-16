@@ -33,6 +33,7 @@ export function FormatSection({ doc, dispatch, tierIndex }: FormatSectionProps) 
     <PanelSection step={5} title="Form" aside={`${widthMm} × ${heightMm} mm`}>
       <BlankPicker
         value={blankOf(doc)?.id ?? null}
+        materialId={doc.materialId}
         onChange={(blankId) => dispatch({ type: "blank", blankId })}
         custom={customChoice}
       />

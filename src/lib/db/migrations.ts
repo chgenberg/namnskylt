@@ -576,6 +576,25 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       create index designer_events_at on designer_events (at desc);
     `,
   },
+  {
+    // Loggan ingår i skylten (besked via ägaren 2026-11-16): dess eget pris i den sparade
+    // prismodellen sätts till 0 kr på varje trappsteg. Ordrar och offerter har sin egen
+    // sparade modell och rörs inte. Priset går att sätta igen i admin.
+    id: "029_price_model_logo_included",
+    sql: `
+      update settings
+         set value = jsonb_set(
+               value,
+               '{options,extraEngraving}',
+               case when jsonb_typeof(value->'options'->'extraEngraving') = 'array'
+                    then (select coalesce(jsonb_agg(0), '[]'::jsonb) from jsonb_array_elements(value->'options'->'extraEngraving'))
+                    else '0'::jsonb
+               end
+             ),
+             updated_at = now()
+       where key = 'price_model' and value->'options' ? 'extraEngraving';
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

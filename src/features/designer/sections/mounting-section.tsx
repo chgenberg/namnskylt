@@ -3,7 +3,20 @@
 import { motion } from "motion/react";
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
-import { OFFERED_MOUNTINGS, getMounting, mountingFits, type BadgeDocument, type MountingId } from "@/engine";
+import { Segmented } from "@/components/ui/segmented";
+import {
+  CLIP_MIN,
+  CLIP_ORIENTATIONS,
+  OFFERED_MOUNTINGS,
+  clipOrientationOf,
+  clipOrientations,
+  getMounting,
+  mountingFits,
+  mountingFitsDocument,
+  type BadgeDocument,
+  type Mounting,
+  type MountingId,
+} from "@/engine";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
@@ -36,6 +49,18 @@ const MOUNTING_ICON: Record<MountingId, React.ReactNode> = {
   "safety-pin": <path d="M3.6 14.4c0-2.4 2.4-2.4 2.4 0s-2.4 2.4-2.4 0zM6 14.4h14.4M18 12.6l2.4 1.8-2.4 1.8" />,
 };
 
+/** Ett mått som hålls ihop på en rad, med hårda mellanslag. */
+const mm = (widthMm: number, heightMm: number) => `${widthMm}\u00a0×\u00a0${heightMm}\u00a0mm`;
+
+/**
+ * Raden under fästet. Klämman finns på plast, men bara på en skylt som är
+ * stor nog: då säger raden vad som krävs och var det måttet finns.
+ */
+function mountingNote(mounting: Mounting, doc: BadgeDocument): string | undefined {
+  if (mounting.id !== "clip" || !mountingFits("clip", doc.materialId) || mountingFitsDocument(doc, "clip")) return mounting.note;
+  return `Kräver minst ${mm(CLIP_MIN.longMm, CLIP_MIN.shortMm)}. Välj Lång rektangel eller Egen form.`;
+}
+
 interface MountingSectionProps {
   doc: BadgeDocument;
   dispatch: Dispatch<DesignerAction>;
@@ -43,16 +68,21 @@ interface MountingSectionProps {
 
 /**
  * Fästets pris står i specifikationen vid antal och pris, inte här: det beror
- * på orderns antal. Ett fäste som inte finns på skyltens material syns ändå,
+ * på orderns antal. Ett fäste som inte går att få på skylten syns ändå,
  * streckat och med en rad om var det finns, så att ingen missar att det finns.
+ * Klämman kräver plast och minst 80 × 25 mm, och kunden väljer själv om den
+ * ska sitta horisontellt eller vertikalt där båda ryms.
  */
 export function MountingSection({ doc, dispatch }: MountingSectionProps) {
+  const orientation = clipOrientationOf(doc);
+  const fitting = clipOrientations(doc.size);
   return (
     <PanelSection step={6} title="Fäste" aside={getMounting(doc.mounting).description}>
       <div className={styles.mountingGrid} role="radiogroup" aria-label="Fäste">
         {OFFERED_MOUNTINGS.map((m) => {
           const active = m.id === doc.mounting;
-          const available = mountingFits(m.id, doc.materialId);
+          const available = mountingFitsDocument(doc, m.id);
+          const note = mountingNote(m, doc);
           return (
             <button
               key={m.id}
@@ -84,11 +114,29 @@ export function MountingSection({ doc, dispatch }: MountingSectionProps) {
                 {MOUNTING_ICON[m.id]}
               </svg>
               <span className={styles.materialName}>{m.name}</span>
-              {m.note && <span className={styles.mountingNote}>{m.note}</span>}
+              {note && <span className={styles.mountingNote}>{note}</span>}
             </button>
           );
         })}
       </div>
+      {orientation && (
+        <div className={styles.labelled}>
+          <span className={styles.sliderLabel}>Klämmans riktning</span>
+          <Segmented
+            label="Klämmans riktning"
+            value={orientation}
+            options={CLIP_ORIENTATIONS.map((option) => ({ id: option.id, label: option.name, disabled: !fitting.includes(option.id) }))}
+            onChange={(next) => dispatch({ type: "clip/orientation", orientation: next })}
+          />
+          {fitting.length < CLIP_ORIENTATIONS.length && (
+            <p className={styles.hint}>
+              {orientation === "horizontal"
+                ? `Vertikalt kräver en skylt på minst ${mm(CLIP_MIN.shortMm, CLIP_MIN.longMm)}.`
+                : `Horisontellt kräver en skylt på minst ${mm(CLIP_MIN.longMm, CLIP_MIN.shortMm)}.`}
+            </p>
+          )}
+        </div>
+      )}
     </PanelSection>
   );
 }

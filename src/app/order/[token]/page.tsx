@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
-import { engravedRows, getColor, getMaterial, getMounting, shapeLabel } from "@/engine";
+import { engravedRows, getColor, getMaterial, mountingLabel, shapeLabel } from "@/engine";
 import { ReorderForm } from "@/features/quote-public/reorder-form";
 import styles from "@/features/quote-public/quote-public.module.css";
 import { companyFooter, readableOn } from "@/lib/company/profile";
@@ -111,7 +111,7 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
                     <div className={styles.lineName}>{text || "Utan text"}</div>
                     <div className={styles.lineSpec}>
                       {getMaterial(badge.materialId).name} · {getColor(badge.materialId, badge.colorId).name} · {shapeLabel(badge)}{" "}
-                      {badge.size.widthMm}×{badge.size.heightMm} mm · {getMounting(badge.mounting).name}
+                      {badge.size.widthMm}×{badge.size.heightMm} mm · {mountingLabel(badge)}
                     </div>
                   </div>
                   <div className={styles.lineAmount}>

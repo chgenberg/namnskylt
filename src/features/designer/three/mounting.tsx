@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from "react";
 import { Path, Shape } from "three";
 import {
   availableHalfWidth,
+  clipOrientationOf,
   fitHardware,
   type BadgeDocument,
   type FontEngine,
@@ -54,16 +55,24 @@ function magnetSize(widthMm: number, heightMm: number): HardwareSize {
   return { longMm: Math.min(widthMm * 0.6, 45), wideMm: Math.min(heightMm * 0.52, 13) };
 }
 
+/** Sant när klämman sitter på höjden. En äldre skylt där klämman inte ryms ritas liggande, som förut. */
+function clipIsVertical(doc: BadgeDocument): boolean {
+  return clipOrientationOf(doc) === "vertical";
+}
+
 /**
- * Klämman är nästan lika lång som skylten. På en oval skylt är skylten smalare
- * där klämmans hörn hamnar, så där kortas klämman till det som ryms. En egen
- * form passas in av `fitHardware` i stället.
+ * Klämman är nästan lika lång som skylten, längs den eller på höjden efter
+ * kundens val. På en oval skylt är skylten smalare där klämmans hörn hamnar,
+ * så där kortas klämman till det som ryms. En egen form passas in av
+ * `fitHardware` i stället, och bara en egen form är hög nog för en stående klämma.
  */
 function clipSize(doc: BadgeDocument): HardwareSize {
-  const { widthMm, heightMm } = doc.size;
+  const vertical = clipIsVertical(doc);
+  const widthMm = vertical ? doc.size.heightMm : doc.size.widthMm;
+  const heightMm = vertical ? doc.size.widthMm : doc.size.heightMm;
   const wideMm = Math.min(heightMm * 0.84, 21);
   const longMm = Math.min(widthMm * 0.92, 72);
-  if (doc.shape === "custom") return { longMm, wideMm };
+  if (doc.shape === "custom" || vertical) return { longMm, wideMm };
   const roomMm = availableHalfWidth(doc, CLIP_EDGE_MM, (heightMm - wideMm) / 2, (heightMm + wideMm) / 2) * 2;
   return { longMm: Math.max(Math.min(longMm, roomMm), wideMm), wideMm };
 }
@@ -86,9 +95,11 @@ function hardwareSize(doc: BadgeDocument): HardwareSize {
 function footprint(doc: BadgeDocument, size: HardwareSize): HardwareFootprint {
   // Nålens skumtejp sticker ut en halv millimeter runt listen.
   const tape = doc.mounting === "pin" ? 1 : 0;
+  // En stående klämma tar sin längd på höjden.
+  const upright = doc.mounting === "clip" && clipIsVertical(doc);
   return {
-    widthMm: size.longMm + tape,
-    heightMm: size.wideMm + tape,
+    widthMm: (upright ? size.wideMm : size.longMm) + tape,
+    heightMm: (upright ? size.longMm : size.wideMm) + tape,
     centerYMm: doc.size.heightMm * (0.5 - HARDWARE_RISE[doc.mounting]),
   };
 }
@@ -123,7 +134,12 @@ export function Mounting({ doc, fonts, widthUnits, heightUnits, backZ }: Mountin
           <group rotation={[0, Math.PI, 0]} scale={mm}>
             {mounting === "pin" && <Pin size={size} />}
             {mounting === "magnet" && <Magnet size={size} fonts={fonts} />}
-            {mounting === "clip" && <Clip size={size} />}
+            {mounting === "clip" && (
+              // Stående klämma: vikningen uppåt, så att läppen öppnar sig nedåt mot fickans kant.
+              <group rotation={[0, 0, clipIsVertical(doc) ? -Math.PI / 2 : 0]}>
+                <Clip size={size} />
+              </group>
+            )}
           </group>
         )}
       </group>

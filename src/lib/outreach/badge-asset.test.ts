@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { writeFile, mkdir } from "node:fs/promises";
 import { describe, test } from "node:test";
 import sharp from "sharp";
-import { BLANKS, badgeDocumentSchema, blankOf, getMaterial, inkMask, isOfferedDocument } from "@/engine";
+import { BLANKS, badgeDocumentSchema, blankFits, blankOf, getMaterial, inkMask, isOfferedDocument } from "@/engine";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import {
   assetIdFromPath,
@@ -55,7 +55,11 @@ describe("skylten för ett lead", () => {
   test("rutorna visar alla fyra former och alla tre ytor, med mejlets skylt först", () => {
     const tiles = tileChoices();
     assert.deepEqual(tiles[0], HERO_CHOICE);
-    assert.deepEqual(new Set(tiles.map((t) => t.blankId)), new Set(BLANKS.map((b) => b.id)));
+    // Alla former som finns i metall: den långa rektangeln finns bara i plast.
+    assert.deepEqual(
+      new Set(tiles.map((t) => t.blankId)),
+      new Set(BLANKS.filter((b) => blankFits(b, HERO_MATERIAL)).map((b) => b.id)),
+    );
     assert.deepEqual(
       new Set(tiles.map((t) => t.colorId)),
       new Set(getMaterial(HERO_MATERIAL).colors.map((c) => c.id)),

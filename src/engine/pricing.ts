@@ -226,7 +226,9 @@ export interface UnitPricePart {
 function listPriceParts(item: PriceItem, tierIndex: number, table: PriceTable): UnitPricePart[] {
   const parts: UnitPricePart[] = [{ part: "sign", sek: table.signs[item.signClass][tierIndex] ?? 0 }];
   if (item.mounting) parts.push({ part: "mounting", sek: mountingPriceSek(item.mounting, table, tierIndex) });
-  if (item.extraEngraving) parts.push({ part: "extraEngraving", sek: optionPriceSek("extraEngraving", table, tierIndex) });
+  // Loggan ingår i skylten när dess pris är 0 kr (ägarens besked 2026-11-16), och har då ingen egen del.
+  const logoSek = item.extraEngraving ? optionPriceSek("extraEngraving", table, tierIndex) : 0;
+  if (logoSek > 0) parts.push({ part: "extraEngraving", sek: logoSek });
   if (item.customShape) parts.push({ part: "customShape", sek: optionPriceSek("customShape", table, tierIndex) });
   // En metod som ingår i skylten har ingen egen del; bara en metod med pris läggs på.
   const markingSek = item.marking ? markingPriceSek(item.marking, table, tierIndex) : 0;

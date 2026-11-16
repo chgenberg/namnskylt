@@ -572,6 +572,34 @@
   white-space: nowrap;
 }
 
+/* Mängdrabatten står sist, skild från delarna ovan: den är en jämförelse, inte en del av priset. */
+.specDiscount {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--color-line);
+}
+
+.specDiscount > p:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.specDiscountValue {
+  color: var(--color-success);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.specDiscountNote {
+  color: var(--color-muted);
+  text-wrap: balance;
+}
+
 /* Låga skärmar och mobil saknar snabbvalen: där står specifikationen bredvid både stegaren och priset. */
 @media (min-width: 901px) and (max-height: 760px), (max-width: 900px) {
   .summary {

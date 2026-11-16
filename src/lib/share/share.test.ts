@@ -101,6 +101,49 @@ describe("delningslänk", () => {
     assert.equal(framed?.logo?.originalId, originalId);
   });
 
+  it("en logga i färg tappar först den av sina två banor som inte ritas, så att skylten ser likadan ut", async () => {
+    const path = (count: number, seed: number) =>
+      `M0 0${Array.from({ length: count }, (_, i) => `L${(i * seed) % 997} ${(i * 104729) % 991}`).join("")}Z`;
+    const logoOf = (count: number) => ({
+      d: path(count, 7919),
+      engraveD: path(count, 6007),
+      viewWidth: 1000,
+      viewHeight: 1000,
+      placement: "left" as const,
+      heightMm: 12,
+      // En bild i skylten, inte på servern: då byts siluetten aldrig mot bildens ruta när loggan printas.
+      image: { src: "data:image/png;base64,AA" },
+    });
+    const base = createBadgeDocument(["Anna"]);
+    const fits = async (doc: BadgeDocument) => (await pack(doc)) <= SHARE_MAX_CHARS;
+    async function pack(doc: BadgeDocument): Promise<number> {
+      const { code, droppedLogo } = await encodeShareCode(doc);
+      return droppedLogo ? Infinity : code.length;
+    }
+    // Leta upp en logga där en bana ryms i länken men inte båda.
+    let logo = logoOf(100);
+    for (let count = 200; count < 4000; count += 100) {
+      const next = logoOf(count);
+      const single: BadgeDocument["logo"] = { ...next };
+      delete single.engraveD;
+      if (!(await fits({ ...base, logo: single, marking: "engrave-name-print-logo" }))) break;
+      logo = next;
+      const both = await decodeShareCode((await encodeShareCode({ ...base, logo: next, marking: "engrave-name-print-logo" })).code);
+      if (both?.logo?.engraveD === undefined) break;
+    }
+    // Printas loggan stryks gravyrformen, och siluetten står kvar.
+    const printed = await decodeShareCode((await encodeShareCode({ ...base, logo, marking: "engrave-name-print-logo" })).code);
+    assert.equal(printed?.logo?.d, logo.d);
+    assert.equal(printed?.logo?.engraveD, undefined);
+    // Graveras den står gravyrformen kvar, och siluetten blir loggans ruta.
+    const engraved = await decodeShareCode((await encodeShareCode({ ...base, logo, marking: "engrave" })).code);
+    assert.equal(engraved?.logo?.engraveD, logo.engraveD);
+    assert.equal(engraved?.logo?.d, "M0 0L1000 0L1000 1000L0 1000Z");
+    // En kort logga behåller båda.
+    const short = { ...logo, d: "M0 0L10 0L10 10Z", engraveD: "M0 0L10 0L5 5Z" };
+    assert.deepEqual((await decodeShareCode((await encodeShareCode({ ...base, logo: short, marking: "engrave" })).code))?.logo, short);
+  });
+
   it("hänvisningen till originalfilen stryks först när länken blir för lång, och loggan står kvar", async () => {
     // Slumpartat id, som en riktig SHA-256: det går inte att komprimera.
     const originalId = randomBytes(32).toString("hex");

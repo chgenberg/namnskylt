@@ -20,6 +20,58 @@ interface ShapeDescribeProps {
   resetKey: number;
 }
 
+interface DrawingDialogProps {
+  description: string;
+  onCancel: () => void;
+}
+
+/**
+ * Rutan som ligger över sidan medan formen ritas. Ritningen tar tio sekunder
+ * eller mer, och utan en tydlig väntruta ser det ut som att inget händer
+ * (besked via ägaren 2026-11-16). Stapeln visar ungefär hur långt det har gått:
+ * den följer tiden, inte servern, och går därför aldrig ända fram.
+ */
+function DrawingDialog({ description, onCancel }: DrawingDialogProps) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    return () => dialog?.close();
+  }, []);
+
+  return (
+    <dialog
+      ref={ref}
+      className={styles.drawing}
+      aria-labelledby={titleId}
+      onCancel={(event) => {
+        // Esc avbryter ritningen, i stället för att bara stänga rutan medan anropet går vidare.
+        event.preventDefault();
+        onCancel();
+      }}
+    >
+      <svg className={styles.drawingMark} viewBox="0 0 64 64" aria-hidden="true">
+        <path pathLength={1} d="M32 7 53 15v19c0 12-9 20-21 24C20 54 11 46 11 34V15Z" />
+      </svg>
+      <h3 id={titleId} className={styles.drawingTitle}>
+        Vi ritar din form
+      </h3>
+      <p className={styles.drawingWhat}>”{description}”</p>
+      <div className={styles.drawingBar} aria-hidden="true">
+        <span />
+      </div>
+      <p className={styles.note} role="status">
+        Det tar oftast tio till femton sekunder, som längst en halv minut. Sedan justerar du formen genom att dra i punkterna.
+      </p>
+      <button type="button" className="btn btn--ghost" onClick={onCancel}>
+        Avbryt
+      </button>
+    </dialog>
+  );
+}
+
 /**
  * Kunden beskriver formen med ord, och servern ritar en siluett som blir
  * skyltens egna form, på samma sätt som en uppladdad bild. Rutan visas bara
@@ -31,6 +83,8 @@ export function ShapeDescribe({ onOutline, resetKey }: ShapeDescribeProps) {
   const [text, setText] = useState("");
   /** Läget hör till den form det gällde: byts formen på annat håll (`resetKey`) är läget inte längre aktuellt. */
   const [stored, setStored] = useState({ at: resetKey, status: IDLE });
+  /** Beskrivningen som ritas just nu, som väntrutan visar. */
+  const [drawing, setDrawing] = useState("");
   const status = stored.at === resetKey ? stored.status : IDLE;
   const working = status.kind === "working";
   const request = useRef<AbortController | null>(null);
@@ -59,6 +113,7 @@ export function ShapeDescribe({ onOutline, resetKey }: ShapeDescribeProps) {
     }
     const controller = new AbortController();
     request.current = controller;
+    setDrawing(description);
     setStored({ at: resetKey, status: { kind: "working" } });
     const result = await drawDescribedShape(description, controller.signal).catch(() => null);
     if (controller.signal.aborted) return;
@@ -71,8 +126,14 @@ export function ShapeDescribe({ onOutline, resetKey }: ShapeDescribeProps) {
     setStored({ at: resetKey, status: { kind: "done" } });
   };
 
+  const cancel = () => {
+    request.current?.abort();
+    setStored({ at: resetKey, status: IDLE });
+  };
+
   return (
     <div className={styles.describe} aria-busy={working}>
+      {working && <DrawingDialog description={drawing} onCancel={cancel} />}
       <label htmlFor={inputId} className={styles.uploadTitle}>
         Beskriv formen
       </label>
@@ -103,11 +164,6 @@ export function ShapeDescribe({ onOutline, resetKey }: ShapeDescribeProps) {
       {status.kind === "idle" && (
         <p className={styles.note}>
           Vi ritar en form som liknar det du beskriver och passar som namnskylt. Sedan justerar du den genom att dra i punkterna.
-        </p>
-      )}
-      {working && (
-        <p className={styles.uploadStatus} role="status">
-          Vi ritar formen. Det kan ta upp till en halv minut.
         </p>
       )}
       {status.kind === "error" && (

@@ -7,6 +7,8 @@ export interface SegmentedOption<T extends string> {
   id: T;
   label: ReactNode;
   title?: string;
+  /** Valet syns men går inte att välja, till exempel en riktning som inte ryms. */
+  disabled?: boolean;
 }
 
 interface SegmentedProps<T extends string> {
@@ -27,6 +29,7 @@ export function Segmented<T extends string>({ label, value, options, onChange }:
             key={option.id}
             type="button"
             title={option.title}
+            disabled={option.disabled}
             aria-pressed={active}
             onClick={() => onChange(option.id)}
           >

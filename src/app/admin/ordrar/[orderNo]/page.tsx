@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
-import { engravedRows, getColor, getMaterial, getMounting, shapeLabel } from "@/engine";
+import { engravedRows, getColor, getMaterial, mountingLabel, shapeLabel } from "@/engine";
 import { shippingMethodOf } from "@/lib/orders/delivery";
 import { staffOrderAction, updateOrderPricingAction } from "@/features/admin/actions";
 import { PricingEditor } from "@/features/admin/pricing-editor";
@@ -180,7 +180,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
                   </dd>
                   <dt>Form och fäste</dt>
                   <dd>
-                    {shapeLabel(template)} · {getMounting(template.mounting).name}
+                    {shapeLabel(template)} · {mountingLabel(template)}
                   </dd>
                 </>
               )}

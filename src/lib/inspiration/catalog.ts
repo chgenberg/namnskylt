@@ -3,7 +3,7 @@ import {
   badgeDocumentSchema,
   getColor,
   getMaterial,
-  getMounting,
+  mountingLabel,
   type BadgeDocument,
 } from "@/engine";
 import rawBadges from "./badges.json";
@@ -41,7 +41,7 @@ function specs(doc: BadgeDocument): string[] {
     `${material.name}, ${material.thicknessMm} mm`,
     `${color.name}`,
     `${shapeLabel(doc)} · ${doc.size.widthMm} × ${doc.size.heightMm} mm`,
-    `Fäste: ${getMounting(doc.mounting).name}`,
+    `Fäste: ${mountingLabel(doc)}`,
   ];
 }
 

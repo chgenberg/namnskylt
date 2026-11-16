@@ -99,7 +99,7 @@ export function personaBadgeName(contactName: string | null): string | null {
   return firstNameOf(engravedName(contactName));
 }
 
-/** Rutorna på landningssidan: alla fyra former och alla tre ytor. Den första är mejlets skylt. */
+/** Rutorna på landningssidan: metallens alla fyra former och alla tre ytor. Den första är mejlets skylt. */
 export function tileChoices(): BadgeChoice[] {
   return [
     HERO_CHOICE,

@@ -284,13 +284,14 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
 
   const update = useCallback((action: DesignerAction) => {
     dispatch(action);
-    // Kommer i bakgrunden när loggans originalfil har sparats: kunden har inte ändrat något.
-    if (action.type === "logo/original") return;
+    // Kommer i bakgrunden när loggans originalfil har sparats eller gravyrformen har räknats: kunden har inte ändrat något.
+    if (action.type === "logo/original" || action.type === "logo/engraving") return;
     if (isChoice(action)) track("choice");
     // En ny skylt räknas in i ordern så fort den ändras.
     setPending(false);
     if (action.type === "quantity") return;
-    const side = action.type === "mounting" ? "back" : photo ? "hero" : "front";
+    // Fästet sitter på baksidan: skylten vänds när fästet eller klämmans riktning väljs.
+    const side = action.type === "mounting" || action.type === "clip/orientation" ? "back" : photo ? "hero" : "front";
     setFocus({ side, key: performance.now() });
   }, [photo, track]);
 
@@ -612,8 +613,9 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
             onPlace={() => setView("drawing")}
             placing={view === "drawing"}
           />
-          <LogoSection doc={doc} dispatch={update} onWorkplace={visualize.setWorkplace} />
+          {/* Metoden väljs före loggan (besked via ägaren 2026-11-16): den avgör hur loggan sedan märks. */}
           <MarkingSection doc={doc} dispatch={update} tierIndex={tierIndex} />
+          <LogoSection doc={doc} dispatch={update} onWorkplace={visualize.setWorkplace} />
           <MaterialSection doc={doc} dispatch={update} />
           <FormatSection doc={doc} dispatch={update} tierIndex={tierIndex} />
           <MountingSection doc={doc} dispatch={update} />

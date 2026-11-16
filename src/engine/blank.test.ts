@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { BLANKS, MATERIALS, OFFERED_MATERIALS, SIZE_LIMITS, getMaterial } from "./catalog";
+import { BLANKS, MATERIALS, OFFERED_MATERIALS, SIZE_LIMITS, blankFits, getMaterial } from "./catalog";
 import { blankOf, createBadgeDocument, isOfferedDocument, shapeLabel, toOfferedDocument, withBlank } from "./document";
 import { approxFonts } from "./measure";
 import { layoutBadge } from "./layout";
@@ -57,10 +57,10 @@ describe("sortimentet", () => {
 });
 
 describe("ämnen", () => {
-  it("är fyra, ryms inom måttgränserna och ger giltiga dokument med plats för text", () => {
+  it("är fem, ryms inom måttgränserna och ger giltiga dokument med plats för text", () => {
     assert.deepEqual(
       BLANKS.map((b) => b.id),
-      ["rectangle", "oval", "rectangle-large", "cushion"],
+      ["rectangle", "oval", "rectangle-large", "cushion", "rectangle-long"],
     );
     for (const blank of BLANKS) {
       assert.ok(blank.widthMm >= SIZE_LIMITS.minWidthMm && blank.widthMm <= SIZE_LIMITS.maxWidthMm, blank.id);
@@ -187,12 +187,28 @@ describe("toOfferedDocument", () => {
 
 describe("isOfferedDocument", () => {
   it("godkänner varje ämne i varje yta", () => {
-    for (const blank of BLANKS) {
+    for (const blank of BLANKS.filter((b) => blankFits(b, "metal"))) {
       for (const color of getMaterial("metal").colors) {
         const doc = withBlank({ ...createBadgeDocument(["Anna"]), colorId: color.id }, blank.id);
         assert.equal(isOfferedDocument(doc), true, `${blank.id}/${color.id}`);
       }
     }
+  });
+
+  it("har den långa rektangeln på 80 × 25 mm bara i plast", () => {
+    assert.deepEqual(
+      BLANKS.filter((b) => !blankFits(b, "metal")).map((b) => [b.id, b.widthMm, b.heightMm]),
+      [["rectangle-long", 80, 25]],
+    );
+    assert.ok(BLANKS.every((b) => blankFits(b, "plastic")));
+    const metal = withBlank(createBadgeDocument(["Anna"]), "rectangle-long");
+    const plastic: BadgeDocument = { ...metal, materialId: "plastic", colorId: "white-black" };
+    assert.equal(getMaterial(metal.materialId).finish === "plastic", false);
+    assert.equal(isOfferedDocument(metal), false);
+    assert.equal(isOfferedDocument(plastic), true);
+    // En metallskylt i det måttet flyttas till rektangeln, som finns i metall.
+    assert.equal(blankOf(toOfferedDocument(metal))?.id, "rectangle");
+    assert.equal(toOfferedDocument(plastic), plastic);
   });
 
   it("stoppar säkerhetsnålen, som inte säljs längre, och byter den mot nål när skylten öppnas", () => {

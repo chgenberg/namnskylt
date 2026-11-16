@@ -139,7 +139,12 @@ export function OnboardingDialog({ doc, fonts, dispatch, tierIndex, onClose }: O
             <h3 id="onboarding-shape" className={styles.groupTitle}>
               Form
             </h3>
-            <BlankPicker value={blank?.id ?? null} onChange={(blankId) => dispatch({ type: "blank", blankId })} custom={customChoice} />
+            <BlankPicker
+              value={blank?.id ?? null}
+              materialId={doc.materialId}
+              onChange={(blankId) => dispatch({ type: "blank", blankId })}
+              custom={customChoice}
+            />
             {doc.shape === "custom" && (
               <p className={styles.note}>
                 Formen på bilden är ett förslag. Du väljer exakt form i nästa steg: ett annat förslag, en egen ritning eller en

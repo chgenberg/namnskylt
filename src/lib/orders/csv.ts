@@ -1,4 +1,4 @@
-import { engravedRows, getColor, getMaterial, getMounting } from "@/engine";
+import { engravedRows, getColor, getMaterial, mountingLabel } from "@/engine";
 import { paymentLabel } from "@/lib/payments/model";
 import { badgeCount, ORDER_STATUS_LABEL, type StoredOrder } from "./model";
 import { priceWithPricing } from "./pricing";
@@ -56,7 +56,7 @@ export function invoiceCsv(orders: readonly StoredOrder[]): string {
           .map((row) => row.text.trim())
           .filter(Boolean)
           .join(" / ");
-        const article = `${getMaterial(badge.materialId).name} ${getColor(badge.materialId, badge.colorId).name}, ${badge.size.widthMm}×${badge.size.heightMm} mm, ${getMounting(badge.mounting).name}`;
+        const article = `${getMaterial(badge.materialId).name} ${getColor(badge.materialId, badge.colorId).name}, ${badge.size.widthMm}×${badge.size.heightMm} mm, ${mountingLabel(badge)}`;
         return [
           o.orderNo,
           date(o.placedAt),

@@ -1,6 +1,7 @@
 import type {
   BadgeShape,
   BlankId,
+  ClipOrientation,
   FontId,
   FrameStyle,
   LogoPlacement,
@@ -327,6 +328,8 @@ export interface BadgeBlank {
   heightMm: Mm;
   /** Gäller bara `shape === "rounded"`. */
   cornerRadiusMm: Mm;
+  /** Ämnet finns bara på material med de här ytorna. Utelämnat = alla material. */
+  finishes?: readonly MaterialFinish[];
 }
 
 /**
@@ -338,7 +341,15 @@ export const BLANKS: readonly BadgeBlank[] = [
   { id: "oval", name: "Oval", shape: "oval", widthMm: 70, heightMm: 40, cornerRadiusMm: 0 },
   { id: "rectangle-large", name: "Stor rektangel", shape: "rounded", widthMm: 75, heightMm: 45, cornerRadiusMm: 4 },
   { id: "cushion", name: "Kudde", shape: "cushion", widthMm: 75, heightMm: 35, cornerRadiusMm: 0 },
+  // Plastens format för klämman, som kräver minst 80 × 25 mm (beslut av ägaren 2026-11-16).
+  // Bara plast: metallens ämnen är färdiga och finns inte i det måttet.
+  { id: "rectangle-long", name: "Lång rektangel", shape: "rounded", widthMm: 80, heightMm: 25, cornerRadiusMm: 3, finishes: ["plastic"] },
 ];
+
+/** Sant när ämnet finns på materialet. De flesta finns på alla; den långa rektangeln bara på plast. */
+export function blankFits(blank: BadgeBlank, materialId: MaterialId): boolean {
+  return !blank.finishes || blank.finishes.includes(getMaterial(materialId).finish);
+}
 
 export const SIZE_LIMITS = {
   minWidthMm: 40,
@@ -420,14 +431,15 @@ export interface Mounting {
 export const MOUNTINGS: readonly Mounting[] = [
   { id: "pin", name: "Nål", description: "Klassisk nål med lås. Säker på kavaj och skjorta.", offered: true },
   { id: "magnet", name: "Magnet", description: "Inga hål i plagget. Stark neodymmagnet.", offered: true },
-  // Klämman finns bara på plastskyltar (besked via ägaren 2026-11-16). Måttet står i raden; inga ämnen har ändrats för det.
+  // Klämman finns bara på plastskyltar, och bara på en skylt som är stor nog (`clipOrientations`).
   {
     id: "clip",
     name: "Klämma",
     description: "Fäst på ficka, bälte eller band.",
     offered: true,
     finishes: ["plastic"],
-    note: "Endast för plastskyltar 80 × 25 mm",
+    // Hårda mellanslag håller ihop måttet på en rad i det smala kortet.
+    note: "Endast för plastskyltar på minst 80\u00a0×\u00a025\u00a0mm",
   },
   // Säljs inte längre; finns kvar så att äldre ordrar går att rita.
   { id: "safety-pin", name: "Säkerhetsnål", description: "Enkel och billig — för event och mässor.", offered: false },
@@ -462,8 +474,31 @@ export function getMounting(id: MountingId): Mounting {
   return MOUNTINGS.find((m) => m.id === id) ?? MOUNTINGS[0]!;
 }
 
-/** Sant när fästet går att få på materialet. De flesta fästen finns på alla; klämman bara på plast. */
+/**
+ * Sant när fästet går att få på materialet. De flesta fästen finns på alla;
+ * klämman bara på plast. Måttet prövas för sig: se `mountingFitsDocument`.
+ */
 export function mountingFits(mountingId: MountingId, materialId: MaterialId): boolean {
   const { finishes } = getMounting(mountingId);
   return !finishes || finishes.includes(getMaterial(materialId).finish);
+}
+
+/**
+ * Klämmans minsta skylt (beslut av ägaren 2026-11-16): 80 × 25 mm när klämman
+ * ligger längs skylten, 25 × 80 mm när den sitter på höjden. Gäller alla
+ * former, även egen form, och räknas på skyltens mått.
+ */
+export const CLIP_MIN = { longMm: 80, shortMm: 25 } as const;
+
+export const CLIP_ORIENTATIONS: readonly { id: ClipOrientation; name: string }[] = [
+  { id: "horizontal", name: "Horisontellt" },
+  { id: "vertical", name: "Vertikalt" },
+];
+
+/** Riktningarna klämman kan sitta i på en skylt med det här måttet. Tom lista = klämman ryms inte. */
+export function clipOrientations(size: { widthMm: Mm; heightMm: Mm }): ClipOrientation[] {
+  const fits = (longMm: Mm, shortMm: Mm) => longMm >= CLIP_MIN.longMm && shortMm >= CLIP_MIN.shortMm;
+  return CLIP_ORIENTATIONS.map((o) => o.id).filter((id) =>
+    id === "horizontal" ? fits(size.widthMm, size.heightMm) : fits(size.heightMm, size.widthMm),
+  );
 }

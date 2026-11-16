@@ -140,6 +140,24 @@ describe("bilderna i anropet", () => {
     assert.deepEqual(Object.values(request.images), [PNG]);
   });
 
+  it("miniatyren visar gravyrformen när en logga i färg graveras, och siluetten när en svartvit printas", () => {
+    const form = "M0 0L10 0L10 10L0 10ZM3 3L7 3L7 7L3 7Z";
+    const drawn: string[] = [];
+    const logoPng = (logo: BadgeLogo) => {
+      drawn.push(logo.d);
+      return PNG;
+    };
+    const colour: BadgeLogo = { ...LOGO, engraveD: form, image: { src: PNG } };
+    buildSupplierRequest(input([{ ...named("Anna Lind"), logo: colour, marking: "engrave" }], { logoPng }));
+    assert.deepEqual(drawn, [form]);
+    // En logga i färg som printas skickas som sin bild och behöver ingen miniatyr.
+    buildSupplierRequest(input([{ ...named("Anna Lind"), logo: colour, marking: "engrave-name-print-logo" }], { logoPng }));
+    assert.deepEqual(drawn, [form]);
+    // En svartvit logga som printas ritas ur sina egna banor.
+    buildSupplierRequest(input([{ ...named("Anna Lind"), logo: LOGO, marking: "print" }], { logoPng }));
+    assert.deepEqual(drawn, [form, LOGO.d]);
+  });
+
   it("en skylt utan logga ger inga bilder", () => {
     assert.deepEqual(buildSupplierRequest(input([named("Anna Lind")])).images, {});
   });

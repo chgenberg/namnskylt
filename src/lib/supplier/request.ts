@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   layoutBadge,
+  logoEngravingPath,
   logoMarking,
   renderBadgeSvg,
   resellerOrder,
@@ -116,7 +117,11 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
     if (!workshop.includes(badge)) return [];
     const document = toSupplierSignDocument(badge, input.fonts, {
       // En logga i färg som printas skickas som sin egen bild; alla andra behöver en svartvit miniatyr.
-      logoPng: badge.logo && !(badge.logo.image && logoMarking(badge) === "print") ? input.logoPng?.(badge.logo) : undefined,
+      // Miniatyren visar det som märks: gravyrformen när loggan graveras, annars loggans banor.
+      logoPng:
+        badge.logo && !(badge.logo.image && logoMarking(badge) === "print")
+          ? input.logoPng?.(logoMarking(badge) === "engrave" ? { ...badge.logo, d: logoEngravingPath(badge.logo) } : badge.logo)
+          : undefined,
     });
     return [
       {

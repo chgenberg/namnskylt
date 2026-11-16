@@ -54,7 +54,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1002 tester, grönt 2026-11-16).
+# Kvalitetsgrinden. Kör den innan något lämnas (1039 tester, grönt 2026-11-16).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -128,8 +128,12 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       (`toOfferedDocument`), eftersom id:na är desamma.
     - När kunden hämtar sin logga från hemsidan väljs den kombination som ligger närmast
       varumärkets färg (`matchColorCombo`), och den har nu fler att välja bland.
-- **Ämnen:** `BLANKS` har fyra färdiga former med fast mått: rektangel, oval, stor rektangel
-  och kudde (formen `cushion`, en superellips). De gäller både metall och plast.
+- **Ämnen:** `BLANKS` har fyra färdiga former med fast mått som gäller både metall och plast:
+  rektangel, oval, stor rektangel och kudde (formen `cushion`, en superellips). Plasten har
+  dessutom **Lång rektangel, 80 × 25 mm** (`rectangle-long`, beslut av ägaren 2026-11-16), som är
+  klämmans format. Ett ämne kan vara bundet till vissa material (`BadgeBlank.finishes`,
+  `blankFits`): formväljaren visar bara ämnen som finns på materialet, och byter kunden till
+  metall med den långa rektangeln vald blir skylten rektangeln på 75 × 25 mm.
 - **Egen form** (bara plast, tillägg i prismodellen): `shape: "custom"` med `customOutline`,
   hörnpunkter i mm inom måttet, högst 120 × 120 mm och 64 punkter, rundade med `cornerRadiusMm`.
   - Geometrin ligger i `src/engine/custom-outline.ts`: kontroller (självkorsning, kortaste kant,
@@ -157,6 +161,10 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     - Rutan visas bara när `GET /api/custom-shape/draw` svarar `available: true`, alltså med
       `OPENAI_API_KEY` satt. Kundens beskrivning rensas, citeras som data i uppdraget och
       loggas aldrig.
+    - **Medan formen ritas ligger en väntruta över sidan** (besked via ägaren 2026-11-16,
+      `DrawingDialog` i `shape-describe.tsx`): en modal `dialog` med beskrivningen, en stapel
+      som följer tiden (inte servern) och knappen Avbryt. Avbryt och Esc avbryter anropet, och
+      formen som låg där står kvar. Försöket räknas ändå mot gränsen.
     - Provat 2026-11-16 med fem riktiga anrop (häst, lastbil, cykel, sittande hund): 9–10
       sekunder per bild. Djupa inbuktningar blir kvar och rättas genom att dra i punkterna.
   - PDF läses med `pdfjs-dist`, låst till `~5.4.624` eftersom nyare kräver Node 22. Bara första
@@ -164,14 +172,29 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Kända brister: bara provat i Chrome; en ritad form försvinner om kunden väljer ett ämne och
     sedan "Egen form" igen.
 - **Fästen** (2026-11-16): nål, magnet och klämma (`MOUNTINGS` i `catalog.ts`).
-  - **Klämman finns bara på plastskyltar** (besked via ägaren 2026-11-16, `mountingFits`,
-    `Mounting.finishes`). Under Klämma står alltid "Endast för plastskyltar 80 × 25 mm"
-    (`Mounting.note`). På metall syns den streckad och går inte att välja, som Egen form. På
-    plast går den att välja på alla former: måttet står bara i texten, och inga ämnen har
-    ändrats för det (beslut av ägaren).
-  - Byter kunden till metall med klämma vald blir fästet nål (`designerReducer`). En
-    metallskylt med klämma är inte i sortimentet (`isOfferedDocument`), så en äldre order
-    med den går inte att beställa igen, och `toOfferedDocument` ger den nål.
+  - **Klämman finns bara på plastskyltar som är stora nog** (beslut av ägaren 2026-11-16):
+    skylten ska vara minst 80 × 25 mm när klämman sitter horisontellt, eller minst 25 × 80 mm
+    när den sitter vertikalt (`CLIP_MIN`, `clipOrientations`). Regeln gäller alla former, även
+    egen form, och räknas på skyltens mått. `mountingFits` prövar materialet och
+    `mountingFitsDocument` hela skylten; använd den senare överallt där en skylt finns.
+    - De fyra vanliga formaten är kortare än 80 mm och kan alltså inte få klämma. Den går att
+      välja på Lång rektangel och på en egen form som är stor nog.
+    - I väljaren syns klämman alltid. Går den inte att välja är den streckad, med raden "Endast
+      för plastskyltar på minst 80 × 25 mm" på metall och "Kräver minst 80 × 25 mm. Välj Lång
+      rektangel eller Egen form." på en för liten plastskylt (`mountingNote` i
+      `mounting-section.tsx`).
+    - **Kunden väljer riktning** under fästena när klämman är vald: Horisontellt eller
+      Vertikalt (`BadgeDocument.clipOrientation`, åtgärden `clip/orientation`). En riktning som
+      inte ryms går inte att välja. Läs alltid med `clipOrientationOf`, som ger den som ryms när
+      fältet saknas eller inte ryms. Stående klämma ritas med vikningen uppåt i 3D.
+    - Riktningen står i fästets namn överallt där kund och verkstad läser det (`mountingLabel`:
+      "Klämma, vertikalt"): specifikationen, ordersidor, offert, korrektur, fakturaunderlag,
+      Tillverkning och verkstadens underlag.
+    - Ändras materialet, formen eller måttet så att klämman inte ryms blir fästet nål, och en
+      riktning som inte ryms släpps (`withFittingMounting` i `designerReducer`).
+    - En skylt med klämma som inte ryms är inte i sortimentet (`isOfferedDocument`): en äldre
+      order med klämma på 75 × 25 mm går inte att beställa igen, `toOfferedDocument` ger den
+      nål, och ett sparat arbete i webbläsaren med en sådan skylt kastas.
   - **Ikonerna i panelen** är förenklade teckningar efter ägarens förlagor: nålen med spets
     och ögla, hästskomagneten med sina poler och klämman med flik och öppning
     (`mounting-section.tsx`).
@@ -212,12 +235,38 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     läge, så ett printat namn sägs bara i klartext i `productionNote`. Det är en lucka i
     kontraktet: tills deras format har fältet graverar de namnet.
   - En logga i färg som graveras behåller sina banor i en delad länk; ryms de inte tappas loggan.
-  - Sektionerna i panelen är numrerade om: Märkningsmetod 03, Material 04, Form 05, Fäste 06,
-    Fler namn 07 och Varukorg 08.
+  - Sektionen ligger som nummer 02 i panelen, före Logga & varumärke (03), eftersom metoden
+    avgör hur loggan sedan märks (besked via ägaren 2026-11-16). Därefter Material 04, Form 05,
+    Fäste 06, Fler namn 07 och Varukorg 08.
   - Preliminärt: att verkstaden printar text, och i vilken färg. Printat namn visas i gravyrens färg.
   - Kända brister: produktionsfilen saknar det som printas och ingen tryckfil för namnet skapas.
     Gravyranimationen sveper inte över det som printas. Fotoläget, korrekturet, offertens PDF
     och delningsbilden är inte öppnade i webbläsaren med ett printat namn.
+- **Gravyrformen av en logga i färg** (besked via ägaren 2026-11-16, som fick en svart klump när
+  en färglogga graverades): en logga i färg bär två banor i samma ruta. `d` är siluetten, som
+  trycket, 3D-ytan och arkvyn följer. `engraveD` är det som fräses när loggan graveras, med
+  detaljerna kvar. Läs alltid med `logoEngravingPath`; utan fältet graveras siluetten, som på
+  äldre skyltar. `layoutBadge` väljer rätt bana (`placeLogo`), så ritning, 3D, produktionsfil och
+  verkstadens underlag följer med.
+  - Reglerna ligger i `src/engine/logo-engrave.ts` och är vanlig bildbehandling, ingen AI:
+    bläck är det som syns och är mörkt eller färgstarkt nog, ljusa ytor intill bläck blir
+    urtag, vitt som står för sig självt graveras, och en detalj i annan färg som ligger
+    innesluten i en fylld form blir urtag. Detaljer letas tre pixlar innanför kanten, så att
+    kantens blandfärger i en JPG inte tas för en platta.
+  - Blir gravyrformen i praktiken hela siluetten, eller loggan för ljus för att delas, sparas
+    ingen `engraveD`.
+  - Gravyrformen räknas i webbläsaren varje gång en logga läggs in (`colorTrace` i
+    `trace-image.ts`). En logga som saknar den får den i bakgrunden när den graveras
+    (`useLogoEngraving`, åtgärden `logo/engraving`).
+  - "Invertera" finns för allt utom en logga som printas i färg. På en logga i färg vänder den
+    bläck och urtag inom siluetten. Samma fil i ny form behåller vald märkningsmetod
+    (`keepMarking`).
+  - I en delad länk stryks först den bana som inte ritas: gravyrformen när loggan printas,
+    siluetten (byts mot rutan) när den graveras.
+  - En vit botten i en JPG tas bort redan i `colorLogo`, även inuti loggan, så sådana loggor
+    hade urtagen förut. Gravyrformen gör skillnad för frilagda PNG och SVG.
+  - Kända brister: inverterad tappar delar som står för sig själva, en radiell toning kan få
+    ett hål i mitten, och loggor som spåras på servern (utskicket) får ingen gravyrform.
 - **Loggan** graveras eller trycks. När filen laddas upp eller hämtas från hemsidan får den ett
   förslag (beslut av ägaren 2026-11-13, gäller både metall och plast), och kunden kan sedan byta
   under Märkningsmetod (2026-11-16, se ovan):
@@ -253,7 +302,7 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - En delad länk behåller en logga i färg som ligger på servern. Är siluetten för lång för länken
     byts den mot bildens ruta (`encodeShareCode`); en graverad logga med mycket detaljer tappas
     fortfarande ur länken.
-  - Priset är samma som för en graverad logga ("extra gravyr eller print").
+  - Loggan kostar inget eget, varken graverad eller tryckt (se Prismodellen).
   - **Originalfilen sparas** (2026-11-15, migrering 024, tabellen `logo_originals`). Skyltmotorn
     laddar upp filen kunden valde (SVG, PNG, JPEG, WebP, GIF eller PDF, högst 10 MB) i bakgrunden
     till `POST /api/logo-originals`, som läser typen ur innehållet och sparar filen under sin
@@ -292,7 +341,7 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   (`isOfferedDocument`, `allOffered` i `src/lib/orders/model.ts`). Spärren sitter i de tre
   API-vägarna, i "Beställ igen", ny personal, mallar och offertgodkännande, och sist i
   `placeOrder`. En äldre order går alltså inte att upprepa utan att skylten görs om.
-- **Pris:** se avsnittet Prismodellen. Alla fyra ämnen kostar lika.
+- **Pris:** se avsnittet Prismodellen. Alla ämnen kostar lika, även Lång rektangel.
 - **Verkstaden:** metallskylten har `precut: true` och produktionsmetoden `blank`. Ämnena läggs
   med gods emellan och bara skyltens text graveras. Ämnets kant och rubrikerna är hjälplinjer
   (`guide`) som syns på skärm och korrektur men aldrig skrivs till maskinfilerna.
@@ -337,6 +386,9 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   tabeller: trappsteg och provision, skyltar, tillbehör och tillval. Under varje pris står
   Skylt & Gravyrs netto, provisionen och slutkundens pris per trappsteg. "Vid order" är en
   kalkyl med summor och en specifikation per skylt. Mats på Skylt & Gravyrteknik använder sidan.
+  - Högst upp ligger snabblänkar till varje kort (`SECTIONS` i `price-model-editor.tsx`,
+    2026-11-16), eftersom sidan är lång och kortet Märkningsmetod ligger mitt på den. Varje
+    kort går också att länka till, till exempel `/admin/prismodell#price-model-marking`.
   - Fälten är textfält (`number-field.tsx`), så att decimaler går att skriva med komma eller punkt.
   - Under ett pris står två belopp när provisionen skiljer inom trappsteget: stegets första och
     sista antal (`provisionPercentRange`). Raden "På hela ordern" visar samma sak i procent.
@@ -429,13 +481,19 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
     bara med beloppet, och frågan har en gräns per klient.
 - **Trappsteg** på orderns totala antal: 1–100, 101–300, 301–500 och 501 eller fler.
 - **Per skylt:** skylttypens pris (Premium = metall, Standard = plast, `priceClass` i katalogen),
-  ett fäste (nål, klämma eller magnet), loggan som "extra gravyr" och skyltens del av
-  startkostnaden. Textrader och ram ingår. Slutkundens delar avrundas var för sig till hela kronor.
+  ett fäste (nål, klämma eller magnet), märkningsmetoden när den har ett pris och skyltens del av
+  startkostnaden. Textrader, ram och logga ingår. Slutkundens delar avrundas var för sig till hela
+  kronor.
 - **Skyltmotorn visar inget pris på fästena**, eftersom priset beror på orderns antal. I stället
   står en specifikation per skylt bredvid antal och pris (`order-section.tsx`): skylten (med
   startkostnaden i), fästet, loggan och egen form, som summerar till priset per skylt
   (`badgePriceParts` i motorn, `shopPriceParts` med butikens påslag, `withStartInSign`).
   "Egen form" visar fortfarande sitt tillägg i formväljaren. Materialen visar inget pris.
+- **Mängdrabatten står sist i specifikationen** (besked via ägaren 2026-11-16): från två skyltar
+  visas "Mängdrabatt −X %" och raden "N kr lägre per skylt än vid 1 st (M kr)". Jämförelsen är
+  vad samma skylt hade kostat ensam i ordern (`shopPriceParts(doc, 1, …)`), alltså både
+  startkostnadens del och trappsteget, med butikens påslag. Raden är en jämförelse och ingen
+  del av priset: delarna ovanför summerar fortfarande till priset per skylt.
 - **Fästen och tillval har ett pris per trappsteg**, precis som skyltarna (`PriceOptions` är
   `Record<PriceOptionId, number[]>`; läs med `optionPriceSek` och `mountingPriceSek` och ange
   trappsteget). I kalkylen är priset samma på alla trappsteg.
@@ -443,7 +501,12 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   `markingEngraveNamePrintLogo` och `markingPrintNameEngraveLogo`, ett pris per trappsteg som
   övriga tillval (`MARKING_OPTION`, `markingPriceSek`). Alla står på 0 kr tills ägaren sätter
   priser i `/admin/prismodell`, kortet "Märkningsmetod" (beslut av ägaren). Med 0 kr visas metoden
-  som "Ingår", annars "+X kr". Dagens logotillägg (`extraEngraving`) är orört och gäller som förut.
+  som "Ingår", annars "+X kr".
+  - **Loggan kostar inget eget** (besked via ägaren 2026-11-16, efter att en kollega valde Endast
+    gravyr och ändå fick ett logotillägg): `extraEngraving` är 0 kr i kalkylen, och migrering 029
+    nollade priset i den sparade modellen i `settings`. Med 0 kr har loggan ingen egen del och
+    ingen rad i specifikationen. Raden "Logga på skylten" finns kvar i prismodellen, så priset
+    går att sätta igen. Ordrar och offerter med sin egen sparade modell behåller sitt logopris.
   - Priset följer metoden som faktiskt gäller (`markingOf`): en skylt utan valt fält men med en
     logga i färg räknas som den kombinerade metoden. En kombinerad metod gäller bara en skylt med
     logga. Sparade ordrar och offerter har sin egen modell och ändras inte.

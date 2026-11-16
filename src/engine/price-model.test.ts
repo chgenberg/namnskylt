@@ -15,8 +15,17 @@ import {
 } from "./price-model";
 import { NO_SHIPPING, priceItems, toOre, type PriceItem } from "./pricing";
 
+/**
+ * Kalkylen med ett eget pris på loggan, som den var före 2026-11-16. Sedan dess ingår loggan
+ * (priset är 0 kr), men räknereglerna för en prissatt logga gäller om ägaren sätter ett pris igen.
+ */
+const KALKYL: typeof DEFAULT_PRICE_MODEL = {
+  ...DEFAULT_PRICE_MODEL,
+  options: { ...DEFAULT_PRICE_MODEL.options, extraEngraving: [19, 19, 19, 19] },
+};
+
 /** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
-const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0, shipping: NO_SHIPPING };
+const M: PriceModel = { ...KALKYL, startSek: 0, shipping: NO_SHIPPING };
 
 const item = (patch: Partial<PriceItem> = {}): PriceItem => ({
   signClass: "premium",
@@ -180,7 +189,7 @@ describe("specifikationen per skylt", () => {
 
 describe("startkostnaden i specifikationen", () => {
   /** Kalkylen utan frakt. Frakten har egna tester. */
-  const D: PriceModel = { ...DEFAULT_PRICE_MODEL, shipping: NO_SHIPPING };
+  const D: PriceModel = { ...KALKYL, shipping: NO_SHIPPING };
 
   it("är en egen rad per skylt: 200 kr på 4 skyltar ger 50 kr, varav 7,50 kr i provision", () => {
     const spec = itemBreakdown(D, item({ quantity: 4 }));

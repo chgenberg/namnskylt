@@ -65,6 +65,8 @@ export const badgeDocumentSchema = z
             ]),
           })
           .optional(),
+        // Gravyrformen av en logga i färg: samma slags banor som `d`, med samma tak.
+        engraveD: z.string().min(1).max(LOGO_LIMITS.maxPathChars).regex(LOGO_PATH_PATTERN).optional(),
         // Originalfilen pekas ut med sitt id; själva filen ligger aldrig i skylten.
         originalId: z.string().regex(LOGO_ORIGINAL_ID_PATTERN).optional(),
       })
@@ -72,6 +74,8 @@ export const badgeDocumentSchema = z
     // Ett kombinerat val utan logga är inget fel: `markingOf` läser det som namnets metod.
     marking: z.enum(MARKING_METHOD_IDS).optional(),
     mounting: z.enum(["pin", "magnet", "clip", "safety-pin"]),
+    // En riktning som inte ryms är inget fel: `clipOrientationOf` läser den som ryms.
+    clipOrientation: z.enum(["horizontal", "vertical"]).optional(),
     quantity: z.number().int().min(1).max(10_000),
   })
   .superRefine((doc, ctx) => {

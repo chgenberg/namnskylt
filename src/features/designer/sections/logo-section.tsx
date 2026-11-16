@@ -9,6 +9,7 @@ import {
   LOGO_PLACEMENTS,
   getColor,
   getFont,
+  logoEngravingPath,
   logoMarking,
   type BadgeDocument,
   type LogoPlacement,
@@ -18,6 +19,7 @@ import { requestBrand, type BrandProfile } from "../logo/brand-api";
 import { storeLogoImage } from "../logo/store-image";
 import { FETCHED_LOGO_NAME, dataUrlFile, storeLogoOriginal } from "../logo/store-original";
 import { traceImage, type LogoTrace } from "../logo/trace-image";
+import { useLogoEngraving } from "../logo/use-logo-engraving";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
@@ -43,15 +45,21 @@ const UPLOAD_STEPS = [
 
 type Job = "scrape" | "upload";
 
-/** Hur loggan hamnar på skylten: graverad, printad i en färg eller printad i filens färger. */
-type LogoLook = "engrave" | "print" | "print-color";
+/**
+ * Hur loggan hamnar på skylten: graverad, graverad ur en logga i färg (då görs
+ * färgerna om till en gravyrform), printad i en färg eller printad i filens färger.
+ */
+type LogoLook = "engrave" | "engrave-color" | "print" | "print-color";
 const LOGO_ASIDE: Record<LogoLook, string> = {
   engrave: "Graveras",
+  "engrave-color": "Graveras",
   print: "Printas",
   "print-color": "Printas i färg",
 };
 const LOGO_HINT: Record<LogoLook, string> = {
   engrave: "Loggan graveras i en färg, samma som texten.",
+  "engrave-color":
+    "Loggan är i färg och graveras i en färg, samma som texten: färgerna blir gravyr, och vitt och detaljer inuti loggan sparas ur. Stämmer formen inte, prova Invertera.",
   print: "Loggan printas i en färg, samma som texten.",
   "print-color": "Loggan är i färg och printas som den är i filen.",
 };
@@ -107,7 +115,10 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
     setStatus({ kind: "error", message: "Hämtningen avbröts." });
   };
 
-  const applyTrace = (trace: LogoTrace, placement: LogoPlacement | undefined, originalId: string | null) => {
+  // En logga i färg som sparades innan gravyrformen fanns får den i efterhand, när den graveras.
+  useLogoEngraving(doc, dispatch);
+
+  const applyTrace = (trace: LogoTrace, placement: LogoPlacement | undefined, originalId: string | null, sameLogo: boolean) => {
     const wide = trace.viewWidth / trace.viewHeight > WIDE_LOGO_ASPECT;
     const nextPlacement = placement ?? (wide ? "top" : "left");
     dispatch({
@@ -119,9 +130,12 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
         placement: nextPlacement,
         heightMm: doc.logo?.heightMm ?? (nextPlacement === "top" ? TOP_LOGO_HEIGHT_MM : LOGO_LIMITS.defaultHeightMm),
         ...(trace.image && { image: trace.image }),
+        ...(trace.engraveD && { engraveD: trace.engraveD }),
         // En ny logga ärver aldrig den förra loggans originalfil.
         ...(originalId && { originalId }),
       },
+      // Samma fil i en ny form ("Invertera") är ingen ny logga: metoden kunden har valt står kvar.
+      keepMarking: sameLogo,
     });
   };
 
@@ -141,7 +155,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
     const origin: LogoOrigin = known ?? { src, d: trace.d, originalId: null };
     origin.d = trace.d;
     originRef.current = origin;
-    applyTrace(trace, doc.logo?.placement, origin.originalId);
+    applyTrace(trace, doc.logo?.placement, origin.originalId, known !== null);
     if (!known) {
       const original = file ?? dataUrlFile(src);
       if (original) {
@@ -221,14 +235,15 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
     originRef.current = null;
   };
 
-  // Hur loggan hamnar på skylten följer märkningsmetoden: en logga i färg som graveras ritas ur sina banor.
-  const logoLook: LogoLook = logoMarking(doc) === "engrave" ? "engrave" : doc.logo?.image ? "print-color" : "print";
+  // Hur loggan hamnar på skylten följer märkningsmetoden: en logga i färg som graveras ritas ur sin gravyrform.
+  const engraved = logoMarking(doc) === "engrave";
+  const logoLook: LogoLook = engraved ? (doc.logo?.image ? "engrave-color" : "engrave") : doc.logo?.image ? "print-color" : "print";
   const heightRange = LOGO_LIMITS.maxHeightMm - LOGO_LIMITS.minHeightMm;
   const logoHeight = doc.logo?.heightMm ?? LOGO_LIMITS.defaultHeightMm;
 
   return (
     <PanelSection
-      step={2}
+      step={3}
       title="Logga & varumärke"
       aside={doc.logo ? LOGO_ASIDE[logoLook] : "Valfritt"}
     >
@@ -335,7 +350,8 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
             }}
           />
         </label>
-        {doc.logo && !doc.logo.image && source && (
+        {/* Invertera vänder bläck och botten, och gäller allt utom en logga som printas i sina egna färger. */}
+        {doc.logo && logoLook !== "print-color" && source && (
           <button type="button" className="chip" aria-pressed={source.invert} disabled={working} onClick={() => void invert()}>
             Invertera
           </button>
@@ -357,9 +373,9 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
               <svg
                 viewBox={`0 0 ${doc.logo.viewWidth} ${doc.logo.viewHeight}`}
                 role="img"
-                aria-label={logoLook === "engrave" ? "Loggan som den graveras" : "Loggan som den printas"}
+                aria-label={engraved ? "Loggan som den graveras" : "Loggan som den printas"}
               >
-                <path d={doc.logo.d} fill={color.engraving} fillRule="evenodd" />
+                <path d={engraved ? logoEngravingPath(doc.logo) : doc.logo.d} fill={color.engraving} fillRule="evenodd" />
               </svg>
             )}
           </div>

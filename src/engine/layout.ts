@@ -1,7 +1,7 @@
 import { TEXT_LIMITS } from "./catalog";
 import { engravedRows } from "./document";
 import { availableHalfWidth, isEllipseShape, outlinePath } from "./shape";
-import { placeLogoPath } from "./logo";
+import { logoEngravingPath, placeLogoPath } from "./logo";
 import { logoMarking, nameMarking } from "./marking";
 import { ZERO_OFFSET, clampOffset, moveRect, rectsOverlap, unionRect } from "./placement";
 import type { BadgeDocument, BadgeLogo, FontId, Mm, Offset, Rect, TextAlign } from "./types";
@@ -364,7 +364,8 @@ function moveRow(row: LaidOutRow, offset: Offset): LaidOutRow {
 function placeLogo(logo: BadgeLogo, box: Rect, printed: boolean): LaidOutLogo {
   return {
     ...box,
-    d: placeLogoPath(logo.d, box.width / logo.viewWidth, box.x, box.y),
+    // Trycket följer loggans siluett; gravyren följer gravyrformen, när loggan i färg har en.
+    d: placeLogoPath(printed ? logo.d : logoEngravingPath(logo), box.width / logo.viewWidth, box.x, box.y),
     ...(printed && { printed: true as const }),
     ...(printed && logo.image && { imageSrc: logo.image.src }),
   };

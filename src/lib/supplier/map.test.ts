@@ -64,6 +64,28 @@ describe("toSupplierSignDocument", () => {
     assert.match(layer.data.vector.markup, /^<path d="M0 0L10 0L10 10L0 10Z" fill="#000000" fill-rule="evenodd"\/>$/);
   });
 
+  it("skickar gravyrformen när en logga i färg graveras, och siluetten rörs inte när den printas", () => {
+    const logo = {
+      d: "M0 0L10 0L10 10L0 10Z",
+      engraveD: "M0 0L10 0L10 10L0 10ZM3 3L7 3L7 7L3 7Z",
+      viewWidth: 10,
+      viewHeight: 10,
+      placement: "left" as const,
+      heightMm: 12,
+      image: { src: "data:image/png;base64,AA" },
+    };
+    const layerOf = (marking: "engrave" | "engrave-name-print-logo") =>
+      toSupplierSignDocument({ ...createBadgeDocument(["Anna"]), logo, marking }, approxFonts, { logoPng: "data:image/png;base64,BB" }).layers.find(
+        (l) => l.data.kind === "image",
+      );
+    const engraved = layerOf("engrave");
+    assert.ok(engraved?.data.kind === "image" && engraved.data.renderMode === "engrave");
+    assert.equal(engraved.data.vector.markup, `<path d="${logo.engraveD}" fill="#000000" fill-rule="evenodd"/>`);
+    const printed = layerOf("engrave-name-print-logo");
+    assert.ok(printed?.data.kind === "image" && printed.data.renderMode === "print");
+    assert.equal(printed.data.src, logo.image.src);
+  });
+
   it("skickar aldrig hänvisningen till loggans originalfil, och dokumentet är detsamma med och utan den", () => {
     const logo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 12 };
     const originalId = "7c".repeat(32);

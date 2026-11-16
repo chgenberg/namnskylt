@@ -96,7 +96,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
   const partNames: Record<PricePart, string> = {
     sign: `${SIGN_NAMES[signClass]}skylt, ${tier}`,
     mounting: `Fäste: ${OFFERED_MOUNTINGS.find((m) => m.id === mounting)?.name ?? ""}`,
-    extraEngraving: "Logga (extra gravyr)",
+    extraEngraving: "Logga",
     customShape: "Egen design",
     marking: `Märkning: ${getMarkingMethod(marking).name}`,
     start: `Startkostnad, ${formatSek(model.startSek)} delat på ${reseller.quantity} st`,
@@ -120,7 +120,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
         <div className={styles.control}>
           <span className={styles.controlLabel}>Tillval</span>
           <div className={styles.chips}>
-            <OptionChip label="Logga (extra gravyr)" checked={logo} onChange={setLogo} />
+            <OptionChip label="Logga" checked={logo} onChange={setLogo} />
             <OptionChip label="Egen design" checked={customShape} onChange={setCustomShape} />
           </div>
         </div>

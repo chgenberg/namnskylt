@@ -192,6 +192,125 @@
   flex: 0 0 auto;
 }
 
+/* ── Väntrutan medan formen ritas ── */
+
+.drawing {
+  margin: auto;
+  width: min(380px, calc(100vw - 2 * var(--space-4)));
+  max-width: none;
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: var(--color-white);
+  box-shadow: var(--shadow-lg);
+  color: inherit;
+  text-align: center;
+}
+
+/* Bara en öppen ruta får en layout: en stängd `dialog` ska förbli dold. */
+.drawing[open] {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  animation: drawing-rise 320ms var(--ease-out);
+}
+
+.drawing::backdrop {
+  background: rgb(10 18 32 / 0.45);
+  backdrop-filter: blur(6px);
+  animation: drawing-fade var(--duration-base) var(--ease-out);
+}
+
+/* En kontur som ritas om och om igen, som formen kunden väntar på. */
+.drawingMark {
+  width: 72px;
+  height: 72px;
+  color: var(--color-ink);
+}
+
+.drawingMark path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  animation: drawing-trace 2.4s var(--ease-out) infinite;
+}
+
+.drawingTitle {
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  font-weight: 400;
+}
+
+.drawingWhat {
+  color: var(--color-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.drawingBar {
+  width: 100%;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-2);
+  overflow: hidden;
+}
+
+/* Stapeln följer tiden och stannar strax före slutet: servern säger inte hur långt den har kommit. */
+.drawingBar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-ink);
+  transform: scaleX(0.94);
+  transform-origin: left;
+  animation: drawing-progress 28s cubic-bezier(0.1, 0.7, 0.2, 1) both;
+}
+
+@keyframes drawing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+
+@keyframes drawing-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes drawing-trace {
+  from {
+    stroke-dashoffset: 1;
+  }
+
+  70%,
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes drawing-progress {
+  from {
+    transform: scaleX(0.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawing[open],
+  .drawing::backdrop,
+  .drawingMark path {
+    animation: none;
+  }
+
+  /* Utan rörelse säger stapeln ingenting, så texten får bära väntan. */
+  .drawingBar {
+    display: none;
+  }
+}
+
 /* ── Ritverktyget ── */
 
 .canvas {

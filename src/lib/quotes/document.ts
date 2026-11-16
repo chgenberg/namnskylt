@@ -2,7 +2,7 @@ import {
   engravedRows,
   getColor,
   getMaterial,
-  getMounting,
+  mountingLabel,
   layoutBadge,
   renderBadgeSvg,
   shapeLabel,
@@ -30,7 +30,7 @@ function badgeSpec(quote: StoredQuote, index: number): string {
   return [
     `${getMaterial(badge.materialId).name}, ${getColor(badge.materialId, badge.colorId).name}`,
     `${shape} ${badge.size.widthMm}×${badge.size.heightMm} mm`,
-    getMounting(badge.mounting).name,
+    mountingLabel(badge),
   ].join(" · ");
 }
 

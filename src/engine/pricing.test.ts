@@ -34,8 +34,17 @@ import {
 } from "./price-model";
 import type { BadgeDocument } from "./types";
 
+/**
+ * Kalkylen med ett eget pris på loggan, som den var före 2026-11-16. Sedan dess ingår loggan
+ * (priset är 0 kr), men räknereglerna för en prissatt logga gäller om ägaren sätter ett pris igen.
+ */
+const KALKYL: typeof DEFAULT_PRICE_MODEL = {
+  ...DEFAULT_PRICE_MODEL,
+  options: { ...DEFAULT_PRICE_MODEL.options, extraEngraving: [19, 19, 19, 19] },
+};
+
 /** Kalkylens siffror utan startkostnad: reglerna här prövas var för sig, och startkostnaden har egna tester. */
-const M: PriceModel = { ...DEFAULT_PRICE_MODEL, startSek: 0, shipping: NO_SHIPPING };
+const M: PriceModel = { ...KALKYL, startSek: 0, shipping: NO_SHIPPING };
 /** Det återförsäljaren betalar. */
 const PURCHASE = resellerPriceTable(M);
 /** Det slutkunden betalar. */
@@ -170,7 +179,7 @@ describe("slutkundens pris", () => {
 
 describe("startkostnaden", () => {
   /** Kalkylen utan frakt. Frakten har egna tester. */
-  const D: PriceModel = { ...DEFAULT_PRICE_MODEL, shipping: NO_SHIPPING };
+  const D: PriceModel = { ...KALKYL, shipping: NO_SHIPPING };
   const purchase = resellerPriceTable(D);
   const list = endPriceTable(D);
   const anna = (quantity: number): BadgeDocument => ({ ...createBadgeDocument(["Anna"]), quantity });
@@ -242,7 +251,7 @@ describe("startkostnaden", () => {
 
 describe("vad som ingår i priset per skylt", () => {
   /** Kalkylen utan frakt. Frakten har egna tester. */
-  const D: PriceModel = { ...DEFAULT_PRICE_MODEL, shipping: NO_SHIPPING };
+  const D: PriceModel = { ...KALKYL, shipping: NO_SHIPPING };
   const list = endPriceTable(D);
   const parts = (doc: BadgeDocument, quantity: number) => badgePriceParts(doc, quantity, list).map(({ part, sek }) => [part, sek]);
 
@@ -362,12 +371,12 @@ describe("tillbehör och tillval per trappsteg", () => {
 
 describe("frakten", () => {
   /** Kalkylen med frakt men utan startkostnad: 10 skyltar med nål är 780 kr hos återförsäljaren och 1 300 kr hos kunden. */
-  const S: PriceModel = { ...M, shipping: DEFAULT_PRICE_MODEL.shipping };
+  const S: PriceModel = { ...M, shipping: KALKYL.shipping };
   const purchase = resellerPriceTable(S);
   const list = endPriceTable(S);
 
   it("kalkylen har Skylt & Gravyrtekniks frakt: varubrev 75 kr upp till 500 kr, annars paket 159 kr", () => {
-    assert.deepEqual(DEFAULT_PRICE_MODEL.shipping, { letterSek: 75, parcelSek: 159, letterMaxSek: 500 });
+    assert.deepEqual(KALKYL.shipping, { letterSek: 75, parcelSek: 159, letterMaxSek: 500 });
   });
 
   it("gränsen gäller varuvärdet: precis 500 kr går som varubrev, en krona till som paket", () => {
@@ -385,7 +394,7 @@ describe("frakten", () => {
 
   it("frakten är samma i alla led: 3 skyltar går som varubrev fast kunden betalar över 500 kr för dem", () => {
     // Hela kalkylen, med startkostnaden: återförsäljaren betalar 434,01 kr och kunden 723 kr för varorna.
-    const D = DEFAULT_PRICE_MODEL;
+    const D = KALKYL;
     const doc: BadgeDocument = { ...createBadgeDocument(["Anna Lind"]), quantity: 3 };
     const reseller = resellerOrder([doc], resellerPriceTable(D));
     assert.equal(reseller.goodsSek, 434.01);
@@ -398,13 +407,13 @@ describe("frakten", () => {
   });
 
   it("en skylt till, och båda betalar för paket", () => {
-    const D = DEFAULT_PRICE_MODEL;
+    const D = KALKYL;
     assert.equal(priceItems([premium(4)], resellerPriceTable(D)).goodsSek, 512);
     assert.equal(orderShippingSek(D, [premium(4)]), 159);
   });
 
   it("frakten räknas på hela ordern, även när skyltarna är olika", () => {
-    const D = DEFAULT_PRICE_MODEL;
+    const D = KALKYL;
     // 2 metall med nål och 2 plast med nål: 2 × 78 + 2 × 59 + 200 = 474 kr.
     assert.equal(orderShippingSek(D, [premium(2), premium(2, { signClass: "standard" })]), 75);
     // Med logga på plastskyltarna: 474 + 2 × 19 = 512 kr.
@@ -476,7 +485,7 @@ describe("en modell sparad i det äldre formatet", () => {
   });
 
   it("en modell sparad före frakten läses utan frakt, så att ordrar och offerter behåller sina summor", () => {
-    const beforeShipping: Record<string, unknown> = { ...DEFAULT_PRICE_MODEL };
+    const beforeShipping: Record<string, unknown> = { ...KALKYL };
     delete beforeShipping.shipping;
     const model = parseStoredPriceModel(JSON.parse(JSON.stringify(beforeShipping)));
     assert.deepEqual(model?.shipping, NO_SHIPPING);
@@ -484,7 +493,7 @@ describe("en modell sparad i det äldre formatet", () => {
   });
 
   it("en modell i dagens format läses oförändrad", () => {
-    assert.deepEqual(parseStoredPriceModel(JSON.parse(JSON.stringify(DEFAULT_PRICE_MODEL))), DEFAULT_PRICE_MODEL);
+    assert.deepEqual(parseStoredPriceModel(JSON.parse(JSON.stringify(KALKYL))), KALKYL);
   });
 
   it("annat än en prismodell ger null", () => {
@@ -540,13 +549,13 @@ describe("priceModelSchema", () => {
 });
 
 describe("fraktsätt", () => {
-  const list = resellerPriceTable(DEFAULT_PRICE_MODEL);
+  const list = resellerPriceTable(KALKYL);
   const four: PriceItem[] = [{ signClass: "premium", mounting: "pin", extraEngraving: false, customShape: false, quantity: 4 }];
 
   it("standardfrakten följer fraktregeln och listan är orörd", () => {
     assert.equal(withShippingMethod(list, "standard"), list);
-    assert.equal(orderShippingSek(DEFAULT_PRICE_MODEL, four), 159);
-    assert.equal(orderShippingSek(DEFAULT_PRICE_MODEL, four, "standard"), 159);
+    assert.equal(orderShippingSek(KALKYL, four), 159);
+    assert.equal(orderShippingSek(KALKYL, four, "standard"), 159);
   });
 
   it("upphämtning och express har ingen frakt på ordern, och varorna kostar detsamma", () => {
@@ -556,9 +565,38 @@ describe("fraktsätt", () => {
       assert.equal(priceItems(four, table).shippingSek, 0, method);
       assert.equal(priceItems(four, table).goodsSek, priceItems(four, list).goodsSek, method);
       assert.equal(priceItems(four, table).totalSek, priceItems(four, list).goodsSek, method);
-      assert.equal(orderShippingSek(DEFAULT_PRICE_MODEL, four, method), 0, method);
+      assert.equal(orderShippingSek(KALKYL, four, method), 0, method);
     }
     // Listan som skickades in ändras inte.
     assert.ok(list.shipping);
+  });
+});
+
+describe("loggan ingår i skylten", () => {
+  // Beslut av ägaren 2026-11-16: loggan kostar inget eget. Kombinerad märkning prissätts för sig.
+  const included = { ...DEFAULT_PRICE_MODEL, shipping: NO_SHIPPING };
+  const withLogo: BadgeDocument = {
+    ...createBadgeDocument(["Anna Lind"]),
+    quantity: 10,
+    logo: { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left", heightMm: 8 },
+  };
+  const withoutLogo: BadgeDocument = { ...withLogo };
+  delete withoutLogo.logo;
+
+  it("kalkylens pris för loggan är 0 kr på alla trappsteg", () => {
+    assert.deepEqual(DEFAULT_PRICE_MODEL.options.extraEngraving, [0, 0, 0, 0]);
+  });
+
+  it("en skylt med logga kostar lika mycket som en utan, hos båda parter", () => {
+    for (const table of [endPriceTable(included), resellerPriceTable(included)]) {
+      assert.equal(priceOrder([withLogo], table, 0).totalSek, priceOrder([withoutLogo], table, 0).totalSek);
+      assert.deepEqual(lineUnitPrices([withLogo], table), lineUnitPrices([withoutLogo], table));
+    }
+  });
+
+  it("loggan har ingen egen rad i specifikationen när den ingår, men får en när ägaren sätter ett pris", () => {
+    const parts = (model: typeof DEFAULT_PRICE_MODEL) => badgePriceParts(withLogo, 10, endPriceTable(model)).map((p) => p.part);
+    assert.equal(parts(included).includes("extraEngraving"), false);
+    assert.equal(parts({ ...KALKYL, shipping: NO_SHIPPING }).includes("extraEngraving"), true);
   });
 });
