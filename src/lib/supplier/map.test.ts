@@ -99,6 +99,36 @@ describe("toSupplierSignDocument", () => {
     assert.ok(!("vector" in layer.data));
   });
 
+  it("loggans lager följer märkningsmetoden, och metoden står i klartext när något printas", () => {
+    const mono = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 12 };
+    const color = { ...mono, image: { src: "data:image/png;base64,iVBORw0KGgo=" } };
+    const thumb = "data:image/png;base64,AA";
+    const sent = (doc: Parameters<typeof toSupplierSignDocument>[0]) => {
+      const supplier = toSupplierSignDocument(doc, approxFonts, { logoPng: thumb });
+      const layer = supplier.layers.find((l) => l.data.kind === "image");
+      assert.ok(layer?.data.kind === "image");
+      return { supplier, data: layer.data };
+    };
+    const base = createBadgeDocument(["Anna"]);
+    // En logga i färg som kunden valt att gravera skickas med sina banor, inte som tryckbild.
+    const engraved = sent({ ...base, logo: color, marking: "engrave" });
+    assert.equal(engraved.data.renderMode, "engrave");
+    assert.equal(engraved.data.src, thumb);
+    assert.ok("vector" in engraved.data);
+    assert.equal(engraved.supplier.productionNote, undefined);
+    // En svartvit logga som printas skickas som sin miniatyr.
+    const printed = sent({ ...base, logo: mono, marking: "engrave-name-print-logo" });
+    assert.equal(printed.data.renderMode, "print");
+    assert.equal(printed.data.src, thumb);
+    assert.equal(printed.supplier.productionNote, "Märkningsmetod: Namn graveras · logotyp printas. Namn: Gravyr. Logotyp: Print.");
+    // Textlagret har inget läge hos leverantören: ett printat namn sägs i klartext.
+    const namePrinted = toSupplierSignDocument({ ...base, marking: "print" }, approxFonts);
+    assert.equal(namePrinted.productionNote, "Märkningsmetod: Endast print. Namn: Print.");
+    assert.ok(namePrinted.layers.some((l) => l.data.kind === "text"));
+    // En skylt som bara graveras ser ut som förut.
+    assert.equal(toSupplierSignDocument(base, approxFonts).productionNote, undefined);
+  });
+
   it("lägger ramen som eget lager och ovalen som oval", () => {
     const doc = {
       ...createBadgeDocument(["Anna"]),

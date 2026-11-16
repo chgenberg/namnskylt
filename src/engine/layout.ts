@@ -2,6 +2,7 @@ import { TEXT_LIMITS } from "./catalog";
 import { engravedRows } from "./document";
 import { availableHalfWidth, isEllipseShape, outlinePath } from "./shape";
 import { placeLogoPath } from "./logo";
+import { logoMarking, nameMarking } from "./marking";
 import { ZERO_OFFSET, clampOffset, moveRect, rectsOverlap, unionRect } from "./placement";
 import type { BadgeDocument, BadgeLogo, FontId, Mm, Offset, Rect, TextAlign } from "./types";
 
@@ -66,7 +67,9 @@ export type LayoutIssue =
 /** Loggan placerad på skylten: ruta i mm och banorna flyttade dit. */
 export interface LaidOutLogo extends Rect {
   d: string;
-  /** Loggan i färg. Finns den trycks bilden i rutan, och banorna graveras inte. */
+  /** Loggan printas i stället för att graveras: banorna hör då till trycket och inte till gravyren. */
+  printed?: true;
+  /** Loggan i färg när den printas. Bilden trycks i rutan; utan den trycks banorna i gravyrens färg. */
   imageSrc?: string;
 }
 
@@ -87,6 +90,8 @@ export interface BadgeLayout {
   /** Versalernas ruta runt alla rader — det som dras i editorn. */
   textBox: Rect | null;
   logoOverlapsText: boolean;
+  /** Namnet, alltså text och ram, printas i stället för att graveras. */
+  namePrinted: boolean;
 }
 
 /**
@@ -336,12 +341,13 @@ export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout 
     frames,
     contentInsetMm: inset,
     rows: placedRows,
-    logo: logoBox && doc.logo ? placeLogo(doc.logo, logoBox) : null,
+    logo: logoBox && doc.logo ? placeLogo(doc.logo, logoBox, logoMarking(doc) === "print") : null,
     issues,
     textOffsetMm,
     logoOffsetMm,
     textBox: unionRect(rowBoxes),
     logoOverlapsText: logoBox !== null && rowBoxes.some((box) => rectsOverlap(box, logoBox)),
+    namePrinted: nameMarking(doc) === "print",
   };
 }
 
@@ -355,10 +361,11 @@ function moveRow(row: LaidOutRow, offset: Offset): LaidOutRow {
   return { ...row, xMm: row.xMm + offset.xMm, leftMm: row.leftMm + offset.xMm, baselineMm: row.baselineMm + offset.yMm };
 }
 
-function placeLogo(logo: BadgeLogo, box: Rect): LaidOutLogo {
+function placeLogo(logo: BadgeLogo, box: Rect, printed: boolean): LaidOutLogo {
   return {
     ...box,
     d: placeLogoPath(logo.d, box.width / logo.viewWidth, box.x, box.y),
-    ...(logo.image && { imageSrc: logo.image.src }),
+    ...(printed && { printed: true as const }),
+    ...(printed && logo.image && { imageSrc: logo.image.src }),
   };
 }

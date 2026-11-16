@@ -48,7 +48,7 @@ interface MountingSectionProps {
  */
 export function MountingSection({ doc, dispatch }: MountingSectionProps) {
   return (
-    <PanelSection step={5} title="Fäste" aside={getMounting(doc.mounting).description}>
+    <PanelSection step={6} title="Fäste" aside={getMounting(doc.mounting).description}>
       <div className={styles.mountingGrid} role="radiogroup" aria-label="Fäste">
         {OFFERED_MOUNTINGS.map((m) => {
           const active = m.id === doc.mounting;

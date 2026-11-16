@@ -9,9 +9,11 @@ import { ProgressBanner } from "@/components/ui/progress-banner";
 import { Segmented } from "@/components/ui/segmented";
 import {
   badgeDocumentSchema,
+  getMarkingMethod,
   getMaterial,
   getMounting,
   isPartnerMade,
+  markingOf,
   priceOrder,
   resellerOrder,
   toOre,
@@ -93,6 +95,8 @@ function partLabel(part: ShownPricePart, doc: BadgeDocument): string {
       return "Logga";
     case "customShape":
       return "Egen form";
+    case "marking":
+      return `Märkning, ${getMarkingMethod(markingOf(doc)).name.toLowerCase()}`;
   }
 }
 

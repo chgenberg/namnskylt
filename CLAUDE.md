@@ -54,7 +54,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (969 tester, grönt 2026-11-16).
+# Kvalitetsgrinden. Kör den innan något lämnas (1002 tester, grönt 2026-11-16).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -145,6 +145,20 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     (`custom-shape-choice.ts`). Väljs formen i startrutan ritas den i nästa steg: rutan
     "Egen form" bär där raden "Välj exakt form i nästa steg" (`CustomShapeChoice.hint`,
     besked via ägaren 2026-11-16), och efter valet står att formen på bilden är ett förslag.
+  - **Formen går att beskriva med ord** (beslut av ägaren 2026-11-16): under uppladdningen finns
+    rutan "Beskriv formen" (`shape-describe.tsx`, `draw-shape.ts`). `POST /api/custom-shape/draw`
+    låter bildmodellen rita en svart siluett i låg kvalitet (`drawShapeImage` i
+    `src/lib/ai/shape-image.ts`, uppdraget i `shape-prompt.ts`), och webbläsaren spårar bilden
+    som en uppladdad fil (`readShapeFile`), så att punkterna går att dra som vanligt.
+    - Servern gör bilden rent svartvit, sluter hårfina springor och säger ifrån när bilden
+      saknar en form (`silhouettePng`, `NoShapeError`). En ritad form får 2 mm hörnrundning.
+    - Gränser (`shape-limits.ts`): 5 försök per besökare och timme och 300 per dygn för hela
+      sajten, i processens minne. De nollas vid omstart, och misslyckade försök räknas.
+    - Rutan visas bara när `GET /api/custom-shape/draw` svarar `available: true`, alltså med
+      `OPENAI_API_KEY` satt. Kundens beskrivning rensas, citeras som data i uppdraget och
+      loggas aldrig.
+    - Provat 2026-11-16 med fem riktiga anrop (häst, lastbil, cykel, sittande hund): 9–10
+      sekunder per bild. Djupa inbuktningar blir kvar och rättas genom att dra i punkterna.
   - PDF läses med `pdfjs-dist`, låst till `~5.4.624` eftersom nyare kräver Node 22. Bara första
     sidan läses.
   - Kända brister: bara provat i Chrome; en ritad form försvinner om kunden väljer ett ämne och
@@ -178,11 +192,38 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Skyltmotorn vänder själv skylten en stund när ett fäste väljs, så att fästet syns.
   - Känd brist: prismodellens kalkyl i `/admin/prismodell` låter fortfarande klämman väljas
     ihop med Premium, fast den kombinationen inte går att beställa.
-- **Loggan** graveras eller trycks, och det avgörs automatiskt när filen laddas upp eller hämtas
-  från hemsidan (beslut av ägaren 2026-11-13, gäller både metall och plast):
-  - En **svartvit** logga spåras till banor (`BadgeLogo.d`) och graveras i textens färg, som förut.
-  - En logga **i färg** får dessutom `BadgeLogo.image` och trycks som den är i filen. Texten
-    graveras fortfarande. Kunden kan inte välja själv; "Invertera" finns bara för graverade loggor.
+- **Märkningsmetod** (beslut av ägaren 2026-11-16): kunden väljer om namn och logotyp graveras eller
+  printas, i sektionen "Märkningsmetod" i skyltmotorn (`marking-section.tsx`). Fyra val
+  (`MARKING_METHODS` i `src/engine/marking.ts`): Endast gravyr, Endast print, Namn graveras ·
+  logotyp printas och Namn printas · logotyp graveras. En metod ingår i skylten.
+  - Skylten bär valet i `BadgeDocument.marking`. Läs alltid med `markingOf`, `nameMarking` och
+    `logoMarking`. Utan fältet gäller det gamla: namnet graveras, och loggan trycks om den har
+    `image` och graveras annars. Fältet sparas bara när valet skiljer sig från det (`withMarking`).
+  - De kombinerade valen kräver en logga. Utan logga syns de streckade, och tas loggan bort faller
+    valet tillbaka till namnets metod. Ramen följer namnet.
+  - En ny logga får ett förslag (`withLogoMarking`): i färg printas den, svartvit följer den namnet.
+    Kunden kan byta sedan, även gravera en logga i färg (då ritas den ur sina banor i textens färg)
+    eller printa en svartvit (siluetten i gravyrens färg).
+  - Ritningen delar allt i två listor: `engravingPaths` är det som fräses (3D, produktionsfil,
+    maskinfiler) och `printedPaths` det som printas i gravyrens färg. En logga i färg som printas
+    är en bild (`LaidOutLogo.imageSrc`). Förhandsvisningen ritar allt; i 3D ligger printen plant på
+    ytan (`InkPrint` i `three/logo-print.tsx`), och i verkstadens arkvy är den hjälplinjer.
+  - Verkstaden: loggans lager bär `renderMode` efter metoden. Deras text- och ramlager har inget
+    läge, så ett printat namn sägs bara i klartext i `productionNote`. Det är en lucka i
+    kontraktet: tills deras format har fältet graverar de namnet.
+  - En logga i färg som graveras behåller sina banor i en delad länk; ryms de inte tappas loggan.
+  - Sektionerna i panelen är numrerade om: Märkningsmetod 03, Material 04, Form 05, Fäste 06,
+    Fler namn 07 och Varukorg 08.
+  - Preliminärt: att verkstaden printar text, och i vilken färg. Printat namn visas i gravyrens färg.
+  - Kända brister: produktionsfilen saknar det som printas och ingen tryckfil för namnet skapas.
+    Gravyranimationen sveper inte över det som printas. Fotoläget, korrekturet, offertens PDF
+    och delningsbilden är inte öppnade i webbläsaren med ett printat namn.
+- **Loggan** graveras eller trycks. När filen laddas upp eller hämtas från hemsidan får den ett
+  förslag (beslut av ägaren 2026-11-13, gäller både metall och plast), och kunden kan sedan byta
+  under Märkningsmetod (2026-11-16, se ovan):
+  - En **svartvit** logga spåras till banor (`BadgeLogo.d`) och föreslås få samma metod som namnet.
+  - En logga **i färg** får dessutom `BadgeLogo.image` och föreslås tryckt som den är i filen.
+    "Invertera" finns bara för graverade loggor.
   - Reglerna ligger i `src/engine/logo-color.ts`: bilden är i färg när minst 1 % av det som syns
     har färg (`hasColor`). En vit botten tas bort (`withoutWhiteBackground`), även vitt inuti
     loggan; en färgad botten hör till loggan och behålls. Bilden beskärs till det som syns.
@@ -242,6 +283,8 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   (skyltens text, "Graverad ram", en graverad logga, exemplen i inspirationsbanken) står ordet
   kvar. Inte ändrat: utskickets mejltext (`src/lib/outreach/copy.ts`) och innehåll som redan är
   sparat i butikerna.
+- Sektionen Märkningsmetod och loggans sektion säger "print" och "printas", som i ägarens bild
+  (2026-11-16). Övriga sajten säger fortfarande "trycks".
 - **Äldre material och former** (mässing, akryl, epoxy, gravyrplast, sexkant m.fl.) ligger kvar
   i motorn så att sparade ordrar, offerter och butiker går att rita. En äldre skylt som öppnas
   i designern flyttas till närmaste yta och ämne (`toOfferedDocument`).
@@ -396,6 +439,24 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
 - **Fästen och tillval har ett pris per trappsteg**, precis som skyltarna (`PriceOptions` är
   `Record<PriceOptionId, number[]>`; läs med `optionPriceSek` och `mountingPriceSek` och ange
   trappsteget). I kalkylen är priset samma på alla trappsteg.
+- **Märkningsmetoden har fyra egna prisrader** (2026-11-16): `markingEngrave`, `markingPrint`,
+  `markingEngraveNamePrintLogo` och `markingPrintNameEngraveLogo`, ett pris per trappsteg som
+  övriga tillval (`MARKING_OPTION`, `markingPriceSek`). Alla står på 0 kr tills ägaren sätter
+  priser i `/admin/prismodell`, kortet "Märkningsmetod" (beslut av ägaren). Med 0 kr visas metoden
+  som "Ingår", annars "+X kr". Dagens logotillägg (`extraEngraving`) är orört och gäller som förut.
+  - Priset följer metoden som faktiskt gäller (`markingOf`): en skylt utan valt fält men med en
+    logga i färg räknas som den kombinerade metoden. En kombinerad metod gäller bara en skylt med
+    logga. Sparade ordrar och offerter har sin egen modell och ändras inte.
+  - En modell sparad före 2026-11-16 saknar raderna och läses med 0 kr (`upgradeStoredModel`),
+    utan migrering.
+  - Delen heter `marking` i `PricePart` och finns bara när priset är över 0. Den följer samma
+    kedja som övriga delar: marginal, butikens påslag och provision. `itemBreakdown` parar därför
+    ihop återförsäljarens och slutkundens delar på namn, inte på plats.
+  - Raden syns i skyltmotorns specifikation ("Märkning, …"), i kalkylen "Vid order", där metoden
+    går att välja, och i `/admin/inkopspriser`. Fraktfrågan (`POST /api/shipping`) bär metoden,
+    eftersom den ändrar varuvärdet.
+  - Kända brister: butikernas prisinställning har ingen egen rad för märkning (butikens påslag
+    gäller delen som övriga), och kalkylen slår på loggan när en kombinerad metod väljs.
 - **Minsta ordervärde** gäller både det återförsäljaren betalar och det slutkunden betalar, och
   räknas på summan med startkostnaden inräknad.
 - **Hela modellen stannar på servern.** Den innehåller provisionen. Ut går bara prislistor
@@ -837,6 +898,8 @@ Alla anrop går via `openai()` i `src/lib/ai/openai.ts`. Den returnerar `null` u
   - `describeCompany` och `readBrand` beskriver ett företag ur dess hemsida.
   - `checkPhoto` avgör om ett uppladdat foto går att använda.
   - `editShopContentWithAi` är butiksredigerarens chatt.
+  - `drawShapeImage` ritar en egen form ur kundens beskrivning (`gpt-image-2`, låg kvalitet,
+    ungefär 7 öre per försök enligt andrahandsuppgifter), se Egen form.
   - Persona-bilden i utskicket görs av `companyWorkplace` och `generatePersona` i `src/lib/outreach/persona.ts`.
 - **Persona-flödet:** hemsidan läses, en lämplig arbetsmiljö väljs, och den renderade skylten
   med kundens logga och **bara förnamnet** skickas som referens till `editImage`. Bilden
@@ -923,6 +986,8 @@ Luckor i kontraktet:
 - Egen form skickas som deras fria polygon (`shape: "freeform"`, `customShapePoints`), men hos dem
   är den bara tillåten för metallskärning. De behöver öppna den för graverad plast.
 - Fästet skickas som text i stället för artikelkod.
+- Ett printat namn går inte att uttrycka: deras text- och ramlager har inget läge för print.
+  Märkningsmetoden skickas som text i `productionNote`, och de behöver ett fält för det.
 - Vi skickar deras fyra fraktsätt: varubrev, paket, `postnord-express` och `pickup-hogsbo`.
   Expressfraktens pris läses ur statusen de skickar (`SupplierOrderState.shippingCost`, hela
   kronor exklusive moms); de behöver skicka fältet.

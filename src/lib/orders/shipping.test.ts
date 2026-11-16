@@ -12,8 +12,28 @@ describe("frågan om frakt", () => {
   it("slår ihop likadana skyltar, så att hundra namn blir en rad", () => {
     const names = Array.from({ length: 100 }, (_, i) => withTexts(metal, [`Person ${i}`]));
     assert.deepEqual(shippingItems(names), [
-      { signClass: "premium", mounting: "pin", extraEngraving: false, customShape: false, quantity: 100 },
+      { signClass: "premium", mounting: "pin", extraEngraving: false, customShape: false, marking: "engrave", quantity: 100 },
     ]);
+  });
+
+  it("håller isär märkningsmetoderna, eftersom de kan ha olika pris", () => {
+    const items = shippingItems([
+      { ...metal, quantity: 2 },
+      { ...metal, marking: "print", quantity: 3 },
+      { ...withTexts(metal, ["Bo Ek"]), marking: "print", quantity: 1 },
+    ]);
+    assert.deepEqual(
+      items.map((item) => [item.marking, item.quantity]),
+      [
+        ["engrave", 2],
+        ["print", 4],
+      ],
+    );
+    assert.equal(shippingRequestSchema.safeParse({ items }).success, true);
+    assert.equal(shippingRequestSchema.safeParse({ items: [{ ...items[0], marking: "laser" }] }).success, false);
+    // En fråga från en sida som laddades före märkningsmetoden saknar fältet och går fortfarande igenom.
+    const older = items.map((item) => ({ signClass: item.signClass, mounting: item.mounting, extraEngraving: false, customShape: false, quantity: 1 }));
+    assert.equal(shippingRequestSchema.safeParse({ items: older }).success, true);
   });
 
   it("håller isär skylttyp, fäste och logga", () => {

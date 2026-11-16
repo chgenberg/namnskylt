@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import {
+  MARKING_METHODS,
   OFFERED_MOUNTINGS,
+  getMarkingMethod,
   priceItems,
   tierRangeLabel,
+  type MarkingMethod,
   type MountingId,
   type PriceItem,
   type PricePart,
@@ -39,6 +42,15 @@ const MOUNTING_OPTIONS: { id: CalculatorMounting; label: string }[] = [
   { id: "none", label: "Utan" },
 ];
 
+/** Korta namn, så att de fyra metoderna ryms på en rad. */
+const MARKING_SHORT: Record<MarkingMethod, string> = {
+  engrave: "Gravyr",
+  print: "Print",
+  "engrave-name-print-logo": "Gravyr, logga print",
+  "print-name-engrave-logo": "Print, logga gravyr",
+};
+const MARKING_OPTIONS = MARKING_METHODS.map((method) => ({ id: method.id, label: MARKING_SHORT[method.id] }));
+
 interface PriceCalculatorProps {
   /** Utkastet: kalkylen räknar på siffrorna direkt, även innan de är sparade. */
   model: PriceModel;
@@ -52,12 +64,16 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
   const [mounting, setMounting] = useState<CalculatorMounting>("pin");
   const [logo, setLogo] = useState(false);
   const [customShape, setCustomShape] = useState(false);
+  const [chosenMarking, setMarking] = useState<MarkingMethod>("engrave");
+  // En kombinerad metod kräver en logga, som i skyltmotorn: utan logga gäller namnets metod.
+  const marking = logo ? chosenMarking : getMarkingMethod(chosenMarking).nameMode;
 
   const item: PriceItem = {
     signClass,
     mounting: mounting === "none" ? null : mounting,
     extraEngraving: logo,
     customShape,
+    marking,
     quantity: Math.max(1, quantity),
   };
   const purchase = resellerPriceTable(model);
@@ -82,6 +98,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
     mounting: `Fäste: ${OFFERED_MOUNTINGS.find((m) => m.id === mounting)?.name ?? ""}`,
     extraEngraving: "Logga (extra gravyr)",
     customShape: "Egen design",
+    marking: `Märkning: ${getMarkingMethod(marking).name}`,
     start: `Startkostnad, ${formatSek(model.startSek)} delat på ${reseller.quantity} st`,
   };
 
@@ -106,6 +123,19 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
             <OptionChip label="Logga (extra gravyr)" checked={logo} onChange={setLogo} />
             <OptionChip label="Egen design" checked={customShape} onChange={setCustomShape} />
           </div>
+        </div>
+        <div className={styles.control}>
+          <span className={styles.controlLabel}>Märkning</span>
+          <Segmented
+            label="Märkningsmetod"
+            value={marking}
+            options={MARKING_OPTIONS}
+            onChange={(method) => {
+              setMarking(method);
+              // En kombinerad metod finns bara på en skylt med logga.
+              if (getMarkingMethod(method).combined) setLogo(true);
+            }}
+          />
         </div>
         <div className={`${styles.control} ${styles.narrow}`}>
           <span className={styles.controlLabel}>Välj %</span>

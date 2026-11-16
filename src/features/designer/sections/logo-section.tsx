@@ -9,6 +9,7 @@ import {
   LOGO_PLACEMENTS,
   getColor,
   getFont,
+  logoMarking,
   type BadgeDocument,
   type LogoPlacement,
 } from "@/engine";
@@ -41,6 +42,19 @@ const UPLOAD_STEPS = [
 ] as const;
 
 type Job = "scrape" | "upload";
+
+/** Hur loggan hamnar på skylten: graverad, printad i en färg eller printad i filens färger. */
+type LogoLook = "engrave" | "print" | "print-color";
+const LOGO_ASIDE: Record<LogoLook, string> = {
+  engrave: "Graveras",
+  print: "Printas",
+  "print-color": "Printas i färg",
+};
+const LOGO_HINT: Record<LogoLook, string> = {
+  engrave: "Loggan graveras i en färg, samma som texten.",
+  print: "Loggan printas i en färg, samma som texten.",
+  "print-color": "Loggan är i färg och printas som den är i filen.",
+};
 
 /** Filen som loggan på skylten lästes från, och dess id på servern när den har sparats. */
 interface LogoOrigin {
@@ -207,6 +221,8 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
     originRef.current = null;
   };
 
+  // Hur loggan hamnar på skylten följer märkningsmetoden: en logga i färg som graveras ritas ur sina banor.
+  const logoLook: LogoLook = logoMarking(doc) === "engrave" ? "engrave" : doc.logo?.image ? "print-color" : "print";
   const heightRange = LOGO_LIMITS.maxHeightMm - LOGO_LIMITS.minHeightMm;
   const logoHeight = doc.logo?.heightMm ?? LOGO_LIMITS.defaultHeightMm;
 
@@ -214,7 +230,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
     <PanelSection
       step={2}
       title="Logga & varumärke"
-      aside={doc.logo ? (doc.logo.image ? "Trycks i färg" : "Graveras med texten") : "Valfritt"}
+      aside={doc.logo ? LOGO_ASIDE[logoLook] : "Valfritt"}
     >
       <p className={styles.batchLead}>
         Skriv in er hemsida, så hämtar vi loggan och väljer typsnitt och färg som liknar er.
@@ -334,11 +350,15 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
       {doc.logo && (
         <>
           <div className={styles.logoPreview} style={{ background: color.surface }}>
-            {doc.logo.image ? (
+            {doc.logo.image && logoLook === "print-color" ? (
               // eslint-disable-next-line @next/next/no-img-element -- data-URL från uppladdningen
-              <img src={doc.logo.image.src} alt="Loggan som den trycks" />
+              <img src={doc.logo.image.src} alt="Loggan som den printas" />
             ) : (
-              <svg viewBox={`0 0 ${doc.logo.viewWidth} ${doc.logo.viewHeight}`} role="img" aria-label="Loggan som den graveras">
+              <svg
+                viewBox={`0 0 ${doc.logo.viewWidth} ${doc.logo.viewHeight}`}
+                role="img"
+                aria-label={logoLook === "engrave" ? "Loggan som den graveras" : "Loggan som den printas"}
+              >
                 <path d={doc.logo.d} fill={color.engraving} fillRule="evenodd" />
               </svg>
             )}
@@ -364,9 +384,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
             <span className={`mono ${styles.sliderValue}`}>{logoHeight} mm</span>
           </label>
           <p className={styles.hint}>
-            {doc.logo.image
-              ? "Loggan är i färg och trycks som den är i filen. Texten graveras. Får loggan inte plats krymps den till skylten."
-              : "Loggan graveras i en färg, samma som texten. Får den inte plats krymps den till skylten."}
+            {LOGO_HINT[logoLook]} Får loggan inte plats krymps den till skylten. Metoden väljer du under Märkningsmetod.
           </p>
         </>
       )}

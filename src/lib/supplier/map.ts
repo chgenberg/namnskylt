@@ -1,10 +1,15 @@
 import {
   effectiveCornerRadius,
+  MARKING_MODE_NAME,
   getFont,
+  getMarkingMethod,
   getMaterial,
   getMounting,
   hasStraightSides,
   layoutBadge,
+  logoMarking,
+  markingOf,
+  nameMarking,
   type BadgeDocument,
   type BadgeShape,
   type FontEngine,
@@ -20,6 +25,17 @@ import type { SupplierLayer, SupplierSignDocument } from "./types";
 function supplierShape(shape: BadgeShape): SupplierSignDocument["shape"] {
   if (shape === "custom") return "freeform";
   return hasStraightSides(shape) || shape === "cushion" ? "rectangular" : shape;
+}
+
+/**
+ * Märkningsmetoden i klartext. Skyltmotorns text- och ramlager har inget läge
+ * för gravyr eller print, så ett printat namn går bara att säga så här tills
+ * leverantörens format har fältet. Loggans lager bär sitt läge själv.
+ */
+function markingNote(doc: BadgeDocument): string {
+  const parts = [`Namn: ${MARKING_MODE_NAME[nameMarking(doc)]}`];
+  if (doc.logo) parts.push(`Logotyp: ${MARKING_MODE_NAME[logoMarking(doc)]}`);
+  return `Märkningsmetod: ${getMarkingMethod(markingOf(doc)).name}. ${parts.join(". ")}.`;
 }
 
 /** Skyltmotorns standardradhöjd; påverkar inget här eftersom varje lager har en rad. */
@@ -39,6 +55,7 @@ export function toSupplierSignDocument(
   const layout = layoutBadge(doc, fonts);
   const font = getFont(doc.font);
   const { widthMm, heightMm } = doc.size;
+  const method = markingOf(doc);
 
   const textLayers: SupplierLayer[] = layout.rows.map((row) => ({
     id: `text-${row.id}`,
@@ -98,11 +115,12 @@ export function toSupplierSignDocument(
             },
             visible: true,
             locked: false,
-            // En logga i färg trycks som den är; en enfärgad graveras efter sina banor.
-            data: doc.logo.image
+            // En logga som printas skickas som bild: loggan i färg som den är, en svartvit som sin miniatyr.
+            // En logga som graveras skickas med sina banor.
+            data: layout.logo.printed
               ? {
                   kind: "image",
-                  src: doc.logo.image.src,
+                  src: doc.logo.image?.src ?? assets.logoPng ?? "",
                   widthMm: Number(layout.logo.width.toFixed(3)),
                   heightMm: Number(layout.logo.height.toFixed(3)),
                   renderMode: "print",
@@ -142,5 +160,6 @@ export function toSupplierSignDocument(
     mounting: getMounting(doc.mounting).name,
     holes: { type: "none", count: 0, diameterMm: 3.2, placement: "none" },
     layers: [...frameLayers, ...logoLayers, ...textLayers],
+    ...(method !== "engrave" && { productionNote: markingNote(doc) }),
   };
 }

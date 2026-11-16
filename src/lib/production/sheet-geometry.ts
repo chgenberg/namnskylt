@@ -1,5 +1,6 @@
 import {
   engravingPaths,
+  printedPaths,
   hasStraightSides,
   isEllipseShape,
   layoutBadge,
@@ -131,10 +132,13 @@ export function sheetMarks(sheet: PackedSheet, ctx: SheetContext): SheetMark[] {
     const layout = layoutBadge(doc, fonts);
     const paths = engravingPaths(layout, fonts);
     for (const path of paths ?? []) engrave(path.d, placement.xMm, placement.yMm, path.fillRule, key);
-    // En logga i färg trycks i stället för att graveras. Siluetten visar var trycket ska sitta
-    // och är en hjälplinje: den skrivs aldrig till maskinfilerna.
+    // Det som printas graveras inte: en logga i färg, och namn eller logga som kunden valt att printa.
+    // Konturerna visar var trycket ska sitta och är hjälplinjer: de skrivs aldrig till maskinfilerna.
     if (layout.logo?.imageSrc) {
       marks.push({ ink: "guide", d: layout.logo.d, dx: placement.xMm, dy: placement.yMm, fillRule: "evenodd", placementKey: key });
+    }
+    for (const path of printedPaths(layout, fonts) ?? []) {
+      marks.push({ ink: "guide", d: path.d, dx: placement.xMm, dy: placement.yMm, fillRule: path.fillRule, placementKey: key });
     }
     for (const outline of outlineMarks(doc, method)) {
       marks.push({ ...outline, dx: placement.xMm, dy: placement.yMm, placementKey: key });

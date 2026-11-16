@@ -45,7 +45,7 @@ const designCount = (count: number) => (count === 1 ? "1 design" : `${count} des
 export function CartSection({ groups, pending, canAdd, onAdd, onEdit, onRemove, onUndo, explicit = false }: CartSectionProps) {
   const counted = explicit ? groups.length : groups.length + (pending ? 0 : 1);
   return (
-    <PanelSection step={7} title="Varukorg" aside={groups.length > 0 ? designCount(counted) : explicit ? "Tom" : "Fler designer"}>
+    <PanelSection step={8} title="Varukorg" aside={groups.length > 0 ? designCount(counted) : explicit ? "Tom" : "Fler designer"}>
       {groups.length === 0 ? (
         <p className={styles.batchLead}>
           {explicit

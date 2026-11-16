@@ -1,5 +1,6 @@
 import { MOUNTINGS, getMaterial } from "./catalog";
-import type { BadgeDocument, MaterialId, MountingId, SignClass } from "./types";
+import { markingOf } from "./marking";
+import type { BadgeDocument, MarkingMethod, MaterialId, MountingId, SignClass } from "./types";
 
 /**
  * Prisräkning ur en prislista. Alla belopp är exkl. moms. Slutkundens belopp
@@ -22,9 +23,19 @@ export function toOre(sek: number): number {
 /**
  * Tillbehör och tillval som läggs på skyltpriset:
  * `customShape` är egen form upp till 12 × 12 cm, `extraEngraving` extra
- * gravyr eller print (i dag loggan), och resten är fästena.
+ * gravyr eller print (i dag loggan), fästena, och de fyra märkningsmetoderna
+ * (`marking…`), där en skylt alltid har exakt en.
  */
-export type PriceOptionId = "customShape" | "extraEngraving" | "pin" | "clip" | "magnet";
+export type PriceOptionId =
+  | "customShape"
+  | "extraEngraving"
+  | "pin"
+  | "clip"
+  | "magnet"
+  | "markingEngrave"
+  | "markingPrint"
+  | "markingEngraveNamePrintLogo"
+  | "markingPrintNameEngraveLogo";
 
 /** Pris per skylt för varje tillbehör och tillval, ett tal per trappsteg. */
 export type PriceOptions = Record<PriceOptionId, number[]>;
@@ -120,6 +131,8 @@ export interface PriceItem {
   extraEngraving: boolean;
   /** Skylten skärs i en egen form. */
   customShape: boolean;
+  /** Märkningsmetoden. Utan den räknas ingen märkning in, som för rader från före valet fanns. */
+  marking?: MarkingMethod;
   quantity: number;
 }
 
@@ -129,6 +142,14 @@ const MOUNTING_OPTION: Record<MountingId, PriceOptionId> = {
   clip: "clip",
   magnet: "magnet",
   "safety-pin": "pin",
+};
+
+/** Prisraden för varje märkningsmetod. */
+export const MARKING_OPTION: Record<MarkingMethod, PriceOptionId> = {
+  engrave: "markingEngrave",
+  print: "markingPrint",
+  "engrave-name-print-logo": "markingEngraveNamePrintLogo",
+  "print-name-engrave-logo": "markingPrintNameEngraveLogo",
 };
 
 function signClassOf(materialId: MaterialId): SignClass {
@@ -141,6 +162,7 @@ function priceItemOf(doc: BadgeDocument): PriceItem {
     mounting: doc.mounting,
     extraEngraving: Boolean(doc.logo),
     customShape: doc.shape === "custom",
+    marking: markingOf(doc),
     quantity: doc.quantity,
   };
 }
@@ -161,7 +183,13 @@ export function tierIndexFor(quantity: number, table: PriceTable): number {
 
 /** Priset för ett tillbehör eller tillval på ett trappsteg — det som läggs på skyltpriset. */
 export function optionPriceSek(option: PriceOptionId, table: PriceTable, tierIndex = 0): number {
-  return table.options[option][tierIndex] ?? 0;
+  // En lista härledd ur en äldre modell kan sakna en rad som kommit till senare; den kostar då ingenting.
+  return table.options[option]?.[tierIndex] ?? 0;
+}
+
+/** Priset för en märkningsmetod på ett trappsteg. Noll betyder att metoden ingår i skylten. */
+export function markingPriceSek(method: MarkingMethod, table: PriceTable, tierIndex = 0): number {
+  return optionPriceSek(MARKING_OPTION[method], table, tierIndex);
 }
 
 /** Priset för ett fäste på ett trappsteg. */
@@ -186,8 +214,8 @@ export function withoutStartCost(table: PriceTable): PriceTable {
   return { ...table, startSek: 0 };
 }
 
-/** En del av skyltens pris: själva skylten, fästet, ett tillval eller skyltens del av startkostnaden. */
-export type PricePart = "sign" | "mounting" | "extraEngraving" | "customShape" | "start";
+/** En del av skyltens pris: själva skylten, fästet, ett tillval, märkningsmetoden eller skyltens del av startkostnaden. */
+export type PricePart = "sign" | "mounting" | "extraEngraving" | "customShape" | "marking" | "start";
 
 export interface UnitPricePart {
   part: PricePart;
@@ -200,6 +228,9 @@ function listPriceParts(item: PriceItem, tierIndex: number, table: PriceTable): 
   if (item.mounting) parts.push({ part: "mounting", sek: mountingPriceSek(item.mounting, table, tierIndex) });
   if (item.extraEngraving) parts.push({ part: "extraEngraving", sek: optionPriceSek("extraEngraving", table, tierIndex) });
   if (item.customShape) parts.push({ part: "customShape", sek: optionPriceSek("customShape", table, tierIndex) });
+  // En metod som ingår i skylten har ingen egen del; bara en metod med pris läggs på.
+  const markingSek = item.marking ? markingPriceSek(item.marking, table, tierIndex) : 0;
+  if (markingSek > 0) parts.push({ part: "marking", sek: markingSek });
   return parts;
 }
 

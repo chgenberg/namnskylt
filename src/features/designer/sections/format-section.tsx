@@ -30,7 +30,7 @@ export function FormatSection({ doc, dispatch, tierIndex }: FormatSectionProps) 
   const custom = doc.shape === "custom";
 
   return (
-    <PanelSection step={4} title="Form" aside={`${widthMm} × ${heightMm} mm`}>
+    <PanelSection step={5} title="Form" aside={`${widthMm} × ${heightMm} mm`}>
       <BlankPicker
         value={blankOf(doc)?.id ?? null}
         onChange={(blankId) => dispatch({ type: "blank", blankId })}

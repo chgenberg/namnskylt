@@ -130,7 +130,7 @@ export function BatchSection({
 
   return (
     <PanelSection
-      step={6}
+      step={7}
       title="Fler namn"
       aside={badges.length > 0 ? `${badges.length + 1} skyltar` : "Samma design"}
     >

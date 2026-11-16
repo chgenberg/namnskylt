@@ -1,6 +1,8 @@
 import {
+  MARKING_METHODS,
   OFFERED_MATERIALS,
   OFFERED_MOUNTINGS,
+  markingPriceSek,
   mountingPriceSek,
   optionPriceSek,
   tierRangeLabel,
@@ -33,6 +35,11 @@ export function PurchasePriceTable({ purchase, list, marginPercent }: PurchasePr
     ...OFFERED_MOUNTINGS.map((m) => ({ name: `Fäste: ${m.name}`, ...perTier((table, i) => mountingPriceSek(m.id, table, i)) })),
     { name: "Logga på skylten", ...option("extraEngraving") },
     ...(OFFERED_MATERIALS.some((m) => m.customShape) ? [{ name: "Egen form", ...option("customShape") }] : []),
+    // Märkningsmetoden kunden väljer. 0 kr betyder att metoden ingår i skylten.
+    ...MARKING_METHODS.map((method) => ({
+      name: `Märkning: ${method.name}`,
+      ...perTier((table, i) => markingPriceSek(method.id, table, i)),
+    })),
   ];
   const shipping = purchase.shipping;
   const tierHead = (

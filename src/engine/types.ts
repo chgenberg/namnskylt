@@ -13,6 +13,10 @@ export type BadgeShape = "rectangle" | "rounded" | "stadium" | "oval" | "round" 
 export type BlankId = "rectangle" | "oval" | "rectangle-large" | "cushion";
 export type FrameStyle = "none" | "solid" | "double";
 export type MountingId = "pin" | "magnet" | "clip" | "safety-pin";
+/** Gravyr fräser ner i ytan, print trycker på den. */
+export type MarkingMode = "engrave" | "print";
+/** Hur namn och logga märks: en metod för båda, eller en kombination. Se `marking.ts`. */
+export type MarkingMethod = "engrave" | "print" | "engrave-name-print-logo" | "print-name-engrave-logo";
 export type MaterialId =
   | "metal"
   | "plastic"
@@ -78,7 +82,7 @@ export interface BadgeLogo {
   heightMm: Mm;
   /** Dragen av kunden. Hålls alltid inom säkerhetszonen av layouten. */
   offsetMm?: Offset;
-  /** Finns bilden trycks loggan i färg; saknas den graveras banorna. */
+  /** Loggan i färg. Den trycks som den är när loggan printas; graveras loggan används bara banorna. */
   image?: LogoImage;
   /**
    * Filen loggan lästes från, sparad på servern under sin SHA-256. Bara en
@@ -108,6 +112,12 @@ export interface BadgeDocument {
   /** Textblocket draget av kunden. Hålls alltid inom säkerhetszonen av layouten. */
   textOffsetMm?: Offset;
   logo?: BadgeLogo;
+  /**
+   * Vald märkningsmetod. Saknas den graveras namnet, och loggan trycks om den
+   * är i färg och graveras annars. Läs alltid med `markingOf`, `nameMarking`
+   * och `logoMarking`.
+   */
+  marking?: MarkingMethod;
   mounting: MountingId;
   quantity: number;
 }

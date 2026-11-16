@@ -1,12 +1,12 @@
 import { getColor, getFont, getMaterial } from "./catalog";
-import { engravingPaths } from "./engraving";
+import { engravingPaths, printedPaths } from "./engraving";
 import type { BadgeLayout, FontEngine } from "./layout";
 import type { BadgeDocument, MaterialFinish } from "./types";
 
 /**
  * - `preview`: det kunden ser i ritningsvyn och på startsidan.
  * - `production`: leverantörens filkonvention — röd = skär, svart = gravyr.
- *   En logga i färg trycks och finns därför inte med i den filen.
+ *   Det som printas, namnet eller loggan, finns därför inte med i den filen.
  */
 export type RenderMode = "preview" | "production";
 
@@ -120,20 +120,27 @@ export function renderBadgeSvg(
     );
   }
 
+  // Ritningen visar allt som märks. Produktionsfilen har bara gravyren: det som printas går inte till fräsen.
+  const drawName = isPreview || !layout.namePrinted;
+  const drawLogo = isPreview || !layout.logo?.printed;
   const engraving = fonts ? engravingPaths(layout, fonts) : null;
+  const printed = fonts && isPreview ? printedPaths(layout, fonts) : null;
   if (engraving) {
-    for (const path of engraving) {
+    // Printen ligger på ytan, under gravyren.
+    for (const path of [...(printed ?? []), ...engraving]) {
       parts.push(`<path d="${path.d}" fill="${fillFor(path.rowId)}" fill-rule="${path.fillRule}"/>`);
     }
   } else {
-    for (const frame of layout.frames) {
-      parts.push(`<path d="${frame.d}" fill="${engraveFill}" fill-rule="evenodd"/>`);
+    if (drawName) {
+      for (const frame of layout.frames) {
+        parts.push(`<path d="${frame.d}" fill="${engraveFill}" fill-rule="evenodd"/>`);
+      }
     }
-    if (layout.logo && !layout.logo.imageSrc) {
+    if (layout.logo && !layout.logo.imageSrc && drawLogo) {
       parts.push(`<path d="${layout.logo.d}" fill="${engraveFill}" fill-rule="evenodd"/>`);
     }
     const family = escapeXml(getFont(doc.font).css);
-    for (const row of layout.rows) {
+    for (const row of drawName ? layout.rows : []) {
       parts.push(
         `<text x="${num(row.xMm)}" y="${num(row.baselineMm)}" text-anchor="${row.anchor}" font-family="${family}" font-size="${num(row.fontSizeMm)}" font-weight="${row.bold ? 700 : 400}" fill="${fillFor(row.id)}">${escapeXml(row.text)}</text>`,
       );

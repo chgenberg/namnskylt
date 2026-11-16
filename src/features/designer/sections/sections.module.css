@@ -278,6 +278,133 @@
   transform: none;
 }
 
+/* ── Märkningsmetod ── */
+
+.markingList {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.markingOption {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-ink-2);
+  text-align: left;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+
+.markingOption:hover {
+  border-color: var(--color-line-strong);
+}
+
+.markingOption[aria-checked="true"] {
+  border-color: var(--color-navy);
+  background: var(--color-white);
+  color: var(--color-ink);
+}
+
+.markingRadio {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--color-line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+}
+
+.markingOption[aria-checked="true"] .markingRadio {
+  border-color: var(--color-navy);
+  background: var(--color-navy);
+}
+
+.markingOption[aria-checked="true"] .markingRadio::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+}
+
+.markingText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.markingName {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: var(--leading-snug);
+}
+
+.markingNote {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  line-height: 1.3;
+}
+
+.markingPrice {
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Ett kombinerat val utan logotyp syns men går inte att välja. */
+.markingOption[aria-disabled="true"] {
+  border-style: dashed;
+  border-color: var(--color-line);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+.markingOption[aria-disabled="true"]:hover {
+  border-color: var(--color-line);
+}
+
+.markingSummary {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.markingSummary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.markingSummary dt {
+  color: var(--color-muted);
+}
+
+.markingSummary dd {
+  margin: 0;
+  font-weight: 500;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.markingSummary .markingTotal {
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-line);
+}
+
+.markingTotal dt {
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
 .activeRing {
   position: absolute;
   inset: -1px;

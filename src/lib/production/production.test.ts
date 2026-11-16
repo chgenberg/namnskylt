@@ -332,6 +332,23 @@ describe("färdiga ämnen", () => {
     assert.ok(!machine.includes("<image") && !machine.includes(GUIDE_INK));
   });
 
+  it("ett namn som printas graveras inte: raderna är hjälplinjer och maskinfilen saknar dem", () => {
+    const marksFor = (patch: Partial<BadgeDocument>) => {
+      const units = productionBatches([order("NS-1", [{ ...metal(), ...patch }])])[0]?.units ?? [];
+      const [sheet] = packSheets(units, "blank").sheets;
+      assert.ok(sheet);
+      return { sheet, marks: sheetMarks(sheet, ctx) };
+    };
+    const engraved = marksFor({});
+    const printed = marksFor({ marking: "print" });
+    const rows = engraved.marks.filter((m) => m.ink === "engrave").length;
+    assert.ok(rows > 0);
+    assert.equal(printed.marks.filter((m) => m.ink === "engrave").length, 0);
+    const guides = (marks: typeof engraved.marks) => marks.filter((m) => m.ink === "guide" && m.placementKey && m.fillRule === "nonzero");
+    assert.equal(guides(printed.marks).length - guides(engraved.marks).length, rows);
+    assert.equal((renderMachineSvg(printed.sheet, printed.marks).match(/<path /g) ?? []).length, 0);
+  });
+
   it("maskinfilerna innehåller varken skärlinjer eller hjälplinjer", () => {
     const units = productionBatches([order("NS-1", [metal()])])[0]?.units ?? [];
     const [sheet] = packSheets(units, "blank").sheets;

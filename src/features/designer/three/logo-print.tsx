@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { DoubleSide, Float32BufferAttribute, SRGBColorSpace, ShapeGeometry, TextureLoader, type Texture } from "three";
-import { layoutBadge, type BadgeDocument, type FontEngine, type Rect } from "@/engine";
-import { UNITS_PER_MM, glyphShapes } from "./geometry";
+import { getColor, layoutBadge, type BadgeDocument, type EngravedPath, type FontEngine, type Rect } from "@/engine";
+import { UNITS_PER_MM, glyphShapes, printSurface } from "./geometry";
 
 /** Trycket ligger en hårsmån över ytan, så att det inte flimrar mot plattan. */
 const LIFT_UNITS = 0.002;
@@ -79,6 +79,29 @@ export function LogoPrint({ doc, fonts, frontZ, onTexture }: LogoPrintProps) {
     <mesh geometry={geometry} position={[0, 0, frontZ + LIFT_UNITS]}>
       {/* Oberoende av ljussättningen, så att färgerna blir exakt filens. */}
       <meshBasicMaterial map={texture} transparent depthWrite={false} toneMapped={false} side={DoubleSide} />
+    </mesh>
+  );
+}
+
+interface InkPrintProps {
+  doc: BadgeDocument;
+  /** Det som printas i gravyrens färg: namnet, ramen eller en svartvit logga. Se `printedPaths`. */
+  printed: readonly EngravedPath[];
+  frontZ: number;
+}
+
+/**
+ * Print i en färg på skyltens framsida: ett namn eller en logga som kunden har
+ * valt att printa i stället för att gravera. Trycket ligger plant på ytan, i
+ * gravyrens färg, och fräses aldrig ur plattan.
+ */
+export function InkPrint({ doc, printed, frontZ }: InkPrintProps) {
+  const geometry = useMemo(() => (printed.length > 0 ? printSurface(doc, printed) : null), [doc, printed]);
+  useEffect(() => () => geometry?.dispose(), [geometry]);
+  if (!geometry) return null;
+  return (
+    <mesh geometry={geometry} position={[0, 0, frontZ + LIFT_UNITS]}>
+      <meshStandardMaterial color={getColor(doc.materialId, doc.colorId).engraving} roughness={0.62} metalness={0} />
     </mesh>
   );
 }

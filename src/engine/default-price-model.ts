@@ -25,6 +25,11 @@ export const DEFAULT_PRICE_MODEL: PriceModel = {
     pin: [5, 5, 5, 5],
     clip: [9, 9, 9, 9],
     magnet: [11, 11, 11, 11],
+    // Märkningsmetoderna ingår i skylten tills ägaren sätter priser i admin (beslut 2026-11-16).
+    markingEngrave: [0, 0, 0, 0],
+    markingPrint: [0, 0, 0, 0],
+    markingEngraveNamePrintLogo: [0, 0, 0, 0],
+    markingPrintNameEngraveLogo: [0, 0, 0, 0],
   },
   startSek: 200,
   minOrderSek: 299,

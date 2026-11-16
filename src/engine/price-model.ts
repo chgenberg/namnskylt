@@ -102,6 +102,10 @@ export const priceModelSchema = z
       pin: tierPricesSchema,
       clip: tierPricesSchema,
       magnet: tierPricesSchema,
+      markingEngrave: tierPricesSchema,
+      markingPrint: tierPricesSchema,
+      markingEngraveNamePrintLogo: tierPricesSchema,
+      markingPrintNameEngraveLogo: tierPricesSchema,
     }),
     startSek: oreSchema,
     minOrderSek: oreSchema,
@@ -122,7 +126,14 @@ export const priceModelSchema = z
     });
   }) satisfies z.ZodType<PriceModel>;
 
-const OPTION_IDS = ["customShape", "extraEngraving", "pin", "clip", "magnet"] as const satisfies readonly PriceOptionId[];
+/** Märkningsmetodernas prisrader. De kom till 2026-11-16; en modell sparad före dess saknar dem. */
+const MARKING_OPTION_IDS = [
+  "markingEngrave",
+  "markingPrint",
+  "markingEngraveNamePrintLogo",
+  "markingPrintNameEngraveLogo",
+] as const satisfies readonly PriceOptionId[];
+const OPTION_IDS = ["customShape", "extraEngraving", "pin", "clip", "magnet", ...MARKING_OPTION_IDS] as const satisfies readonly PriceOptionId[];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -133,13 +144,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * startkostnad. Den läses som samma pris på alla trappsteg och startkostnad 0,
  * så att ordrar och offerter från den tiden behåller exakt sina priser. En
  * modell sparad före 2026-11-14 saknar frakt och läses utan, av samma skäl.
+ * En modell sparad före 2026-11-16 saknar märkningsmetodernas rader och läses
+ * med 0 kr på alla fyra, alltså att metoden ingår i skylten.
  */
 function upgradeStoredModel(value: unknown): unknown {
   if (!isRecord(value)) return value;
   const options = isRecord(value.options)
-    ? Object.fromEntries(
-        Object.entries(value.options).map(([id, price]) => [id, typeof price === "number" ? Array(PRICE_TIER_COUNT).fill(price) : price]),
-      )
+    ? {
+        ...Object.fromEntries(MARKING_OPTION_IDS.map((id) => [id, Array(PRICE_TIER_COUNT).fill(0)])),
+        ...Object.fromEntries(
+          Object.entries(value.options).map(([id, price]) => [id, typeof price === "number" ? Array(PRICE_TIER_COUNT).fill(price) : price]),
+        ),
+      }
     : value.options;
   return { ...value, options, startSek: value.startSek ?? 0, shipping: value.shipping ?? NO_SHIPPING };
 }
@@ -298,10 +314,12 @@ export function itemBreakdown(model: PriceModel, item: PriceItem): ItemBreakdown
   const provisionPercent = provisionPercentFor(model, quantity);
   // Slutkundens del läses ur slutkundens prislista, del för del. Startkostnaden räknas alltså ur slutkundens
   // startkostnad och inte ur återförsäljarens del.
+  // Delarna paras ihop på namn: en del som avrundas till 0 kr för slutkunden finns bara i återförsäljarens lista.
   const endParts = unitPriceParts(item, quantity, endPriceTable(model));
-  const parts = unitPriceParts(item, quantity, purchase).map(({ part, sek }, i) => ({
+  const endSek = (part: PricePart) => endParts.find((end) => end.part === part)?.sek ?? 0;
+  const parts = unitPriceParts(item, quantity, purchase).map(({ part, sek }) => ({
     part,
-    share: shareOf(sek, endParts[i]?.sek ?? 0, provisionPercent),
+    share: shareOf(sek, endSek(part), provisionPercent),
   }));
   const sum = (pick: (share: PartShare) => number) => toOre(parts.reduce((total, { share }) => total + pick(share), 0));
   const perSign: PartShare = {

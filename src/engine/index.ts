@@ -2,6 +2,7 @@ export * from "./types";
 export * from "./catalog";
 export * from "./color-choice";
 export * from "./document";
+export * from "./marking";
 export * from "./batch";
 export * from "./roster";
 export * from "./shape";

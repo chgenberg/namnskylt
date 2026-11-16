@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { tierRangeLabel, type PriceOptionId, type SignClass } from "@/engine";
+import { MARKING_METHODS, MARKING_OPTION, tierRangeLabel, type PriceOptionId, type SignClass } from "@/engine";
 import {
   MAX_MARGIN_PERCENT,
   MAX_PRICE_SEK,
@@ -30,6 +30,13 @@ const OPTION_ROWS: readonly { id: PriceOptionId; name: string; note: string }[] 
   { id: "extraEngraving", name: "Extra gravyr eller print", note: "Loggan på skylten" },
   { id: "customShape", name: "Egen design, max 12 × 12 cm", note: "Plast i egen form" },
 ];
+
+/** De fyra märkningsmetoderna, i samma ordning och med samma namn som i skyltmotorn. 0 kr betyder att metoden ingår. */
+const MARKING_ROWS: readonly { id: PriceOptionId; name: string; note: string }[] = MARKING_METHODS.map((method) => ({
+  id: MARKING_OPTION[method.id],
+  name: method.name,
+  note: method.description,
+}));
 
 function replaceAt<T>(list: readonly T[], index: number, value: T): T[] {
   return list.map((item, i) => (i === index ? value : item));
@@ -207,6 +214,36 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
           <div className={styles.table}>
             {tierHead}
             {OPTION_ROWS.map((row) => (
+              <PriceGroup
+                key={row.id}
+                name={row.name}
+                note={row.note}
+                prices={draft.options[row.id]}
+                model={draft}
+                tierLabels={tierLabels}
+                onChange={(i, value) =>
+                  setDraft({ ...draft, options: { ...draft.options, [row.id]: replaceAt(draft.options[row.id], i, value) } })
+                }
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.card} aria-labelledby="price-model-marking">
+        <div className={styles.cardHead}>
+          <h2 id="price-model-marking" className={styles.cardTitle}>
+            Märkningsmetod
+          </h2>
+          <p className={styles.muted}>
+            Det återförsäljaren betalar per skylt för metoden kunden väljer i skyltmotorn. Med 0 kr ingår metoden och visas
+            som &quot;Ingår&quot;. De kombinerade metoderna går bara att välja på en skylt med logga.
+          </p>
+        </div>
+        <div className={styles.scroll}>
+          <div className={styles.table}>
+            {tierHead}
+            {MARKING_ROWS.map((row) => (
               <PriceGroup
                 key={row.id}
                 name={row.name}

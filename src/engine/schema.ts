@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CUSTOM_SHAPE_LIMITS, LOGO_LIMITS, MATERIALS, MATERIAL_IDS, SHAPE_IDS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
 import { CUSTOM_OUTLINE_ISSUE_TEXT, customOutlineIssue } from "./custom-outline";
+import { MARKING_METHOD_IDS } from "./marking";
 import { LOGO_IMAGE_PATTERN, LOGO_IMAGE_REF_PATTERN, LOGO_ORIGINAL_ID_PATTERN, LOGO_PATH_PATTERN } from "./logo";
 import type { BadgeDocument } from "./types";
 
@@ -68,6 +69,8 @@ export const badgeDocumentSchema = z
         originalId: z.string().regex(LOGO_ORIGINAL_ID_PATTERN).optional(),
       })
       .optional(),
+    // Ett kombinerat val utan logga är inget fel: `markingOf` läser det som namnets metod.
+    marking: z.enum(MARKING_METHOD_IDS).optional(),
     mounting: z.enum(["pin", "magnet", "clip", "safety-pin"]),
     quantity: z.number().int().min(1).max(10_000),
   })

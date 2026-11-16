@@ -17,7 +17,7 @@ export function MaterialSection({ doc, dispatch }: MaterialSectionProps) {
   const color = getColor(doc.materialId, doc.colorId);
 
   return (
-    <PanelSection step={3} title={OFFERED_MATERIALS.length > 1 ? "Material & färg" : "Yta"} aside={color.name}>
+    <PanelSection step={4} title={OFFERED_MATERIALS.length > 1 ? "Material & färg" : "Yta"} aside={color.name}>
       <MaterialPicker
         value={doc.materialId}
         layoutId="material-active"

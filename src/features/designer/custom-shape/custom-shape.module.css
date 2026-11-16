@@ -165,6 +165,33 @@
   color: var(--color-danger);
 }
 
+/* ── Beskriv formen ── */
+
+.describe {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+}
+
+.describeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Fältet tar platsen som blir över, och knappen hamnar på egen rad först när panelen är riktigt smal. */
+.describeField {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.describeButton {
+  flex: 0 0 auto;
+}
+
 /* ── Ritverktyget ── */
 
 .canvas {

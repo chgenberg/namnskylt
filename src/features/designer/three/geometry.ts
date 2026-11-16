@@ -1,5 +1,5 @@
 import { Brush, Evaluator, SUBTRACTION } from "three-bvh-csg";
-import { BufferGeometry, ExtrudeGeometry, Float32BufferAttribute, Material, Shape, ShapePath } from "three";
+import { BufferGeometry, ExtrudeGeometry, Float32BufferAttribute, Material, Shape, ShapeGeometry, ShapePath } from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import {
   badgeOutline,
@@ -342,6 +342,24 @@ export function glyphShapes(
 }
 
 /**
+ * Det som printas som en plan yta i skyltens plan, z = 0: ramarna, glyferna
+ * och en logga som printas i en färg. `null` när inget printas.
+ */
+export function printSurface(doc: BadgeDocument, printed: readonly EngravedPath[]): BufferGeometry | null {
+  const flat = (shapes: Shape[], curveSegments: number) => (shapes.length === 0 ? null : new ShapeGeometry(shapes, curveSegments));
+  // Ramarna är långa bågar och får samma upplösning som skyltens kant, som i gravyren.
+  const parts = [
+    flat(printed.some((p) => p.kind === "frame") ? frameShapes(doc) : [], OUTLINE_CURVE_SEGMENTS[doc.shape]),
+    flat(glyphShapes(doc, printed.filter((p) => p.kind !== "frame")), GLYPH_CURVE_SEGMENTS),
+  ].filter((part): part is ShapeGeometry => part !== null);
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return parts[0]!;
+  const merged = mergeGeometries(parts);
+  parts.forEach((part) => part.dispose());
+  return merged;
+}
+
+/**
  * Gravyrens konturer extruderade `depthMm` uppåt från z = 0. Ramarna är
  * långa bågar och får samma upplösning som skyltens kant; glyferna har
  * korta kurvor och klarar sig med färre segment.
@@ -352,8 +370,10 @@ function engravingSolid(doc: BadgeDocument, engraving: readonly EngravedPath[], 
       ? null
       : new ExtrudeGeometry(shapes, { depth: depthMm * UNITS_PER_MM, bevelEnabled: false, curveSegments });
 
+  // Ramen fräses bara när den hör till gravyren; printas namnet ligger ramen i trycket i stället.
+  const framed = engraving.some((p) => p.kind === "frame");
   const parts = [
-    extrude(frameShapes(doc), OUTLINE_CURVE_SEGMENTS[doc.shape]),
+    extrude(framed ? frameShapes(doc) : [], OUTLINE_CURVE_SEGMENTS[doc.shape]),
     extrude(glyphShapes(doc, engraving.filter((p) => p.kind !== "frame")), GLYPH_CURVE_SEGMENTS),
   ].filter((part): part is ExtrudeGeometry => part !== null);
   if (parts.length === 0) return null;

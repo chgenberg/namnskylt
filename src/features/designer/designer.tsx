@@ -37,6 +37,7 @@ import { BatchSection } from "./sections/batch-section";
 import { CartSection } from "./sections/cart-section";
 import { FormatSection } from "./sections/format-section";
 import { LogoSection } from "./sections/logo-section";
+import { MarkingSection } from "./sections/marking-section";
 import { MaterialSection } from "./sections/material-section";
 import { MountingSection } from "./sections/mounting-section";
 import { OrderSection } from "./sections/order-section";
@@ -612,6 +613,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
             placing={view === "drawing"}
           />
           <LogoSection doc={doc} dispatch={update} onWorkplace={visualize.setWorkplace} />
+          <MarkingSection doc={doc} dispatch={update} tierIndex={tierIndex} />
           <MaterialSection doc={doc} dispatch={update} />
           <FormatSection doc={doc} dispatch={update} tierIndex={tierIndex} />
           <MountingSection doc={doc} dispatch={update} />

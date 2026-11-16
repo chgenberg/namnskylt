@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   layoutBadge,
+  logoMarking,
   renderBadgeSvg,
   resellerOrder,
   shippingKind,
@@ -114,8 +115,8 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
   const lines = input.badges.flatMap((badge, i) => {
     if (!workshop.includes(badge)) return [];
     const document = toSupplierSignDocument(badge, input.fonts, {
-      // En logga i färg skickas som sin egen bild; bara en graverad behöver en svartvit miniatyr.
-      logoPng: badge.logo && !badge.logo.image ? input.logoPng?.(badge.logo) : undefined,
+      // En logga i färg som printas skickas som sin egen bild; alla andra behöver en svartvit miniatyr.
+      logoPng: badge.logo && !(badge.logo.image && logoMarking(badge) === "print") ? input.logoPng?.(badge.logo) : undefined,
     });
     return [
       {

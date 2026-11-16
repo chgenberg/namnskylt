@@ -20,6 +20,7 @@ const CHOICE_ACTIONS: ReadonlySet<DesignerAction["type"]> = new Set([
   "logo",
   "logo/placement",
   "logo/height",
+  "marking",
   "mounting",
 ]);
 

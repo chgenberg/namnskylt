@@ -4,6 +4,7 @@ import {
   badgeDocumentSchema,
   groupBadges,
   isOfferedDocument,
+  nameMarking,
   type BadgeDocument,
   type BadgeGroup,
 } from "@/engine";
@@ -176,6 +177,8 @@ function badgeSignature(doc: BadgeDocument): string {
     doc.size.widthMm,
     doc.size.heightMm,
     doc.mounting,
+    // Namnets metod hör till skylten; loggans kan ändras när loggan görs om eller tappas i en länk.
+    nameMarking(doc),
     Math.max(1, Math.floor(doc.quantity)),
   ]);
 }

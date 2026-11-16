@@ -4,9 +4,12 @@ import {
   TEXT_LIMITS,
   createRow,
   getMaterial,
+  markingFits,
   mountingFits,
   resizeCustomShape,
   withBlank,
+  withLogoMarking,
+  withMarking,
   withShapePreset,
   type BadgeDocument,
   type BadgeLogo,
@@ -14,6 +17,7 @@ import {
   type FontId,
   type FrameStyle,
   type LogoPlacement,
+  type MarkingMethod,
   type MaterialId,
   type MountingId,
   type Offset,
@@ -49,6 +53,8 @@ export type DesignerAction =
   | { type: "logo/original"; d: string; originalId: string }
   | { type: "logo/placement"; placement: LogoPlacement }
   | { type: "logo/height"; heightMm: number }
+  /** Kunden väljer hur namn och logotyp märks. Ett kombinerat val kräver en logga. */
+  | { type: "marking"; method: MarkingMethod }
   | { type: "move"; target: "text" | "logo"; offset: Offset }
   | { type: "move/reset" }
   | { type: "mounting"; mounting: MountingId }
@@ -155,11 +161,15 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     case "frame":
       return { ...doc, frame: { ...doc.frame, style: action.style } };
     case "logo": {
-      if (action.logo) return { ...doc, logo: action.logo };
+      // En ny logga får ett förslag på metod: i färg printas den, svartvit följer den namnet. Kunden kan byta sedan.
+      if (action.logo) return withLogoMarking({ ...doc, logo: action.logo });
       const rest = { ...doc };
       delete rest.logo;
-      return rest;
+      // Utan logga finns bara namnets metod kvar; ett kombinerat val faller tillbaka dit.
+      return withLogoMarking(rest);
     }
+    case "marking":
+      return markingFits(action.method, doc) ? withMarking(doc, action.method) : doc;
     case "logo/original":
       // Svaret kommer i efterhand: har kunden bytt eller tagit bort loggan under tiden gäller det inte längre.
       return doc.logo && doc.logo.d === action.d ? { ...doc, logo: { ...doc.logo, originalId: action.originalId } } : doc;

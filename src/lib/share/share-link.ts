@@ -1,4 +1,4 @@
-import { badgeDocumentSchema, logoImageRefId, type BadgeDocument } from "@/engine";
+import { badgeDocumentSchema, logoImageRefId, logoMarking, type BadgeDocument } from "@/engine";
 
 /**
  * En design i en länk: dokumentet som komprimerad JSON i base64url. Samma kod
@@ -61,12 +61,13 @@ export interface ShareCode {
 }
 
 /**
- * En logga i färg som ligger på servern ritas ur sin bild; banorna är bara dess
- * siluett. I en länk räcker bildens ruta som siluett, så att loggan ryms.
+ * En logga i färg som ligger på servern och printas ritas ur sin bild; banorna
+ * är bara dess siluett. I en länk räcker bildens ruta som siluett, så att
+ * loggan ryms. Graveras loggan är banorna själva gravyren och måste vara kvar.
  */
 function withFrameSilhouette(doc: BadgeDocument): BadgeDocument | null {
   const { logo } = doc;
-  if (!logo?.image || logoImageRefId(logo.image.src) === null) return null;
+  if (!logo?.image || logoImageRefId(logo.image.src) === null || logoMarking(doc) !== "print") return null;
   const { viewWidth: w, viewHeight: h } = logo;
   return { ...doc, logo: { ...logo, d: `M0 0L${w} 0L${w} ${h}L0 ${h}Z` } };
 }

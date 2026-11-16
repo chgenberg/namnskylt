@@ -4,7 +4,7 @@ import { z } from "zod";
 import { PHOTO_CHECK_JSON_SCHEMA, photoCheckSchema, type PhotoCheck } from "./photo-check";
 import { UNKNOWN_WEARER, type Wearer } from "./prompts";
 
-const IMAGE_MODEL = "gpt-image-2";
+export const IMAGE_MODEL = "gpt-image-2";
 export const VISION_MODEL = "gpt-5.4-mini";
 
 let client: OpenAI | null = null;

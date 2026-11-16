@@ -56,6 +56,27 @@ describe("delningslänk", () => {
     assert.deepEqual(shared?.logo, { ...doc.logo, d: "M0 0L600 0L600 200L0 200Z" });
   });
 
+  it("en logga i färg som graveras behåller sina banor: de är gravyren, så loggan tappas hellre än blir en ruta", async () => {
+    const points = Array.from({ length: 6000 }, (_, i) => `L${(i * 7919) % 997} ${(i * 104729) % 991}`).join("");
+    const image = { src: logoImageRef("ab".repeat(32)) };
+    const doc: BadgeDocument = {
+      ...createBadgeDocument(["Anna"]),
+      marking: "engrave",
+      logo: { d: `M0 0${points}Z`, viewWidth: 600, viewHeight: 200, placement: "top", heightMm: 8, image },
+    };
+    const { code, droppedLogo } = await encodeShareCode(doc);
+    assert.equal(droppedLogo, true);
+    const shared = await decodeShareCode(code);
+    assert.equal(shared?.logo, undefined);
+    assert.equal(shared?.marking, "engrave");
+  });
+
+  it("märkningsmetoden följer med i länken", async () => {
+    const logo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "top" as const, heightMm: 8 };
+    const doc: BadgeDocument = { ...createBadgeDocument(["Anna"]), logo, marking: "print-name-engrave-logo" };
+    assert.equal((await decodeShareCode((await encodeShareCode(doc)).code))?.marking, "print-name-engrave-logo");
+  });
+
   it("en kort siluett lämnas orörd för en logga i färg", async () => {
     const logo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "top" as const, heightMm: 8 };
     const doc: BadgeDocument = { ...createBadgeDocument(["Anna"]), logo: { ...logo, image: { src: logoImageRef("0f".repeat(32)) } } };

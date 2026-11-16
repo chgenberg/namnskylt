@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { priceItemsOf, type BadgeDocument, type PriceItem } from "@/engine";
+import { MARKING_METHOD_IDS, priceItemsOf, type BadgeDocument, type PriceItem } from "@/engine";
 
 /**
  * Frakten är samma i alla led och räknas på det återförsäljaren betalar
@@ -13,13 +13,18 @@ const itemSchema = z.strictObject({
   mounting: z.enum(["pin", "magnet", "clip", "safety-pin"]),
   extraEngraving: z.boolean(),
   customShape: z.boolean(),
+  marking: z.enum(MARKING_METHOD_IDS).optional(),
   quantity: z.number().int().min(1).max(10_000_000),
 });
 
-/** Två skylttyper, fyra fästen, med eller utan logga och egen form ger högst 32 olika rader. */
-export const shippingRequestSchema = z.strictObject({ items: z.array(itemSchema).min(1).max(32) });
+/**
+ * Två skylttyper, fyra fästen, med eller utan egen form, och två märkningsmetoder
+ * utan logga eller fyra med ger högst 96 olika rader.
+ */
+export const shippingRequestSchema = z.strictObject({ items: z.array(itemSchema).min(1).max(96) });
 
-const typeKey = (item: PriceItem) => `${item.signClass}|${item.mounting}|${item.extraEngraving}|${item.customShape}`;
+const typeKey = (item: PriceItem) =>
+  `${item.signClass}|${item.mounting}|${item.extraEngraving}|${item.customShape}|${item.marking ?? ""}`;
 
 /**
  * Det servern behöver för att räkna frakten: skyltarna utan design och text,
