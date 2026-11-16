@@ -59,3 +59,30 @@ export function colorChoices(colors: readonly ColorCombo[], selectedId: string):
   const cores = group.length > 1 ? group.map((combo): CoreChoice => ({ name: colorNames(combo).core ?? combo.name, combo, selected: combo === selected })) : [];
   return { fronts, cores };
 }
+
+/** Koderna för en färg: skärmens hex, och PMS och RAL när verkstaden har lämnat dem. */
+export interface PigmentCodes {
+  hex: string;
+  pms?: string;
+  ral?: string;
+}
+
+/**
+ * PMS och RAL per pigment, med pigmentets hex i versaler som nyckel. Varken
+ * vår katalog eller verkstadens har de koderna än (2026-11-16): listan fylls i
+ * när verkstaden har lämnat dem, och då visas de av sig själva i färgväljaren.
+ * Hitta aldrig på en kod här. Hex är skärmens färg ur verkstadens katalog och
+ * ungefärlig mot den fysiska skivan.
+ */
+const PIGMENT_CODES: Readonly<Record<string, Omit<PigmentCodes, "hex">>> = {};
+
+export function pigmentCodes(hex: string): PigmentCodes {
+  const key = hex.toUpperCase();
+  return { hex: key, ...PIGMENT_CODES[key] };
+}
+
+/** Koderna så som de visas: `PMS 286 C · RAL 5005 · #0057B8`, med hex sist. */
+export function pigmentCodeText(hex: string): string {
+  const { pms, ral, hex: shown } = pigmentCodes(hex);
+  return [pms && `PMS ${pms}`, ral && `RAL ${ral}`, shown].filter(Boolean).join(" · ");
+}

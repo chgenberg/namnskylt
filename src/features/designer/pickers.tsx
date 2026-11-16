@@ -7,6 +7,9 @@ import {
   OFFERED_MATERIALS,
   blankFits,
   colorChoices,
+  colorNames,
+  getColor,
+  pigmentCodeText,
   createBadgeDocument,
   getMaterial,
   outlinePath,
@@ -238,6 +241,9 @@ export function ColorPicker({ materialId, value, onChange }: ColorPickerProps) {
   const material = getMaterial(materialId);
   const isMetal = material.finish === "aluminium" || material.finish === "steel" || material.finish === "brass";
   const { fronts, cores } = colorChoices(material.colors, value);
+  // Koderna visas för plasten, där färgen är ett pigment. Metallens ytor har ingen färgkod.
+  const chosen = getColor(materialId, value);
+  const names = colorNames(chosen);
   return (
     <div className={styles.colorPicker}>
       <div className={styles.swatches} role="radiogroup" aria-label="Färg">
@@ -272,6 +278,25 @@ export function ColorPicker({ materialId, value, onChange }: ColorPickerProps) {
               </button>
             ))}
           </div>
+        </div>
+      )}
+      {!isMetal && (
+        <div className={styles.colorCodes}>
+          <dl aria-label="Färgkoder">
+            <div>
+              <dt>Framsida</dt>
+              <dd>
+                {names.front} <span className="mono">{pigmentCodeText(chosen.surface)}</span>
+              </dd>
+            </div>
+            <div>
+              <dt>Gravyr</dt>
+              <dd>
+                {names.core ?? "Kärnan"} <span className="mono">{pigmentCodeText(chosen.engraving)}</span>
+              </dd>
+            </div>
+          </dl>
+          <p className={styles.colorCodesNote}>Hex är skärmens färg och kan skilja något från den färdiga skylten.</p>
         </div>
       )}
     </div>

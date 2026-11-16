@@ -5,6 +5,7 @@ import {
   getMarkingMethod,
   getMaterial,
   mountingLabel,
+  printColorLabel,
   hasStraightSides,
   layoutBadge,
   logoEngravingPath,
@@ -36,6 +37,8 @@ function supplierShape(shape: BadgeShape): SupplierSignDocument["shape"] {
 function markingNote(doc: BadgeDocument): string {
   const parts = [`Namn: ${MARKING_MODE_NAME[nameMarking(doc)]}`];
   if (doc.logo) parts.push(`Logotyp: ${MARKING_MODE_NAME[logoMarking(doc)]}`);
+  const color = printColorLabel(doc);
+  if (color) parts.push(color);
   return `Märkningsmetod: ${getMarkingMethod(markingOf(doc)).name}. ${parts.join(". ")}.`;
 }
 

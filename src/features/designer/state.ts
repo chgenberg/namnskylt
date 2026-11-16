@@ -4,6 +4,7 @@ import {
   TEXT_LIMITS,
   blankFits,
   blankOf,
+  cleanPrintColor,
   clipOrientations,
   createRow,
   getBlank,
@@ -65,6 +66,8 @@ export type DesignerAction =
   | { type: "logo/height"; heightMm: number }
   /** Kunden väljer hur namn och logotyp märks. Ett kombinerat val kräver en logga. */
   | { type: "marking"; method: MarkingMethod }
+  /** Kundens egen färgkod för det som printas, som fritext. Tom text tar bort den. */
+  | { type: "print/color"; code: string }
   | { type: "move"; target: "text" | "logo"; offset: Offset }
   | { type: "move/reset" }
   | { type: "mounting"; mounting: MountingId }
@@ -189,6 +192,13 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     }
     case "marking":
       return markingFits(action.method, doc) ? withMarking(doc, action.method) : doc;
+    case "print/color": {
+      const code = cleanPrintColor(action.code);
+      if (code.trim() !== "") return { ...doc, printColor: code };
+      const rest = { ...doc };
+      delete rest.printColor;
+      return rest;
+    }
     case "logo/engraving":
       // Svaret kommer i efterhand: gäller bara om samma logga ligger kvar och fortfarande saknar gravyrform.
       return doc.logo && doc.logo.d === action.d && !doc.logo.engraveD

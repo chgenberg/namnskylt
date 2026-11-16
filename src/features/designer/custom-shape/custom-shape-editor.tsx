@@ -74,9 +74,15 @@ export function CustomShapeEditor({ doc, dispatch }: CustomShapeEditorProps) {
           <h3 id="custom-shape-draw" className={styles.blockTitle}>
             Rita om formen
           </h3>
-          <span className={styles.note}>Streckad ruta = skyltens mått</span>
+          <span className={styles.note}>Streckad ruta = skyltens mått. Klicka på ett mått för att ändra det.</span>
         </header>
-        <OutlineCanvas key={revision} doc={doc} issue={issue} onChange={(next) => dispatch({ type: "custom/outline", points: next })} />
+        <OutlineCanvas
+          key={revision}
+          doc={doc}
+          issue={issue}
+          onChange={(next) => dispatch({ type: "custom/outline", points: next })}
+          onResize={(change) => dispatch({ type: "custom/size", ...change })}
+        />
         {issue && <OutlineIssueNote issue={issue} />}
       </section>
 

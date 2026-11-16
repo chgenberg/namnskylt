@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CUSTOM_SHAPE_LIMITS, LOGO_LIMITS, MATERIALS, MATERIAL_IDS, SHAPE_IDS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
 import { CUSTOM_OUTLINE_ISSUE_TEXT, customOutlineIssue } from "./custom-outline";
-import { MARKING_METHOD_IDS } from "./marking";
+import { MARKING_METHOD_IDS, PRINT_COLOR_MAX } from "./marking";
 import { LOGO_IMAGE_PATTERN, LOGO_IMAGE_REF_PATTERN, LOGO_ORIGINAL_ID_PATTERN, LOGO_PATH_PATTERN } from "./logo";
 import type { BadgeDocument } from "./types";
 
@@ -73,6 +73,12 @@ export const badgeDocumentSchema = z
       .optional(),
     // Ett kombinerat val utan logga är inget fel: `markingOf` läser det som namnets metod.
     marking: z.enum(MARKING_METHOD_IDS).optional(),
+    // Kundens färgkod för trycket: fritext utan styrtecken.
+    printColor: z
+      .string()
+      .max(PRINT_COLOR_MAX)
+      .regex(/^[^\u0000-\u001f\u007f]*$/)
+      .optional(),
     mounting: z.enum(["pin", "magnet", "clip", "safety-pin"]),
     // En riktning som inte ryms är inget fel: `clipOrientationOf` läser den som ryms.
     clipOrientation: z.enum(["horizontal", "vertical"]).optional(),

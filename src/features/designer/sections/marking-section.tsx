@@ -5,6 +5,7 @@ import { PanelSection } from "@/components/ui/panel-section";
 import {
   MARKING_METHODS,
   MARKING_MODE_NAME,
+  PRINT_COLOR_MAX,
   getMarkingMethod,
   markingFits,
   markingOf,
@@ -36,6 +37,8 @@ function priceLabel(sek: number): string {
 export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps) {
   const { markingPrice } = useShopPrices(tierIndex);
   const selected = getMarkingMethod(markingOf(doc));
+  // Färgkoden gäller trycket: fältet visas bara när namnet eller loggan printas.
+  const printsSomething = selected.nameMode === "print" || (Boolean(doc.logo) && selected.logoMode === "print");
   return (
     <PanelSection step={2} title="Märkningsmetod" aside="1 metod ingår">
       <div className={styles.markingList} role="radiogroup" aria-label="Märkningsmetod">
@@ -78,6 +81,24 @@ export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps
           <dd>{priceLabel(markingPrice(selected.id, doc.materialId))}</dd>
         </div>
       </dl>
+      {printsSomething && (
+        <label className={styles.labelled}>
+          <span className={styles.sliderLabel}>PMS eller färgkod för trycket</span>
+          <span className="field">
+            <input
+              type="text"
+              value={doc.printColor ?? ""}
+              maxLength={PRINT_COLOR_MAX}
+              placeholder="Till exempel PMS 286 C"
+              autoComplete="off"
+              onChange={(event) => dispatch({ type: "print/color", code: event.target.value })}
+            />
+          </span>
+          <span className={styles.hint}>
+            Valfritt. Koden följer med ordern till tillverkningen. Förhandsvisningen ändras inte av den.
+          </span>
+        </label>
+      )}
     </PanelSection>
   );
 }

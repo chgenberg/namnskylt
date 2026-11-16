@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type CSSProperties, type MouseEvent } from "react";
-import { getColor, getMaterial, mountingLabel, shapeLabel } from "@/engine";
+import { getColor, getMaterial, mountingLabel, printColorLabel, shapeLabel } from "@/engine";
 import { Segmented } from "@/components/ui/segmented";
 import { useFontEngine } from "@/hooks/use-font-engine";
 import {
@@ -357,7 +357,10 @@ export function ProductionEditor({ orders, batchKey, onBatchKey }: ProductionEdi
                   {getColor(selected.unit.doc.materialId, selected.unit.doc.colorId).name}
                 </dd>
                 <dt>Fäste</dt>
-                <dd>{mountingLabel(selected.unit.doc)}</dd>
+                <dd>
+                  {mountingLabel(selected.unit.doc)}
+                  {printColorLabel(selected.unit.doc) && ` · ${printColorLabel(selected.unit.doc)}`}
+                </dd>
                 <dt>Position</dt>
                 <dd className="mono">
                   x {selected.xMm} · y {selected.yMm} mm

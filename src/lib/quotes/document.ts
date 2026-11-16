@@ -3,6 +3,7 @@ import {
   getColor,
   getMaterial,
   mountingLabel,
+  printColorLabel,
   layoutBadge,
   renderBadgeSvg,
   shapeLabel,
@@ -31,6 +32,7 @@ function badgeSpec(quote: StoredQuote, index: number): string {
     `${getMaterial(badge.materialId).name}, ${getColor(badge.materialId, badge.colorId).name}`,
     `${shape} ${badge.size.widthMm}×${badge.size.heightMm} mm`,
     mountingLabel(badge),
+    ...(printColorLabel(badge) ? [printColorLabel(badge)] : []),
   ].join(" · ");
 }
 

@@ -146,6 +146,12 @@ describe("toSupplierSignDocument", () => {
     // Textlagret har inget läge hos leverantören: ett printat namn sägs i klartext.
     const namePrinted = toSupplierSignDocument({ ...base, marking: "print" }, approxFonts);
     assert.equal(namePrinted.productionNote, "Märkningsmetod: Endast print. Namn: Print.");
+    // Kundens färgkod för trycket följer med i samma rad, men bara när något printas.
+    assert.equal(
+      toSupplierSignDocument({ ...base, marking: "print", printColor: "PMS 286 C" }, approxFonts).productionNote,
+      "Märkningsmetod: Endast print. Namn: Print. Tryckfärg PMS 286 C.",
+    );
+    assert.equal(toSupplierSignDocument({ ...base, printColor: "PMS 286 C" }, approxFonts).productionNote, undefined);
     assert.ok(namePrinted.layers.some((l) => l.data.kind === "text"));
     // En skylt som bara graveras ser ut som förut.
     assert.equal(toSupplierSignDocument(base, approxFonts).productionNote, undefined);

@@ -54,7 +54,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1039 tester, grönt 2026-11-16).
+# Kvalitetsgrinden. Kör den innan något lämnas (1047 tester, grönt 2026-11-16).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -124,6 +124,12 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       framsidan finns med flera. Skylten bär fortfarande kombinationens id (`colorId`), så
       ritning, 3D, pris och underlaget till verkstaden är orörda. Metallen har en kombination
       per yta och ser ut som förut.
+    - **Färgkoderna står under färgerna** (besked via ägaren 2026-11-16): för den valda
+      plastfärgen visas framsidans och gravyrens kod (`pigmentCodes`, `pigmentCodeText` i
+      `color-choice.ts`). I dag finns bara hex, som är skärmens färg ur verkstadens katalog.
+      **PMS och RAL finns varken hos oss eller i verkstadens katalog**: `PIGMENT_CODES` är tom
+      och fylls i när verkstaden har lämnat koderna, och då visas de av sig själva. Hitta
+      aldrig på en kod. Metallens ytor har ingen färgkod.
     - En skylt i äldre plast behåller sin färg när den flyttas till dagens plast
       (`toOfferedDocument`), eftersom id:na är desamma.
     - När kunden hämtar sin logga från hemsidan väljs den kombination som ligger närmast
@@ -167,6 +173,10 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       formen som låg där står kvar. Försöket räknas ändå mot gränsen.
     - Provat 2026-11-16 med fem riktiga anrop (häst, lastbil, cykel, sittande hund): 9–10
       sekunder per bild. Djupa inbuktningar blir kvar och rättas genom att dra i punkterna.
+  - **Måtten vid ritytan går att skriva på plats** (besked via ägaren 2026-11-16): bredden
+    ovanför och höjden till vänster är fält (`DimensionField` i `mm-field.tsx`). De sätter just
+    den sidan, oavsett låset för proportionerna i fälten "Mått och rundning" under ritytan.
+    Fältet stoppar pekhändelsen, eftersom ritytan annars fångar pekaren för att dra i punkterna.
   - PDF läses med `pdfjs-dist`, låst till `~5.4.624` eftersom nyare kräver Node 22. Bara första
     sidan läses.
   - Kända brister: bara provat i Chrome; en ritad form försvinner om kunden väljer ett ämne och
@@ -238,6 +248,13 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Sektionen ligger som nummer 02 i panelen, före Logga & varumärke (03), eftersom metoden
     avgör hur loggan sedan märks (besked via ägaren 2026-11-16). Därefter Material 04, Form 05,
     Fäste 06, Fler namn 07 och Varukorg 08.
+  - **Kunden kan ange en egen PMS eller färgkod för trycket** (besked via ägaren 2026-11-16):
+    fältet "PMS eller färgkod för trycket" visas i sektionen när namnet eller loggan printas
+    (`BadgeDocument.printColor`, åtgärden `print/color`, högst `PRINT_COLOR_MAX` tecken fritext).
+    Läs alltid med `printColorOf`, som bara ger koden när något faktiskt printas, så att en kod
+    som står kvar efter ett byte till gravyr inte följer med. `printColorLabel` ("Tryckfärg PMS
+    286 C") står bredvid fästet på ordersidor, offert, korrektur och i Tillverkning, och i
+    verkstadens `productionNote`. Förhandsvisningen ändras inte av koden.
   - Preliminärt: att verkstaden printar text, och i vilken färg. Printat namn visas i gravyrens färg.
   - Kända brister: produktionsfilen saknar det som printas och ingen tryckfil för namnet skapas.
     Gravyranimationen sveper inte över det som printas. Fotoläget, korrekturet, offertens PDF

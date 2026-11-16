@@ -127,6 +127,11 @@ export interface BadgeDocument {
    * och `logoMarking`.
    */
   marking?: MarkingMethod;
+  /**
+   * Kundens egen färgkod för det som printas (PMS, hex eller liknande), som
+   * fritext till tillverkningen. Gäller bara när något printas: läs med `printColorOf`.
+   */
+  printColor?: string;
   mounting: MountingId;
   /**
    * Klämmans riktning, när fästet är klämma. Saknas den, eller ryms den inte

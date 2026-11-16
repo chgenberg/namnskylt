@@ -426,27 +426,61 @@
   stroke-linecap: round;
 }
 
+/* Måtten vid ritytan är skrivbara: en liten ruta som ser ut som en etikett tills den pekas ut eller får fokus. */
 .dimension {
   position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px var(--space-2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
   font-size: var(--text-xs);
   line-height: 1;
   color: var(--color-muted);
   white-space: nowrap;
-  pointer-events: none;
+  cursor: text;
+  transition: border-color var(--duration-fast);
+}
+
+.dimension:hover,
+.dimension:focus-within {
+  border-color: var(--color-line-strong);
+  color: var(--color-ink);
+}
+
+.dimension input {
+  width: 3.2ch;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.dimension input::-webkit-inner-spin-button,
+.dimension input::-webkit-outer-spin-button {
+  appearance: none;
 }
 
 .dimension[data-side="top"] {
-  bottom: calc(100% + var(--space-3));
+  bottom: calc(100% + var(--space-2));
   left: 50%;
   translate: -50% 0;
 }
 
+/* Höjden står på högkant, läst nedifrån och upp. Rutan vrids kring sin mitt och skjuts in mot skylten. */
 .dimension[data-side="left"] {
   top: 50%;
-  right: calc(100% + var(--space-3));
-  writing-mode: vertical-rl;
-  translate: 0 -50%;
-  rotate: 180deg;
+  right: calc(100% + var(--space-2));
+  translate: calc(50% - 0.9em) -50%;
+  rotate: -90deg;
 }
 
 /*

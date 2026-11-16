@@ -105,3 +105,29 @@ export function withLogoMarking<T extends Marked>(doc: T): T {
   const name = nameMarking(doc);
   return withMarking(doc, markingFor(name, doc.logo.image ? "print" : name));
 }
+
+/** Längsta färgkod kunden får ange för trycket. */
+export const PRINT_COLOR_MAX = 40;
+
+/** Det kunden skriver som färgkod, utan styrtecken och inom längden. Blanktecken i kanterna får stå kvar medan man skriver. */
+export function cleanPrintColor(raw: string): string {
+  return raw.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, PRINT_COLOR_MAX);
+}
+
+/**
+ * Kundens färgkod för trycket (beslut av ägaren 2026-11-16), när något på
+ * skylten faktiskt printas. Annars `null`: en kod som står kvar efter att
+ * kunden bytt till gravyr ska inte följa med ordern.
+ */
+export function printColorOf(doc: Marked & Pick<BadgeDocument, "printColor">): string | null {
+  const code = doc.printColor?.trim();
+  if (!code) return null;
+  const printed = nameMarking(doc) === "print" || (Boolean(doc.logo) && logoMarking(doc) === "print");
+  return printed ? code : null;
+}
+
+/** `Tryckfärg PMS 286 C` för listor och underlag, eller `null` när ingen kod gäller. */
+export function printColorLabel(doc: Marked & Pick<BadgeDocument, "printColor">): string | null {
+  const code = printColorOf(doc);
+  return code ? `Tryckfärg ${code}` : null;
+}

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
-import { engravedRows, getColor, getMaterial, mountingLabel, shapeLabel } from "@/engine";
+import { engravedRows, getColor, getMaterial, mountingLabel, printColorLabel, shapeLabel } from "@/engine";
 import { formatDay, formatSek } from "@/lib/format";
 import { QuoteDecision, type QuoteShippingOption } from "@/features/quote-public/quote-decision";
 import styles from "@/features/quote-public/quote-public.module.css";
@@ -133,6 +133,7 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
                       {getMaterial(badge.materialId).name} · {getColor(badge.materialId, badge.colorId).name} ·{" "}
                       {shapeLabel(badge)} {badge.size.widthMm}×{badge.size.heightMm} mm ·{" "}
                       {mountingLabel(badge)}
+                      {printColorLabel(badge) && ` · ${printColorLabel(badge)}`}
                     </div>
                   </div>
                   <div className={styles.lineAmount}>

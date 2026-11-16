@@ -30,6 +30,7 @@ import {
 } from "@/engine";
 import { formatMm } from "@/lib/format";
 import styles from "./custom-shape.module.css";
+import { DimensionField } from "./mm-field";
 import { useElementWidth } from "./use-element-width";
 
 /** Så nära ett handtag räknas pekaren som en träff; det närmaste vinner. */
@@ -67,6 +68,8 @@ interface OutlineCanvasProps {
   /** Felet som gör att formen inte går att skära, om något. */
   issue: CustomOutlineIssue | null;
   onChange: (points: Point[]) => void;
+  /** Nytt mått, skrivet i måttet vid ritytan. Bara den sida som ändras anges. */
+  onResize: (change: { widthMm?: number; heightMm?: number }) => void;
 }
 
 function sameHandle(a: OutlineHandle | null, b: OutlineHandle | null): boolean {
@@ -79,7 +82,7 @@ function sameHandle(a: OutlineHandle | null, b: OutlineHandle | null): boolean {
  * bort den valda. Pekaren träffar alltid det närmaste handtaget, så täta
  * punkter går att ta tag i utan att sikta exakt.
  */
-export function OutlineCanvas({ doc, issue, onChange }: OutlineCanvasProps) {
+export function OutlineCanvas({ doc, issue, onChange, onResize }: OutlineCanvasProps) {
   const points = doc.customOutline ?? NO_POINTS;
   const { widthMm, heightMm } = doc.size;
   const count = points.length;
@@ -245,12 +248,22 @@ export function OutlineCanvas({ doc, issue, onChange }: OutlineCanvasProps) {
         onMouseDown={(event) => event.preventDefault()}
       >
         <div ref={sheetRef} className={styles.sheet} style={{ "--ratio": widthMm / heightMm } as CSSProperties}>
-          <span className={`mono ${styles.dimension}`} data-side="top" aria-hidden="true">
-            {widthMm} mm
-          </span>
-          <span className={`mono ${styles.dimension}`} data-side="left" aria-hidden="true">
-            {heightMm} mm
-          </span>
+          <DimensionField
+            side="top"
+            label="Bredd"
+            value={widthMm}
+            min={CUSTOM_SHAPE_LIMITS.minSideMm}
+            max={CUSTOM_SHAPE_LIMITS.maxSideMm}
+            onCommit={(next) => onResize({ widthMm: next })}
+          />
+          <DimensionField
+            side="left"
+            label="Höjd"
+            value={heightMm}
+            min={CUSTOM_SHAPE_LIMITS.minSideMm}
+            max={CUSTOM_SHAPE_LIMITS.maxSideMm}
+            onCommit={(next) => onResize({ heightMm: next })}
+          />
           <svg className={styles.art} viewBox={`0 0 ${widthMm} ${heightMm}`} aria-hidden="true">
             <rect className={styles.box} width={widthMm} height={heightMm} />
             <path className={styles.fill} d={shape} />
