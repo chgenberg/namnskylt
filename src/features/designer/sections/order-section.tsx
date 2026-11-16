@@ -383,25 +383,27 @@ export function OrderSection({
               ))}
             </dl>
             {discountSek > 0 && discountPercent > 0 && (
-              <div className={styles.specDiscount}>
-                <p>
-                  <span>Mängdrabatt</span>
-                  <span className={styles.specDiscountValue}>−{discountPercent} %</span>
-                </p>
-                <p className={styles.specDiscountNote}>
-                  {sek.format(discountSek)} lägre per skylt än vid 1 st ({sek.format(aloneSek)})
-                </p>
-              </div>
+              // En rad, så att sammanfattningen inte tar plats från valen ovanför (besked via ägaren 2026-11-16).
+              <p
+                className={styles.specDiscount}
+                title={`${sek.format(discountSek)} lägre per skylt än vid 1 st (${sek.format(aloneSek)})`}
+              >
+                <span>Mängdrabatt</span>
+                <span className={styles.specDiscountValue}>
+                  −{sek.format(discountSek)} ({discountPercent} %)
+                </span>
+              </p>
             )}
           </div>
         )}
       </div>
 
       <div className={styles.priceRow}>
-        <div>
-          <p className={styles.priceNote}>exkl. moms och frakt</p>
-          <p className={styles.priceNote}>{priceNote}</p>
-        </div>
+        {/* En rad: att priset sjunker med antalet säger mängdrabatten redan, när den visas. */}
+        <p className={styles.priceNote}>
+          exkl. moms och frakt
+          {(discountSek <= 0 || price.minimumTopUpSek > 0) && ` · ${priceNote}`}
+        </p>
         {!reseller && (order.status === "idle" || order.status === "error") ? (
           <button
             type="button"
@@ -422,18 +424,17 @@ export function OrderSection({
       {reseller && cart && !checkout && (
         <>
           {/* Skylten i editorn ligger inte i varukorgen än. Order och offert görs därifrån. */}
-          <button type="button" className="btn btn--primary btn--lg btn--block" disabled={!valid || !cart.canAdd} onClick={cart.onAdd}>
+          <button type="button" className="btn btn--primary btn--block" disabled={!valid || !cart.canAdd} onClick={cart.onAdd}>
             Lägg i varukorgen
           </button>
-          {cart.designs > 0 ? (
+          {/* Vad varukorgen är till för står redan i sektionen Varukorg ovanför. */}
+          {cart.designs > 0 && (
             <p className={styles.cartNote}>
               {designCount(cart.designs)} ligger redan i varukorgen.{" "}
               <button type="button" className={styles.textButton} onClick={cart.onDiscard}>
                 Fortsätt utan den här skylten
               </button>
             </p>
-          ) : (
-            <p className={styles.cartNote}>Från varukorgen lägger du en order eller skapar en offert, med en eller flera designer.</p>
           )}
         </>
       )}
@@ -464,7 +465,7 @@ export function OrderSection({
           <div className={styles.cartCheckout} data-primary={reseller.mode}>
             <button
               type="button"
-              className={`btn btn--lg ${reseller.mode === "quote" ? "btn--primary" : ""}`}
+              className={`btn ${reseller.mode === "quote" ? "btn--primary" : ""}`}
               data-kind="quote"
               disabled={!valid || order.status === "sending"}
               onClick={() => void submitForCustomer(reseller, "quote")}
@@ -473,7 +474,7 @@ export function OrderSection({
             </button>
             <button
               type="button"
-              className={`btn btn--lg ${reseller.mode === "order" ? "btn--primary" : ""}`}
+              className={`btn ${reseller.mode === "order" ? "btn--primary" : ""}`}
               data-kind="order"
               disabled={!valid || order.status === "sending"}
               onClick={() =>
@@ -688,7 +689,7 @@ function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
         <dt>Ditt inköp</dt>
         <dd>
           {formatSek(purchase.goodsSek)}
-          {quantity > 1 && <span> · {formatSek(toOre(purchase.goodsSek / quantity))} / st</span>}
+          {quantity > 1 && <span> · {formatSek(toOre(purchase.goodsSek / quantity))}/st</span>}
         </dd>
       </div>
       <div>
@@ -702,8 +703,13 @@ function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
           {margin.percent !== null && <span> · {margin.percent} %</span>}
         </dd>
       </div>
-      {purchase.shippingSek > 0 && <p>Frakt {formatSek(purchase.shippingSek)} tillkommer, samma för dig och kunden.</p>}
-      {reseller.mode === "quote" && <p>Kundpriset kan du ändra på offerten innan den skickas.</p>}
+      {(purchase.shippingSek > 0 || reseller.mode === "quote") && (
+        // Kort hållet för att rymmas på en rad. Frakten är samma för återförsäljaren och kunden.
+        <p title={purchase.shippingSek > 0 ? "Frakten är samma för dig och kunden." : undefined}>
+          {purchase.shippingSek > 0 && `Frakt ${formatSek(purchase.shippingSek)} tillkommer. `}
+          {reseller.mode === "quote" && "Kundpriset kan ändras på offerten."}
+        </p>
+      )}
     </dl>
   );
 }

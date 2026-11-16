@@ -507,10 +507,14 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   (`badgePriceParts` i motorn, `shopPriceParts` med butikens påslag, `withStartInSign`).
   "Egen form" visar fortfarande sitt tillägg i formväljaren. Materialen visar inget pris.
 - **Mängdrabatten står sist i specifikationen** (besked via ägaren 2026-11-16): från två skyltar
-  visas "Mängdrabatt −X %" och raden "N kr lägre per skylt än vid 1 st (M kr)". Jämförelsen är
-  vad samma skylt hade kostat ensam i ordern (`shopPriceParts(doc, 1, …)`), alltså både
+  visas raden "Mängdrabatt −N kr (X %)", med jämförelsen i klartext som verktygstips. Jämförelsen
+  är vad samma skylt hade kostat ensam i ordern (`shopPriceParts(doc, 1, …)`), alltså både
   startkostnadens del och trappsteget, med butikens påslag. Raden är en jämförelse och ingen
   del av priset: delarna ovanför summerar fortfarande till priset per skylt.
+- **Sammanfattningen vid priset hålls tät** (besked via ägaren 2026-11-16, som inte kom åt valen
+  ovanför): den ligger fast över panelen, så varje rad där tar plats från skyltens inställningar.
+  Mängdrabatten och prisnoten är en rad var, återförsäljarens ruta har en rad per värde, och
+  återförsäljarens knappar har vanlig storlek. Lägg inte till rader där utan att ta bort andra.
 - **Fästen och tillval har ett pris per trappsteg**, precis som skyltarna (`PriceOptions` är
   `Record<PriceOptionId, number[]>`; läs med `optionPriceSek` och `mountingPriceSek` och ange
   trappsteget). I kalkylen är priset samma på alla trappsteg.
