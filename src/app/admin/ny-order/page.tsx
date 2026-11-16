@@ -27,8 +27,8 @@ export default async function NewOrderPage({ searchParams }: NewOrderPageProps) 
           <p className={styles.eyebrow}>Skapa order</p>
           <h1 className={styles.pageTitle}>Ny order</h1>
           <p className={styles.pageLead}>
-            Välj kund, så öppnas samma designer som kunderna använder. Ordern läggs direkt på kunden — inget namn eller
-            e-post att fylla i i kassan.
+            Välj kund, så öppnas skyltmotorn direkt i editorn. Lägg skyltarna i varukorgen, en eller flera designer, och
+            lägg ordern därifrån. Den läggs på kunden, utan namn eller e-post att fylla i.
           </p>
         </div>
       </header>

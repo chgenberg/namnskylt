@@ -57,6 +57,12 @@ interface UseSavedWorkOptions {
   work: SavedWork;
   /** Lägger det sparade i skyltmotorn. Anropas högst en gång, efter att sidan har monterats. */
   onRestore: (restored: RestoredWork) => void;
+  /**
+   * Skyltmotorn öppnades med ett eget innehåll som ersätter det sparade, till
+   * exempel en tidigare order för ändring. Det sparade läses då bara tillbaka
+   * när det kommer från samma öppning, alltså när sidan har laddats om.
+   */
+  replaces?: boolean;
 }
 
 interface SavedWorkControls {
@@ -75,11 +81,11 @@ interface SavedWorkControls {
  * efter att sidan har monterats, så att servern och webbläsaren ritar samma
  * sida först.
  */
-export function useSavedWork({ storageKey, incoming, work, onRestore }: UseSavedWorkOptions): SavedWorkControls {
+export function useSavedWork({ storageKey, incoming, work, onRestore, replaces = false }: UseSavedWorkOptions): SavedWorkControls {
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState<RestoredWork["notice"]>(null);
   // Skylten sidan öppnades med: senare ändringar i editorn ska inte räknas som adressens skylt.
-  const opening = useRef({ incoming, opened: work.opened });
+  const opening = useRef({ incoming, opened: work.opened, replaces });
   const restore = useRef(onRestore);
   const latest = useRef(work);
   const finished = useRef(false);
@@ -99,7 +105,8 @@ export function useSavedWork({ storageKey, incoming, work, onRestore }: UseSaved
     const saved = readSavedWork(raw, Date.now());
     // Trasigt eller för gammalt: ta bort det, så att det inte läses om varje gång.
     if (raw && !saved) forget(storageKey);
-    const restored = saved ? restoredWork(saved, opening.current.incoming, opening.current.opened) : null;
+    const sameOpening = saved?.opened === opening.current.opened;
+    const restored = saved && (!opening.current.replaces || sameOpening) ? restoredWork(saved, opening.current.incoming, opening.current.opened) : null;
     if (restored) {
       restore.current(restored);
       setNotice(restored.notice);

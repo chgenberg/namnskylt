@@ -1,4 +1,4 @@
-import type { PriceTable } from "@/engine";
+import type { BadgeGroup, PriceTable } from "@/engine";
 import type { DeliveryOptions } from "@/lib/orders/delivery";
 import type { ShopPriceList } from "@/lib/shops/price-list";
 
@@ -22,4 +22,9 @@ export interface ResellerOrderContext {
   purchaseList: PriceTable;
   /** Förifyllda leveransadresser: kundens och återförsäljarens egen. */
   delivery: DeliveryOptions;
+  /**
+   * En tidigare order som öppnas för ändring ("Beställ igen" med andra namn
+   * eller antal). Dess skyltar ligger i varukorgen när skyltmotorn öppnas.
+   */
+  copy?: { orderNo: string; groups: BadgeGroup[] };
 }

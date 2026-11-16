@@ -19,6 +19,12 @@ interface CartSectionProps {
   onRemove: (index: number) => void;
   /** Ångrar den nya skylten: senaste designen ur ordern tillbaka i editorn. */
   onUndo: () => void;
+  /**
+   * Återförsäljarens varukorg: skylten i editorn hör inte till varukorgen
+   * förrän den läggs dit, med knappen vid priset. Här visas då bara det som
+   * ligger i varukorgen.
+   */
+  explicit?: boolean;
 }
 
 /** `3 namn · 6 st` för en design med flera namn, annars bara antalet. */
@@ -36,13 +42,15 @@ const designCount = (count: number) => (count === 1 ? "1 design" : `${count} des
  * startkostnaden och frakten delas av alla skyltar. Korgen sparas i
  * webbläsaren (`useSavedWork`) och kommer tillbaka när sidan laddas om.
  */
-export function CartSection({ groups, pending, canAdd, onAdd, onEdit, onRemove, onUndo }: CartSectionProps) {
+export function CartSection({ groups, pending, canAdd, onAdd, onEdit, onRemove, onUndo, explicit = false }: CartSectionProps) {
+  const counted = explicit ? groups.length : groups.length + (pending ? 0 : 1);
   return (
-    <PanelSection step={7} title="Varukorg" aside={groups.length > 0 ? designCount(groups.length + (pending ? 0 : 1)) : "Fler designer"}>
+    <PanelSection step={7} title="Varukorg" aside={groups.length > 0 ? designCount(counted) : explicit ? "Tom" : "Fler designer"}>
       {groups.length === 0 ? (
         <p className={styles.batchLead}>
-          Behöver ni en annan yta, form eller fäste till några av skyltarna? Lägg skylten ovan i varukorgen och designa
-          nästa. Allt beställs tillsammans med gemensam frakt, och priset per skylt räknas på hela antalet.
+          {explicit
+            ? "Lägg skylten i varukorgen när den är klar, med knappen vid priset. Från varukorgen lägger du en order eller skapar en offert. Flera olika designer går i samma order eller offert, med gemensam frakt."
+            : "Behöver ni en annan yta, form eller fäste till några av skyltarna? Lägg skylten ovan i varukorgen och designa nästa. Allt beställs tillsammans med gemensam frakt, och priset per skylt räknas på hela antalet."}
         </p>
       ) : (
         <>
@@ -71,23 +79,30 @@ export function CartSection({ groups, pending, canAdd, onAdd, onEdit, onRemove, 
             })}
           </ul>
           <p className={styles.hint} role="status">
-            {pending
-              ? "Ny skylt med samma design. Skriv namnet och ändra det som ska skilja, så läggs den i varukorgen."
-              : "Skylten ovan ligger också i varukorgen."}
+            {explicit
+              ? pending
+                ? "Ändra öppnar en design igen, till exempel för att byta namn eller antal. Skriv ett nytt namn ovan för att designa en skylt till, eller gå vidare till offert eller order vid priset."
+                : "Skylten i editorn ligger inte i varukorgen än."
+              : pending
+                ? "Ny skylt med samma design. Skriv namnet och ändra det som ska skilja, så läggs den i varukorgen."
+                : "Skylten ovan ligger också i varukorgen."}
           </p>
         </>
       )}
-      <div className={styles.cartButtons}>
-        {pending ? (
-          <button type="button" className="btn" onClick={onUndo}>
-            Ångra den nya skylten
-          </button>
-        ) : (
-          <button type="button" className="btn" disabled={!canAdd} onClick={onAdd}>
-            Lägg i varukorgen och designa en till
-          </button>
-        )}
-      </div>
+      {/* Återförsäljaren lägger i varukorgen med knappen vid priset och ändrar en design med "Ändra". */}
+      {!explicit && (
+        <div className={styles.cartButtons}>
+          {pending ? (
+            <button type="button" className="btn" onClick={onUndo}>
+              Ångra den nya skylten
+            </button>
+          ) : (
+            <button type="button" className="btn" disabled={!canAdd} onClick={onAdd}>
+              Lägg i varukorgen och designa en till
+            </button>
+          )}
+        </div>
+      )}
       {!canAdd && !pending && <p className={styles.hint}>Varukorgen är full. Lägg resten i en ny order.</p>}
     </PanelSection>
   );

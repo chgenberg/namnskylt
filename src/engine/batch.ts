@@ -80,6 +80,44 @@ export function groupQuantity(group: BadgeGroup): number {
   return groupBadges(group).reduce((total, badge) => total + Math.max(1, Math.floor(badge.quantity)), 0);
 }
 
+/** Skylten utan radernas id: två skyltar som bara skiljer där är samma skylt. */
+function withoutRowIds(doc: BadgeDocument): string {
+  return JSON.stringify({ ...doc, rows: doc.rows.map((row) => ({ ...row, id: "" })) });
+}
+
+/**
+ * Sant när `badge` är precis den skylt som `template` ger med badgens text på
+ * en rad i textrutan "Fler namn". Då kan den stå som ett namn i mallens grupp.
+ */
+function fitsAsBatchLine(template: BadgeDocument, badge: BadgeDocument): boolean {
+  const entries = parseBatchInput(batchLine(badge), 2);
+  const texts = entries[0];
+  if (entries.length !== 1 || !texts) return false;
+  return withoutRowIds(withTexts(template, texts)) === withoutRowIds(badge);
+}
+
+/**
+ * En orders skyltar tillbaka som designer med sina namn, inversen av
+ * `groupBadges`: skyltar i följd som bara skiljer i namn blir en grupp, med
+ * den första som mall och de andra som rader i textrutan. En skylt som inte
+ * går att skriva som en rad (en annan design, ett annat antal, egen stil på
+ * en rad eller en text med skiljetecken) börjar en ny grupp. Grupperna ger
+ * alltid tillbaka exakt samma skyltar.
+ */
+export function badgeGroups(badges: readonly BadgeDocument[]): BadgeGroup[] {
+  const groups: BadgeGroup[] = [];
+  for (const badge of badges) {
+    const current = groups.at(-1);
+    if (current && fitsAsBatchLine(current.doc, badge)) {
+      const line = batchLine(badge);
+      current.batchText = current.batchText ? `${current.batchText}\n${line}` : line;
+    } else {
+      groups.push({ doc: badge, batchText: "" });
+    }
+  }
+  return groups;
+}
+
 /** Skyltens design utan texter och antal: det som avgör hur den ser ut och tillverkas. */
 function designKey(doc: BadgeDocument): string {
   const design: Partial<BadgeDocument> = { ...doc };

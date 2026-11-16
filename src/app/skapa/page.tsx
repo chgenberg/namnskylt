@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { engravedRows } from "@/engine";
+import { badgeGroups, engravedRows, toOfferedDocument } from "@/engine";
 import { resellerPriceTable } from "@/engine/price-model";
 import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
 import { siteOrigin } from "@/lib/http/origin";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
-import { databaseConfigured, getCustomer, getPriceModel } from "@/lib/orders/repository";
+import { databaseConfigured, getCustomer, getOrder, getPriceModel } from "@/lib/orders/repository";
 import { paymentsConfigured } from "@/lib/payments/stripe";
 import { currentTenant } from "@/lib/reseller-auth/session";
 import { genitive } from "@/lib/share/genitive";
@@ -17,6 +17,8 @@ interface SkapaPageProps {
     t?: string | string[];
     d?: string | string[];
     kund?: string | string[];
+    /** En tidigare order som ska öppnas för ändring, åt samma kund. */
+    kopia?: string | string[];
     offert?: string | string[];
     projekt?: string | string[];
   }>;
@@ -49,18 +51,26 @@ export async function generateMetadata({ searchParams }: SkapaPageProps): Promis
 }
 
 /** `?kund=` gäller bara inloggad återförsäljare — annars är det en vanlig besökare. */
-async function resellerContext(customerId: string | undefined, quote: boolean, project: string | undefined) {
+async function resellerContext(customerId: string | undefined, quote: boolean, project: string | undefined, copyOf: string | undefined) {
   const tenant = customerId && databaseConfigured() ? await currentTenant() : null;
   if (!customerId || !tenant) return undefined;
   const customer = await getCustomer(tenant, customerId);
+  // Kopian måste vara återförsäljarens egen order till just den här kunden.
+  const original = customer && copyOf && /^NS-\d{1,9}$/.test(copyOf) ? await getOrder(tenant, copyOf) : null;
+  const copy =
+    original && original.customer.id === customerId && original.badges.length > 0
+      ? // Äldre skyltar flyttas till dagens sortiment, som när en delad skylt öppnas.
+        { orderNo: original.orderNo, groups: badgeGroups(original.badges.map(toOfferedDocument)) }
+      : undefined;
   return customer && !isErasedCustomer(customer)
     ? {
         customerId: customer.id,
         customerName: customer.company ?? customer.name,
         mode: quote ? ("quote" as const) : ("order" as const),
-        project: project?.trim().slice(0, 120) || undefined,
+        project: project?.trim().slice(0, 120) || (copy ? (original?.project ?? undefined) : undefined),
         purchaseList: resellerPriceTable(await getPriceModel()),
         delivery: await deliveryOptions(tenant, customer),
+        copy,
       }
     : undefined;
 }
@@ -69,7 +79,7 @@ export default async function SkapaPage({ searchParams }: SkapaPageProps) {
   preloadDesignerAssets();
   const params = await searchParams;
   const shared = await decodeShareCode(first(params.d));
-  const reseller = await resellerContext(first(params.kund), first(params.offert) === "1", first(params.projekt));
+  const reseller = await resellerContext(first(params.kund), first(params.offert) === "1", first(params.projekt), first(params.kopia));
   return (
     <main>
       <Designer

@@ -8,6 +8,7 @@ import {
   getColor,
   getMaterial,
   getMounting,
+  mountingFits,
   type BadgeBlank,
   type BadgeMaterial,
   type ColorCombo,
@@ -157,7 +158,7 @@ function colorDistance(a: string, b: string): number {
 
 /**
  * Går att beställa i dag: ett material som säljs, i en av dess ytor, på ett av
- * ämnena eller i en giltig egen form, med ett fäste som säljs.
+ * ämnena eller i en giltig egen form, med ett fäste som säljs och finns på materialet.
  */
 export function isOfferedDocument(doc: BadgeDocument): boolean {
   const material = getMaterial(doc.materialId);
@@ -165,7 +166,8 @@ export function isOfferedDocument(doc: BadgeDocument): boolean {
     material.offered &&
     material.colors.some((c) => c.id === doc.colorId) &&
     (blankOf(doc) !== null || isValidCustomShape(doc)) &&
-    getMounting(doc.mounting).offered
+    getMounting(doc.mounting).offered &&
+    mountingFits(doc.mounting, doc.materialId)
   );
 }
 
@@ -199,11 +201,12 @@ export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
   const offeredColor = offeredMaterial && material.colors.some((c) => c.id === doc.colorId);
   const moved: BadgeDocument = offeredColor ? doc : { ...doc, materialId: material.id, colorId: nearestColor(doc, material).id };
   const offeredShape = blankOf(moved) !== null || isValidCustomShape(moved);
-  const offeredMounting = getMounting(doc.mounting).offered;
+  // Fästet ska både säljas och finnas på materialet skylten hamnar på: klämman finns inte på metall.
+  const offeredMounting = getMounting(doc.mounting).offered && mountingFits(doc.mounting, moved.materialId);
   if (offeredColor && offeredShape && offeredMounting) return doc;
   return {
     ...(offeredShape ? moved : withBlank(moved, nearestBlank(moved).id)),
-    // Säkerhetsnålen är en nål; den vanliga nålen är närmast.
+    // Säkerhetsnålen är en nål; den vanliga nålen är närmast. Den gäller också när fästet inte finns på materialet.
     ...(offeredMounting ? {} : { mounting: "pin" as const }),
   };
 }

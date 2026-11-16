@@ -21,14 +21,13 @@ const work = (patch: Partial<SavedWork> = {}): SavedWork => ({ doc: anna, batchT
 const roundTrip = (saved: SavedWork) => readSavedWork(packSavedWork(saved, NOW), NOW);
 
 describe("nyckeln för det sparade arbetet", () => {
-  it("skiljer webben, varje butik och varje kund och läge åt", () => {
+  it("skiljer webben, varje butik och varje kund åt", () => {
     const keys = [
       savedWorkKey({ kind: "web" }),
       savedWorkKey({ kind: "shop", slug: "exempelbutik" }),
       savedWorkKey({ kind: "shop", slug: "annan-butik" }),
-      savedWorkKey({ kind: "reseller", customerId: "k1", mode: "order" }),
-      savedWorkKey({ kind: "reseller", customerId: "k1", mode: "quote" }),
-      savedWorkKey({ kind: "reseller", customerId: "k2", mode: "order" }),
+      savedWorkKey({ kind: "reseller", customerId: "k1" }),
+      savedWorkKey({ kind: "reseller", customerId: "k2" }),
     ];
     assert.equal(new Set(keys).size, keys.length);
     assert.ok(keys.every((key) => key.startsWith("namnskylt:skyltmotor:v1:")));

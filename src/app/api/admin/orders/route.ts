@@ -6,7 +6,7 @@ import { ERASED_CUSTOMER_ERROR, isErasedCustomer } from "@/lib/orders/erase-mode
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
-import { databaseConfigured, getCustomer, saveResellerDeliveryAddress } from "@/lib/orders/repository";
+import { databaseConfigured, getCustomer, getOrder, saveResellerDeliveryAddress } from "@/lib/orders/repository";
 import { currentTenant } from "@/lib/reseller-auth/session";
 
 export const runtime = "nodejs";
@@ -17,6 +17,8 @@ const requestSchema = z.object({
   badgeShot: badgeShotUploadSchema,
   project: z.string().trim().max(120).optional(),
   delivery: deliverySchema,
+  /** Ordern som öppnades för ändring i skyltmotorn ("Beställ igen" med andra namn eller antal). */
+  copyOf: z.string().regex(/^NS-\d{1,9}$/).optional(),
 });
 
 /** Återförsäljaren lägger en order åt en kund — samma väg till tillverkningen som webbshoppen. */
@@ -37,13 +39,17 @@ export async function POST(request: Request) {
   const customer = await getCustomer(tenant, parsed.data.customerId);
   if (!customer) return NextResponse.json({ error: "Kunden finns inte" }, { status: 404 });
   if (isErasedCustomer(customer)) return NextResponse.json({ error: ERASED_CUSTOMER_ERROR }, { status: 409 });
+  // Länken tillbaka gäller bara återförsäljarens egen order till samma kund. Annars läggs ordern utan den.
+  const original = parsed.data.copyOf ? await getOrder(tenant, parsed.data.copyOf) : null;
+  const copied = original && original.customer.id === customer.id ? original : null;
   try {
     const receipt = await placeOrder({
       tenant,
       customer,
       badges: parsed.data.badges,
-      source: "reseller",
-      note: "Lagd av återförsäljaren",
+      source: copied ? "repeat" : "reseller",
+      repeatOf: copied?.id ?? null,
+      note: copied ? `Beställd igen från ${copied.orderNo}, med ändringar` : "Lagd av återförsäljaren",
       demo: customer.demo,
       badgeShot: await normalizeBadgeShot(parsed.data.badgeShot),
       project: parsed.data.project || null,

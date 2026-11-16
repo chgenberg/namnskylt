@@ -74,7 +74,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
       {
         ...withBlank(base, "cushion"),
         colorId: "metal-gold",
-        mounting: "clip",
+        mounting: "magnet",
         frame: { style: "solid", insetMm: 1.5, thicknessMm: 0.4 },
       },
       [

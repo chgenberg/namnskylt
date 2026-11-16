@@ -45,7 +45,6 @@ import type { SpinFocus } from "./badge-3d";
 import type { BadgeRecorder } from "./three/recorder";
 import { shareBadge } from "./share";
 import { videoFileName } from "./video-file";
-import { SmartInput } from "@/features/home/smart-input";
 import { OnboardingDialog } from "./onboarding-dialog";
 import type { ResellerOrderContext, ShopContext } from "./reseller";
 import { designerReducer, type DesignerAction } from "./state";
@@ -73,6 +72,10 @@ type View = "3d" | "drawing" | "person";
 const PHOTO_SAMPLES = 160;
 /** Fältet för skyltens första rad i panelen (`TextSection`). Dit ställs markören när skylten saknar namn. */
 const FIRST_ROW_LABEL = "Rad 1";
+function focusFirstRow({ onlyEmpty = false }: { onlyEmpty?: boolean } = {}): void {
+  const input = document.querySelector<HTMLInputElement>(`input[aria-label="${FIRST_ROW_LABEL}"]`);
+  if (input && (!onlyEmpty || input.value.trim() === "")) input.focus();
+}
 /** Ett varv runt skylten i 3D-filmen. */
 const VIDEO_SECONDS = 6;
 const VIDEO_STEPS = [
@@ -123,16 +126,19 @@ interface DesignerProps {
 }
 
 export function Designer({ initialText, initialDoc, reseller, shop, initialFont, cardPayments, fromStart = false }: DesignerProps) {
+  /** En tidigare order som återförsäljaren öppnar för ändring: dess designer ligger i varukorgen från början. */
+  const copy = reseller?.copy && reseller.copy.groups.length > 0 ? reseller.copy : null;
   const [doc, dispatch] = useReducer(designerReducer, initialText, (text) => {
     // En delad eller äldre skylt kan bära ett material eller mått som inte säljs längre.
     if (initialDoc) return toOfferedDocument(initialDoc);
+    // Editorn börjar på en ny skylt med samma design som den sista i ordern, utan text.
+    const last = copy?.groups.at(-1);
+    if (last) return { ...withTexts(last.doc, [""]), quantity: 1 };
     const created = createBadgeDocument(parseSmartInput(text));
     return initialFont ? { ...created, font: initialFont } : created;
   });
   const [view, setView] = useState<View>("3d");
   const [onboarding, setOnboarding] = useState(() => !initialDoc && (initialText.trim() !== "" || (fromStart && !reseller)));
-  /** Återförsäljaren börjar som på startsidan: namnet först, sedan material och form. */
-  const [starting, setStarting] = useState(() => Boolean(reseller) && !initialDoc && initialText.trim() === "");
   const [spinning, setSpinning] = useState(false);
   const [focus, setFocus] = useState<SpinFocus | null>(null);
   /** Skylten graveras fram en gång när designern öppnas, och igen på begäran. */
@@ -147,17 +153,20 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
   const visualize = useVisualize(doc);
   const [batchText, setBatchText] = useState("");
   /** Designer som redan ligger i ordern, utöver skylten i editorn. */
-  const [cart, setCart] = useState<BadgeGroup[]>([]);
+  const [cart, setCart] = useState<BadgeGroup[]>(() => copy?.groups ?? []);
   /** Skylten i editorn är ny och orörd efter "lägg till": den räknas inte in i ordern förrän den ändrats. */
-  const [pending, setPending] = useState(false);
+  const [pending, setPending] = useState(() => Boolean(copy));
+  /** Stillbilden av designen som ensam ligger i varukorgen, tagen när den lades dit. */
+  const cartShot = useRef<string | null>(null);
   /** Det skyltmotorn öppnades med. Dit går "Börja om", och mot det jämförs det som är sparat i webbläsaren. */
   const [opening] = useState(() => ({
     doc,
     fromAddress: Boolean(initialDoc) || initialText.trim() !== "",
-    opened: openedWith(initialText, initialDoc),
+    // En öppnad order är sin egen öppning: laddas sidan om kommer ändringarna tillbaka, annars ersätter den det sparade.
+    opened: copy ? `kopia:${copy.orderNo}` : openedWith(initialText, initialDoc),
     storageKey: savedWorkKey(
       reseller
-        ? { kind: "reseller", customerId: reseller.customerId, mode: reseller.mode }
+        ? { kind: "reseller", customerId: reseller.customerId }
         : shop
           ? { kind: "shop", slug: shop.slug }
           : { kind: "web" },
@@ -165,10 +174,11 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
   }));
   const work = useMemo(() => ({ doc, batchText, cart, pending, opened: opening.opened }), [doc, batchText, cart, pending, opening.opened]);
   /** Rutorna som stängdes när det sparade lästes tillbaka. "Börja om" öppnar dem igen. */
-  const closedByRestore = useRef({ onboarding: false, starting: false });
+  const closedByRestore = useRef({ onboarding: false });
   /** Varukorgen och skylten sparas i webbläsaren och kommer tillbaka när sidan öppnas igen. */
   const saved = useSavedWork({
     storageKey: opening.storageKey,
+    replaces: Boolean(copy),
     incoming: opening.fromAddress ? opening.doc : null,
     work,
     onRestore: ({ work: restored, editor }: RestoredWork) => {
@@ -178,9 +188,8 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
       setPending(restored.pending);
       // Skylten i editorn är kundens egen sedan förut: då behövs varken startrutan eller valen en gång till.
       if (editor === "saved") {
-        closedByRestore.current = { onboarding, starting };
+        closedByRestore.current = { onboarding };
         setOnboarding(false);
-        setStarting(false);
       }
     },
   });
@@ -244,8 +253,16 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
     setOnboarding(false);
     setEngrave(performance.now());
     // Kom besökaren hit utan namn skrivs det nu: markören ställs i skyltens första rad.
-    if (!hasText) requestAnimationFrame(() => document.querySelector<HTMLInputElement>(`input[aria-label="${FIRST_ROW_LABEL}"]`)?.focus());
+    if (!hasText) requestAnimationFrame(() => focusFirstRow());
   }, [hasText]);
+
+  // En återförsäljare kommer rakt in i editorn, utan startruta, och skriver namnet direkt.
+  // Med en öppnad order börjar hen i varukorgen, inte med att skriva ett namn.
+  const resellerStart = Boolean(reseller) && !copy && saved.ready && !onboarding;
+  useEffect(() => {
+    // Bara när raden är tom: en skylt som lästes tillbaka ur det sparade har redan sitt namn.
+    if (resellerStart) focusFirstRow({ onlyEmpty: true });
+  }, [resellerStart]);
 
   const [sharing, setSharing] = useState(false);
   const [shareFailed, setShareFailed] = useState(false);
@@ -293,6 +310,8 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
   };
   /** Lägger skylten i editorn i ordern och börjar på nästa: samma design, utan text. */
   const addDesign = () => {
+    // Stillbilden tas medan skylten ännu syns i editorn. Den gäller bara så länge varukorgen har just den designen.
+    cartShot.current = cart.length === 0 ? (recorderRef.current?.still() ?? null) : null;
     setCart((groups) => [...groups, { doc, batchText }]);
     setBatchText("");
     dispatch({ type: "load", doc: { ...withTexts(doc, [""]), quantity: 1 } });
@@ -305,6 +324,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
   const editDesign = (index: number) => {
     const target = cart[index];
     if (!target) return;
+    cartShot.current = null;
     setCart((groups) => (pending ? groups.filter((_, i) => i !== index) : groups.map((group, i) => (i === index ? { doc, batchText } : group))));
     dispatch({ type: "load", doc: target.doc });
     setBatchText(target.batchText);
@@ -315,7 +335,17 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
   const removeDesign = (index: number) => {
     // Utan något annat i ordern är skylten i editorn hela ordern, även om den är ny.
     if (cart.length === 1) setPending(false);
+    cartShot.current = null;
     setCart((groups) => groups.filter((_, i) => i !== index));
+  };
+
+  /** Kastar skylten i editorn och börjar om på en ny med samma design. Varukorgen rörs inte. */
+  const discardDesign = () => {
+    if (cart.length === 0) return;
+    setBatchText("");
+    dispatch({ type: "load", doc: { ...withTexts(doc, [""]), quantity: 1 } });
+    setPending(true);
+    setFocus({ side: "front", key: performance.now() });
   };
 
   /** Kastar det som lästes tillbaka: skyltmotorn som den öppnades, med tom varukorg. */
@@ -327,14 +357,14 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
     dispatch({ type: "load", doc: opening.doc });
     setFocus({ side: "front", key: performance.now() });
     if (closedByRestore.current.onboarding) setOnboarding(true);
-    if (closedByRestore.current.starting) setStarting(true);
-    closedByRestore.current = { onboarding: false, starting: false };
+    closedByRestore.current = { onboarding: false };
   };
 
   /** Ångrar den nya skylten: senaste designen ur ordern tillbaka i editorn. */
   const undoDesign = () => {
     const last = cart.at(-1);
     if (!last) return;
+    cartShot.current = null;
     setCart((groups) => groups.slice(0, -1));
     dispatch({ type: "load", doc: last.doc });
     setBatchText(last.batchText);
@@ -445,27 +475,6 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
             </div>
           )}
         </div>
-
-        {starting && reseller && saved.ready && (
-          <div className={styles.startStage}>
-            <p className={styles.startEyebrow}>
-              {reseller.mode === "quote" ? "Offert till" : "Order åt"} {reseller.customerName}
-              {reseller.project && ` · ${reseller.project}`}
-            </p>
-            <h2 className={styles.startTitle}>
-              Skriv namnet.
-              <span>Vi gör resten.</span>
-            </h2>
-            <SmartInput
-              baseDoc={doc}
-              onSubmit={(rows) => {
-                update({ type: "texts", texts: rows });
-                setStarting(false);
-                setOnboarding(true);
-              }}
-            />
-          </div>
-        )}
 
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -627,6 +636,8 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
             onEdit={editDesign}
             onRemove={removeDesign}
             onUndo={undoDesign}
+            // En återförsäljare utgår alltid från varukorgen: där blir skyltarna en order eller en offert.
+            explicit={Boolean(reseller)}
           />
         </div>
         <OrderSection
@@ -637,8 +648,16 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
           shop={shop}
           cardPayments={cardPayments}
           designs={cart.length + (pending ? 0 : 1)}
-          // Stillbilden visar bara skylten i editorn. En order med flera designer visas med sina ritningar i stället.
-          captureShot={() => (cart.length > 0 ? null : (recorderRef.current?.still() ?? null))}
+          // Stillbilden visar en enda design. En order med flera designer visas med sina ritningar i stället.
+          // Återförsäljarens skylt ligger i varukorgen när ordern läggs, så bilden togs när den lades dit.
+          captureShot={() =>
+            reseller ? (cart.length === 1 && pending ? cartShot.current : null) : cart.length > 0 ? null : (recorderRef.current?.still() ?? null)
+          }
+          cart={
+            reseller
+              ? { designs: cart.length, pending, canAdd: orderBadges.length < MAX_ORDER_BADGES, onAdd: addDesign, onDiscard: discardDesign }
+              : undefined
+          }
           visitId={visitId}
           onStep={(step) => {
             track(step);

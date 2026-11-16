@@ -4,6 +4,7 @@ import {
   TEXT_LIMITS,
   createRow,
   getMaterial,
+  mountingFits,
   resizeCustomShape,
   withBlank,
   withShapePreset,
@@ -126,7 +127,9 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     case "material": {
       const material = getMaterial(action.materialId);
       const colorId = material.colors.some((c) => c.id === doc.colorId) ? doc.colorId : material.colors[0]!.id;
-      const next = { ...doc, materialId: action.materialId, colorId };
+      // Ett fäste som inte finns på det nya materialet (klämman på metall) byts mot nålen.
+      const mounting = mountingFits(doc.mounting, action.materialId) ? doc.mounting : "pin";
+      const next = { ...doc, materialId: action.materialId, colorId, mounting };
       // Bara material som skärs ur ark kan ha en egen form; annars tillbaka till ett ämne.
       return next.shape === "custom" && !material.customShape ? withBlank(next, "rectangle") : next;
     }
@@ -176,7 +179,8 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
           }
         : doc;
     case "mounting":
-      return { ...doc, mounting: action.mounting };
+      // Ett fäste som inte finns på materialet går inte att välja, hur klicket än kom hit.
+      return mountingFits(action.mounting, doc.materialId) ? { ...doc, mounting: action.mounting } : doc;
     case "quantity":
       return { ...doc, quantity: clamp(Math.round(action.quantity) || 1, 1, 10_000) };
     case "load":

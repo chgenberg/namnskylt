@@ -27,8 +27,8 @@ export default async function NewQuotePage({ searchParams }: NewQuotePageProps) 
           <p className={styles.eyebrow}>Skapa offert</p>
           <h1 className={styles.pageTitle}>Ny offert</h1>
           <p className={styles.pageLead}>
-            Fyll i kundens uppgifter och designa skyltarna i skyltmotorn som kunden själv skulle. I stället för en order blir det en
-            offert som du prissätter, skickar och som kunden godkänner med ett klick.
+            Fyll i kundens uppgifter och designa skyltarna i skyltmotorn. Lägg dem i varukorgen, en eller flera designer, och
+            skapa offerten därifrån. Du prissätter och skickar den, och kunden godkänner med ett klick.
           </p>
         </div>
       </header>

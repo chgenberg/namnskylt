@@ -1,11 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "motion/react";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent } from "react";
-import { BadgePreview } from "@/components/badge-preview";
-import { createBadgeDocument, parseSmartInput, withTexts, type BadgeDocument } from "@/engine";
-import styles from "./smart-input.module.css";
+import { useEffect, useState } from "react";
 
 export const EXAMPLES = [
   "Anna Lindqvist, Projektledare",
@@ -16,8 +11,6 @@ export const EXAMPLES = [
 
 const TYPE_MS = 55;
 const HOLD_MS = 1600;
-const ROW_LABELS = ["Namn", "Titel", "Rad 3"];
-const MAX_TILT_DEG = 10;
 /** Id på startsidans hero — länkar hit fokuserar rutan. */
 export const INPUT_ANCHOR = "borja";
 
@@ -46,167 +39,4 @@ export function useTypewriter(active: boolean): string {
     return () => clearTimeout(timer);
   }, [active]);
   return text;
-}
-
-interface SmartInputProps {
-  /** Skyltmotorns adress; demobutikerna har sin egen. */
-  target?: string;
-  /** I stället för att byta sida — rutan sitter redan i skyltmotorn. */
-  onSubmit?: (rows: string[]) => void;
-  /**
-   * Skylten som redan är vald i skyltmotorn. Förhandsvisningen ritar texten på
-   * den, så att logga, material, form och fäste som valts i panelen följer med.
-   */
-  baseDoc?: BadgeDocument;
-}
-
-export function SmartInput({ target = "/skapa", onSubmit, baseDoc }: SmartInputProps) {
-  const router = useRouter();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState("");
-  const [focused, setFocused] = useState(false);
-  const [leaving, setLeaving] = useState(false);
-
-  const rows = useMemo(() => parseSmartInput(value), [value]);
-  const doc = useMemo(() => (baseDoc ? withTexts(baseDoc, rows) : createBadgeDocument(rows)), [rows, baseDoc]);
-  /** En logga som valts i panelen ska synas direkt, även innan namnet är skrivet. */
-  const showBadge = rows.length > 0 || Boolean(baseDoc?.logo);
-  const placeholder = useTypewriter(value.length === 0);
-
-  const pointerX = useMotionValue(0);
-  const pointerY = useMotionValue(0);
-  const rotateY = useSpring(useTransform(pointerX, [-1, 1], [-MAX_TILT_DEG, MAX_TILT_DEG]), {
-    stiffness: 160,
-    damping: 18,
-  });
-  const rotateX = useSpring(useTransform(pointerY, [-1, 1], [MAX_TILT_DEG, -MAX_TILT_DEG]), {
-    stiffness: 160,
-    damping: 18,
-  });
-
-  useEffect(() => {
-    if (!onSubmit) router.prefetch(target);
-  }, [router, target, onSubmit]);
-
-  // Länkar till #borja (menyn, "Så funkar det") ska lämna markören i rutan.
-  // Next byter hash med pushState, så hashchange kommer inte — lyssna på klicket.
-  useEffect(() => {
-    const focusInput = () => inputRef.current?.focus({ preventScroll: true });
-    const onClick = (event: MouseEvent) => {
-      if (event.target instanceof Element && event.target.closest(`a[href$="#${INPUT_ANCHOR}"]`)) {
-        requestAnimationFrame(focusInput);
-      }
-    };
-    if (window.location.hash === `#${INPUT_ANCHOR}`) focusInput();
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
-  }, []);
-
-  function handlePointerMove(event: PointerEvent<HTMLDivElement>) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    pointerX.set(((event.clientX - rect.left) / rect.width) * 2 - 1);
-    pointerY.set(((event.clientY - rect.top) / rect.height) * 2 - 1);
-  }
-
-  function handleSubmit(event: FormEvent) {
-    event.preventDefault();
-    // Namnet går att skriva senare, i editorn. Utan text går det vidare med en tom skylt.
-    if (onSubmit) {
-      onSubmit(rows);
-      return;
-    }
-    setLeaving(true);
-    const query = new URLSearchParams({ t: rows.join("|") });
-    router.push(`${target}?${query.toString()}`);
-  }
-
-  return (
-    <div className={styles.root} onPointerMove={handlePointerMove}>
-      <motion.form
-        onSubmit={handleSubmit}
-        className={`${styles.box} beam-border`}
-        data-focused={focused || value.length > 0}
-        animate={leaving ? { y: -24, opacity: 0, scale: 0.98 } : { y: 0, opacity: 1, scale: 1 }}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        role="search"
-      >
-        <div className={styles.inputRow}>
-          <svg className={styles.icon} viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="3" y="7" width="18" height="10" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M7 12h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          <label htmlFor="badge-text" className="visually-hidden">
-            Text på namnskylten
-          </label>
-          <input
-            ref={inputRef}
-            id="badge-text"
-            className={styles.input}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            placeholder={placeholder}
-            autoComplete="off"
-            spellCheck={false}
-            maxLength={120}
-            autoFocus
-          />
-          <button type="submit" className={`btn btn--primary ${styles.submit}`}>
-            Skapa skylt
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-              <path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-        </div>
-
-        <AnimatePresence initial={false}>
-          {rows.length > 0 && (
-            <motion.ul
-              className={styles.rows}
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-              aria-label="Så delas texten upp"
-            >
-              {rows.map((row, i) => (
-                <motion.li
-                  key={`${i}-${ROW_LABELS[i]}`}
-                  layout
-                  className={styles.row}
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                >
-                  <span className={styles.rowLabel}>{ROW_LABELS[i]}</span>
-                  <span className={styles.rowText}>{row}</span>
-                </motion.li>
-              ))}
-            </motion.ul>
-          )}
-        </AnimatePresence>
-      </motion.form>
-
-      <p className={styles.hint}>
-        Separera rader med komma — <kbd>Enter</kbd> öppnar skyltmotorn
-      </p>
-
-      <div className={styles.stage} aria-live="polite">
-        <AnimatePresence>
-          {showBadge && (
-            <motion.div
-              className={styles.badge}
-              style={{ rotateX, rotateY }}
-              initial={{ opacity: 0, y: 24, scale: 0.92, filter: "blur(6px)" }}
-              animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: 12, scale: 0.96, filter: "blur(4px)" }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <BadgePreview doc={doc} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
 }

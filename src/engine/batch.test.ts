@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   badgeDocumentSchema,
+  badgeGroups,
   batchLine,
   createBadgeDocument,
   groupBadges,
@@ -14,6 +15,7 @@ import {
   replaceBatchEntry,
   sameDesign,
   withTexts,
+  type BadgeDocument,
 } from "./index";
 import { endPriceTable } from "./price-model";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
@@ -141,5 +143,44 @@ describe("samma design", () => {
     assert.equal(sameDesign([doc, { ...doc, colorId: "metal-silver" }]), false);
     assert.equal(sameDesign([doc, { ...doc, mounting: "magnet" }]), false);
     assert.equal(sameDesign([doc, { ...doc, materialId: "plastic", colorId: "white-black" }]), false);
+  });
+});
+
+describe("badgeGroups", () => {
+  const anna = { ...createBadgeDocument(["Anna Lind", "Säljare"]), quantity: 2 };
+  const erik = withTexts(anna, ["Erik Berg", "Tekniker"]);
+  const sara = withTexts(anna, ["Sara Nilsson"]);
+  const plain = (docs: readonly BadgeDocument[]) => docs.map((doc) => ({ ...doc, rows: doc.rows.map((row) => ({ ...row, id: "" })) }));
+
+  it("samlar skyltar som bara skiljer i namn till en design med sina namn", () => {
+    const groups = badgeGroups([anna, erik, sara]);
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0]?.doc, anna);
+    assert.equal(groups[0]?.batchText, "Erik Berg, Tekniker\nSara Nilsson");
+  });
+
+  it("ger alltid tillbaka exakt samma skyltar", () => {
+    const other = { ...withTexts(anna, ["Olle Ek"]), mounting: "magnet" as const };
+    const five = { ...withTexts(anna, ["Mia Sol"]), quantity: 5 };
+    const badges = [anna, erik, other, five, sara];
+    const groups = badgeGroups(badges);
+    // En annan design och ett annat antal börjar var sin grupp, och skylten efter hamnar hos den närmast före.
+    assert.deepEqual(groups.map((group) => groupBadges(group).length), [2, 1, 1, 1]);
+    assert.deepEqual(plain(groups.flatMap((group) => groupBadges(group))), plain(badges));
+  });
+
+  it("låter en skylt som inte går att skriva som en rad stå för sig", () => {
+    const empty = withTexts(anna, [""]);
+    const dashed = withTexts(anna, ["Wilma – Barista"]);
+    const bold = { ...erik, rows: erik.rows.map((row, i) => (i === 0 ? { ...row, bold: !row.bold } : row)) };
+    for (const odd of [empty, dashed, bold]) {
+      const groups = badgeGroups([anna, odd]);
+      assert.equal(groups.length, 2);
+      assert.deepEqual(plain(groups.flatMap((group) => groupBadges(group))), plain([anna, odd]));
+    }
+  });
+
+  it("en tom order ger inga grupper", () => {
+    assert.deepEqual(badgeGroups([]), []);
   });
 });

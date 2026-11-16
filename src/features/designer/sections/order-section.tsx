@@ -113,10 +113,48 @@ interface OrderSectionProps {
   onStep?: (step: CheckoutStep) => void;
   /** Besökets id i statistiken. Det följer med till kortbetalningen, så att den betalda ordern räknas till samma besök. */
   visitId?: () => string | null;
+  /** Återförsäljarens varukorg. Order och offert görs alltid från den. */
+  cart?: ResellerCart;
 }
 
-export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, shop, captureShot, cardPayments = false, onStep, visitId }: OrderSectionProps) {
+/**
+ * Varukorgen när en återförsäljare designar åt en kund. Skylten i editorn
+ * läggs i varukorgen med ett klick, och först när den ligger där går det att
+ * lägga en order eller skapa en offert. Så ryms flera olika designer i samma
+ * order eller offert.
+ */
+export interface ResellerCart {
+  /** Antal designer som ligger i varukorgen. */
+  designs: number;
+  /** Skylten i editorn är ny och orörd: allt som är designat ligger i varukorgen. */
+  pending: boolean;
+  /** Varukorgen rymmer fler skyltar. */
+  canAdd: boolean;
+  onAdd: () => void;
+  /** Kastar skylten i editorn och går tillbaka till varukorgen som den är. */
+  onDiscard: () => void;
+}
+
+const designCount = (count: number) => (count === 1 ? "1 design" : `${count} designer`);
+
+export function OrderSection({
+  doc,
+  badges,
+  designs = 1,
+  dispatch,
+  reseller,
+  shop,
+  captureShot,
+  cardPayments = false,
+  onStep,
+  visitId,
+  cart,
+}: OrderSectionProps) {
   const [order, setOrder] = useState<OrderState>({ status: "idle" });
+  /** Det återförsäljaren håller på att skapa, medan det skickas. */
+  const [sendingKind, setSendingKind] = useState<"order" | "quote">("order");
+  // Återförsäljaren går vidare från varukorgen: allt som är designat ligger där, och skylten i editorn är ny och orörd.
+  const checkout = Boolean(reseller && cart?.pending && cart.designs > 0);
   // Ett företag faktureras. En privatperson betalar med kort, där det går.
   const [customerType, setCustomerType] = useState<CustomerType>("company");
   const privateCustomer = cardPayments && !shop && customerType === "private";
@@ -130,7 +168,8 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
     () => reseller?.delivery ?? { customer: EMPTY_DELIVERY_DRAFT, reseller: EMPTY_DELIVERY_DRAFT },
   );
   const sectionRef = useRef<HTMLElement>(null);
-  const formOpen = order.status === "form" || order.status === "sending";
+  // Återförsäljarens leveranssteg hör till varukorgen: börjar hen på en ny skylt stängs det.
+  const formOpen = (order.status === "form" || order.status === "sending") && (!reseller || checkout);
   // Formuläret öppnas under priset. På mobil och låga skärmar ligger det då sist i panelen, långt
   // utanför det som syns. Rullningen väntar tills formuläret har vecklat ut sig: börjar den medan
   // sidan ändrar höjd avbryts den, och den som beställer blir kvar högst upp utan formulär.
@@ -175,8 +214,9 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
   const partnerMade = isPartnerMade(doc.materialId);
 
   /** Återförsäljaren: ordern eller offerten läggs på kunden och panelen öppnar den. */
-  async function submitForCustomer(context: ResellerOrderContext) {
-    const quote = context.mode === "quote";
+  async function submitForCustomer(context: ResellerOrderContext, kind: "order" | "quote") {
+    const quote = kind === "quote";
+    setSendingKind(kind);
     // En offert får sin leverans på offerten. En order behöver adressen nu.
     const delivery = quote ? null : addressFromDraft(address);
     if (delivery && !delivery.ok) {
@@ -194,6 +234,8 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
           badgeShot: captureShot?.() ?? undefined,
           project: context.project,
           ...(delivery && { delivery: { to: deliverTo, address: delivery.address, method } }),
+          // En tidigare order som öppnades för ändring: den nya ordern pekar tillbaka på den.
+          ...(!quote && context.copy && { copyOf: context.copy.orderNo }),
         }),
       });
       const body = await response.json();
@@ -263,42 +305,47 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
   return (
     <section ref={sectionRef} className={styles.order} aria-label="Antal och pris" data-open={formOpen || undefined}>
       <div className={styles.summary}>
-        <div className={styles.quantityRow}>
-          <div className={`field ${styles.stepper}`}>
-            <button type="button" aria-label="Minska antal" onClick={() => dispatch({ type: "quantity", quantity: doc.quantity - 1 })}>
-              −
-            </button>
-            <input
-              type="number"
-              inputMode="numeric"
-              aria-label={names > 1 || mixed ? "Antal per namn" : "Antal"}
-              min={1}
-              value={doc.quantity}
-              onChange={(e) => dispatch({ type: "quantity", quantity: Number(e.target.value) })}
-            />
-            <button type="button" aria-label="Öka antal" onClick={() => dispatch({ type: "quantity", quantity: doc.quantity + 1 })}>
-              +
-            </button>
-          </div>
-          <div className={styles.chips}>
-            {quickQuantities.map((q) => (
-              <button
-                key={q}
-                type="button"
-                className="chip"
-                aria-pressed={doc.quantity === q}
-                onClick={() => dispatch({ type: "quantity", quantity: q })}
-              >
-                {q} st
+        {/* Antalet gäller skylten i editorn. I varukorgen ändras en design med "Ändra". */}
+        {!checkout && (
+          <div className={styles.quantityRow}>
+            <div className={`field ${styles.stepper}`}>
+              <button type="button" aria-label="Minska antal" onClick={() => dispatch({ type: "quantity", quantity: doc.quantity - 1 })}>
+                −
               </button>
-            ))}
+              <input
+                type="number"
+                inputMode="numeric"
+                aria-label={names > 1 || mixed ? "Antal per namn" : "Antal"}
+                min={1}
+                value={doc.quantity}
+                onChange={(e) => dispatch({ type: "quantity", quantity: Number(e.target.value) })}
+              />
+              <button type="button" aria-label="Öka antal" onClick={() => dispatch({ type: "quantity", quantity: doc.quantity + 1 })}>
+                +
+              </button>
+            </div>
+            <div className={styles.chips}>
+              {quickQuantities.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  className="chip"
+                  aria-pressed={doc.quantity === q}
+                  onClick={() => dispatch({ type: "quantity", quantity: q })}
+                >
+                  {q} st
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
         <div className={styles.priceBlock}>
           <p className={styles.priceLabel}>
-            {mixed
-              ? `${designs} designer · ${price.quantity} st · i snitt `
-              : names > 1 && `${names} namn × ${doc.quantity} = ${price.quantity} st · `}
+            {checkout
+              ? `${price.quantity} st · ${mixed ? "i snitt " : ""}`
+              : mixed
+                ? `${designs} designer · ${price.quantity} st · i snitt `
+                : names > 1 && `${names} namn × ${doc.quantity} = ${price.quantity} st · `}
             {sek.format(price.unitSek)} / st
           </p>
           <AnimatePresence mode="popLayout" initial={false}>
@@ -314,17 +361,19 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
             </motion.p>
           </AnimatePresence>
         </div>
-        <div className={styles.spec}>
-          <p className={styles.specTitle}>{mixed ? "Pris för skylten ovan" : "Pris per skylt"}</p>
-          <dl>
-            {parts.map(({ part, sek: partSek }) => (
-              <div key={part}>
-                <dt>{partLabel(part, doc)}</dt>
-                <dd>{sek.format(partSek)}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
+        {!checkout && (
+          <div className={styles.spec}>
+            <p className={styles.specTitle}>{mixed ? "Pris för skylten ovan" : "Pris per skylt"}</p>
+            <dl>
+              {parts.map(({ part, sek: partSek }) => (
+                <div key={part}>
+                  <dt>{partLabel(part, doc)}</dt>
+                  <dd>{sek.format(partSek)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
       </div>
 
       <div className={styles.priceRow}>
@@ -349,45 +398,77 @@ export function OrderSection({ doc, badges, designs = 1, dispatch, reseller, sho
 
       {reseller && <PurchaseSummary badges={badges} reseller={reseller} saleSek={price.totalSek} />}
 
-      {reseller && reseller.mode === "order" && formOpen && (
-        <div className={styles.delivery} data-order-form>
-          <div className={styles.deliveryHead}>
-            <p className={styles.specTitle}>Leverans</p>
-            <Segmented label="Skyltarna skickas" value={deliverTo} options={DELIVERY_TO_OPTIONS} onChange={setDeliverTo} />
+      {reseller && cart && !checkout && (
+        <>
+          {/* Skylten i editorn ligger inte i varukorgen än. Order och offert görs därifrån. */}
+          <button type="button" className="btn btn--primary btn--lg btn--block" disabled={!valid || !cart.canAdd} onClick={cart.onAdd}>
+            Lägg i varukorgen
+          </button>
+          {cart.designs > 0 ? (
+            <p className={styles.cartNote}>
+              {designCount(cart.designs)} ligger redan i varukorgen.{" "}
+              <button type="button" className={styles.textButton} onClick={cart.onDiscard}>
+                Fortsätt utan den här skylten
+              </button>
+            </p>
+          ) : (
+            <p className={styles.cartNote}>Från varukorgen lägger du en order eller skapar en offert, med en eller flera designer.</p>
+          )}
+        </>
+      )}
+
+      {reseller && checkout && (
+        <>
+          <p className={styles.specTitle}>
+            Varukorgen · {designCount(cart?.designs ?? 0)} · {price.quantity} st
+          </p>
+          {formOpen && (
+            <div className={styles.delivery} data-order-form>
+              <div className={styles.deliveryHead}>
+                <p className={styles.specTitle}>Leverans</p>
+                <Segmented label="Skyltarna skickas" value={deliverTo} options={DELIVERY_TO_OPTIONS} onChange={setDeliverTo} />
+              </div>
+              <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
+              <p className={styles.specTitle}>Leveranssätt</p>
+              <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} disabled={order.status === "sending"} />
+              <OrderTotals label="Kundens pris" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} method={method} vat={false} />
+            </div>
+          )}
+          {formError && (
+            <p className={styles.issue} data-severity="error" role="alert">
+              {formError}
+            </p>
+          )}
+          {/* Sättet återförsäljaren kom in på (ny order eller ny offert) avgör vilken knapp som är framhävd. */}
+          <div className={styles.cartCheckout} data-primary={reseller.mode}>
+            <button
+              type="button"
+              className={`btn btn--lg ${reseller.mode === "quote" ? "btn--primary" : ""}`}
+              data-kind="quote"
+              disabled={!valid || order.status === "sending"}
+              onClick={() => void submitForCustomer(reseller, "quote")}
+            >
+              {order.status === "sending" && sendingKind === "quote" ? "Skapar offerten…" : "Skapa offert"}
+            </button>
+            <button
+              type="button"
+              className={`btn btn--lg ${reseller.mode === "order" ? "btn--primary" : ""}`}
+              data-kind="order"
+              disabled={!valid || order.status === "sending"}
+              onClick={() =>
+                // Ordern behöver en leveransadress: första klicket visar den, andra lägger ordern.
+                order.status === "form" ? void submitForCustomer(reseller, "order") : setOrder({ status: "form" })
+              }
+            >
+              {order.status === "sending" && sendingKind === "order"
+                ? "Lägger ordern…"
+                : order.status === "form"
+                  ? `Lägg ordern · ${sek.format(checkoutSek)} exkl. moms${method === "express" ? " + frakt" : ""}`
+                  : "Lägg order"}
+            </button>
           </div>
-          <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
-          <p className={styles.specTitle}>Leveranssätt</p>
-          <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} disabled={order.status === "sending"} />
-          <OrderTotals label="Kundens pris" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} method={method} vat={false} />
-        </div>
-      )}
-
-      {reseller && formError && (
-        <p className={styles.issue} data-severity="error" role="alert">
-          {formError}
-        </p>
-      )}
-
-      {reseller && (
-        <button
-          type="button"
-          className="btn btn--primary btn--lg btn--block"
-          disabled={!valid || order.status === "sending"}
-          onClick={() =>
-            // Ordern behöver en leveransadress: första klicket visar den, andra lägger ordern.
-            reseller.mode === "order" && order.status !== "form" ? setOrder({ status: "form" }) : void submitForCustomer(reseller)
-          }
-        >
-          {order.status === "sending"
-            ? reseller.mode === "quote"
-              ? "Skapar offerten…"
-              : "Lägger ordern…"
-            : reseller.mode === "quote"
-              ? `Skapa offert till ${reseller.customerName}`
-              : order.status === "form"
-                ? `Lägg ordern · ${sek.format(checkoutSek)} exkl. moms${method === "express" ? " + frakt" : ""}`
-                : `Lägg order åt ${reseller.customerName}`}
-        </button>
+          <p className={styles.cartNote}>Till {reseller.customerName}. Skriv ett nytt namn i editorn för att lägga till en design till.</p>
+        </>
       )}
 
       <AnimatePresence initial={false}>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { BadgePreview } from "@/components/badge-preview";
@@ -17,7 +18,11 @@ interface RepeatButtonProps {
   compact?: boolean;
 }
 
-/** "Beställ igen": samma skyltar, samma antal — bekräftas med pris innan den skickas. */
+/**
+ * "Beställ igen": samma skyltar, samma antal — bekräftas med pris innan den
+ * skickas. Den som vill byta namn, antal eller något annat öppnar ordern i
+ * skyltmotorn med "Ändra först": skyltarna ligger då i varukorgen, klara att ändra.
+ */
 export function RepeatButton({ order, compact = false }: RepeatButtonProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const router = useRouter();
@@ -97,7 +102,8 @@ export function RepeatButton({ order, compact = false }: RepeatButtonProps) {
           </dl>
           <p className={styles.muted}>
             {shipping === null && "Frakt tillkommer. "}
-            Ordern skickas direkt till tillverkningen med samma design och antal.
+            Ordern skickas direkt till tillverkningen med samma design och antal. Ska något vara annorlunda, till exempel
+            andra namn eller ett annat antal? Välj Ändra först, så öppnas skyltarna i skyltmotorn.
           </p>
           {error && (
             <p className={styles.error} role="alert">
@@ -108,6 +114,9 @@ export function RepeatButton({ order, compact = false }: RepeatButtonProps) {
             <button type="button" className="btn btn--ghost" onClick={() => dialog.current?.close()}>
               Avbryt
             </button>
+            <Link href={`/skapa?kund=${order.customer.id}&kopia=${encodeURIComponent(order.orderNo)}`} className="btn">
+              Ändra först
+            </Link>
             <button type="button" className="btn btn--primary" disabled={pending} onClick={confirm}>
               {pending ? "Lägger ordern…" : shipping === null ? "Beställ" : `Beställ · ${formatSek(price.totalInclVatSek)} inkl. moms`}
             </button>

@@ -378,12 +378,24 @@ export interface Mounting {
   description: string;
   /** Säljs på sajten i dag. Priset står i prismodellen. */
   offered: boolean;
+  /** Fästet finns bara på material med de här ytorna. Utelämnat = alla material. */
+  finishes?: readonly MaterialFinish[];
+  /** Raden under fästet i väljaren, när det inte finns på alla skyltar. */
+  note?: string;
 }
 
 export const MOUNTINGS: readonly Mounting[] = [
   { id: "pin", name: "Nål", description: "Klassisk nål med lås. Säker på kavaj och skjorta.", offered: true },
   { id: "magnet", name: "Magnet", description: "Inga hål i plagget. Stark neodymmagnet.", offered: true },
-  { id: "clip", name: "Klämma", description: "Fäst på ficka, bälte eller band.", offered: true },
+  // Klämman finns bara på plastskyltar (besked via ägaren 2026-11-16). Måttet står i raden; inga ämnen har ändrats för det.
+  {
+    id: "clip",
+    name: "Klämma",
+    description: "Fäst på ficka, bälte eller band.",
+    offered: true,
+    finishes: ["plastic"],
+    note: "Endast för plastskyltar 80 × 25 mm",
+  },
   // Säljs inte längre; finns kvar så att äldre ordrar går att rita.
   { id: "safety-pin", name: "Säkerhetsnål", description: "Enkel och billig — för event och mässor.", offered: false },
 ];
@@ -415,4 +427,10 @@ export function getFont(id: FontId): BadgeFont {
 
 export function getMounting(id: MountingId): Mounting {
   return MOUNTINGS.find((m) => m.id === id) ?? MOUNTINGS[0]!;
+}
+
+/** Sant när fästet går att få på materialet. De flesta fästen finns på alla; klämman bara på plast. */
+export function mountingFits(mountingId: MountingId, materialId: MaterialId): boolean {
+  const { finishes } = getMounting(mountingId);
+  return !finishes || finishes.includes(getMaterial(materialId).finish);
 }

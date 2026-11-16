@@ -11,12 +11,13 @@ export const SAVED_WORK_VERSION = 1;
 export type WorkScope =
   | { kind: "web" }
   | { kind: "shop"; slug: string }
-  | { kind: "reseller"; customerId: string; mode: "order" | "quote" };
+  /** En återförsäljare som designar åt en kund. Varukorgen blir en order eller en offert först när den är klar. */
+  | { kind: "reseller"; customerId: string };
 
 /** Nyckeln i `localStorage`. Versionen står i nyckeln, så att ett nytt format aldrig läser ett gammalt. */
 export function savedWorkKey(scope: WorkScope): string {
   const prefix = `namnskylt:skyltmotor:v${SAVED_WORK_VERSION}`;
   if (scope.kind === "shop") return `${prefix}:butik:${scope.slug}`;
-  if (scope.kind === "reseller") return `${prefix}:kund:${scope.customerId}:${scope.mode}`;
+  if (scope.kind === "reseller") return `${prefix}:kund:${scope.customerId}`;
   return `${prefix}:web`;
 }

@@ -54,7 +54,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (949 tester, grönt 2026-11-15).
+# Kvalitetsgrinden. Kör den innan något lämnas (958 tester, grönt 2026-11-16).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -129,8 +129,24 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - PDF läses med `pdfjs-dist`, låst till `~5.4.624` eftersom nyare kräver Node 22. Bara första
     sidan läses.
   - Kända brister: bara provat i Chrome; en ritad form försvinner om kunden väljer ett ämne och
-    sedan "Egen form" igen; fästena i 3D skalar med skylten och blir för stora på en form på
-    120 mm (`three/mounting.tsx`, `src/engine/hardware-fit.ts`).
+    sedan "Egen form" igen.
+- **Fästen** (2026-11-16): nål, magnet och klämma (`MOUNTINGS` i `catalog.ts`).
+  - **Klämman finns bara på plastskyltar** (besked via ägaren 2026-11-16, `mountingFits`,
+    `Mounting.finishes`). Under Klämma står alltid "Endast för plastskyltar 80 × 25 mm"
+    (`Mounting.note`). På metall syns den streckad och går inte att välja, som Egen form. På
+    plast går den att välja på alla former: måttet står bara i texten, och inga ämnen har
+    ändrats för det (beslut av ägaren).
+  - Byter kunden till metall med klämma vald blir fästet nål (`designerReducer`). En
+    metallskylt med klämma är inte i sortimentet (`isOfferedDocument`), så en äldre order
+    med den går inte att beställa igen, och `toOfferedDocument` ger den nål.
+  - **Ikonerna och 3D-fästena** är ritade efter samma förlagor från ägaren: nålen med spets
+    och ögla, hästskomagneten med sina poler och klämman med flik och öppning
+    (`mounting-section.tsx`, `three/mounting.tsx`). Måtten är i mm med tak, så fästet växer
+    inte med en stor skylt. `footprint` använder samma mått, och `fitHardware`
+    (`src/engine/hardware-fit.ts`) flyttar och förminskar fästet på en egen form.
+  - Skyltmotorn vänder själv skylten en stund när ett fäste väljs, så att fästet syns.
+  - Känd brist: prismodellens kalkyl i `/admin/prismodell` låter fortfarande klämman väljas
+    ihop med Premium, fast den kombinationen inte går att beställa.
 - **Loggan** graveras eller trycks, och det avgörs automatiskt när filen laddas upp eller hämtas
   från hemsidan (beslut av ägaren 2026-11-13, gäller både metall och plast):
   - En **svartvit** logga spåras till banor (`BadgeLogo.d`) och graveras i textens färg, som förut.
@@ -504,12 +520,45 @@ verkstaden sin provision per period.
   startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom
   bilden bara visar en av dem, och panelen fyller inte heller i en bild i efterhand
   (`sameDesign` i motorn, `missingBadgeShots`).
+- **Återförsäljaren utgår från varukorgen** (besked av ägaren 2026-11-16). Från panelen
+  (`/admin/ny-order`, `/admin/ny-offert`) öppnas skyltmotorn rakt i editorn, utan startsida
+  och startruta, med markören i skyltens första rad.
+  - Knappen vid priset heter **"Lägg i varukorgen"** så länge skylten i editorn inte ligger
+    där. Först när allt som är designat ligger i varukorgen (skylten i editorn är ny och
+    orörd, `pending`) visas **"Skapa offert"** och **"Lägg order"**, båda två. Så ryms flera
+    olika designer i samma offert eller order (`ResellerCart`, `checkout` i
+    `order-section.tsx`; `CartSection` med `explicit`).
+  - Sättet återförsäljaren kom in på avgör bara vilken av knapparna som är framhävd
+    (`reseller.mode`). "Lägg order" öppnar leveransen först, som förut.
+  - En halvfärdig skylt i editorn kastas med "Fortsätt utan den här skylten"
+    (`discardDesign`), och en design i varukorgen öppnas med "Ändra".
+  - Varukorgen sparas per kund, inte per läge (`savedWorkKey`), så den är samma oavsett om
+    den slutar som order eller offert.
+  - Stillbilden till en order med en enda design tas när skylten läggs i varukorgen
+    (`cartShot`), eftersom editorn är tom när ordern läggs. Efter en omladdning finns ingen
+    bild, och panelen ritar den i efterhand.
+  - När allt ligger i varukorgen visas bara dess summa vid priset. Antalsväljaren och
+    specifikationen per skylt gäller skylten i editorn och visas medan man designar.
+  - En kund som beställer själv har kvar sin knapp "Beställ" och varukorgen som ett tillval.
+- **Beställ igen med ändringar** (besked av ägaren 2026-11-16): dialogen "Beställ igen" har
+  kvar samma order med ett klick, och dessutom "Ändra först", som öppnar
+  `/skapa?kund=<id>&kopia=<ordernummer>`. Den gamla orderns skyltar ligger då i varukorgen
+  som designer med sina namn (`badgeGroups` i motorn, inversen av `groupBadges`), och namn,
+  antal och allt annat ändras med "Ändra" innan man lägger order eller skapar offert.
+  - Sidan öppnar bara återförsäljarens egen order till just den kunden, och äldre skyltar
+    flyttas till dagens sortiment (`toOfferedDocument`).
+  - Den nya ordern får dagens listpris och pekar tillbaka på den gamla (`copyOf` i
+    `POST /api/admin/orders`, källan `repeat`, noten "Beställd igen från NS-…, med ändringar").
+    Den gamla orderns egna priser och rabatt följer inte med, och inte heller dess fraktsätt.
+  - Den öppnade ordern ersätter det som låg sparat i webbläsaren för kunden, men ändringarna
+    överlever en omladdning (`replaces` i `useSavedWork`, öppningen `kopia:<ordernummer>`).
+  - Rutan "Skriv namnet. Vi gör resten." i skyltmotorn finns inte längre (`SmartInput` är
+    borttagen); `smart-input.tsx` har bara kvar exemplen och skrivmaskinen till startsidan.
 - **Startsidan fungerar utan namn** (besked av ägaren 2026-11-16): "Skapa skylt" öppnar
   skyltmotorn även när rutan är tom. Startsidans ruta skickar alltid med `t`, även tomt, och
   sidan ger då `fromStart` till `Designer`, som visar startrutan för material och form utan
   text och sedan ställer markören i skyltens första rad. En direkt länk till `/skapa` utan `t`
-  visar ingen startruta, som förut. Samma sak gäller butikernas startsida och rutan där en
-  återförsäljare börjar en order (`SmartInput`).
+  visar ingen startruta, som förut. Samma sak gäller butikernas startsida.
 - **Skyltmotorns arbete sparas i webbläsaren** (2026-11-15, `useSavedWork`, regler i
   `src/lib/designer-work/`): skylten i editorn, namnlistan och varukorgen ligger i
   `localStorage` och finns kvar när sidan laddas om. En nyckel per sammanhang (webben, en

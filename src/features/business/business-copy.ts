@@ -101,7 +101,7 @@ export const WORKPLACES: readonly Workplace[] = [
   {
     title: "Vård och omsorg",
     body: "Patienter och anhöriga ser vem de pratar med, även när alla bär samma kläder.",
-    badge: { texts: ["Sara Nilsson", "Undersköterska"], colorId: "metal-white", mounting: "clip" },
+    badge: { texts: ["Sara Nilsson", "Undersköterska"], colorId: "metal-white", mounting: "magnet" },
   },
   {
     title: "Butik",
