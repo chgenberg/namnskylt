@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./catalog";
 export * from "./color-choice";
+export * from "./color-code";
 export * from "./document";
 export * from "./marking";
 export * from "./batch";

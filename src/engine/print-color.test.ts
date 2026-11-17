@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getMaterial } from "./catalog";
 import { pigmentCodeText, pigmentCodes } from "./color-choice";
+import { cmykHex, cmykOf, cmykText, printColorHex, printColorText } from "./color-code";
 import { createBadgeDocument } from "./document";
 import { engravingPaths, printedPaths } from "./engraving";
 import { layoutBadge, type FontEngine } from "./layout";
 import {
+  LOGO_PRINT_COLOR_MAX,
   PRINT_COLOR_MAX,
   cleanPrintColor,
-  printColorHex,
+  logoPrintColorOf,
+  logoPrintInkOf,
   printColorLabel,
   printColorOf,
   printInkOf,
@@ -115,6 +118,149 @@ describe("hexkoden i en färgkod", () => {
   });
 });
 
+describe("CMYK i en färgkod", () => {
+  const blue = { c: 100, m: 60, y: 0, k: 20 };
+
+  it("läser fyra värden i procent, hur kunden än skriver dem", () => {
+    const written = [
+      "CMYK 100/60/0/20",
+      "100/60/0/20",
+      "100, 60, 0, 20",
+      "100 60 0 20",
+      "100-60-0-20",
+      "cmyk(100, 60, 0, 20)",
+      "CMYK: 100 % / 60 % / 0 % / 20 %",
+      "C100 M60 Y0 K20",
+      "c: 100, m: 60, y: 0, k: 20",
+      "C=100 M=60 Y=0 K=20",
+      "  C100/M60/Y0/K20  ",
+    ];
+    for (const code of written) assert.deepEqual(cmykOf(code), blue, code);
+    assert.deepEqual(cmykOf("12.5/0/0/7.5"), { c: 12.5, m: 0, y: 0, k: 7.5 });
+    // Decimalkomma går bra där kommat inte skiljer värdena åt.
+    assert.deepEqual(cmykOf("12,5/0/0/7,5"), { c: 12.5, m: 0, y: 0, k: 7.5 });
+    assert.deepEqual(cmykOf("12,5 0 0 7,5"), { c: 12.5, m: 0, y: 0, k: 7.5 });
+    assert.deepEqual(cmykOf("C12,5 M0 Y0 K7,5"), { c: 12.5, m: 0, y: 0, k: 7.5 });
+    assert.deepEqual(cmykOf("12.5, 0, 0, 7.5"), { c: 12.5, m: 0, y: 0, k: 7.5 });
+  });
+
+  it("tar inte andra koder för CMYK", () => {
+    const others = [
+      "PMS 286 C",
+      "286",
+      "RAL 5010",
+      "#0057B8",
+      "100/60/0",
+      "100/60/0/20/5",
+      "120/0/0/0",
+      "C100 M60 K20",
+      "blå 100/60/0/20",
+      "",
+      // Tre värden med decimalkomma får inte läsas som fyra: skiljetecknet ska vara detsamma hela vägen.
+      "0,5/10/20",
+      "10 20/30,40",
+      "100/60 0 20",
+      // Med komma mellan värdena är kommat inget decimaltecken.
+      "7,5, 0, 0, 0",
+    ];
+    for (const code of others) assert.equal(cmykOf(code), null, code);
+    assert.equal(cmykOf(undefined), null);
+  });
+
+  it("räknas om till skärmens färg", () => {
+    assert.equal(cmykHex({ c: 0, m: 0, y: 0, k: 0 }), "#FFFFFF");
+    assert.equal(cmykHex({ c: 0, m: 0, y: 0, k: 100 }), "#000000");
+    assert.equal(cmykHex({ c: 0, m: 100, y: 100, k: 0 }), "#FF0000");
+    assert.equal(cmykHex(blue), "#0052CC");
+    assert.equal(printColorHex("CMYK 100/60/0/20"), "#0052CC");
+    assert.equal(printColorHex("c100 m60 y0 k20"), "#0052CC");
+  });
+
+  it("står likadant i underlaget hur den än skrevs", () => {
+    assert.equal(cmykText(blue), "CMYK 100/60/0/20");
+    assert.equal(printColorText("c100 m60 y0 k20"), "CMYK 100/60/0/20");
+    assert.equal(printColorText("100, 60, 0, 20"), "CMYK 100/60/0/20");
+    assert.equal(printColorText("0057b8"), "#0057B8");
+    // Det vi inte kan läsa står som kunden skrev det.
+    assert.equal(printColorText(" PMS 286 C "), "PMS 286 C");
+  });
+
+  it("ritas på skylten, för hela trycket och för en rad", () => {
+    const doc = threeRows({ printColor: "100/60/0/20" });
+    const rows = doc.rows.map((row, i) => (i === 2 ? { ...row, printColor: "C0 M100 Y80 K0" } : row));
+    const coded = { ...doc, rows };
+    assert.equal(printInkOf(coded), "#0052CC");
+    assert.deepEqual(coded.rows.map((row) => rowPrintInkOf(coded, row)), ["#0052CC", "#C8102E", "#FF0033"]);
+    assert.equal(printColorLabel(coded), "Tryckfärg CMYK 100/60/0/20, rad 2 #C8102E, rad 3 CMYK 0/100/80/0");
+  });
+});
+
+describe("loggans egna färgkoder", () => {
+  const coded: BadgeLogo = { ...logo, printColor: " 0/100/80/0 " };
+  const colored: BadgeLogo = { ...coded, image: { src: "data:image/png;base64,iVBORw0KGgo=" } };
+
+  it("gäller när loggan printas", () => {
+    assert.equal(logoPrintColorOf({ logo: coded, marking: "print" }), "0/100/80/0");
+    assert.equal(logoPrintColorOf({ logo: coded, marking: "engrave-name-print-logo" }), "0/100/80/0");
+    // En logga i färg utan vald metod printas.
+    assert.equal(logoPrintColorOf({ logo: colored }), "0/100/80/0");
+  });
+
+  it("gäller inte när loggan graveras: gravyren har materialets färg", () => {
+    assert.equal(logoPrintColorOf({ logo: coded }), null);
+    assert.equal(logoPrintColorOf({ logo: coded, marking: "engrave" }), null);
+    assert.equal(logoPrintColorOf({ logo: colored, marking: "print-name-engrave-logo" }), null);
+    assert.equal(logoPrintColorOf({ logo, marking: "print" }), null);
+    assert.equal(logoPrintColorOf({ marking: "print" }), null);
+  });
+
+  it("ritar en svartvit logga i sin egen kod, annars i koden för hela trycket", () => {
+    const doc = { ...base, logo: coded, marking: "engrave-name-print-logo" as const, printColor: "#0057b8" };
+    assert.equal(logoPrintInkOf(doc), "#FF0033");
+    assert.deepEqual((printedPaths(layoutBadge(doc, fonts), fonts) ?? []).map((path) => [path.kind, path.ink]), [["logo", "#FF0033"]]);
+    assert.equal(logoPrintInkOf({ ...doc, logo }), "#0057B8");
+    // En egen kod som inte går att rita ger gravyrens färg, inte tryckets.
+    const pms = { ...doc, logo: { ...logo, printColor: "PMS 186 C" } };
+    assert.equal(logoPrintInkOf(pms), null);
+    assert.equal(layoutBadge(pms, fonts).logo?.ink, undefined);
+    assert.equal(logoPrintInkOf({ ...doc, marking: "engrave" as const }), null);
+  });
+
+  it("färgar inte en logga i färg: den trycks som bild", () => {
+    const doc = { ...base, logo: colored, printColor: "#0057b8" };
+    const placed = layoutBadge(doc, fonts).logo;
+    assert.equal(placed?.imageSrc, colored.image?.src);
+    assert.equal(placed?.ink, undefined);
+  });
+
+  it("syns i förhandsvisningen men aldrig i produktionsfilen", () => {
+    const doc = { ...base, logo: coded, marking: "engrave-name-print-logo" as const };
+    const layout = layoutBadge(doc, fonts);
+    assert.match(renderBadgeSvg(doc, layout, { mode: "preview", fonts }), /fill="#FF0033"/);
+    assert.match(renderBadgeSvg(doc, layout, { mode: "preview", fonts: approxFonts }), /fill="#FF0033"/);
+    assert.doesNotMatch(renderBadgeSvg(doc, layout, { mode: "production", fonts }), /#FF0033/);
+  });
+
+  it("står sist i underlaget, som kunden skrev dem när de är flera", () => {
+    const doc = threeRows({ printColor: "PMS 286 C", logo: { ...logo, printColor: "blå 100/60/0/20, röd 0/100/80/0" } });
+    assert.equal(
+      printColorLabel(doc),
+      "Tryckfärg PMS 286 C, rad 2 #C8102E, rad 3 PMS 300 C, logga blå 100/60/0/20, röd 0/100/80/0",
+    );
+    assert.equal(printColorLabel({ ...base, logo: coded, marking: "engrave-name-print-logo" }), "Tryckfärg logga CMYK 0/100/80/0");
+    assert.equal(printColorLabel({ ...base, logo: coded, marking: "engrave" }), null);
+  });
+
+  it("rensas och godtas av schemat inom sin egen längd", () => {
+    assert.equal(cleanPrintColor("x".repeat(LOGO_PRINT_COLOR_MAX + 10), LOGO_PRINT_COLOR_MAX).length, LOGO_PRINT_COLOR_MAX);
+    const withCode = (printColor: string) => ({ ...base, logo: { ...logo, printColor } });
+    assert.equal(badgeDocumentSchema.safeParse(withCode("blå 100/60/0/20, röd 0/100/80/0")).success, true);
+    assert.equal(badgeDocumentSchema.safeParse(withCode("x".repeat(LOGO_PRINT_COLOR_MAX))).success, true);
+    assert.equal(badgeDocumentSchema.safeParse(withCode("x".repeat(LOGO_PRINT_COLOR_MAX + 1))).success, false);
+    assert.equal(badgeDocumentSchema.safeParse(withCode("100/60\n0/20")).success, false);
+  });
+});
+
 describe("färgkod per textrad", () => {
   it("gäller när namnet printas", () => {
     const doc = threeRows();
@@ -145,15 +291,15 @@ describe("färgkod per textrad", () => {
   });
 
   it("står i underlaget med radens nummer på skylten", () => {
-    assert.equal(printColorLabel(threeRows()), "Tryckfärg rad 2 #c8102e, rad 3 PMS 300 C");
-    assert.equal(printColorLabel(threeRows({ printColor: "PMS 286 C" })), "Tryckfärg PMS 286 C, rad 2 #c8102e, rad 3 PMS 300 C");
+    assert.equal(printColorLabel(threeRows()), "Tryckfärg rad 2 #C8102E, rad 3 PMS 300 C");
+    assert.equal(printColorLabel(threeRows({ printColor: "PMS 286 C" })), "Tryckfärg PMS 286 C, rad 2 #C8102E, rad 3 PMS 300 C");
     assert.equal(printColorLabel(threeRows({ marking: "engrave" })), null);
   });
 
   it("räknar raderna utan de tomma, som de står på skylten", () => {
     const doc = threeRows();
     const rows = doc.rows.map((row, i) => (i === 0 ? { ...row, text: " " } : row));
-    assert.equal(printColorLabel({ ...doc, rows }), "Tryckfärg rad 1 #c8102e, rad 2 PMS 300 C");
+    assert.equal(printColorLabel({ ...doc, rows }), "Tryckfärg rad 1 #C8102E, rad 2 PMS 300 C");
     // En kod på en tom rad följer inte med.
     const empty = doc.rows.map((row, i) => (i === 1 ? { ...row, text: "" } : row));
     assert.equal(printColorLabel({ ...doc, rows: empty }), "Tryckfärg rad 2 PMS 300 C");

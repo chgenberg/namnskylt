@@ -297,28 +297,40 @@ export interface BadgeFont {
   /** Reservtypsnitt för `<text>` innan fontfilerna laddats. */
   css: string;
   /**
-   * Fontfiler under `public/fonts`. Liberation Sans är metriskt identisk med
-   * Arial (samma avancebredder), så radbrytning och krympning blir desamma
-   * som i leverantörens Arial — och filerna får distribueras (OFL).
+   * Fontfiler under `public/fonts`: samma filer som verkstaden bäddar in i sina
+   * produktionsfiler, så att bokstäverna är identiska hos oss och i
+   * tillverkningen (beslut av ägaren 2026-11-17). Verkstaden ritar Arial med
+   * Roboto och Arial Narrow med Roboto Condensed. Filerna får distribueras
+   * (Apache 2.0).
    */
   files: { regular: string; bold: string };
 }
 
-/** Gravyrmaskinerna kör Arial-familjen — fler typsnitt går inte att tillverka. */
+/**
+ * Verkstaden tillverkar Arial-familjen. Namnen är verkstadens, och id:na
+ * skickas rakt av i ordern.
+ */
 export const FONTS: readonly BadgeFont[] = [
   {
     id: "arial",
     name: "Arial",
-    css: "Arial, 'Helvetica Neue', Helvetica, sans-serif",
-    files: { regular: "LiberationSans-Regular.ttf", bold: "LiberationSans-Bold.ttf" },
+    css: "Roboto, Arial, 'Helvetica Neue', Helvetica, sans-serif",
+    files: { regular: "Roboto-Regular.ttf", bold: "Roboto-Bold.ttf" },
   },
   {
     id: "arial-narrow",
     name: "Arial Narrow",
-    css: "'Arial Narrow', 'Helvetica Neue Condensed', 'Roboto Condensed', Arial, sans-serif",
-    files: { regular: "LiberationSansNarrow-Regular.ttf", bold: "LiberationSansNarrow-Bold.ttf" },
+    css: "'Roboto Condensed', 'Arial Narrow', 'Helvetica Neue Condensed', Arial, sans-serif",
+    files: { regular: "RobotoCondensed-Regular.ttf", bold: "RobotoCondensed-Bold.ttf" },
   },
 ];
+
+/**
+ * Reservtypsnittet, Liberation Sans. Saknar radens typsnitt ett tecken ritas
+ * hela raden i det här, precis som i verkstaden (deras `chooseFont`). Roboto
+ * Condensed är en latinsk delmängd, så det gäller främst Arial Narrow.
+ */
+export const FALLBACK_FONT_FILES = { regular: "LiberationSans-Regular.ttf", bold: "LiberationSans-Bold.ttf" } as const;
 
 export interface BadgeBlank {
   id: BlankId;

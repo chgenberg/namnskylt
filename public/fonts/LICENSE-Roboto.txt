@@ -1,0 +1,15 @@
+Roboto och Roboto Condensed
+===========================
+
+Filer: Roboto-Regular.ttf, Roboto-Bold.ttf, RobotoCondensed-Regular.ttf,
+RobotoCondensed-Bold.ttf
+
+Copyright 2011 Google Inc. All Rights Reserved.
+Licens: Apache License, Version 2.0. Hela licenstexten står i
+LICENSE-Apache-2.0.txt bredvid den här filen.
+Källa: https://github.com/google/roboto och https://fonts.google.com
+
+Filerna är samma som Skylt & Gravyrteknik bäddar in i sina produktionsfiler,
+så att namnskylten ritas med exakt samma bokstäver hos oss och i verkstaden.
+Roboto Condensed är en latinsk delmängd. Saknar typsnittet ett tecken ritas
+hela raden i Liberation Sans, som i verkstaden.

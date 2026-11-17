@@ -38,6 +38,14 @@ class MockSupplierClient implements SupplierClient {
   }
 }
 
+/**
+ * Adressen till en väg hos verkstaden. Basadressen får ha en egen sökväg
+ * (`https://www.skyltochgravyr.com/api/partner`), och vägen läggs efter den.
+ */
+export function supplierUrl(baseUrl: string, path: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}${path}`;
+}
+
 class HttpSupplierClient implements SupplierClient {
   constructor(
     private readonly baseUrl: string,
@@ -45,7 +53,7 @@ class HttpSupplierClient implements SupplierClient {
   ) {}
 
   async placeOrder(request: SupplierOrderRequest): Promise<SupplierOrderReceipt> {
-    const response = await fetch(new URL("/orders", this.baseUrl), {
+    const response = await fetch(supplierUrl(this.baseUrl, "/orders"), {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -65,7 +73,7 @@ class HttpSupplierClient implements SupplierClient {
   }
 
   async getOrder(orderNumber: string): Promise<SupplierOrderState | null> {
-    const response = await fetch(new URL(`/orders/${encodeURIComponent(orderNumber)}`, this.baseUrl), {
+    const response = await fetch(supplierUrl(this.baseUrl, `/orders/${encodeURIComponent(orderNumber)}`), {
       headers: { authorization: `Bearer ${this.apiKey}` },
       signal: AbortSignal.timeout(STATUS_TIMEOUT_MS),
       cache: "no-store",

@@ -54,7 +54,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1059 tester, grönt 2026-11-17).
+# Kvalitetsgrinden. Kör den innan något lämnas (1091 tester, grönt 2026-11-17).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -242,43 +242,88 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     är en bild (`LaidOutLogo.imageSrc`). Förhandsvisningen ritar allt; i 3D ligger printen plant på
     ytan (`InkPrint` i `three/logo-print.tsx`), och i verkstadens arkvy är den hjälplinjer.
   - Verkstaden: loggans lager bär `renderMode` efter metoden. Deras text- och ramlager har inget
-    läge, så ett printat namn sägs bara i klartext i `productionNote`. Det är en lucka i
-    kontraktet: tills deras format har fältet graverar de namnet.
+    läge för print. **Det som printas i en färg skickas därför som banor i ett trycklager**
+    (beslut av ägaren 2026-11-17, `printLayer` i `src/lib/supplier/map.ts`): namnet, ramen
+    och en svartvit logga, var och en i sin färg. Lagret är ett bildlager i tryckläge med
+    vektorinnehåll, som deras tryckfil ritar och deras gravyrfil hoppar över.
+    - Banorna räknas om till det deras vektorlager tar, bara absoluta `M`, `L`, `C` och `Z`
+      (`toCubicPath` i `cubic-path.ts`): bokstävernas kvadratiska kurvor blir kubiska, och
+      ramens relativa kommandon och bågar blir absoluta linjer och kurvor. Färgen står som
+      hex i gemener.
+    - Färgen är kundens CMYK- eller hexkod när den går att rita, annars färgen skylten
+      visades i (gravyrens färg).
+    - Då finns inget text- eller ramlager för namnet hos verkstaden. Raderna står i
+      kommentaren ("Text som printas: Anna Lind / Säljare"), och personalen kan inte ändra
+      texten hos sig.
+    - Utan glyfkonturer (typsnittet inte laddat, som i tester med `approxFonts`) skickas
+      namnet som förut, som text, och metoden står bara i klartext. Samma sak om en bana inte
+      går att räkna om (en logga med trasig bana): ordern stoppas aldrig av trycklagret.
+    - En logga i färg som printas är fortfarande en bild.
   - En logga i färg som graveras behåller sina banor i en delad länk; ryms de inte tappas loggan.
   - Sektionen ligger som nummer 02 i panelen, före Logga & varumärke (03), eftersom metoden
     avgör hur loggan sedan märks (besked via ägaren 2026-11-16). Därefter Material 04, Form 05,
     Fäste 06, Fler namn 07 och Varukorg 08.
-  - **Kunden kan ange en egen PMS eller färgkod för trycket** (besked via ägaren 2026-11-16):
-    fältet "PMS eller färgkod för trycket" visas i sektionen när namnet eller loggan printas
+  - **Kunden kan ange en egen färgkod för trycket** (besked via ägaren 2026-11-16): fältet
+    "Färgkod för trycket: CMYK, PMS eller hex" visas i sektionen när namnet eller loggan printas
     (`BadgeDocument.printColor`, åtgärden `print/color`, högst `PRINT_COLOR_MAX` tecken fritext).
     Läs alltid med `printColorOf`, som bara ger koden när något faktiskt printas, så att en kod
-    som står kvar efter ett byte till gravyr inte följer med. `printColorLabel` ("Tryckfärg PMS
-    286 C") står bredvid fästet på ordersidor, offert, korrektur och i Tillverkning, och i
+    som står kvar efter ett byte till gravyr inte följer med. `printColorLabel` ("Tryckfärg CMYK
+    100/60/0/20") står bredvid fästet på ordersidor, offert, korrektur och i Tillverkning, och i
     verkstadens `productionNote`.
+  - **Koderna är CMYK i första hand, och PMS och hex går också att skriva** (beslut av ägaren
+    2026-11-17: "det är CMYK-koder som ska in", och på frågan valdes CMYK, PMS och hex). Fälten
+    är fritext, och reglerna för vad som känns igen ligger i `src/engine/color-code.ts`.
+    - CMYK är fyra tal mellan 0 och 100 (`cmykOf`): "100/60/0/20", "100, 60, 0, 20",
+      "C100 M60 Y0 K20", "cmyk(100, 60, 0, 20)", med eller utan ordet CMYK och procenttecken.
+      Ett PMS-nummer är ett enda tal och läses aldrig som CMYK. Skiljetecknet ska vara
+      detsamma mellan alla fyra värden, så att "0,5/10/20" inte läses som fyra tal.
+      Decimalkomma går bra där kommat inte skiljer värdena åt ("12,5/0/0/7,5").
+    - **CMYK och hex ritas på skylten** (`printColorHex`). CMYK räknas om till skärmens färg
+      med den enkla formeln, utan tryckeriets profil (`cmykHex`), så färgen är ungefärlig och
+      mättade färger ser klarare ut på skärmen än i trycket. Hjälptexterna säger "ungefärligt
+      på skärmen". PMS och RAL går inte att rita och följer bara med ordern.
+    - I listor och underlag står koden likadant hur kunden än skrev den (`printColorText`):
+      CMYK som "CMYK 100/60/0/20" och hex som "#RRGGBB". Annat står som det skrevs.
+  - **Loggan har ett eget fält för sina färger** (samma beslut): "Loggans färger i CMYK" i
+    sektionen Logga & varumärke, bara när loggan printas (`BadgeLogo.printColor`, åtgärden
+    `logo/color`, högst `LOGO_PRINT_COLOR_MAX` tecken fritext, eftersom en logga kan ha flera
+    färger). Läs alltid med `logoPrintColorOf` och `logoPrintInkOf`.
+    - En svartvit logga som printas ritas i sin egen kod när den är en enda CMYK- eller
+      hexkod (`LaidOutLogo.ink`), annars i koden för hela trycket. En egen kod som inte går
+      att rita ger gravyrens färg, som för en rad. En logga i färg är en bild: där är koderna
+      bara besked till tillverkningen och ändrar inte bilden.
+    - Koderna står sist i etiketten: "Tryckfärg PMS 286 C, rad 2 #C8102E, logga blå
+      100/60/0/20, röd 0/100/80/0".
+    - "Invertera" behåller koderna, eftersom det är samma logga. En ny logga ärver dem aldrig.
+    - Verkstadens bildlager har inget fält för färg, så loggans koder går bara som klartext i
+      `productionNote`.
   - **Varje textrad kan få en egen färgkod** (besked via ägaren 2026-11-17): när namnet printas
-    har varje rad i sektionen Text raden "Färgkod", med en färgväljare och ett fält för PMS
-    eller hex (`BadgeTextRow.printColor`, åtgärden `row/color`, samma längd och rensning som
+    har varje rad i sektionen Text raden "Färgkod", med en färgväljare och ett fält för CMYK,
+    PMS eller hex (`BadgeTextRow.printColor`, åtgärden `row/color`, samma längd och rensning som
     koden för hela trycket). Regeln är verkstadens egen (deras `TextRow.color`): färg per rad
     finns bara i tryck, och gravyr struntar i den, eftersom gravyren får materialets färg på
     alla rader. Läs alltid med `rowPrintColorOf` och `rowPrintInkOf`.
     - När namnet graveras visas inga fält, bara raden "Egen färg per rad går att ange när
       namnet printas, se Märkningsmetod.", så att ingen letar förgäves.
-    - **En hexkod ritas på skylten**, i ritningen, 3D-vyn och fotoläget (`printColorHex`,
-      `LaidOutRow.ink`, `EngravedPath.ink`; i 3D en yta per färg, olyst som en logga i färg).
-      Det gäller nu också koden för hela trycket (`printInkOf`, `BadgeLayout.printInk`): den
-      färgar ramen, en svartvit logga som printas och rader utan egen kod. PMS och andra koder
-      går inte att rita, eftersom vi inte har deras färger, och följer bara med ordern. En rad
-      med egen PMS-kod visas i gravyrens färg, inte i tryckets. Tre siffror läses bara som hex
-      med brädgård, så att PMS-numret 286 inte blir en färg.
+    - **En CMYK- eller hexkod ritas på skylten**, i ritningen, 3D-vyn och fotoläget
+      (`printColorHex`, `LaidOutRow.ink`, `EngravedPath.ink`; i 3D en yta per färg, olyst som
+      en logga i färg). Det gäller också koden för hela trycket (`printInkOf`,
+      `BadgeLayout.printInk`): den färgar ramen, en svartvit logga som printas utan egen kod
+      och rader utan egen kod. PMS och andra koder går inte att rita, eftersom vi inte har
+      deras färger, och följer bara med ordern. En rad med egen PMS-kod visas i gravyrens
+      färg, inte i tryckets. Tre siffror läses bara som hex med brädgård, så att PMS-numret
+      286 inte blir en färg. Färgväljaren ger fortfarande hex.
     - Koderna står i samma etikett som koden för hela trycket: "Tryckfärg PMS 286 C, rad 2
       #C8102E" (`printColorLabel`). Raderna räknas som de står på skylten, utan tomma rader.
-    - Verkstaden får radens hexfärg i sitt eget fält (`SupplierTextRow.color`, `#RRGGBB`) och
-      alla koder i klartext i `productionNote`. Deras motor läser fältet bara på tryckta
-      skyltar och klistermärken, så tills de kan printa ett namn är det klartexten som gäller.
+    - Verkstaden får radens färg som fyllnad på radens banor i trycklagret (se
+      Märkningsmetod) och alla koder i klartext i `productionNote`. Fyllnaden är hex, så en
+      CMYK-kod skickas som skärmens ungefärliga färg; den exakta koden står i klartexten.
+      `SupplierTextRow.color` används bara när namnet skickas som text, alltså utan
+      glyfkonturer.
     - "Fler namn" och "Ny personal" ger varje nytt namn samma färg per rad som mallen.
     - Produktionsfilen och maskinfilerna bär aldrig färgen: de har bara gravyren.
-  - Preliminärt: att verkstaden printar text, och i vilken färg. Utan egen hexkod visas ett
-    printat namn i gravyrens färg.
+  - Preliminärt: att verkstaden printar text, och i vilken färg. Utan egen CMYK- eller hexkod
+    visas ett printat namn i gravyrens färg.
   - Kända brister: produktionsfilen saknar det som printas och ingen tryckfil för namnet skapas.
     Gravyranimationen sveper inte över det som printas. Fotoläget, korrekturet, offertens PDF
     och delningsbilden är inte öppnade i webbläsaren med ett printat namn.
@@ -683,7 +728,9 @@ verkstaden sin provision per period.
 
 - **Kopplingen är byggd men avstängd.** Strömbrytaren är `SUPPLIER_API_URL` och
   `SUPPLIER_API_KEY` (`supplierApiConfigured`). Utan dem sparas ordrar och väntar. Verkstadens
-  API finns inte än, se avsnittet Leverantören.
+  mottagare är byggd i skyltmotor-projektet (2026-11-17) men inte deployad, se avsnittet
+  Leverantören. Basadressen får ha en egen sökväg (`supplierUrl` i `client.ts`): i drift blir
+  den `https://www.skyltochgravyr.com/api/partner`.
 - **Ordern sparas alltid först** (`placeOrder`), sedan skickas den (`dispatchOrder` i
   `src/lib/supplier/dispatch.ts`). Misslyckas utskicket ligger ordern kvar med felet
   (`orders.supplier_error`, `supplier_attempts`), och kunden får aldrig ett fel för det. Förut
@@ -789,6 +836,10 @@ verkstaden sin provision per period.
   kunden svarar får återförsäljaren ett besked i panelen (se avsnittet Besked). Kundens
   orderbekräftelse och fraktbesked är byggda men avstängda, se avsnittet Mejl från sajten.
   Resend är beslutat men inte inkopplat.
+- Kontrollerat 2026-11-17 mot den riktiga skyltmotorn, lokalt på samma dator (båda i
+  utvecklingsläge): en ny order skickas av sig själv och blir en order i Mottagen där, och
+  statusbytena Tillverkning och Skickad kommer tillbaka med spårningslänk. Aldrig provat mot
+  skyltmotorn i drift på AWS.
 - Kontrollerat 2026-11-14 mot en låtsasverkstad på datorn (produktionsbygget med kopplingen
   på): en ny order skickas en gång, ett fel går att göra om, en väntande order skickas från
   översikten och statusen kommer tillbaka. Aldrig provat mot verkstadens riktiga system.
@@ -1090,31 +1141,105 @@ gamla ska inte godkännas.
 med Prisma, AWS och SST, byggt av samma ägare. Namnskylts katalog (`supplierCode`, färg-id:n)
 speglar `packages/catalog` där.
 
-Deras sajt har ännu inget API som tar emot ordrar. Namnskylts sida är klar (se Ordern till
-verkstaden), så det som återstår ligger där. Lästes 2026-11-14: deras `Order` har redan
-`customerPo`, `orderName`, `shippingMethod`, `shippingCost`, `shippingAddress`,
-`minOrderAdjustment`, betalsättet `invoice` med Fortnox-faktura vid Skickad, och
-`Company.collectiveInvoice` för samfakturering. Det som behöver byggas hos dem:
-1. En API-nyckel per partnerkonto (`Authorization: Bearer`).
-2. `POST /orders` som tar emot `SupplierOrderRequest` och skapar en vanlig fakturaorder:
-   - hittar eller lägger upp beställaren som företagskund på `buyer.id` och organisationsnummer,
-   - sparar `orderRef` som `customerPo` och svarar med samma order om `Idempotency-Key`
-     kommer igen,
-   - lägger in bilderna ur `images` i dokumenten innan de sparas,
-   - tar radpriserna, påslaget och frakten ur anropet i stället för sin egen prislista.
-3. `GET /orders/{nr}` med `SupplierOrderState`.
-4. En signerad statuswebhook till `/api/supplier/webhook` (`x-supplier-signature`,
-   `t=<sekunder>,v1=<HMAC-SHA256 av "t.kropp">`).
+**Mottagaren är byggd där (2026-11-17, efter ägarens uttryckliga ja), lokalt och inte
+deployad.** Ingenting är satt i AWS och kopplingen i Namnskylts drift är av. Lästes
+2026-11-14: deras `Order` har redan `customerPo`, `orderName`, `shippingMethod`,
+`shippingCost`, `shippingAddress`, `minOrderAdjustment`, betalsättet `invoice` med
+Fortnox-följesedel vid Skickad, och `Company.collectiveInvoice` för samfakturering.
+
+- **Vägarna:** `POST /api/partner/orders` tar emot `SupplierOrderRequest`, och
+  `GET /api/partner/orders/<deras ordernummer>` svarar med `SupplierOrderState`. Nyckeln i
+  `Authorization: Bearer` är enda behörigheten (`PARTNER_API_KEY` hos dem, samma värde som vår
+  `SUPPLIER_API_KEY`). Utan nyckel i deras miljö svarar mottagaren 503.
+- **Ordern blir en vanlig fakturaorder i Mottagen**, som personalen granskar och flyttar till
+  Tillverkning. Vårt ordernummer står som IO-nummer (`customerPo`), slutkunden i orderns
+  anteckning, och priser, påslag och frakt tas ur anropet.
+  - Beställaren hittas på organisationsnumret bland deras företag (`findOrCreateCompany`), så
+    en återförsäljare som redan är kund hos dem får ordern på sitt kundnummer. Bara ett okänt
+    företag läggs upp nytt. Finns numret på flera företag nekas ordern med 422.
+  - Ordern har ingen inloggad kund: beställarens namn och e-post ligger i deras gästfält, och
+    deras orderbekräftelse och statusmejl går till beställarens adress.
+  - Samma `orderRef` ger aldrig två ordrar, också vid samtidiga anrop. En partnerorder känns
+    igen på första statushändelsens aktör, `namnskylt:<orderRef>`. Ingen databasändring.
+  - Upphämtning sparas utan leveransadress hos dem, som i deras kassa.
+- **Fästet står i kommentaren till produktionen** ("Fäste: Nål."), eftersom deras
+  monteringskoder bara är tejp, vägg och stolpe. Det görs i mottagaren, så vårt anrop är
+  oförändrat. Kommentaren syns på deras orderpapper.
+- **Svaren följer våra omförsök:** 400 och 422 är ett nej som måste rättas (formfel, summan
+  stämmer inte med raderna, en bild saknas, dokumentet går inte igenom märkskyltens regler),
+  401 fel nyckel, 413 för stort och 5xx tillfälligt fel.
+- **Statusen tillbaka:** `updateOrderStatus` hos dem skickar ett signerat besked till
+  `PARTNER_WEBHOOK_URL` (vår `/api/supplier/webhook`) med `PARTNER_WEBHOOK_SECRET`, samma
+  värde som vår `SUPPLIER_WEBHOOK_SECRET`. Går beskedet inte fram händer inget hos dem; vår
+  sida hämtar läget när ordersidan visas. Expressfraktens pris följer med nästa statusbyte
+  efter att personalen har satt det.
+- **Koden hos dem:** `apps/web/src/lib/partner-orders.ts` (regler och tester),
+  `src/server/partner-orders.ts`, `src/server/partner-notify.ts`, de två vägarna under
+  `src/app/api/partner/orders/`, ett anrop i `src/server/orders.ts` och hemligheterna
+  `PartnerApiKey` och `PartnerWebhookSecret` i `infra/sst.config.ts`.
+- **Kvar innan drift:** deras bug-hunt och deploy till AWS (kräver ägarens ja där), de två
+  hemligheterna och `PARTNER_WEBHOOK_URL` i AWS, och sist våra tre variabler på Railway.
+  Ägarens företagsuppgifter i Namnskylt behöver organisationsnummer, annars stannar
+  namnskylt.coms egna ordrar som "Saknar uppgifter".
+
+**Det proven visade, och det som gjordes åt det (lokalt 2026-11-17, på ägarens begäran):**
+- **Typsnitten är nu verkstadens.** Deras "Arial" ritas med Roboto och "Arial Narrow" med
+  Roboto Condensed (`font-metrics.ts` hos dem). Vi använder samma filer, byte för byte
+  (`public/fonts/Roboto-*.ttf`, `RobotoCondensed-*.ttf`, Apache 2.0), så plastskyltens
+  produktionsfil är identisk med vår ritning. Namnen i väljaren är kvar, "Arial" och "Arial
+  Narrow", och id:na är oförändrade.
+  - Saknar radens typsnitt ett tecken ritas hela raden i Liberation Sans, med dess mått
+    (`FALLBACK_FONT_FILES`, `covers` i `font-engine.ts`). Det är verkstadens regel
+    (`chooseFont` hos dem). Roboto Condensed är en latinsk delmängd, så det gäller främst
+    grekiska och kyrilliska i Arial Narrow. `FontEngine.capHeightRatio` tar därför radens text.
+  - Raden mäts och ritas som hos verkstaden (`drawnText`, deras `normaliseraTextrad`): hårda
+    och tunna blanksteg är vanliga blanksteg, och noll-breda tecken ritas inte. Annars skulle
+    ett inklistrat osynligt tecken byta hela raden till reservtypsnittet hos oss men inte hos dem.
+  - Webbläsaren hämtar reservtypsnittet i bakgrunden efter de övriga (`FALLBACK_FILES`,
+    `loadBrowserFallbackFonts`, `addFonts`). En rad som redan ritats utan det ritas om när
+    filerna kommit. Servern läser alla filer direkt.
+  - Roboto Condensed är mindre smal än Arial Narrow var: ungefär 89 % av Arials bredd, mot
+    82 % förut. Redan sparade skyltar ritas om med de nya typsnitten.
+- **Metallskylten tas emot.** `namnskylt-metall` finns i deras katalog som ett dolt, färdigt
+  ämne (`Material.precut`, kategorin `name-badge-blank`) med våra tre ytor (`metal-white`,
+  `metal-gold`, `metal-silver`). Det går inte att välja i deras designer eller kundvagn, bara
+  att ta emot från oss. Gravyrfilen har ingen skärkontur för ett färdigt ämne
+  (`omitOutline`), och sidan är ämnets mått. Ordern hamnar under Ordrar på deras
+  produktionssida, inte i plastkön, och orderpappret visar material, yta, mått, fäste och text.
+  Tjockleken står inte i deras katalog förrän Mats har bekräftat den.
+- **Egen form i plast tas emot** och skärs i rätt form. Mottagaren prövar punkterna själv
+  (minst 3, högst 256, inom skyltens mått) och resten av dokumentet mot märkskyltens regler.
+  Deras gravyrfil ritar en fri form i blått (genomskär), som deras ovaler och polygoner.
+- **En kudde i plast skickas som fri form** med kuddens 128 punkter (`supplierOutline` i
+  `map.ts`), så att verkstaden skär kudden och inte en rektangel. I metall är kudden ett
+  färdigt ämne och skickas som rektangel.
+- Rektangel, egen form och kudde går att lägga på samma ark i deras plastkö (provat med
+  "Skapa produktionsorder").
+- **Ett printat namn hamnar i deras tryckfil och inte i gravyrfilen.** Vi skickar det som
+  banor i ett trycklager (se Märkningsmetod). Provat lokalt: gravyrfilen har bara
+  skärkonturen, och tryckfilen har namnet i kundens färger tillsammans med loggan.
+  Orderpappret hos dem visar raderna i kommentaren och "Ingen text på skylten".
+- Vår `productionSvg` tas emot men sparas inte: deras motor ritar ur dokumentet.
+- Personalen kan inte redigera en rad med metallämne eller fri form i deras admin, eftersom
+  deras egna regler för märkskylt inte godtar dem. Ändrar personalen antal på en rad räknar
+  deras system om priset med sin egen prislista.
 
 Luckor i kontraktet:
-- Metallämnena och kuddformen finns inte i deras katalog. Kudden skickas som rektangel.
-- Egen form skickas som deras fria polygon (`shape: "freeform"`, `customShapePoints`), men hos dem
-  är den bara tillåten för metallskärning. De behöver öppna den för graverad plast.
-- Fästet skickas som text i stället för artikelkod.
-- Ett printat namn går inte att uttrycka: deras text- och ramlager har inget läge för print.
-  Märkningsmetoden skickas som text i `productionNote`, och de behöver ett fält för det.
-  Radens färg skickas i deras `TextRow.color`, men deras motor läser den bara på tryckta
-  skyltar och klistermärken, inte på en graverad skylt med printat namn.
+- Metallämnets mått, tjocklek och artikelkod är fortfarande våra uppskattningar. Ämnet finns
+  i deras katalog bara som ett namn och tre ytor.
+- Egen form och kudde i plast skickas som deras fria polygon (`shape: "freeform"`,
+  `customShapePoints`). Deras designer säljer inte fri form i plast; det är mottagaren som
+  släpper igenom den för våra ordrar.
+- Fästet skickas som text i stället för artikelkod. Deras mottagare lägger det i kommentaren
+  till produktionen.
+- Deras text- och ramlager har inget läge för print. Vi går runt det med ett trycklager av
+  banor, så personalen kan inte ändra ett printat namn hos sig. Med ett tryckläge på deras
+  textlager kunde namnet skickas som text igen.
+- CMYK går inte att uttrycka (läst 2026-11-17): deras designer och format har bara hex
+  (`hexColor` i `layer-schema.ts`, färgväljare i `text-rows-editor.tsx` och `PrintColorField`),
+  tryckfilen ritas i RGB och görs om till CMYK i RIP:en. Kundens CMYK-koder, också loggans,
+  skickas därför som klartext i `productionNote`, och radens färgfält får skärmens ungefärliga
+  hex. Ska trycket träffa exakta CMYK-värden behöver deras format ett fält för det.
 - Vi skickar deras fyra fraktsätt: varubrev, paket, `postnord-express` och `pickup-hogsbo`.
   Expressfraktens pris läses ur statusen de skickar (`SupplierOrderState.shippingCost`, hela
   kronor exklusive moms); de behöver skicka fältet.

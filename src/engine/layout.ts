@@ -2,7 +2,7 @@ import { TEXT_LIMITS } from "./catalog";
 import { engravedRows } from "./document";
 import { availableHalfWidth, isEllipseShape, outlinePath } from "./shape";
 import { logoEngravingPath, placeLogoPath } from "./logo";
-import { logoMarking, nameMarking, printInkOf, rowPrintInkOf } from "./marking";
+import { logoMarking, logoPrintInkOf, nameMarking, printInkOf, rowPrintInkOf } from "./marking";
 import { ZERO_OFFSET, clampOffset, moveRect, rectsOverlap, unionRect } from "./placement";
 import type { BadgeDocument, BadgeLogo, FontId, Mm, Offset, Rect, TextAlign } from "./types";
 
@@ -20,8 +20,12 @@ export interface MeasureFont extends FontFace {
  * webbläsaren och på servern, tabell i test och innan filerna laddats.
  */
 export interface FontEngine {
-  /** Versalhöjd som andel av em — skiljer mellan typsnitt. */
-  capHeightRatio(face: FontFace): number;
+  /**
+   * Versalhöjd som andel av em — skiljer mellan typsnitt. `text` är raden som
+   * ska ritas: saknar typsnittet ett av dess tecken ritas raden i
+   * reservtypsnittet, och då är det reservens versalhöjd som gäller.
+   */
+  capHeightRatio(face: FontFace, text?: string): number;
   /** Avancebredd i mm, inklusive kerning. */
   measure(text: string, font: MeasureFont): Mm;
   /**
@@ -71,8 +75,10 @@ export interface LaidOutLogo extends Rect {
   d: string;
   /** Loggan printas i stället för att graveras: banorna hör då till trycket och inte till gravyren. */
   printed?: true;
-  /** Loggan i färg när den printas. Bilden trycks i rutan; utan den trycks banorna i gravyrens färg. */
+  /** Loggan i färg när den printas. Bilden trycks i rutan; utan den trycks banorna i en färg. */
   imageSrc?: string;
+  /** Färgen en svartvit logga som printas ritas i, när kundens kod går att rita. Utan den gäller gravyrens färg. */
+  ink?: string;
 }
 
 export interface BadgeLayout {
@@ -94,7 +100,7 @@ export interface BadgeLayout {
   logoOverlapsText: boolean;
   /** Namnet, alltså text och ram, printas i stället för att graveras. */
   namePrinted: boolean;
-  /** Kundens hexfärg för hela trycket: ramen och en svartvit logga som printas. `null` ger gravyrens färg. */
+  /** Färgen för hela trycket, när kundens kod går att rita: ramen och rader utan egen kod. `null` ger gravyrens färg. */
   printInk: string | null;
 }
 
@@ -264,7 +270,7 @@ export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout 
   };
   const rows = engravedRows(doc);
   const faces = rows.map((r): FontFace => ({ fontId: doc.font, bold: r.bold }));
-  const sizeFor = (i: number, cap: Mm): Mm => cap / fonts.capHeightRatio(faces[i]!);
+  const sizeFor = (i: number, cap: Mm): Mm => cap / fonts.capHeightRatio(faces[i]!, rows[i]!.text);
 
   const requested = rows.map((r) =>
     Math.min(Math.max(r.capHeightMm, TEXT_LIMITS.minCapHeightMm), TEXT_LIMITS.maxCapHeightMm),
@@ -347,7 +353,7 @@ export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout 
     frames,
     contentInsetMm: inset,
     rows: placedRows,
-    logo: logoBox && doc.logo ? placeLogo(doc.logo, logoBox, logoMarking(doc) === "print") : null,
+    logo: logoBox && doc.logo ? placeLogo(doc.logo, logoBox, logoMarking(doc) === "print", logoPrintInkOf(doc)) : null,
     issues,
     textOffsetMm,
     logoOffsetMm,
@@ -368,12 +374,14 @@ function moveRow(row: LaidOutRow, offset: Offset): LaidOutRow {
   return { ...row, xMm: row.xMm + offset.xMm, leftMm: row.leftMm + offset.xMm, baselineMm: row.baselineMm + offset.yMm };
 }
 
-function placeLogo(logo: BadgeLogo, box: Rect, printed: boolean): LaidOutLogo {
+function placeLogo(logo: BadgeLogo, box: Rect, printed: boolean, ink: string | null): LaidOutLogo {
   return {
     ...box,
     // Trycket följer loggans siluett; gravyren följer gravyrformen, när loggan i färg har en.
     d: placeLogoPath(printed ? logo.d : logoEngravingPath(logo), box.width / logo.viewWidth, box.x, box.y),
     ...(printed && { printed: true as const }),
     ...(printed && logo.image && { imageSrc: logo.image.src }),
+    // Bilden har sina egna färger; bara en logga som trycks i en färg har en färg att rita.
+    ...(printed && !logo.image && ink && { ink }),
   };
 }

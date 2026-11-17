@@ -115,13 +115,16 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
   const images: Record<string, string> = {};
   const lines = input.badges.flatMap((badge, i) => {
     if (!workshop.includes(badge)) return [];
+    // Miniatyren behövs när loggan graveras (den visar gravyrformen). En logga som printas är
+    // sin egen bild när den är i färg och ligger annars i trycklagret, utom när typsnittet saknar
+    // konturer: då finns inget trycklager, och den svartvita loggan skickas som miniatyr.
+    const { logo } = badge;
+    const logoEngraved = logoMarking(badge) === "engrave";
+    const thumbnailOf = logo && (logoEngraved || (!logo.image && !input.fonts.outline)) ? logo : null;
     const document = toSupplierSignDocument(badge, input.fonts, {
-      // En logga i färg som printas skickas som sin egen bild; alla andra behöver en svartvit miniatyr.
-      // Miniatyren visar det som märks: gravyrformen när loggan graveras, annars loggans banor.
-      logoPng:
-        badge.logo && !(badge.logo.image && logoMarking(badge) === "print")
-          ? input.logoPng?.(logoMarking(badge) === "engrave" ? { ...badge.logo, d: logoEngravingPath(badge.logo) } : badge.logo)
-          : undefined,
+      logoPng: thumbnailOf
+        ? input.logoPng?.(logoEngraved ? { ...thumbnailOf, d: logoEngravingPath(thumbnailOf) } : thumbnailOf)
+        : undefined,
     });
     return [
       {

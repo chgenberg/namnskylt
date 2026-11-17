@@ -1,3 +1,4 @@
+import { printColorHex, printColorText } from "./color-code";
 import type { BadgeDocument, MarkingMethod, MarkingMode } from "./types";
 
 /**
@@ -106,12 +107,14 @@ export function withLogoMarking<T extends Marked>(doc: T): T {
   return withMarking(doc, markingFor(name, doc.logo.image ? "print" : name));
 }
 
-/** Längsta färgkod kunden får ange för trycket. */
+/** Längsta färgkod kunden får ange för trycket, och för en rad. */
 export const PRINT_COLOR_MAX = 40;
+/** Loggans fält är längre: en logga kan ha flera färger, som skrivs efter varandra. */
+export const LOGO_PRINT_COLOR_MAX = 120;
 
 /** Det kunden skriver som färgkod, utan styrtecken och inom längden. Blanktecken i kanterna får stå kvar medan man skriver. */
-export function cleanPrintColor(raw: string): string {
-  return raw.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, PRINT_COLOR_MAX);
+export function cleanPrintColor(raw: string, maxLength: number = PRINT_COLOR_MAX): string {
+  return raw.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, maxLength);
 }
 
 type Printed = Marked & Pick<BadgeDocument, "printColor">;
@@ -130,22 +133,9 @@ export function printColorOf(doc: Printed): string | null {
 }
 
 /**
- * Hexkoden i en färgkod, som `#RRGGBB` i versaler, eller `null` när koden är
- * något annat. Tre siffror kräver brädgården: `286` är ett PMS-nummer och
- * ingen färg. PMS och RAL går inte att rita, eftersom vi inte har deras färger.
- */
-export function printColorHex(code: string | null | undefined): string | null {
-  const text = code?.trim() ?? "";
-  const long = /^#?([0-9a-f]{6})$/i.exec(text);
-  if (long) return `#${long[1]!.toUpperCase()}`;
-  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(text);
-  return short ? `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toUpperCase() : null;
-}
-
-/**
- * Färgen trycket ritas i när kundens kod för hela trycket är en hexkod:
- * ramen, en svartvit logga som printas och rader utan egen kod. Annars `null`,
- * och trycket visas i gravyrens färg.
+ * Färgen trycket ritas i när kundens kod för hela trycket går att rita, alltså
+ * är CMYK eller hex: ramen, en svartvit logga som printas och rader utan egen
+ * kod. Annars `null`, och trycket visas i gravyrens färg.
  */
 export function printInkOf(doc: Printed): string | null {
   return printColorHex(printColorOf(doc));
@@ -162,9 +152,9 @@ export function rowPrintColorOf(doc: Pick<BadgeDocument, "marking">, row: Printe
 }
 
 /**
- * Färgen raden ritas i: radens egen hexkod, annars hexkoden för hela trycket.
- * En rad med en egen kod som inte går att rita (PMS) visas i gravyrens färg,
- * inte i tryckets, eftersom den inte ska få den färgen.
+ * Färgen raden ritas i: radens egen kod, annars koden för hela trycket. En rad
+ * med en egen kod som inte går att rita (PMS) visas i gravyrens färg, inte i
+ * tryckets, eftersom den inte ska få den färgen.
  */
 export function rowPrintInkOf(doc: Printed, row: PrintedRow): string | null {
   if (nameMarking(doc) !== "print") return null;
@@ -173,17 +163,42 @@ export function rowPrintInkOf(doc: Printed, row: PrintedRow): string | null {
 }
 
 /**
- * `Tryckfärg PMS 286 C, rad 2 #C8102E` för listor och underlag, eller `null`
- * när ingen kod gäller. Raderna räknas som de står på skylten, alltså utan
- * tomma rader.
+ * Loggans egna färgkoder (besked via ägaren 2026-11-17), när loggan printas.
+ * Fritext, eftersom en logga i färg kan ha flera färger. En logga som graveras
+ * får materialets färg, så där gäller koderna inte.
+ */
+export function logoPrintColorOf(doc: Marked): string | null {
+  const code = doc.logo?.printColor?.trim();
+  return code && logoMarking(doc) === "print" ? code : null;
+}
+
+/**
+ * Färgen en svartvit logga som printas ritas i: loggans egen kod, annars koden
+ * för hela trycket. Samma regel som för en rad: en egen kod som inte går att
+ * rita ger gravyrens färg. En logga i färg trycks som bild och har ingen
+ * sådan färg.
+ */
+export function logoPrintInkOf(doc: Printed): string | null {
+  if (!doc.logo || logoMarking(doc) !== "print") return null;
+  const own = logoPrintColorOf(doc);
+  return own ? printColorHex(own) : printInkOf(doc);
+}
+
+/**
+ * `Tryckfärg CMYK 100/60/0/20, rad 2 #C8102E, logga PMS 286 C` för listor och
+ * underlag, eller `null` när ingen kod gäller. Raderna räknas som de står på
+ * skylten, alltså utan tomma rader. Loggan står sist, eftersom dess fält är
+ * fritext och kan innehålla kommatecken.
  */
 export function printColorLabel(doc: Printed & { rows: readonly PrintedRow[] }): string | null {
+  const whole = printColorOf(doc);
   const rows = doc.rows
     .filter((row) => row.text.trim().length > 0)
     .flatMap((row, i) => {
       const code = rowPrintColorOf(doc, row);
-      return code ? [`rad ${i + 1} ${code}`] : [];
+      return code ? [`rad ${i + 1} ${printColorText(code)}`] : [];
     });
-  const parts = [printColorOf(doc), ...rows].filter((part): part is string => Boolean(part));
+  const logo = logoPrintColorOf(doc);
+  const parts = [...(whole ? [printColorText(whole)] : []), ...rows, ...(logo ? [`logga ${printColorText(logo)}`] : [])];
   return parts.length > 0 ? `Tryckfärg ${parts.join(", ")}` : null;
 }

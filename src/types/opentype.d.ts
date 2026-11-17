@@ -21,6 +21,8 @@ declare module "opentype.js" {
   export class Font {
     unitsPerEm: number;
     charToGlyph(char: string): Glyph;
+    /** Glyfens plats i typsnittet. 0 är den tomma rutan, alltså ett tecken typsnittet inte har. */
+    charToGlyphIndex(char: string): number;
     getAdvanceWidth(text: string, fontSize: number, options?: RenderOptions): number;
     getPath(text: string, x: number, y: number, fontSize: number, options?: RenderOptions): Path;
   }

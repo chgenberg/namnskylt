@@ -84,20 +84,20 @@ export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps
       </dl>
       {printsSomething && (
         <label className={styles.labelled}>
-          <span className={styles.sliderLabel}>PMS eller färgkod för trycket</span>
+          <span className={styles.sliderLabel}>Färgkod för trycket: CMYK, PMS eller hex</span>
           <span className="field">
             <input
               type="text"
               value={doc.printColor ?? ""}
               maxLength={PRINT_COLOR_MAX}
-              placeholder="Till exempel PMS 286 C"
+              placeholder="Till exempel CMYK 100/60/0/20"
               autoComplete="off"
               onChange={(event) => dispatch({ type: "print/color", code: event.target.value })}
             />
           </span>
           <span className={styles.hint}>
-            Valfritt. Gäller allt som printas; en rad kan få en egen kod under Text. En hexkod visas på skylten, andra koder
-            följer med ordern.
+            Valfritt. Gäller allt som printas; en rad och loggan kan få egna koder under Text och Logga. CMYK och hex visas
+            på skylten, ungefärligt på skärmen. PMS och andra koder följer med ordern.
           </span>
         </label>
       )}

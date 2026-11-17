@@ -56,12 +56,21 @@ export type SupplierLayer =
           }
         | {
             kind: "image";
-            /** Bilden som trycks: loggan i färg som PNG med genomskinlig botten. Se `SupplierOrderRequest.images`. */
+            /**
+             * Bilden som trycks: loggan i färg som PNG med genomskinlig botten. Se
+             * `SupplierOrderRequest.images`. Tom när lagret bär `vector` i stället.
+             */
             src: string;
             widthMm: number;
             heightMm: number;
             renderMode: "print";
             lockAspect: true;
+            /**
+             * Det som printas i en färg, som banor: namnet, ramen och en svartvit
+             * logga. Varje bana har sin egen fyllnadsfärg, som verkstadens tryckfil
+             * ritar rakt av. Bara absoluta `M`, `L`, `C` och `Z` och hex i gemener.
+             */
+            vector?: { markup: string; viewWidth: number; viewHeight: number };
           };
     };
 

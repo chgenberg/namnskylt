@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CUSTOM_SHAPE_LIMITS, LOGO_LIMITS, MATERIALS, MATERIAL_IDS, SHAPE_IDS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
 import { CUSTOM_OUTLINE_ISSUE_TEXT, customOutlineIssue } from "./custom-outline";
-import { MARKING_METHOD_IDS, PRINT_COLOR_MAX } from "./marking";
+import { LOGO_PRINT_COLOR_MAX, MARKING_METHOD_IDS, PRINT_COLOR_MAX } from "./marking";
 import { LOGO_IMAGE_PATTERN, LOGO_IMAGE_REF_PATTERN, LOGO_ORIGINAL_ID_PATTERN, LOGO_PATH_PATTERN } from "./logo";
 import type { BadgeDocument } from "./types";
 
@@ -12,6 +12,15 @@ const offsetSchema = z.object({
 });
 
 /** Körs både i designern och i API:t — servern litar aldrig på klientens dokument. */
+/** En färgkod som kunden skriver: fritext utan styrtecken, inom längden. Samma regel som `cleanPrintColor`. */
+function printColorSchema(maxLength: number) {
+  return z
+    .string()
+    .max(maxLength)
+    .regex(/^[^\u0000-\u001f\u007f]*$/)
+    .optional();
+}
+
 export const badgeDocumentSchema = z
   .object({
     version: z.literal(1),
@@ -44,11 +53,7 @@ export const badgeDocumentSchema = z
           capHeightMm: z.number().min(TEXT_LIMITS.minCapHeightMm).max(TEXT_LIMITS.maxCapHeightMm),
           bold: z.boolean(),
           // Kundens färgkod för radens tryck: fritext utan styrtecken, som koden för hela trycket.
-          printColor: z
-            .string()
-            .max(PRINT_COLOR_MAX)
-            .regex(/^[^\u0000-\u001f\u007f]*$/)
-            .optional(),
+          printColor: printColorSchema(PRINT_COLOR_MAX),
         }),
       )
       .min(1)
@@ -75,16 +80,14 @@ export const badgeDocumentSchema = z
         engraveD: z.string().min(1).max(LOGO_LIMITS.maxPathChars).regex(LOGO_PATH_PATTERN).optional(),
         // Originalfilen pekas ut med sitt id; själva filen ligger aldrig i skylten.
         originalId: z.string().regex(LOGO_ORIGINAL_ID_PATTERN).optional(),
+        // Kundens färgkoder för loggans tryck: fritext utan styrtecken.
+        printColor: printColorSchema(LOGO_PRINT_COLOR_MAX),
       })
       .optional(),
     // Ett kombinerat val utan logga är inget fel: `markingOf` läser det som namnets metod.
     marking: z.enum(MARKING_METHOD_IDS).optional(),
     // Kundens färgkod för trycket: fritext utan styrtecken.
-    printColor: z
-      .string()
-      .max(PRINT_COLOR_MAX)
-      .regex(/^[^\u0000-\u001f\u007f]*$/)
-      .optional(),
+    printColor: printColorSchema(PRINT_COLOR_MAX),
     mounting: z.enum(["pin", "magnet", "clip", "safety-pin"]),
     // En riktning som inte ryms är inget fel: `clipOrientationOf` läser den som ryms.
     clipOrientation: z.enum(["horizontal", "vertical"]).optional(),

@@ -42,8 +42,8 @@ export interface BadgeTextRow {
   capHeightMm: Mm;
   bold: boolean;
   /**
-   * Kundens egen färgkod för radens tryck (PMS, hex eller liknande), som
-   * fritext. En hexkod ritas på skylten, övriga koder följer bara med ordern.
+   * Kundens egen färgkod för radens tryck (CMYK, PMS, hex eller liknande), som
+   * fritext. CMYK och hex ritas på skylten, övriga koder följer bara med ordern.
    * Gäller bara när namnet printas, som hos verkstaden: läs med
    * `rowPrintColorOf` och `rowPrintInkOf`.
    */
@@ -106,6 +106,12 @@ export interface BadgeLogo {
    * graveras eller prissätts.
    */
   originalId?: string;
+  /**
+   * Kundens färgkoder för loggans tryck, fritext: CMYK i första hand, även PMS
+   * eller hex. Gäller bara när loggan printas: läs med `logoPrintColorOf` och
+   * `logoPrintInkOf`.
+   */
+  printColor?: string;
 }
 
 export interface BadgeDocument {

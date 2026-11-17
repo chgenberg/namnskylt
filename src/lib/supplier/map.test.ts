@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
-import { approxFonts, createBadgeDocument, layoutBadge, withBlank, withShapePreset } from "@/engine";
+import { before, describe, it } from "node:test";
+import { approxFonts, createBadgeDocument, layoutBadge, withBlank, withShapePreset, type FontEngine } from "@/engine";
+import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { toSupplierSignDocument } from "./map";
 
 describe("toSupplierSignDocument", () => {
@@ -21,6 +22,24 @@ describe("toSupplierSignDocument", () => {
     assert.equal(supplier.shape, "rectangular");
     assert.equal(supplier.cornerRadiusMm, 0);
     assert.deepEqual(supplier.dimensions, { widthMm: 75, heightMm: 35, autoSize: false });
+  });
+
+  it("skickar en kudde i plast som fri form med kuddens egna punkter, så att verkstaden skär rätt kontur", () => {
+    const cushion = withBlank({ ...createBadgeDocument(["Anna"]), materialId: "plastic" as const, colorId: "white-black" }, "cushion");
+    const supplier = toSupplierSignDocument(cushion, approxFonts);
+    assert.equal(supplier.material, "plastic-1.5mm");
+    assert.equal(supplier.shape, "freeform");
+    assert.equal(supplier.cornerRadiusMm, 0);
+    const points = supplier.customShapePoints ?? [];
+    assert.equal(points.length, 128);
+    // Punkterna ligger inom skyltens mått och når ut till alla fyra kanter.
+    assert.ok(points.every((p) => p.x >= 0 && p.x <= 75 && p.y >= 0 && p.y <= 35));
+    assert.equal(Math.min(...points.map((p) => p.x)), 0);
+    assert.equal(Math.max(...points.map((p) => p.x)), 75);
+    assert.equal(Math.min(...points.map((p) => p.y)), 0);
+    assert.equal(Math.max(...points.map((p) => p.y)), 35);
+    // Kudden är fylligare än en oval: hörnet ligger utanför ovalens kontur.
+    assert.ok(points.some((p) => ((p.x - 37.5) / 37.5) ** 2 + ((p.y - 17.5) / 17.5) ** 2 > 1.2));
   });
 
   it("skickar en egen form som fri polygon med punkterna, i verkstadens plastkod", () => {
@@ -160,8 +179,21 @@ describe("toSupplierSignDocument", () => {
     assert.deepEqual(rowColors({ ...two, rows, marking: "print" }), ["#C8102E", undefined]);
     assert.equal(
       toSupplierSignDocument({ ...two, rows, marking: "print" }, approxFonts).productionNote,
-      "Märkningsmetod: Endast print. Namn: Print. Tryckfärg rad 1 #c8102e, rad 2 PMS 300 C.",
+      "Märkningsmetod: Endast print. Namn: Print. Tryckfärg rad 1 #C8102E, rad 2 PMS 300 C.",
     );
+    // En CMYK-kod går i radens färgfält som skärmens ungefärliga färg; koden själv står i klartext.
+    const cmykRows = two.rows.map((row, i) => (i === 0 ? { ...row, printColor: "c0 m100 y80 k0" } : row));
+    assert.deepEqual(rowColors({ ...two, rows: cmykRows, marking: "print", printColor: "100/60/0/20" }), ["#FF0033", "#0052CC"]);
+    assert.equal(
+      toSupplierSignDocument({ ...two, rows: cmykRows, marking: "print", printColor: "100/60/0/20" }, approxFonts).productionNote,
+      "Märkningsmetod: Endast print. Namn: Print. Tryckfärg CMYK 100/60/0/20, rad 1 CMYK 0/100/80/0.",
+    );
+    // Loggans egna koder står sist i samma rad, när loggan printas.
+    assert.equal(
+      sent({ ...base, logo: { ...color, printColor: "blå 100/60/0/20, röd 0/100/80/0" } }).supplier.productionNote,
+      "Märkningsmetod: Namn graveras · logotyp printas. Namn: Gravyr. Logotyp: Print. Tryckfärg logga blå 100/60/0/20, röd 0/100/80/0.",
+    );
+    assert.equal(sent({ ...base, logo: { ...color, printColor: "100/60/0/20" }, marking: "engrave" }).supplier.productionNote, undefined);
     // En hexkod för hela trycket blir färgen på rader utan egen kod.
     assert.deepEqual(rowColors({ ...two, marking: "print", printColor: "#0057b8" }), ["#0057B8", "#0057B8"]);
     // När namnet graveras följer ingen radfärg med.
@@ -191,5 +223,114 @@ describe("toSupplierSignDocument", () => {
     const hexagon = toSupplierSignDocument({ ...base, shape: "hexagon" }, approxFonts);
     assert.equal(hexagon.shape, "hexagon");
     assert.equal(hexagon.cornerRadiusMm, 0);
+  });
+});
+
+describe("det som printas skickas som ett trycklager", () => {
+  let fonts: FontEngine;
+  before(async () => {
+    fonts = await loadNodeFontEngine();
+  });
+
+  /** Det verkstadens vektorlager släpper igenom (deras `sanitizeVectorMarkup`): bara dessa banor, i den här ordningen. */
+  const WORKSHOP_MARKUP = /^(<path d="[MLCZ0-9 .eE+-]+" fill="#[0-9a-f]{6}"( fill-rule="evenodd")?\/>)+$/;
+  const mono = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 12 };
+  const plastic = (rows: string[]) => ({ ...createBadgeDocument(rows), materialId: "plastic" as const, colorId: "white-black" });
+  const printLayerOf = (supplier: ReturnType<typeof toSupplierSignDocument>) => {
+    const layer = supplier.layers.find((l) => l.id === "print");
+    return layer?.data.kind === "image" && layer.data.renderMode === "print" ? layer : undefined;
+  };
+  const fills = (markup: string) => [...markup.matchAll(/fill="(#[0-9a-f]{6})"/g)].map((m) => m[1]);
+
+  it("ett printat namn blir banor i tryckläge, utan textlager som skulle graveras", () => {
+    const doc = { ...plastic(["Anna Lind", "Säljare"]), marking: "print" as const };
+    const supplier = toSupplierSignDocument(doc, fonts);
+    assert.deepEqual(supplier.layers.map((l) => l.data.kind), ["image"]);
+    const layer = printLayerOf(supplier);
+    assert.ok(layer?.data.kind === "image" && layer.data.renderMode === "print" && layer.data.vector);
+    // Lagret täcker hela skylten, så banorna ligger i skyltens egna mm.
+    assert.deepEqual(layer.transform.position, { x: 37.5, y: 12.5 });
+    assert.deepEqual([layer.data.widthMm, layer.data.heightMm], [75, 25]);
+    assert.deepEqual([layer.data.vector.viewWidth, layer.data.vector.viewHeight], [75, 25]);
+    assert.equal(layer.data.src, "");
+    // Bokstävernas kvadratiska kurvor är omräknade: verkstaden tar bara M, L, C och Z.
+    assert.match(layer.data.vector.markup, WORKSHOP_MARKUP);
+    assert.ok(layer.data.vector.markup.includes("C"));
+    // En bana per rad, i färgen skylten visades i.
+    assert.deepEqual(fills(layer.data.vector.markup), ["#111111", "#111111"]);
+    // Texten står i kommentaren, eftersom verkstaden inte har något textlager att läsa.
+    assert.equal(supplier.productionNote, "Märkningsmetod: Endast print. Namn: Print. Text som printas: Anna Lind / Säljare.");
+  });
+
+  it("kundens färger följer med som fyllnad: hela trycket, en rad och en CMYK-kod", () => {
+    const base = plastic(["Anna Lind", "Säljare", "Butiken"]);
+    const rows = base.rows.map((row, i) => (i === 1 ? { ...row, printColor: "#C8102E" } : i === 2 ? { ...row, printColor: "0/100/80/0" } : row));
+    const supplier = toSupplierSignDocument({ ...base, rows, marking: "print", printColor: "100/60/0/20" }, fonts);
+    const layer = printLayerOf(supplier);
+    assert.ok(layer?.data.kind === "image" && layer.data.renderMode === "print" && layer.data.vector);
+    assert.deepEqual(fills(layer.data.vector.markup), ["#0052cc", "#c8102e", "#ff0033"]);
+    assert.match(supplier.productionNote ?? "", /Tryckfärg CMYK 100\/60\/0\/20, rad 2 #C8102E, rad 3 CMYK 0\/100\/80\/0\. Text som printas: Anna Lind \/ Säljare \/ Butiken\.$/);
+  });
+
+  it("en printad ram ligger i trycklagret, inte som ramlager", () => {
+    const doc = { ...plastic(["Anna Lind"]), marking: "print" as const, frame: { style: "solid" as const, insetMm: 1.5, thicknessMm: 0.4 } };
+    const supplier = toSupplierSignDocument(doc, fonts);
+    assert.ok(!supplier.layers.some((l) => l.data.kind === "frame" || l.data.kind === "text"));
+    const layer = printLayerOf(supplier);
+    assert.ok(layer?.data.kind === "image" && layer.data.renderMode === "print" && layer.data.vector);
+    assert.match(layer.data.vector.markup, WORKSHOP_MARKUP);
+    // Ramen är en ring (evenodd) och raden en egen bana.
+    assert.equal(layer.data.vector.markup.match(/fill-rule="evenodd"/g)?.length, 1);
+    assert.equal(fills(layer.data.vector.markup).length, 2);
+  });
+
+  it("en svartvit logga som printas ligger i trycklagret i sin färg, inte som svart miniatyr", () => {
+    const logo = { ...mono, printColor: "0/100/80/0" };
+    const supplier = toSupplierSignDocument({ ...plastic(["Anna Lind"]), logo, marking: "engrave-name-print-logo" }, fonts, { logoPng: "data:image/png;base64,AA" });
+    // Namnet graveras och är kvar som text. Loggan finns bara i trycklagret.
+    assert.deepEqual(supplier.layers.map((l) => l.data.kind), ["text", "image"]);
+    assert.equal(supplier.layers[1]!.id, "print");
+    const layer = printLayerOf(supplier);
+    assert.ok(layer?.data.kind === "image" && layer.data.renderMode === "print" && layer.data.vector);
+    assert.deepEqual(fills(layer.data.vector.markup), ["#ff0033"]);
+    assert.match(layer.data.vector.markup, WORKSHOP_MARKUP);
+  });
+
+  it("en logga i färg som printas är fortfarande en bild, och ett graverat namn fortfarande text", () => {
+    const color = { ...mono, image: { src: "data:image/png;base64,iVBORw0KGgo=" } };
+    const supplier = toSupplierSignDocument({ ...plastic(["Anna Lind"]), logo: color }, fonts);
+    assert.equal(printLayerOf(supplier), undefined);
+    assert.deepEqual(supplier.layers.map((l) => l.data.kind), ["image", "text"]);
+    const image = supplier.layers[0]!;
+    assert.ok(image.data.kind === "image" && image.data.renderMode === "print" && !image.data.vector);
+    assert.equal(image.data.src, color.image.src);
+  });
+
+  it("ett printat namn med graverad logga: loggan graveras med sina banor, namnet printas", () => {
+    const supplier = toSupplierSignDocument({ ...plastic(["Anna Lind"]), logo: mono, marking: "print-name-engrave-logo" }, fonts, { logoPng: "data:image/png;base64,AA" });
+    assert.deepEqual(supplier.layers.map((l) => l.id), ["logo", "print"]);
+    const logo = supplier.layers[0]!;
+    assert.ok(logo.data.kind === "image" && logo.data.renderMode === "engrave");
+    assert.equal(fills((printLayerOf(supplier)?.data as { vector: { markup: string } }).vector.markup).length, 1);
+  });
+
+  it("en logga med trasig bana stoppar inte ordern: då skickas namnet som text och loggan som miniatyr", () => {
+    // Mönstret för loggans bana släpper igenom tal efter Z. Omräkningen till trycklagret vägrar den.
+    const broken = { ...mono, d: "M0 0L10 0L10 10Z5 5" };
+    const thumb = "data:image/png;base64,AA";
+    const supplier = toSupplierSignDocument({ ...plastic(["Anna Lind"]), logo: broken, marking: "print" }, fonts, { logoPng: thumb });
+    assert.equal(printLayerOf(supplier), undefined);
+    assert.deepEqual(supplier.layers.map((l) => l.data.kind), ["image", "text"]);
+    const logo = supplier.layers[0]!;
+    assert.ok(logo.data.kind === "image" && logo.data.renderMode === "print");
+    assert.equal(logo.data.src, thumb);
+    // Utan trycklager står metoden bara i klartext, utan raden om texten.
+    assert.equal(supplier.productionNote, "Märkningsmetod: Endast print. Namn: Print. Logotyp: Print.");
+  });
+
+  it("en skylt som bara graveras har inget trycklager", () => {
+    const supplier = toSupplierSignDocument(plastic(["Anna Lind"]), fonts);
+    assert.equal(printLayerOf(supplier), undefined);
+    assert.equal(supplier.productionNote, undefined);
   });
 });

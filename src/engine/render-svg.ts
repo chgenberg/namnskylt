@@ -141,7 +141,7 @@ export function renderBadgeSvg(
       }
     }
     if (layout.logo && !layout.logo.imageSrc && drawLogo) {
-      parts.push(`<path d="${layout.logo.d}" fill="${layout.logo.printed ? printFill : engraveFill}" fill-rule="evenodd"/>`);
+      parts.push(`<path d="${layout.logo.d}" fill="${fillFor(undefined, layout.logo.ink)}" fill-rule="evenodd"/>`);
     }
     const family = escapeXml(getFont(doc.font).css);
     for (const row of drawName ? layout.rows : []) {

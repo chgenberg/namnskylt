@@ -7,10 +7,12 @@ import { Segmented } from "@/components/ui/segmented";
 import {
   LOGO_LIMITS,
   LOGO_PLACEMENTS,
+  LOGO_PRINT_COLOR_MAX,
   getColor,
   getFont,
   logoEngravingPath,
   logoMarking,
+  logoPrintInkOf,
   type BadgeDocument,
   type LogoPlacement,
 } from "@/engine";
@@ -60,9 +62,18 @@ const LOGO_HINT: Record<LogoLook, string> = {
   engrave: "Loggan graveras i en färg, samma som texten.",
   "engrave-color":
     "Loggan är i färg och graveras i en färg, samma som texten: färgerna blir gravyr, och vitt och detaljer inuti loggan sparas ur. Stämmer formen inte, prova Invertera.",
-  print: "Loggan printas i en färg, samma som texten.",
+  // Färgen är tryckets, om inte loggan har en egen kod i fältet under.
+  print: "Loggan printas i en färg.",
   "print-color": "Loggan är i färg och printas som den är i filen.",
 };
+
+/** Under fältet för loggans färgkoder, som bara visas när loggan printas: en logga i en färg ritas i koden, en i färg är en bild. */
+const LOGO_COLOR_HINT = {
+  oneColor:
+    "Valfritt. En CMYK- eller hexkod visas på skylten, ungefärligt på skärmen. PMS går också att skriva och följer med ordern. Utan kod gäller färgkoden för hela trycket.",
+  image:
+    "Valfritt. Skriv loggans färger i CMYK, flera efter varandra om loggan har flera, så stäms trycket av mot dem. PMS och hex går också att skriva. Koderna följer med ordern.",
+} as const;
 
 /** Filen som loggan på skylten lästes från, och dess id på servern när den har sparats. */
 interface LogoOrigin {
@@ -375,7 +386,12 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
                 role="img"
                 aria-label={engraved ? "Loggan som den graveras" : "Loggan som den printas"}
               >
-                <path d={engraved ? logoEngravingPath(doc.logo) : doc.logo.d} fill={color.engraving} fillRule="evenodd" />
+                {/* En logga som printas i en färg visas i kundens färg, när koden går att rita. */}
+                <path
+                  d={engraved ? logoEngravingPath(doc.logo) : doc.logo.d}
+                  fill={logoPrintInkOf(doc) ?? color.engraving}
+                  fillRule="evenodd"
+                />
               </svg>
             )}
           </div>
@@ -402,6 +418,23 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
           <p className={styles.hint}>
             {LOGO_HINT[logoLook]} Får loggan inte plats krymps den till skylten. Metoden väljer du under Märkningsmetod.
           </p>
+          {/* Färg finns bara i tryck: en logga som graveras får materialets färg. */}
+          {!engraved && (
+            <label className={styles.labelled}>
+              <span className={styles.sliderLabel}>Loggans färger i CMYK</span>
+              <span className="field">
+                <input
+                  type="text"
+                  value={doc.logo.printColor ?? ""}
+                  maxLength={LOGO_PRINT_COLOR_MAX}
+                  placeholder="Till exempel 100/60/0/20"
+                  autoComplete="off"
+                  onChange={(event) => dispatch({ type: "logo/color", code: event.target.value })}
+                />
+              </span>
+              <span className={styles.hint}>{doc.logo.image ? LOGO_COLOR_HINT.image : LOGO_COLOR_HINT.oneColor}</span>
+            </label>
+          )}
         </>
       )}
     </PanelSection>

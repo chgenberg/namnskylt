@@ -16,9 +16,10 @@ function arialAdvanceEm(char: string): number {
 }
 
 const BOLD_FACTOR = 1.07;
-const NARROW_FACTOR = 0.82;
-/** Versalhöjd / em i Liberation Sans (H = 1409 av 2048 enheter). */
-const APPROX_CAP_HEIGHT_RATIO = 0.688;
+/** Roboto Condensed mot Roboto, som verkstaden ritar Arial Narrow och Arial med. */
+const NARROW_FACTOR = 0.89;
+/** Versalhöjd / em i Roboto, som skylten ritas med (H = 1456 av 2048 enheter). */
+const APPROX_CAP_HEIGHT_RATIO = 0.711;
 
 export const approxFonts: FontEngine = {
   capHeightRatio: () => APPROX_CAP_HEIGHT_RATIO,

@@ -1,6 +1,7 @@
 import {
   CUSTOM_SHAPE_LIMITS,
   LOGO_LIMITS,
+  LOGO_PRINT_COLOR_MAX,
   TEXT_LIMITS,
   blankFits,
   blankOf,
@@ -66,6 +67,8 @@ export type DesignerAction =
   | { type: "logo/original"; d: string; originalId: string }
   | { type: "logo/placement"; placement: LogoPlacement }
   | { type: "logo/height"; heightMm: number }
+  /** Kundens färgkoder för loggans tryck, fritext. Tom text tar bort dem. */
+  | { type: "logo/color"; code: string }
   /** Kunden väljer hur namn och logotyp märks. Ett kombinerat val kräver en logga. */
   | { type: "marking"; method: MarkingMethod }
   /** Kundens egen färgkod för det som printas, som fritext. Tom text tar bort den. */
@@ -194,7 +197,10 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       return { ...doc, frame: { ...doc.frame, style: action.style } };
     case "logo": {
       // En ny logga får ett förslag på metod: i färg printas den, svartvit följer den namnet. Kunden kan byta sedan.
-      if (action.logo && action.keepMarking && doc.logo) return { ...doc, logo: action.logo };
+      // Samma logga i en ny form behåller också färgkoderna kunden har skrivit; en ny logga ärver dem aldrig.
+      if (action.logo && action.keepMarking && doc.logo) {
+        return { ...doc, logo: { ...action.logo, ...(doc.logo.printColor && { printColor: doc.logo.printColor }) } };
+      }
       if (action.logo) return withLogoMarking({ ...doc, logo: action.logo });
       const rest = { ...doc };
       delete rest.logo;
@@ -209,6 +215,14 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       const rest = { ...doc };
       delete rest.printColor;
       return rest;
+    }
+    case "logo/color": {
+      if (!doc.logo) return doc;
+      const code = cleanPrintColor(action.code, LOGO_PRINT_COLOR_MAX);
+      if (code.trim() !== "") return { ...doc, logo: { ...doc.logo, printColor: code } };
+      const logo = { ...doc.logo };
+      delete logo.printColor;
+      return { ...doc, logo };
     }
     case "logo/engraving":
       // Svaret kommer i efterhand: gäller bara om samma logga ligger kvar och fortfarande saknar gravyrform.

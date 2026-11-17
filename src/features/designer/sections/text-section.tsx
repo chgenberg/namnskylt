@@ -10,7 +10,7 @@ import {
   TEXT_LIMITS,
   getColor,
   nameMarking,
-  printColorHex,
+  engravingHex,
   rowPrintInkOf,
   type BadgeDocument,
   type BadgeLayout,
@@ -53,8 +53,8 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
   const canAdd = doc.rows.length < TEXT_LIMITS.maxRows;
   // Färg per rad finns bara i tryck: gravyren får materialets färg, lika på alla rader.
   const namePrinted = nameMarking(doc) === "print";
-  /** Färgen en rad utan egen hexkod visas i, som väljaren utgår från. */
-  const defaultInk = printColorHex(getColor(doc.materialId, doc.colorId).engraving) ?? "#000000";
+  /** Färgen en rad utan egen kod som går att rita visas i, som väljaren utgår från. */
+  const defaultInk = engravingHex(getColor(doc.materialId, doc.colorId));
 
   return (
     <PanelSection step={1} title="Text" aside={`${doc.rows.length}/${TEXT_LIMITS.maxRows} rader`}>
@@ -140,7 +140,7 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
                           aria-label={`Färgkod för rad ${i + 1}`}
                           value={row.printColor ?? ""}
                           maxLength={PRINT_COLOR_MAX}
-                          placeholder="PMS eller hex"
+                          placeholder="CMYK, PMS, hex"
                           autoComplete="off"
                           onChange={(e) => dispatch({ type: "row/color", id: row.id, code: e.target.value })}
                         />
@@ -162,7 +162,7 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
       </ul>
       <p className={styles.hint}>
         {namePrinted
-          ? "En hexkod, till exempel #0057B8, visas på skylten. PMS och andra koder följer med ordern utan att bilden ändras."
+          ? "En CMYK-kod, till exempel 100/60/0/20, eller en hexkod visas på skylten, ungefärligt på skärmen. PMS och andra koder följer med ordern utan att bilden ändras."
           : "Egen färg per rad går att ange när namnet printas, se Märkningsmetod."}
       </p>
 

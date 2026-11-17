@@ -11,7 +11,7 @@ export interface EngravedPath {
   rowId?: string;
   d: string;
   fillRule: FillRule;
-  /** Kundens hexfärg för det här trycket. Utan den, och för allt som graveras, gäller gravyrens färg. */
+  /** Färgen för det här trycket, ur kundens CMYK- eller hexkod. Utan den, och för allt som graveras, gäller gravyrens färg. */
   ink?: string;
 }
 
@@ -25,14 +25,14 @@ function markedPaths(layout: BadgeLayout, fonts: FontEngine): { engraved: Engrav
   const { outline } = fonts;
   if (!outline) return null;
 
-  // Tryckets färg gäller bara det som printas: ramen följer namnet, loggan sin egen metod.
-  const ink = (printed: boolean) => (printed && layout.printInk ? { ink: layout.printInk } : {});
+  // Tryckets färg gäller bara det som printas: ramen följer namnet, och loggan har sin egen färg.
+  const frameInk = layout.namePrinted && layout.printInk ? { ink: layout.printInk } : {};
   const frames = layout.frames.map(
-    (frame, i): EngravedPath => ({ id: `frame-${i}`, kind: "frame", d: frame.d, fillRule: "evenodd", ...ink(layout.namePrinted) }),
+    (frame, i): EngravedPath => ({ id: `frame-${i}`, kind: "frame", d: frame.d, fillRule: "evenodd", ...frameInk }),
   );
   const logo: EngravedPath[] =
     layout.logo && !layout.logo.imageSrc
-      ? [{ id: "logo", kind: "logo", d: layout.logo.d, fillRule: "evenodd", ...ink(Boolean(layout.logo.printed)) }]
+      ? [{ id: "logo", kind: "logo", d: layout.logo.d, fillRule: "evenodd", ...(layout.logo.ink && { ink: layout.logo.ink }) }]
       : [];
   // TrueType-konturer lindas medurs/moturs och fylls med nonzero.
   const rows = layout.rows
@@ -74,7 +74,7 @@ export function engravingPaths(layout: BadgeLayout, fonts: FontEngine): Engraved
 /**
  * Det som printas i en färg, plant på ytan: namnet när det printas, och en
  * svartvit logga som printas. Färgen är gravyrens, om inte kunden har angett
- * en hexkod (`EngravedPath.ink`). En logga i färg trycks som bild
+ * en CMYK- eller hexkod (`EngravedPath.ink`). En logga i färg trycks som bild
  * (`LaidOutLogo.imageSrc`) och finns inte här. Konturerna hör aldrig till
  * fräsningen eller maskinfilerna.
  */

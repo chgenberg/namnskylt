@@ -48,7 +48,8 @@ export interface FittedHeader {
  * in över grannens skyltar.
  */
 export function fitHeader(text: string, box: Box, maxCapMm: number, fonts: FontEngine): FittedHeader | null {
-  const ratio = fonts.capHeightRatio(HEADER_FACE);
+  // Radens text följer med: saknar typsnittet ett tecken ritas rubriken i reservtypsnittet, med dess versalhöjd.
+  const ratio = fonts.capHeightRatio(HEADER_FACE, text);
   const widthAt = (t: string, cap: number) => fonts.measure(t, { ...HEADER_FACE, sizeMm: cap / ratio });
   const at = (t: string, capMm: number): FittedHeader => ({
     text: t,

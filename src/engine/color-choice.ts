@@ -1,4 +1,5 @@
 import type { ColorCombo } from "./catalog";
+import { printColorHex } from "./color-code";
 
 /**
  * Färgvalet i två steg. En tvålagersplast har en färg på framsidan och en i
@@ -58,6 +59,14 @@ export function colorChoices(colors: readonly ColorCombo[], selectedId: string):
   const group = selected ? (bySurface.get(selected.surface) ?? []) : [];
   const cores = group.length > 1 ? group.map((combo): CoreChoice => ({ name: colorNames(combo).core ?? combo.name, combo, selected: combo === selected })) : [];
   return { fronts, cores };
+}
+
+/**
+ * Gravyrens färg som `#RRGGBB`: färgen ett tryck utan egen kod visas i, och
+ * den som skickas till verkstaden när kunden inte har angett någon.
+ */
+export function engravingHex(combo: Pick<ColorCombo, "engraving">): string {
+  return printColorHex(combo.engraving) ?? "#000000";
 }
 
 /** Koderna för en färg: skärmens hex, och PMS och RAL när verkstaden har lämnat dem. */
