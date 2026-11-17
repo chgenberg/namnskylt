@@ -1113,9 +1113,25 @@ på faktura, privatpersoner betalar med kort.**
     gäller ändå, skillnaden spelar ingen roll.
   - I en återförsäljares butik gäller den äldre texten, med återförsäljaren som säljare ur
     dess företagsuppgifter. Den texten är inte granskad av en jurist.
-- **Integritetssidan** (`/integritet`) har fått två stycken: vad som sparas när någon
-  beställer, och statistiken utan kakor. Resten gäller fortfarande utskicket och har
-  platshållare.
+- **Integritetssidan** (`/integritet`, `PrivacyPage` i `src/features/privacy/`) är Skylt &
+  Gravyrtekniks integritetspolicy, ordagrant, med dem som personuppgiftsansvariga (ägarens
+  besked 2026-11-17: "Kör Skylt och Gravyrs information här. De är ansvariga").
+  - Texten är hämtad från skyltochgravyr.com/integritetspolicy 2026-11-17, och sidan länkar
+    dit och till deras konto och cookiepolicy. Ingenting hämtas automatiskt: ändrar de sin
+    policy ska samma ändring göras här. Verkstadens företagsuppgifter ligger i
+    `src/lib/company/workshop.ts` (`WORKSHOP_COMPANY`) och delas med köpvillkoren.
+  - Sist står ett eget stycke, "På namnskylt.com": att namnskylt.com förmedlar beställningen
+    (med företagsuppgifterna ur panelen), vad som sparas här, att bara nödvändiga kakor
+    används och att Google Analytics, Google Ads och Meta Pixel inte används här, att
+    varukorgen sparas i webbläsaren, och statistiken utan kakor. Lägg till något där om
+    sajten börjar använda annat, till exempel ett analysverktyg.
+  - **Avsnittet om utskicket till återförsäljare är borttaget**, eftersom det hade
+    platshållare för avsändare, rättslig grund och lagringstid. Utskickets mejl och
+    landningssida länkar fortfarande hit. Det ska tillbaka, med besluten fattade, innan
+    något mejl skickas (se Utskicket, Öppet innan Fas 1). Texten finns i git, i
+    `src/features/privacy/privacy-page.tsx` före 2026-11-17.
+  - Meningen om att kortbetalning sköts av Stripe är också borttagen. Den ska tillbaka om
+    kortbetalningen slås på.
 
 ## Kundens ordersida — läge 2026-11-15
 
@@ -1278,6 +1294,10 @@ gamla ska inte godkännas.
     så den andra kontakten fick ingen butik (`shop_slug` är unik per lead). Användaren avgör
     om båda kontakterna i varje par ska ha mejl.
 - **Underlag som saknas:**
+  - Integritetssidan saknar sedan 2026-11-17 avsnittet om utskicket (vilka uppgifter som
+    används, varför, hur länge och hur man avregistrerar sig). Mejlet och landningssidan
+    länkar dit, så avsnittet ska tillbaka innan något skickas. Se Kassan, betalning och
+    köpvillkor.
   - Kampanjens signatur i databasen har platshållare för namn och titel.
     `scripts/outreach-preview.ts:28` har även platshållare för telefon och e-post.
   - Företagsprofilen saknar organisationsnummer.

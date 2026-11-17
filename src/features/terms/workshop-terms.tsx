@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WORKSHOP_COMPANY } from "@/lib/company/workshop";
 import styles from "./terms.module.css";
 
 /**
@@ -8,14 +9,7 @@ import styles from "./terms.module.css";
  * återförsäljare har tagit över. Texten är deras och ändras inte här: ändrar
  * de sina villkor ska samma ändring göras här, och datumet nedan flyttas.
  */
-const WORKSHOP = {
-  legalName: "Skylt & Gravyrteknik i Sverige AB",
-  orgNumber: "556464-2261",
-  street: "F O Petersons gata 28",
-  zipCity: "421 31 Västra Frölunda",
-  email: "order@skyltochgravyr.com",
-  termsUrl: "https://www.skyltochgravyr.com/villkor",
-} as const;
+const WORKSHOP = { ...WORKSHOP_COMPANY, termsUrl: `${WORKSHOP_COMPANY.site}/villkor` } as const;
 
 /** Dagen villkoren hämtades från verkstadens sajt. */
 const FETCHED = "2026-11-17";
@@ -113,7 +107,7 @@ export function WorkshopTerms({ place, agentLine, agentEmail, privacyLink, cardP
           år, men då utan namnen på skyltarna.{" "}
           {privacyLink && (
             <>
-              Mer står på sidan <Link href="/integritet">Så hanterar vi uppgifter</Link>.
+              Mer står i <Link href="/integritet">integritetspolicyn</Link>.
             </>
           )}
         </p>

@@ -1,82 +1,132 @@
+import { WORKSHOP_COMPANY } from "@/lib/company/workshop";
 import styles from "./privacy.module.css";
 
 /**
- * Integritetsinformationen som mejlets sidfot länkar till. Hakparenteserna
- * fylls i när avsändarbolaget och den rättsliga grunden är bekräftade.
+ * Skylt & Gravyrtekniks integritetspolicy, ordagrant som den står på
+ * skyltochgravyr.com/integritetspolicy (hämtad 2026-11-17, på ägarens begäran:
+ * "de är ansvariga"). Texten är deras och ändras inte här: ändrar de sin
+ * policy ska samma ändring göras här, och datumet nedan flyttas.
  */
-export function PrivacyPage() {
+const FETCHED = "2026-11-17";
+
+const DATA_ITEMS = [
+  "Kontouppgifter: namn, e-post, telefon och företag.",
+  "Beställningar: dina designer, orderrader, belopp och orderhistorik.",
+  "Uppladdat material: logotyper och symboler du sparar i ditt bibliotek.",
+  "Teknik: nödvändiga cookies för inloggning och kundvagn.",
+  "Google Analytics och Google Ads, bara om du godkänt alla cookies: vilka sidor som besöks, ungefärlig plats, enhet och webbläsare, samt om ett klick på en av våra annonser ledde till ett köp (ordernummer och ordervärde – inte namn eller kontaktuppgifter). Google Ireland Ltd behandlar uppgifterna åt oss, och de kan överföras till USA enligt EU:s och USA:s dataskyddsramverk. Laglig grund: ditt samtycke, som du kan ändra i cookiepolicyn.",
+  "Meta Pixel, bara om du godkänt alla cookies: vilka sidor som besöks samt köp med ordernummer och ordervärde – inte namn eller kontaktuppgifter. Meta Platforms Ireland Ltd tar emot uppgifterna och är gemensamt personuppgiftsansvarig med oss för insamlingen; Meta kan använda dem för att visa och mäta annonser på Facebook och Instagram, och de kan överföras till USA enligt EU:s och USA:s dataskyddsramverk. Laglig grund: ditt samtycke, som du kan ändra i cookiepolicyn.",
+  "Besöksstatistik: vilka sidor som besöks, utan cookies. IP-adressen sparas inte – besökare räknas med en kod som byts varje dygn, och statistiken raderas efter 90 dagar. Laglig grund: vårt berättigade intresse av att förstå hur sajten används.",
+] as const;
+
+const PURPOSE =
+  "Vi behandlar uppgifterna för att fullgöra köpeavtalet (leverera och fakturera dina beställningar), uppfylla bokföringslagen samt – om du gett samtycke – skicka nyheter och erbjudanden. Marknadsföring sker endast med ditt uttryckliga samtycke, som du när som helst kan återkalla.";
+
+const RETENTION =
+  "Kontouppgifter sparas så länge du har ett konto. Orderunderlag sparas i sju år enligt bokföringslagen, men anonymiseras vid kontoradering så att de inte längre kan kopplas till dig som person.";
+
+interface PrivacyPageProps {
+  /** namnskylt.coms egna uppgifter på en rad: namn, organisationsnummer och adress. */
+  agentLine: string;
+  /** namnskylt.coms e-post, när den finns. */
+  agentEmail: string;
+}
+
+/**
+ * Integritetspolicyn. Skylt & Gravyrteknik är personuppgiftsansvarig för
+ * beställningarna, så först står deras policy som den är. Sist står det som
+ * är namnskylt.coms eget: vad som sparas här och vad som inte används här.
+ */
+export function PrivacyPage({ agentLine, agentEmail }: PrivacyPageProps) {
+  const workshop = WORKSHOP_COMPANY;
   return (
     <article className={styles.page}>
-      <p className={styles.eyebrow}>Integritet</p>
-      <h1 className={styles.title}>Så hanterar vi uppgifter</h1>
+      <p className={styles.eyebrow}>Dataskydd</p>
+      <h1 className={styles.title}>Integritetspolicy</h1>
       <p className={styles.lead}>
-        Den här sidan gäller mejlen vi skickar till återförsäljare om namnskyltsbutiken, och butikerna vi förbereder åt dem.
+        {workshop.name} säljer, tillverkar och fakturerar namnskyltarna och ansvarar för personuppgifterna. Därför gäller
+        deras integritetspolicy när du beställer på namnskylt.com.
       </p>
 
       <section className={styles.section}>
-        <h2>Vem som ansvarar</h2>
-        <p>[Juridiskt namn AB], org.nr [556000-0000], [postadress]. Frågor skickar du till [e-postadress].</p>
-      </section>
-
-      <section className={styles.section}>
-        <h2>Vilka uppgifter vi använder</h2>
+        <h2>Personuppgiftsansvarig</h2>
         <p>
-          Företagets namn, ort och webbplats, kontaktpersonens namn och e-postadress i tjänsten, och när företaget blev kund
-          hos oss. Från företagets webbplats hämtar vi logga och färger för att visa en skylt och en butik.
+          {workshop.legalName} (org.nr {workshop.orgNumber}), {workshop.street}, {workshop.zipCity}. Kontakt:{" "}
+          <a href={`mailto:${workshop.email}`}>{workshop.email}</a>.
         </p>
       </section>
 
       <section className={styles.section}>
-        <h2>Varför</h2>
+        <h2>Vilka uppgifter vi behandlar</h2>
+        <ul className={styles.list}>
+          {DATA_ITEMS.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </section>
+
+      <section className={styles.section}>
+        <h2>Ändamål och laglig grund</h2>
+        <p>{PURPOSE}</p>
+      </section>
+
+      <section className={styles.section}>
+        <h2>Lagringstid</h2>
+        <p>{RETENTION}</p>
+      </section>
+
+      <section className={styles.section}>
+        <h2>Dina rättigheter</h2>
         <p>
-          Ni är redan kund hos oss, och mejlet handlar om en tjänst som hör till det ni köper. Den rättsliga grunden är
-          berättigat intresse [bekräftas]. Vi skickar högst två mejl och slutar direkt om ni avregistrerar er eller svarar att
-          ni inte är intresserade.
+          Du har rätt till registerutdrag, rättelse, radering och dataportabilitet. Du kan{" "}
+          <a href={`${workshop.site}/konto`} target="_blank" rel="noreferrer">
+            exportera eller radera dina data direkt på ditt konto
+          </a>
+          . Du kan även klaga hos Integritetsskyddsmyndigheten (IMY).
         </p>
       </section>
 
       <section className={styles.section}>
-        <h2>Hur länge</h2>
+        <h2>Cookies</h2>
         <p>
-          En förberedd butik som inte aktiveras tas bort efter [90] dagar. En avregistrering sparar vi så länge vi skickar
-          utskick, så att vi aldrig mejlar adressen igen.
+          Läs mer om vilka cookies vi använder i vår{" "}
+          <a href={`${workshop.site}/cookies`} target="_blank" rel="noreferrer">
+            cookiepolicy
+          </a>
+          .
         </p>
       </section>
 
       <section className={styles.section}>
-        <h2>Vem mer som ser uppgifterna</h2>
+        <h2>På namnskylt.com</h2>
         <p>
-          Mejlen skickas via Resend (biträde, servrar inom EU). Beställningar tillverkas av Skylt &amp; Gravyrteknik, som bara
-          får det som ska graveras och levereras.
+          Beställningen görs på namnskylt.com, som förmedlar den till {workshop.name}: {agentLine}.{" "}
+          {agentEmail && (
+            <>
+              Du når oss på <a href={`mailto:${agentEmail}`}>{agentEmail}</a>.{" "}
+            </>
+          )}
+          När du beställer sparas namn, e-post, företag, organisationsnummer, leveransadress och texten på skyltarna
+          här, och lämnas till {workshop.name}.
         </p>
-      </section>
-
-      <section className={styles.section}>
-        <h2>När du beställer skyltar</h2>
         <p>
-          Vi sparar namn, e-post, företag, organisationsnummer och leveransadress för den som beställer, och texten som ska
-          stå på skyltarna. Uppgifterna används för att tillverka, leverera och fakturera ordern. Betalar du med kort
-          sköts betalningen av Stripe, och vi ser aldrig kortnumret. Den som ber om det får sina uppgifter borttagna.
-          Ordrar som hör till bokföringen måste sparas i sju år, men då utan namnen på skyltarna och utan
-          kontaktuppgifter.
+          Här används bara kakor som behövs för att sajten ska fungera. Google Analytics, Google Ads och Meta Pixel
+          används inte på namnskylt.com. Varukorgen och skylten du arbetar med sparas i din webbläsare, så att de finns
+          kvar om du laddar om sidan.
         </p>
-      </section>
-
-      <section className={styles.section}>
-        <h2>Statistik utan kakor</h2>
         <p>
           Vi räknar hur långt besök kommer i skyltmotorn, för att se var det är krångligt. Räkningen sparar inget i din
           webbläsare och ingen IP-adress, och kan inte kopplas till en person.
         </p>
       </section>
 
-      <section className={styles.section}>
-        <h2>Era rättigheter</h2>
-        <p>
-          Ni kan när som helst avregistrera er via länken i mejlet, begära ut eller rätta uppgifterna, eller be oss radera
-          dem. Ni kan också klaga hos Integritetsskyddsmyndigheten (IMY).
-        </p>
-      </section>
+      <p className={styles.updated}>
+        Integritetspolicyn är {workshop.name}s egen, som den stod på{" "}
+        <a href={`${workshop.site}/integritetspolicy`} target="_blank" rel="noreferrer">
+          skyltochgravyr.com/integritetspolicy
+        </a>{" "}
+        {FETCHED}.
+      </p>
     </article>
   );
 }
