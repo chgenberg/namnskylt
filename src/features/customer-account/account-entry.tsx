@@ -5,7 +5,8 @@ import { useState, type FormEvent } from "react";
 import { CustomerLoginForm } from "@/components/customer-login-form";
 import { Segmented } from "@/components/ui/segmented";
 import { registerRequest } from "@/lib/customer-auth/client";
-import { accountPaths, MIN_CUSTOMER_PASSWORD_CHARS } from "@/lib/customer-auth/model";
+import { accountPaths, EMPTY_PROFILE_DRAFT, MIN_CUSTOMER_PASSWORD_CHARS } from "@/lib/customer-auth/model";
+import { ProfileFields } from "./profile-fields";
 import styles from "./account.module.css";
 
 const MODES = [
@@ -28,7 +29,7 @@ export function AccountEntry({ shop, sellerName }: AccountEntryProps) {
   const enter = () => window.location.assign(paths.home);
   return (
     <div className={styles.entry}>
-      <div className={styles.entryCard}>
+      <div className={styles.entryCard} data-wide={mode === "register" || undefined}>
         <header>
           <p className={styles.eyebrow}>{sellerName}</p>
           <h1 className={styles.entryTitle}>{mode === "login" ? "Logga in" : "Skapa konto"}</h1>
@@ -39,7 +40,7 @@ export function AccountEntry({ shop, sellerName }: AccountEntryProps) {
         <p className={styles.foot}>
           {mode === "login"
             ? `Glömt lösenordet? Hör av dig till ${sellerName}, så får du en länk där du väljer ett nytt.`
-            : "Kontot fylls med dina uppgifter första gången du beställer."}
+            : "Uppgifterna går att ändra senare under Mitt konto, och uppdateras när du beställer."}
         </p>
         {!shop && (
           <p className={styles.reseller}>
@@ -62,15 +63,23 @@ interface RegisterFormProps {
 function RegisterForm({ shop, onCreated }: RegisterFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  /** Kundens uppgifter, om kunden vill fylla i dem direkt. Då är kassan ifylld redan vid första ordern. */
+  const [profile, setProfile] = useState(EMPTY_PROFILE_DRAFT);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+
+  /** Ett fel gäller det som stod i formuläret när det skickades. Det försvinner när något ändras. */
+  const edit = (change: () => void) => {
+    change();
+    setError(null);
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (sending) return;
     setSending(true);
     setError(null);
-    const result = await registerRequest(shop, { email, password });
+    const result = await registerRequest(shop, { email, password, profile });
     setSending(false);
     if (result.ok) onCreated();
     else setError(result.error);
@@ -80,7 +89,7 @@ function RegisterForm({ shop, onCreated }: RegisterFormProps) {
     <form className={styles.form} onSubmit={(event) => void submit(event)}>
       <label className="field">
         <span className="visually-hidden">E-post</span>
-        <input type="email" placeholder="E-post" required autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} />
+        <input type="email" placeholder="E-post" required autoComplete="username" value={email} onChange={(event) => edit(() => setEmail(event.target.value))} />
       </label>
       <label className="field">
         <span className="visually-hidden">Lösenord</span>
@@ -91,9 +100,14 @@ function RegisterForm({ shop, onCreated }: RegisterFormProps) {
           minLength={MIN_CUSTOMER_PASSWORD_CHARS}
           autoComplete="new-password"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(event) => edit(() => setPassword(event.target.value))}
         />
       </label>
+      <div className={styles.optional}>
+        <p className={styles.optionalTitle}>Dina uppgifter</p>
+        <p className={styles.sectionLead}>Fyll i dem nu, så är kassan ifylld när du beställer. Allt är valfritt.</p>
+      </div>
+      <ProfileFields value={profile} onChange={(next) => edit(() => setProfile(next))} disabled={sending} />
       {error && (
         <p className={styles.error} role="alert">
           {error}

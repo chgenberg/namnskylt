@@ -2,17 +2,18 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { deliveryPhoneIssue, deliverySchema } from "@/lib/orders/delivery";
-import { ERASED_CUSTOMER_ERROR, isErasedCustomer } from "@/lib/orders/erase-model";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
+import { orderCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-customer";
 import { placeOrder } from "@/lib/orders/place-order";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
-import { databaseConfigured, getCustomer, getOrder, saveResellerDeliveryAddress } from "@/lib/orders/repository";
+import { databaseConfigured, getOrder, saveResellerDeliveryAddress } from "@/lib/orders/repository";
 import { currentTenant } from "@/lib/reseller-auth/session";
 
 export const runtime = "nodejs";
 
 const requestSchema = z.object({
-  customerId: z.uuid(),
+  /** Kunden ordern gäller: en befintlig, eller en ny som fylls i i varukorgen. */
+  ...orderCustomerFields,
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
   badgeShot: badgeShotUploadSchema,
   project: z.string().trim().max(120).optional(),
@@ -31,17 +32,18 @@ export async function POST(request: Request) {
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    // Adressens fel är skrivna för den som fyller i formuläret.
-    return NextResponse.json({ error: issue?.path[0] === "delivery" ? issue.message : "Ogiltig order" }, { status: 400 });
+    // Adressens och kundens fel är skrivna för den som fyller i formuläret.
+    const field = String(issue?.path[0]);
+    return NextResponse.json({ error: issue && (field === "delivery" || field === "customer") ? issue.message : "Ogiltig order" }, { status: 400 });
   }
   if (!allOffered(parsed.data.badges)) return NextResponse.json({ error: NOT_OFFERED_ERROR }, { status: 400 });
   // En leverans som fraktas behöver mottagarens telefon. Formuläret kräver den; här gäller samma regel.
   const phoneIssue = deliveryPhoneIssue(parsed.data.delivery.address, parsed.data.delivery.method);
   if (phoneIssue) return NextResponse.json({ error: phoneIssue }, { status: 400 });
 
-  const customer = await getCustomer(tenant, parsed.data.customerId);
-  if (!customer) return NextResponse.json({ error: "Kunden finns inte" }, { status: 404 });
-  if (isErasedCustomer(customer)) return NextResponse.json({ error: ERASED_CUSTOMER_ERROR }, { status: 409 });
+  const found = await resolveOrderCustomer(tenant, parsed.data);
+  if (!found.ok) return NextResponse.json({ error: found.error }, { status: found.status });
+  const { customer } = found;
   // Länken tillbaka gäller bara återförsäljarens egen order till samma kund. Annars läggs ordern utan den.
   const original = parsed.data.copyOf ? await getOrder(tenant, parsed.data.copyOf) : null;
   const copied = original && original.customer.id === customer.id ? original : null;

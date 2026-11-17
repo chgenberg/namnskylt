@@ -1143,3 +1143,53 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Säljarens kundval i varukorgen: en av de gamla kunderna, eller en ny ── */
+
+.customer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.customerList {
+  display: grid;
+  gap: var(--space-1);
+  max-height: 220px;
+  padding: var(--space-1);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.customerOption {
+  display: grid;
+  gap: 2px;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.customerOption span {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.customerOption:hover {
+  background: var(--color-paper);
+}
+
+.customerOption[aria-checked="true"] {
+  border-color: var(--color-navy);
+  background: var(--color-navy-tint);
+}

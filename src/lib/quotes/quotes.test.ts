@@ -35,6 +35,7 @@ function quote(patch: Partial<StoredQuote> = {}): StoredQuote {
     demo: false,
     createdAt: "2026-10-27T10:00:00Z",
     sentAt: "2026-10-27T11:00:00Z",
+    emailedAt: null,
     decidedAt: null,
     events: [],
     ...patch,

@@ -7,6 +7,7 @@ import { ShippingMethodPicker } from "@/components/shipping-method-picker";
 import type { ShippingMethod } from "@/engine";
 import { formatSek } from "@/lib/format";
 import { needsPhone, shippingAddressFromDraft, type DeliveryDraft } from "@/lib/orders/delivery";
+import type { QuoteAnswer } from "@/lib/quotes/quote-email";
 import { decideQuoteAction } from "./actions";
 import styles from "./quote-public.module.css";
 
@@ -31,16 +32,27 @@ interface QuoteDecisionProps {
   shippingOptions?: readonly QuoteShippingOption[];
   /** Leveranssättet som står på offerten. */
   shippingMethod?: ShippingMethod;
+  /**
+   * Valet mottagaren gjorde i offertmejlet. Det är förvalt här, och ett klick
+   * bekräftar. Länken i mejlet avgör aldrig något själv: mejlprogram öppnar
+   * länkar av sig själva, och ett godkännande blir en riktig order.
+   */
+  answer?: QuoteAnswer | null;
 }
 
-export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingOptions = [], shippingMethod = "standard" }: QuoteDecisionProps) {
+export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingOptions = [], shippingMethod = "standard", answer = null }: QuoteDecisionProps) {
   const [result, setResult] = useState<Result | null>(null);
   const [method, setMethod] = useState<ShippingMethod>(shippingMethod);
   const chosen = shippingOptions.find((option) => option.method === method);
   // Summan följer leveranssättet. Expressfraktens pris sätts i efterhand och är inte med.
   const payInclVatSek = chosen?.totalInclVatSek ?? totalInclVatSek;
   const [address, setAddress] = useState<DeliveryDraft | null>(deliveryDraft);
-  const [declining, setDeclining] = useState(false);
+  const [declining, setDeclining] = useState(answer === "decline");
+  const blockRef = useRef<HTMLDivElement>(null);
+  // Den som kommer från mejlets knapp ska hamna vid valet, inte överst på offerten.
+  useEffect(() => {
+    if (answer) blockRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [answer]);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -98,7 +110,16 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingO
   }
 
   return (
-    <div className={styles.decision}>
+    <div ref={blockRef} className={styles.decision} data-answer={answer ?? undefined}>
+      {answer && (
+        <p className={styles.fromEmail} role="status">
+          {answer === "accept" && !declining
+            ? "Du valde Godkänn i mejlet. Kontrollera uppgifterna och bekräfta med knappen nedan."
+            : answer === "decline" && declining
+              ? "Du valde Neka i mejlet. Bekräfta med knappen nedan."
+              : "Ingenting är bestämt förrän du bekräftar med en av knapparna nedan."}
+        </p>
+      )}
       {declining ? (
         <>
           <label className={styles.label} htmlFor="decline-reason">

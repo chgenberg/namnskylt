@@ -714,6 +714,18 @@ export async function updateOrderPricing(tenant: string, orderNo: string, pricin
   });
 }
 
+/** Så många kunder får säljaren att välja bland i skyltmotorns varukorg. */
+const CUSTOMER_CHOICES = 2000;
+
+/** Säljarens kunder för kundvalet i skyltmotorns varukorg: bara det valet visar, i bokstavsordning. */
+export async function listCustomerChoices(tenant: string): Promise<Pick<Customer, "id" | "name" | "company" | "email">[]> {
+  return requireDb()<Pick<Customer, "id" | "name" | "company" | "email">[]>`
+    select id, name, company, email from customers
+     where reseller_id = ${tenant} and erased_at is null
+     order by lower(coalesce(company, name)), id
+     limit ${CUSTOMER_CHOICES}`;
+}
+
 export interface CustomerSummary extends Customer {
   orders: number;
   badges: number;

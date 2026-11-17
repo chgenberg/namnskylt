@@ -1,5 +1,5 @@
 import "server-only";
-import { addressFromDraft, draftForRecipient, draftFromAddress, type DeliveryOptions, type QuoteDelivery } from "./delivery";
+import { addressFromDraft, draftForRecipient, draftFromAddress, type DeliveryDraft, type DeliveryOptions, type QuoteDelivery } from "./delivery";
 import type { Customer } from "./model";
 import { getCompanyProfile, getResellerDeliveryAddress, latestCustomerDelivery } from "./repository";
 
@@ -9,15 +9,14 @@ import { getCompanyProfile, getResellerDeliveryAddress, latestCustomerDelivery }
  * annars företagets uppgifter.
  */
 export async function deliveryOptions(tenant: string, customer: Customer): Promise<DeliveryOptions> {
-  const [lastUsed, saved, company] = await Promise.all([
-    latestCustomerDelivery(tenant, customer.id),
-    getResellerDeliveryAddress(tenant),
-    getCompanyProfile(tenant),
-  ]);
-  return {
-    customer: lastUsed ? draftFromAddress(lastUsed) : draftForRecipient(customer),
-    reseller: saved ? draftFromAddress(saved) : draftForRecipient({ name: company.name, phone: company.phone, address: company.address }),
-  };
+  const [lastUsed, reseller] = await Promise.all([latestCustomerDelivery(tenant, customer.id), resellerDeliveryDraft(tenant)]);
+  return { customer: lastUsed ? draftFromAddress(lastUsed) : draftForRecipient(customer), reseller };
+}
+
+/** Säljarens egen adress, den som fylls i när skyltarna ska "till oss". */
+export async function resellerDeliveryDraft(tenant: string): Promise<DeliveryDraft> {
+  const [saved, company] = await Promise.all([getResellerDeliveryAddress(tenant), getCompanyProfile(tenant)]);
+  return saved ? draftFromAddress(saved) : draftForRecipient({ name: company.name, phone: company.phone, address: company.address });
 }
 
 /**

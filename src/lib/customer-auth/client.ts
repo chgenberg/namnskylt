@@ -1,4 +1,4 @@
-import type { CustomerAccountView } from "./model";
+import type { CustomerAccountView, ProfileDraft } from "./model";
 
 /**
  * Webbläsarens anrop till kundkontots API: logga in, skapa konto och logga ut.
@@ -22,7 +22,7 @@ export function signInRequest(shop: string | null, email: string, password: stri
   return accountRequest("/api/customer/session", { ...(shop && { shop }), email: email.trim(), password });
 }
 
-export function registerRequest(shop: string | null, input: { email: string; password: string; name?: string; company?: string }): Promise<AccountResult> {
+export function registerRequest(shop: string | null, input: { email: string; password: string; profile?: ProfileDraft }): Promise<AccountResult> {
   return accountRequest("/api/customer/account", { ...(shop && { shop }), ...input, email: input.email.trim() });
 }
 

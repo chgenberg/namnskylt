@@ -222,7 +222,8 @@ export function Designer({
     opened: copy ? `kopia:${copy.orderNo}` : openedWith(initialText, initialDoc),
     storageKey: savedWorkKey(
       reseller
-        ? { kind: "reseller", customerId: reseller.customerId }
+        ? // Utan förvald kund har säljaren en egen varukorg, som blir en order eller offert när kunden är vald.
+          { kind: "reseller", customerId: reseller.customerId ?? "valfri" }
         : shop
           ? { kind: "shop", slug: shop.slug }
           : { kind: "web" },
@@ -651,13 +652,25 @@ export function Designer({
         <div className={styles.panelScroll}>
           {reseller && (
             <div className={styles.resellerBar} role="status">
-              <span>
-                {reseller.mode === "quote" ? "Offert till" : "Order åt"} <strong>{reseller.customerName}</strong>
-                {reseller.project && <> · {reseller.project}</>}
-              </span>
-              <a href={reseller.mode === "quote" ? "/admin/ny-offert" : "/admin/ny-order"} className={styles.resellerLink}>
-                Byt kund
-              </a>
+              {reseller.customerId ? (
+                <>
+                  <span>
+                    {reseller.mode === "quote" ? "Offert till" : "Order åt"} <strong>{reseller.customerName}</strong>
+                    {reseller.project && <> · {reseller.project}</>}
+                  </span>
+                  <a href={reseller.mode === "quote" ? "/admin/ny-offert" : "/admin/ny-order"} className={styles.resellerLink}>
+                    Byt kund
+                  </a>
+                </>
+              ) : (
+                <>
+                  {/* Den som är inloggad i panelen och går rakt hit väljer kund i varukorgen. */}
+                  <span>Order eller offert åt en kund. Kunden väljer du i varukorgen.</span>
+                  <a href="/admin" className={styles.resellerLink}>
+                    Till panelen
+                  </a>
+                </>
+              )}
             </div>
           )}
           {saved.notice && (
@@ -673,7 +686,9 @@ export function Designer({
           )}
           <div className={styles.panelHead}>
             <p className="eyebrow">Skyltmotor</p>
-            <h1 className={styles.panelTitle}>{reseller ? `Skylt till ${reseller.customerName}` : "Din namnskylt"}</h1>
+            <h1 className={styles.panelTitle}>
+              {reseller ? (reseller.customerId ? `Skylt till ${reseller.customerName}` : "Skylt till en kund") : "Din namnskylt"}
+            </h1>
           </div>
           <TextSection
             doc={doc}

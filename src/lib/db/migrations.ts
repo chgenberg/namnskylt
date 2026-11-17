@@ -637,6 +637,12 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       create index orders_account on orders (account_id, placed_at desc) where account_id is not null;
     `,
   },
+  {
+    // Offertmejlet (beslut av ägaren 2026-11-17): när offerten senast mejlades till kunden.
+    // Tom = aldrig mejlad, till exempel för att säljaren skickade länken själv.
+    id: "031_quote_emailed",
+    sql: `alter table quotes add column emailed_at timestamptz;`,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

@@ -43,6 +43,7 @@ import { shopPrice, shopPriceParts } from "@/lib/shops/price-list";
 import type { ResellerOrderContext, ShopContext } from "../reseller";
 import type { DesignerAction } from "../state";
 import { contactFor, NewAccountField, type NewAccountChoice } from "./checkout-account";
+import { customerOf, firstTarget, recipientOf, ResellerCustomer, type CustomerTarget } from "./reseller-customer";
 import styles from "./sections.module.css";
 
 /** Snabbval för antal; det sista är första antalet på nästa trappsteg i prismodellen. */
@@ -213,6 +214,52 @@ export function OrderSection({
   const [addresses, setAddresses] = useState<DeliveryOptions>(
     () => reseller?.delivery ?? { customer: draftFromAddress(account?.profile.delivery), reseller: EMPTY_DELIVERY_DRAFT },
   );
+  // Säljaren som har gått rakt till skyltmotorn väljer kund i varukorgen: en av de gamla, eller en ny.
+  // Från panelen är kunden redan vald.
+  const picksCustomer = reseller?.customerId === null;
+  const [target, setTarget] = useState<CustomerTarget>(() => firstTarget(reseller?.customers ?? []));
+  const [customerError, setCustomerError] = useState<string | null>(null);
+  /** Kunden som valdes senast. Ett långsamt svar om en tidigare vald kunds adress ska inte skriva över den. */
+  const pickedId = useRef("");
+  const pickCustomer = (next: CustomerTarget) => {
+    const id = next.kind === "existing" ? next.id : "";
+    const switched = next.kind !== target.kind || id !== pickedId.current;
+    setTarget(next);
+    setCustomerError(null);
+    if (!switched) return;
+    pickedId.current = id;
+    // En annan kund har en annan adress. Den gamla kundens får inte följa med.
+    setAddresses((all) => ({ ...all, customer: EMPTY_DELIVERY_DRAFT }));
+    if (!id) return;
+    // Adressen från kundens senaste order fylls i. Går den inte att hämta skrivs den för hand.
+    void fetch(`/api/admin/customers/${encodeURIComponent(id)}/delivery`)
+      .then((response) => (response.ok ? (response.json() as Promise<{ delivery?: DeliveryDraft }>) : null))
+      .then((body) => {
+        const delivery = body?.delivery;
+        if (!delivery || pickedId.current !== id) return;
+        // Har säljaren redan börjat skriva adressen gäller det som är skrivet.
+        setAddresses((all) => (Object.values(all.customer).every((value) => value.trim() === "") ? { ...all, customer: delivery } : all));
+      })
+      .catch(() => undefined);
+  };
+  /** En ny kund är oftast också mottagaren: namnet behöver inte skrivas två gånger. */
+  const openDelivery = () => {
+    if (picksCustomer && target.kind === "new" && !addresses.customer.name.trim()) {
+      const company = target.company.trim();
+      const name = target.name.trim();
+      setAddresses((all) => ({
+        ...all,
+        customer: { ...all.customer, name: company || name, contactName: company ? name : "", phone: all.customer.phone || target.phone.trim() },
+      }));
+    }
+    setOrder({ status: "form" });
+  };
+  /** Kunden som ordern eller offerten går till, som den står vid knapparna. */
+  const recipient = !reseller
+    ? null
+    : picksCustomer
+      ? recipientOf(target, reseller.customers ?? [])
+      : { label: reseller.customerName, email: "" };
   const sectionRef = useRef<HTMLElement>(null);
   // Formulären hör till kassan. Efter ett fel står kundens formulär kvar med det som fyllts i, så att det går att skicka igen.
   const formOpen =
@@ -293,6 +340,12 @@ export function OrderSection({
   async function submitForCustomer(context: ResellerOrderContext, kind: "order" | "quote") {
     const quote = kind === "quote";
     setSendingKind(kind);
+    // Kunden är vald i förväg från panelen, eller väljs i varukorgen.
+    const chosen = context.customerId
+      ? { ok: true as const, body: { customerId: context.customerId } }
+      : customerOf(target, context.customers ?? [], context.needsInvoiceDetails ?? false);
+    setCustomerError(chosen.ok ? null : chosen.error);
+    if (!chosen.ok) return;
     // En offert får sin leverans på offerten. En order behöver adressen nu.
     const delivery = quote ? null : shippingAddressFromDraft(address, method);
     if (delivery && !delivery.ok) {
@@ -305,7 +358,7 @@ export function OrderSection({
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          customerId: context.customerId,
+          ...chosen.body,
           badges,
           badgeShot: captureShot?.() ?? undefined,
           project: context.project,
@@ -526,6 +579,20 @@ export function OrderSection({
 
       {reseller && checkout && badges.length > 0 && (
         <>
+          {picksCustomer && (
+            <ResellerCustomer
+              customers={reseller.customers ?? []}
+              value={target}
+              onChange={pickCustomer}
+              needsInvoiceDetails={reseller.needsInvoiceDetails ?? false}
+              disabled={order.status === "sending"}
+            />
+          )}
+          {customerError && (
+            <p className={styles.issue} data-severity="error" role="alert">
+              {customerError}
+            </p>
+          )}
           {formOpen && (
             <div className={styles.delivery} data-order-form>
               <div className={styles.deliveryHead}>
@@ -552,7 +619,13 @@ export function OrderSection({
               disabled={!valid || order.status === "sending"}
               onClick={() => void submitForCustomer(reseller, "quote")}
             >
-              {order.status === "sending" && sendingKind === "quote" ? "Skapar offerten…" : "Skapa offert"}
+              {order.status === "sending" && sendingKind === "quote"
+                ? reseller.quoteEmail
+                  ? "Skickar offerten…"
+                  : "Skapar offerten…"
+                : reseller.quoteEmail
+                  ? "Skicka offert"
+                  : "Skapa offert"}
             </button>
             <button
               type="button"
@@ -561,7 +634,7 @@ export function OrderSection({
               disabled={!valid || order.status === "sending"}
               onClick={() =>
                 // Ordern behöver en leveransadress: första klicket visar den, andra lägger ordern.
-                order.status === "form" ? void submitForCustomer(reseller, "order") : setOrder({ status: "form" })
+                order.status === "form" ? void submitForCustomer(reseller, "order") : openDelivery()
               }
             >
               {order.status === "sending" && sendingKind === "order"
@@ -571,7 +644,20 @@ export function OrderSection({
                   : "Lägg order"}
             </button>
           </div>
-          <p className={styles.cartNote}>Till {reseller.customerName}.</p>
+          {/* Vem det går till står alltid vid knapparna, så att en offert aldrig mejlas till en kund som inte syns. */}
+          <p className={styles.cartNote} data-recipient>
+            {recipient ? (
+              <>
+                Till <strong>{recipient.label}</strong>
+                {recipient.email && `, ${recipient.email}`}.{" "}
+              </>
+            ) : (
+              "Ingen kund är vald än. "
+            )}
+            {reseller.quoteEmail
+              ? "Offerten mejlas direkt till kunden, som godkänner eller nekar med knapparna i mejlet."
+              : "Offerten öppnas i panelen, där du skickar den till kunden."}
+          </p>
         </>
       )}
 

@@ -5,9 +5,12 @@ import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
 import { customerDesignerContext } from "@/lib/customer-auth/designer-context";
 import { siteOrigin } from "@/lib/http/origin";
-import { deliveryOptions } from "@/lib/orders/delivery-options";
+import { EMPTY_DELIVERY_DRAFT } from "@/lib/orders/delivery";
+import { deliveryOptions, resellerDeliveryDraft } from "@/lib/orders/delivery-options";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
-import { databaseConfigured, getCustomer, getOrder, getPriceModel } from "@/lib/orders/repository";
+import { databaseConfigured, getCustomer, getOrder, getPriceModel, listCustomerChoices } from "@/lib/orders/repository";
+import { quoteEmailOn } from "@/lib/quotes/send";
+import { isOwner } from "@/lib/tenants/model";
 import { paymentsConfigured } from "@/lib/payments/stripe";
 import { currentTenant } from "@/lib/reseller-auth/session";
 import { genitive } from "@/lib/share/genitive";
@@ -53,29 +56,53 @@ export async function generateMetadata({ searchParams }: SkapaPageProps): Promis
   };
 }
 
-/** `?kund=` gäller bara inloggad återförsäljare — annars är det en vanlig besökare. */
+/**
+ * Den som är inloggad i panelen lägger order och skapar offert åt sina kunder
+ * i skyltmotorn. Med `?kund=` är kunden vald i förväg, från panelen. Utan den
+ * väljs kunden bland de gamla, eller fylls i som ny, i varukorgen (besked av
+ * ägaren 2026-11-17). Den som inte är inloggad är en vanlig besökare.
+ */
 async function resellerContext(customerId: string | undefined, quote: boolean, project: string | undefined, copyOf: string | undefined) {
-  const tenant = customerId && databaseConfigured() ? await currentTenant() : null;
-  if (!customerId || !tenant) return undefined;
-  const customer = await getCustomer(tenant, customerId);
+  const tenant = databaseConfigured() ? await currentTenant() : null;
+  if (!tenant) return undefined;
+  const mode = quote ? ("quote" as const) : ("order" as const);
+  const shared = { mode, purchaseList: resellerPriceTable(await getPriceModel()), quoteEmail: quoteEmailOn() };
+  const customer = customerId ? await getCustomer(tenant, customerId) : null;
+  // Utan kund i adressen, eller med en som inte går att beställa åt, väljs kunden i varukorgen.
+  if (!customer || isErasedCustomer(customer)) {
+    const customers = (await listCustomerChoices(tenant))
+      .filter((choice) => !isErasedCustomer(choice))
+      .map((choice) => ({
+        id: choice.id,
+        label: choice.company ?? choice.name,
+        detail: choice.company ? `${choice.name} · ${choice.email}` : choice.email,
+        email: choice.email,
+      }));
+    return {
+      ...shared,
+      customerId: null,
+      customerName: "",
+      project: project?.trim().slice(0, 120) || undefined,
+      delivery: { customer: EMPTY_DELIVERY_DRAFT, reseller: await resellerDeliveryDraft(tenant) },
+      customers,
+      needsInvoiceDetails: isOwner(tenant),
+    };
+  }
   // Kopian måste vara återförsäljarens egen order till just den här kunden.
-  const original = customer && copyOf && /^NS-\d{1,9}$/.test(copyOf) ? await getOrder(tenant, copyOf) : null;
+  const original = copyOf && /^NS-\d{1,9}$/.test(copyOf) ? await getOrder(tenant, copyOf) : null;
   const copy =
-    original && original.customer.id === customerId && original.badges.length > 0
+    original && original.customer.id === customer.id && original.badges.length > 0
       ? // Äldre skyltar flyttas till dagens sortiment, som när en delad skylt öppnas.
         { orderNo: original.orderNo, groups: badgeGroups(original.badges.map(toOfferedDocument)) }
       : undefined;
-  return customer && !isErasedCustomer(customer)
-    ? {
-        customerId: customer.id,
-        customerName: customer.company ?? customer.name,
-        mode: quote ? ("quote" as const) : ("order" as const),
-        project: project?.trim().slice(0, 120) || (copy ? (original?.project ?? undefined) : undefined),
-        purchaseList: resellerPriceTable(await getPriceModel()),
-        delivery: await deliveryOptions(tenant, customer),
-        copy,
-      }
-    : undefined;
+  return {
+    ...shared,
+    customerId: customer.id,
+    customerName: customer.company ?? customer.name,
+    project: project?.trim().slice(0, 120) || (copy ? (original?.project ?? undefined) : undefined),
+    delivery: await deliveryOptions(tenant, customer),
+    copy,
+  };
 }
 
 export default async function SkapaPage({ searchParams }: SkapaPageProps) {

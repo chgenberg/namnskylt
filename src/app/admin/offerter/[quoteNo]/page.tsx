@@ -17,6 +17,7 @@ import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { badgeCount } from "@/lib/orders/model";
 import { canEditQuote, displayStatus } from "@/lib/quotes/model";
 import { getQuote } from "@/lib/quotes/repository";
+import { quoteEmailOn } from "@/lib/quotes/send";
 
 interface QuotePageProps {
   params: Promise<{ quoteNo: string }>;
@@ -172,6 +173,10 @@ export default async function QuotePage({ params }: QuotePageProps) {
                   totalSek={quote.totalSek}
                   link={link}
                   sent={quote.status === "sent"}
+                  // En demooffert mejlas aldrig.
+                  emailOn={quoteEmailOn() && !quote.demo}
+                  // Efter ett nej eller en ändring tillbaka till utkast gäller inte mejlets knappar längre.
+                  emailedAt={status === "sent" ? quote.emailedAt : null}
                 />
               </>
             )}

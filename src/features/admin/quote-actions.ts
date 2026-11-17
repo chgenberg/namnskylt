@@ -8,7 +8,8 @@ import { DIRECT_PRICING_ERROR, isLineInvoiceable, pricingSchema, type Pricing } 
 import { saveResellerDeliveryAddress } from "@/lib/orders/repository";
 import { acceptQuote } from "@/lib/quotes/accept";
 import { isOwner } from "@/lib/tenants/model";
-import { cancelQuote, getQuote, markSent, updateQuote, updateQuoteDelivery } from "@/lib/quotes/repository";
+import { cancelQuote, getQuote, updateQuote, updateQuoteDelivery } from "@/lib/quotes/repository";
+import { sendQuote } from "@/lib/quotes/send";
 import { requireReseller } from "@/lib/reseller-auth/session";
 import type { ActionResult } from "./actions";
 
@@ -81,13 +82,16 @@ export async function updateQuoteDeliveryAction(quoteNo: string, delivery: Quote
   }
 }
 
-/** Markerar offerten som skickad och ger länken — mejlet skickas från återförsäljarens egen e-post. */
+/**
+ * Skickar offerten: kundens länk låses upp, och offerten mejlas till kunden
+ * när offertmejlet är påslaget. Annars skickar säljaren länken själv.
+ */
 export async function sendQuoteAction(quoteNo: string): Promise<ActionResult> {
   const tenant = await requireReseller();
   try {
-    const quote = await markSent(tenant, quoteNoSchema.parse(quoteNo));
-    if (!quote) return { ok: false, error: "Offerten kan inte skickas" };
-    return done({ ok: true, url: `${await siteOrigin()}/offert/${quote.token}` });
+    const sent = await sendQuote(tenant, quoteNoSchema.parse(quoteNo));
+    if (!sent) return { ok: false, error: "Offerten kan inte skickas" };
+    return done({ ok: true, url: `${await siteOrigin()}/offert/${sent.quote.token}`, emailed: sent.emailed, notice: sent.emailError });
   } catch (error) {
     return fail(error, "Offerten kunde inte skickas");
   }

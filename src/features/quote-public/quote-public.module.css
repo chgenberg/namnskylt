@@ -450,3 +450,13 @@
   font-size: var(--text-xs);
   line-height: var(--leading-body);
 }
+
+/* Raden som säger vad mottagaren valde i offertmejlet, och att valet bekräftas här. */
+.fromEmail {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}

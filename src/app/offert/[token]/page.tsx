@@ -13,6 +13,7 @@ import { customerOrderPath, databaseConfigured, getCompanyProfile } from "@/lib/
 import { shippingFor } from "@/lib/orders/price-lists";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import { displayStatus } from "@/lib/quotes/model";
+import { quoteAnswerOf, QUOTE_ANSWER_PARAM } from "@/lib/quotes/quote-email";
 import { getQuoteByToken, quotePriceModel } from "@/lib/quotes/repository";
 import { quoteShippingMethods } from "@/lib/quotes/shipping";
 import { isOwner } from "@/lib/tenants/model";
@@ -26,11 +27,14 @@ export const dynamic = "force-dynamic";
 
 interface QuotePublicPageProps {
   params: Promise<{ token: string }>;
+  /** `svar` är valet mottagaren gjorde i offertmejlet. Det är bara förvalt: ett klick på sidan bekräftar. */
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function QuotePublicPage({ params }: QuotePublicPageProps) {
+export default async function QuotePublicPage({ params, searchParams }: QuotePublicPageProps) {
   if (!databaseConfigured()) notFound();
   const { token } = await params;
+  const answer = quoteAnswerOf((await searchParams)[QUOTE_ANSWER_PARAM]);
   const quote = await getQuoteByToken(token);
   if (!quote || quote.status === "cancelled") notFound();
   const company = await getCompanyProfile(quote.resellerId);
@@ -225,6 +229,7 @@ export default async function QuotePublicPage({ params }: QuotePublicPageProps) 
               totalInclVatSek={priced.totalInclVatSek}
               shippingOptions={shippingOptions}
               shippingMethod={shippingMethodOf(quote.delivery)}
+              answer={answer}
               deliveryDraft={
                 quote.delivery.to === "customer"
                   ? quote.delivery.address

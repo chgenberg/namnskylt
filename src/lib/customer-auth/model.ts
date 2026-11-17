@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { orgNumberSchema } from "@/lib/company/org-number";
-import { deliveryAddressSchema, type DeliveryAddress } from "@/lib/orders/delivery";
+import { addressFromDraft, deliveryAddressSchema, EMPTY_DELIVERY_DRAFT, type DeliveryAddress, type DeliveryDraft } from "@/lib/orders/delivery";
 
 /**
  * Slutkundens konto (beslut av ägaren 2026-11-17). Kunden loggar in med e-post
@@ -86,6 +86,49 @@ export const profileInputSchema = z.object({
   orgNumber: z.union([z.literal(""), orgNumberSchema], "Organisationsnumret ska ha tio siffror"),
   delivery: deliveryAddressSchema.nullable(),
 }) satisfies z.ZodType<AccountProfile, unknown>;
+
+/** Kundens uppgifter som de skrivs i ett formulär: när kontot skapas och under Mitt konto. */
+export interface ProfileDraft {
+  name: string;
+  company: string;
+  orgNumber: string;
+  delivery: DeliveryDraft;
+}
+
+export const EMPTY_PROFILE_DRAFT: ProfileDraft = { name: "", company: "", orgNumber: "", delivery: EMPTY_DELIVERY_DRAFT };
+
+const draftText = z.string().max(300).catch("");
+const profileDraftSchema = z.object({
+  name: draftText,
+  company: draftText,
+  orgNumber: draftText,
+  delivery: z
+    .object({ name: draftText, contactName: draftText, line1: draftText, line2: draftText, zip: draftText, city: draftText, phone: draftText })
+    .catch(EMPTY_DELIVERY_DRAFT),
+});
+
+export type ProfileResult = { ok: true; profile: AccountProfile } | { ok: false; error: string };
+
+/**
+ * Uppgifterna ur ett formulär, eller felet som ska visas. Allt får lämnas tomt.
+ * En leveransadress som är påbörjad ska däremot vara hel, och ett
+ * organisationsnummer som är ifyllt ska vara rätt.
+ */
+export function profileFromDraft(input: unknown): ProfileResult {
+  const draft = profileDraftSchema.safeParse(input ?? {});
+  if (!draft.success) return { ok: false, error: "Uppgifterna går inte att spara" };
+  const { delivery } = draft.data;
+  const untouched = Object.values(delivery).every((value) => value.trim() === "");
+  const address = untouched ? null : addressFromDraft(delivery);
+  if (address && !address.ok) return { ok: false, error: address.error };
+  const parsed = profileInputSchema.safeParse({
+    name: draft.data.name,
+    company: draft.data.company,
+    orgNumber: draft.data.orgNumber.trim(),
+    delivery: address ? address.address : null,
+  });
+  return parsed.success ? { ok: true, profile: parsed.data } : { ok: false, error: parsed.error.issues[0]?.message ?? "Uppgifterna går inte att spara" };
+}
 
 /** Profilen efter en order: det kunden just fyllde i gäller, och det som inte fylldes i står kvar. */
 export function profileAfterOrder(

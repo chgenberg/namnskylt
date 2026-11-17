@@ -21,9 +21,25 @@ export interface OrderCopy {
   groups: BadgeGroup[];
 }
 
+/** En av säljarens kunder, att välja i varukorgen. */
+export interface CustomerChoice {
+  id: string;
+  /** Företaget, eller personen när kunden saknar företag. */
+  label: string;
+  /** Kontaktperson och e-post. */
+  detail: string;
+  /** Dit en offert mejlas. */
+  email: string;
+}
+
 /** Designern öppnad av återförsäljaren för att lägga en order eller göra en offert åt en kund. */
 export interface ResellerOrderContext {
-  customerId: string;
+  /**
+   * Kunden ordern eller offerten gäller. `null` när den som är inloggad i panelen har gått rakt
+   * till skyltmotorn: kunden väljs då bland de gamla, eller fylls i som ny, i varukorgen
+   * (besked av ägaren 2026-11-17).
+   */
+  customerId: string | null;
   customerName: string;
   /** `quote` sparar en offert — inget går till tillverkningen förrän kunden godkänt. */
   mode: "order" | "quote";
@@ -38,4 +54,10 @@ export interface ResellerOrderContext {
    * eller antal). Dess skyltar ligger i varukorgen när skyltmotorn öppnas.
    */
   copy?: OrderCopy;
+  /** Säljarens kunder att välja bland i varukorgen, när ingen kund är vald i förväg. */
+  customers?: readonly CustomerChoice[];
+  /** En ny kund behöver företag och organisationsnummer: hos namnskylt.com fakturerar Skylt & Gravyrteknik kunden. */
+  needsInvoiceDetails?: boolean;
+  /** Offertmejlet är påslaget: offerten mejlas till kunden direkt när den skapas. */
+  quoteEmail?: boolean;
 }

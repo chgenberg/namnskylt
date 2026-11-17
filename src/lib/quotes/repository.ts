@@ -40,6 +40,7 @@ interface QuoteRow {
   is_demo: boolean;
   created_at: Date;
   sent_at: Date | null;
+  emailed_at: Date | null;
   decided_at: Date | null;
   customer_id: string;
   customer_name: string;
@@ -93,6 +94,7 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
     demo: row.is_demo,
     createdAt: row.created_at.toISOString(),
     sentAt: row.sent_at?.toISOString() ?? null,
+    emailedAt: row.emailed_at?.toISOString() ?? null,
     decidedAt: row.decided_at?.toISOString() ?? null,
     events,
   };
@@ -103,7 +105,7 @@ function selectQuotes(sql: Sql, withShot = false) {
   return sql`
     select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, q.project, q.reseller_id, q.delivery, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
            to_char(q.valid_until, 'YYYY-MM-DD') as valid_until, q.token, q.decline_reason, q.is_demo,
-           q.created_at, q.sent_at, q.decided_at, o.order_no,
+           q.created_at, q.sent_at, q.emailed_at, q.decided_at, o.order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email,
            c.phone as customer_phone, c.org_number as customer_org_number, c.address as customer_address,
            c.is_demo as customer_demo,
@@ -299,6 +301,14 @@ export async function markSent(tenant: string, quoteNo: string): Promise<StoredQ
     return true;
   });
   return updated ? getQuote(tenant, quoteNo) : null;
+}
+
+/** Offerten har mejlats till kunden: tiden sparas, och utskicket syns i offertens tidslinje. */
+export async function markEmailed(quoteId: string): Promise<void> {
+  await requireDb().begin(async (tx) => {
+    await tx`update quotes set emailed_at = now() where id = ${quoteId}`;
+    await addEvent(tx, quoteId, "sent", "Offerten mejlad till kunden");
+  });
 }
 
 /**

@@ -2,6 +2,7 @@ import "server-only";
 import { emailMode } from "@/lib/email";
 import { noticeEmailSettings } from "@/lib/notices/email";
 import { paymentsConfigured } from "@/lib/payments/stripe";
+import { quoteEmailOn } from "@/lib/quotes/send";
 import { supplierApiConfigured } from "@/lib/supplier/client";
 import { dispatchRetryOverview } from "@/lib/supplier/retry";
 import type { RetryOverview } from "@/lib/supplier/retry-rules";
@@ -46,6 +47,7 @@ export async function getOpsStatus(): Promise<OpsStatus> {
   const mail = emailMode() === "live";
   const noticeMail = noticeEmailSettings() !== null;
   const cardPayments = paymentsConfigured();
+  const quoteMail = quoteEmailOn();
   const [runs, retry, logged] = await Promise.all([jobRuns(), dispatchRetryOverview(), listServerErrors(ERRORS_SHOWN)]);
   return {
     switches: [
@@ -57,9 +59,16 @@ export async function getOpsStatus(): Promise<OpsStatus> {
           : "Ordrar sparas och väntar. Ingenting skickas till verkstaden.",
       },
       {
+        label: "Offertmejl",
+        on: quoteMail,
+        text: quoteMail
+          ? "En offert mejlas till kunden när den skickas, via Skylt & Gravyrtekniks Resend."
+          : "Offerter mejlas inte härifrån. Säljaren skickar länken själv.",
+      },
+      {
         label: "Mejl",
         on: mail,
-        text: mail ? "Resend är inkopplat." : "Inget mejl lämnar servern.",
+        text: mail ? "Resend är inkopplat för sajtens övriga mejl och utskicket." : "Inga andra mejl lämnar servern.",
       },
       {
         label: "Besked som mejl",

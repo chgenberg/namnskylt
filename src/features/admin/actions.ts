@@ -36,7 +36,9 @@ import { requireReseller } from "@/lib/reseller-auth/session";
 import { isTrackableSupplierOrder } from "@/lib/supplier/status";
 import { isOwner } from "@/lib/tenants/model";
 
-export type ActionResult = { ok: true; orderNo?: string; url?: string } | { ok: false; error: string };
+export type ActionResult =
+  | { ok: true; orderNo?: string; url?: string; /** Offerten mejlades till kunden. */ emailed?: boolean; /** Varför mejlet inte gick iväg. */ notice?: string | null }
+  | { ok: false; error: string };
 
 const orderNoSchema = z.string().regex(/^NS-\d{1,9}$/);
 const namesSchema = z.string().trim().min(1).max(20_000);

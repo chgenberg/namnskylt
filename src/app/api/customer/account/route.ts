@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { clientKey, createRateLimiter } from "@/lib/ai/rate-limit";
 import { accountView, createCustomerAccount } from "@/lib/customer-auth/accounts";
-import { ACCOUNT_EXISTS_ERROR, customerPasswordSchema, EMPTY_PROFILE } from "@/lib/customer-auth/model";
+import { ACCOUNT_EXISTS_ERROR, customerPasswordSchema, profileFromDraft } from "@/lib/customer-auth/model";
 import { signInCustomer } from "@/lib/customer-auth/session";
 import { isSameSiteJson } from "@/lib/http/same-site";
 import { databaseConfigured } from "@/lib/orders/repository";
@@ -18,8 +18,8 @@ const bodySchema = z.strictObject({
   shop: z.string().regex(SHOP_SLUG).nullish(),
   email: z.email().max(200),
   password: customerPasswordSchema,
-  name: z.string().trim().max(120).optional(),
-  company: z.string().trim().max(120).optional(),
+  /** Kundens uppgifter, om kunden vill fylla i dem direkt. Kassan är då ifylld redan vid första ordern. */
+  profile: z.unknown().optional(),
 });
 
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status });
@@ -40,12 +40,10 @@ export async function POST(request: Request) {
   if (!perClient.take(clientKey(request))) return fail("För många försök. Vänta en stund.", 429);
   const shop = parsed.data.shop ?? null;
   if (shop && !(await getShop(shop))) return fail("Butiken finns inte", 404);
-  const account = await createCustomerAccount({
-    shop,
-    email: parsed.data.email,
-    password: parsed.data.password,
-    profile: { ...EMPTY_PROFILE, name: parsed.data.name ?? "", company: parsed.data.company ?? "" },
-  });
+  // Uppgifterna får lämnas tomma. Det som fylls i ska gå att använda i kassan.
+  const profile = profileFromDraft(parsed.data.profile);
+  if (!profile.ok) return fail(profile.error, 400);
+  const account = await createCustomerAccount({ shop, email: parsed.data.email, password: parsed.data.password, profile: profile.profile });
   if (!account) return fail(ACCOUNT_EXISTS_ERROR, 409);
   const response = NextResponse.json({ account: accountView(account) }, { status: 201 });
   const cookie = await signInCustomer(account);

@@ -57,6 +57,8 @@ export interface StoredQuote {
   demo: boolean;
   createdAt: string;
   sentAt: string | null;
+  /** När offerten senast mejlades till kunden. `null` när den aldrig har mejlats härifrån. */
+  emailedAt: string | null;
   decidedAt: string | null;
   events: QuoteEvent[];
 }

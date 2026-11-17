@@ -25,6 +25,11 @@ Läs dessa när du arbetar i respektive område:
   Utskicket står i `dry_run` och är pausat. Sätt inte heller `NOTICE_FROM_EMAIL`, som slår på
   sajtens egna mejl: besked till återförsäljarna, kundens orderbekräftelse, fraktbeskedet och
   länken för glömt lösenord (se avsnittet Mejl från sajten).
+  - **Enda undantaget är offertmejlet**, som ägaren bad om och slog på 2026-11-17. Det har sin
+    egen strömbrytare, `QUOTE_RESEND_API_KEY` och `QUOTE_FROM_EMAIL`, satta på Railway på
+    ägarens begäran. Ändra dem inte och ta inte bort dem utan att ägaren säger till, och lägg
+    aldrig offertmejlets nyckel i `RESEND_API_KEY`: då slås övriga mejl och utskicket på. Se
+    avsnittet Offertmejlet.
 - **Slå aldrig på kortbetalningen.** `STRIPE_SECRET_KEY` och `STRIPE_WEBHOOK_SECRET` ska vara
   tomma i driften tills användaren har ett Stripe-konto och säger till. Med dem satta betalar
   privatpersoner med kort på riktigt. Se avsnittet Kassan, betalning och köpvillkor.
@@ -56,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1147 tester, grönt 2026-11-17).
+# Kvalitetsgrinden. Kör den innan något lämnas (1176 tester, grönt 2026-11-17).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -911,6 +916,24 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom
   bilden bara visar en av dem, och panelen fyller inte heller i en bild i efterhand
   (`sameDesign` i motorn, `missingBadgeShots`).
+- **Den som är inloggad i panelen kan gå rakt till skyltmotorn** (besked av ägaren
+  2026-11-17): `/skapa` öppnas då i säljarläge, också utan `?kund=`, och kunden väljs i
+  varukorgen. Där finns "Befintlig kund", med säljarens kunder i en sökbar lista, och "Ny
+  kund", med företag, organisationsnummer, kontaktperson, e-post och telefon
+  (`ResellerCustomer` i `sections/reseller-customer.tsx`, `resolveOrderCustomer` i
+  `src/lib/orders/order-customer.ts`). Sedan "Skicka offert" eller "Lägg order", som förut.
+  - En vald kund får adressen från sin senaste order ifylld
+    (`GET /api/admin/customers/<id>/delivery`). En ny kund med en e-post som redan finns hos
+    säljaren är samma kund.
+  - Hos namnskylt.com krävs företag och organisationsnummer, eftersom verkstaden fakturerar
+    kunden: för en ny kund, och för en kund ur listan som saknar dem (annars mejlades en offert
+    som inte går att göra till en order). Hos en återförsäljare får de saknas.
+  - Vid knapparna står alltid vem ordern eller offerten går till, med e-postadressen, och den
+    valda kunden står kvar överst i listan också när sökningen inte träffar den. En offert får
+    aldrig mejlas till en kund som säljaren inte ser.
+  - Följden är att en inloggad admin eller återförsäljare aldrig ser kundens egen kassa på
+    `/skapa`. Den som vill se den använder ett privat fönster. Butikernas skyltmotor är orörd.
+  - Från panelen (`?kund=<id>`) är kunden vald i förväg, som förut, och valet visas inte.
 - **Återförsäljaren utgår från varukorgen** (besked av ägaren 2026-11-16). Från panelen
   (`/admin/ny-order`, `/admin/ny-offert`) öppnas skyltmotorn rakt i editorn, utan startsida
   och startruta, med markören i skyltens första rad.
@@ -966,10 +989,9 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   ordrar är tänkta att gå via kopplingen till verkstadens eget system.
 - Öppet: underlaget per period räknar på månaden ordern lades, inte när den skickades eller
   fakturerades. Ingen har bestämt vilket som gäller för plattformens faktura till verkstaden.
-- **Mejl skickas inte än.** Offertens länk går från återförsäljarens eget mejlprogram. När
-  kunden svarar får återförsäljaren ett besked i panelen (se avsnittet Besked). Kundens
-  orderbekräftelse och fraktbesked är byggda men avstängda, se avsnittet Mejl från sajten.
-  Resend är beslutat men inte inkopplat.
+- **Offerten mejlas till kunden sedan 2026-11-17**, se avsnittet Offertmejlet. När kunden
+  svarar får återförsäljaren ett besked i panelen (se avsnittet Besked). Sajtens övriga mejl
+  (kundens orderbekräftelse och fraktbesked) är byggda men avstängda, se Mejl från sajten.
 - Kontrollerat 2026-11-17 mot den riktiga skyltmotorn, lokalt på samma dator (båda i
   utvecklingsläge): en ny order skickas av sig själv och blir en order i Mottagen där, och
   statusbytena Tillverkning och Skickad kommer tillbaka med spårningslänk. Aldrig provat mot
@@ -1041,7 +1063,8 @@ som syns i panelen. Det återförsäljaren gör själv ger inget besked.
 ## Mejl från sajten — läge 2026-11-15
 
 **Sajten ska inte skicka egna mejl** (besked av ägaren 2026-11-17: "vi ska inte ha någonting
-med Resend att göra"). Kundens orderbekräftelse, statusmejl och faktura kommer från Skylt &
+med Resend att göra"). Samma kväll bad ägaren om ett undantag: offerten mejlas till kunden,
+via Skylt & Gravyrtekniks Resend-konto och med en egen nyckel, se avsnittet Offertmejlet. Kundens orderbekräftelse, statusmejl och faktura kommer från Skylt &
 Gravyrtekniks system, till beställaren på ordern: kunden på en direktorder, återförsäljaren
 annars. Mejlen nedan ligger kvar i koden men ska förbli avstängda tills ägaren säger annat.
 Om beskedet också gäller utskicket till återförsäljare är inte sagt: fråga innan något görs där.
@@ -1166,6 +1189,66 @@ offert, och sidan är öppen förbi sajtspärren. Sidan läses åt kunden, aldri
 - Kända brister: en order med flera designer kan bara beställas om med den första. Kunden kan
   inte öppna sitt korrektur från ordersidan; det har en egen länk.
 
+## Offertmejlet — läge 2026-11-17
+
+En offert mejlas till kunden när den skickas (beslut av ägaren 2026-11-17). Det är det enda
+mejl sajten skickar. Koden ligger i `src/lib/quotes/quote-email.ts` (regler och text) och
+`src/lib/quotes/send.ts` (`sendQuote`).
+
+- **Mejlet går via Skylt & Gravyrtekniks Resend-konto**, med en egen nyckel som bara gäller
+  offerter (ägarens val: "Via deras Resend-konto"). Strömbrytaren är `QUOTE_RESEND_API_KEY`
+  och `QUOTE_FROM_EMAIL` (`quoteEmailSettings`). Den är skild från `RESEND_API_KEY`, så att
+  offertmejlet inte slår på sajtens övriga mejl eller utskicket. Ingenting är ändrat i
+  verkstadens projekt.
+  - I driften är båda satta sedan 2026-11-17. Avsändaradressen är
+    `offert@skyltochgravyr.com`; domänen är den enda som är bekräftad i deras Resend. Adressen
+    valde jag, ägaren angav bara nyckeln: byt den med `QUOTE_FROM_EMAIL` om en annan ska gälla.
+  - Driftsidan visar strömbrytaren "Offertmejl". Utan variablerna skickas inget, och säljaren
+    skickar länken själv från panelen, som förut.
+  - `QUOTE_RESEND_API_URL` är bara till för prov på datorn (en låtsasmottagare i stället för
+    Resend) och gäller bara adresser på samma dator. En adress som inte duger stänger av mejlet,
+    så att ett prov med felskriven adress aldrig blir ett riktigt mejl. Nyckeln går aldrig någon
+    annanstans än till Resend.
+- **Avsändarens namn är säljaren** (ägarens val: "Återförsäljarens namn"): återförsäljarens
+  företagsnamn, eller namnskylt.coms för egna offerter. Svar går till säljarens e-post i
+  företagsuppgifterna, annars kontots. Själva adressen ligger på verkstadens domän, eftersom
+  mejlet går via deras Resend. Mejlet nämner aldrig verkstaden vid namn.
+- **Mejlet går direkt när offerten skapas i varukorgen** (ägarens val: "Direkt"), med
+  listpris. Knappen heter då "Skicka offert". Priset och villkoren går att ändra i panelen
+  efteråt, och "Mejla igen" skickar ett nytt mejl. En demooffert mejlas aldrig.
+  - Går mejlet inte iväg är offerten ändå skickad: kundens länk gäller, och panelen säger att
+    offerten inte har mejlats och låter säljaren mejla igen eller skicka länken själv.
+  - En offert som har gått ut mejlas inte: knapparna skulle leda till en offert som inte går
+    att svara på. Giltigheten förlängs först.
+  - `quotes.emailed_at` (migrering 031) är när offerten senast mejlades. Gränser i processens
+    minne: 60 mejl per säljare och timme, 10 per mottagare och timme och 500 per dygn för hela
+    sajten.
+- **Mejlet har knapparna Godkänn och Neka**, som går till `/offert/<kod>?svar=godkann` eller
+  `?svar=neka`. Länken bestämmer ingenting: valet är förvalt på sidan, och ett klick där
+  bekräftar (ägarens val: "Knapp plus ett bekräftande klick", `quoteAnswerOf`, `answer` i
+  `QuoteDecision`). Mejlprogram öppnar länkar av sig själva, och ett godkännande blir en
+  riktig order hos verkstaden. Saknar offerten leveransadress fyller kunden i den då.
+- Länkarna byggs på `publicOrigin()`, aldrig på förfrågans värdnamn.
+- Provat lokalt 2026-11-17 mot en låtsasmottagare i stället för Resend och en låtsasverkstad:
+  säljaren skickar offert från varukorgen, kunden godkänner från mejlet, ordern går till
+  verkstaden och syns hos säljaren och hos admin. **Inget riktigt mejl har skickats**, varken
+  lokalt eller i drift: första offerten i drift är första provet mot Resend.
+- Granskat av en oberoende agent 2026-11-17: bara en inloggad säljare kan skicka, bara om
+  sin egen offert och bara till offertens kund, och ingenting bestäms av en länk. Fynden är
+  rättade och står som regler ovan.
+- **Avsändaren på namnskylt.coms egna offerter är ägarens företagsuppgifter** under
+  Inställningar: namnet, svarsadressen och raderna under mejlet. De ska stämma innan admin
+  skickar sin första offert (se Ordern till verkstaden om att uppgifterna behövde bytas).
+- Kända brister:
+  - Mejlet går inte att förhandsgranska innan det skickas. Studsar och klagomål syns bara i
+    verkstadens Resend, inte i panelen.
+  - Nyckeln i driften har full åtkomst till deras Resend-konto; en nyckel som bara får skicka
+    räcker och är säkrare.
+  - Svarar Resend inte i tid räknas mejlet som inte skickat, fast det kan ha gått. Mejlar
+    säljaren då igen kan kunden få offerten två gånger.
+  - En ny kund med en e-post som redan finns hos säljaren skriver över den kundens namn och
+    företag, som när kunden läggs upp i panelen.
+
 ## Kundkonton — läge 2026-11-17
 
 En slutkund kan ha ett konto med e-post och lösenord, för att slippa fylla i sina uppgifter
@@ -1186,6 +1269,10 @@ och "Också i återförsäljarnas butiker"). Det är ett tredje inlogg, skilt fr
     ordern, eller kunden bad om fler skyltar från en order på kontot och godkände offerten
     (`reorderAccountId` i `src/lib/quotes/repository.ts`; det sista är min tolkning).
   - En order byter aldrig konto (`attachOrderToAccount` flyttar bara en order utan konto).
+- **På inloggningssidan går uppgifterna att fylla i direkt** när kontot skapas (besked av
+  ägaren 2026-11-17): företag, organisationsnummer, namn och leveransadress, allt valfritt
+  (`ProfileFields`, `profileFromDraft`). Kassan är då ifylld redan vid första ordern. En
+  påbörjad adress ska vara hel, och ett ifyllt organisationsnummer rätt.
 - **Kontot skapas i kassan eller på inloggningssidan.** I kassan är det ett kryss, "Skapa
   konto, så är uppgifterna ifyllda nästa gång och du ser dina ordrar", och ett lösenord på
   minst 8 tecken (`NewAccountField` i `sections/checkout-account.tsx`). Kontot skapas efter

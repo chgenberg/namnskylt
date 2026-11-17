@@ -9,6 +9,7 @@ import {
   normalizeEmail,
   parseProfile,
   profileAfterOrder,
+  profileFromDraft,
   profileInputSchema,
   SESSION_TOKEN_PATTERN,
 } from "./model";
@@ -103,5 +104,38 @@ describe("kundkontots uppgifter", () => {
     const base = { name: "", company: "", orgNumber: "" };
     assert.equal(profileInputSchema.safeParse({ ...base, delivery: ADDRESS }).success, true);
     assert.equal(profileInputSchema.safeParse({ ...base, delivery: { ...ADDRESS, zip: "12" } }).success, false);
+  });
+});
+
+describe("uppgifterna i ett formulär", () => {
+  const EMPTY_ADDRESS = { name: "", contactName: "", line1: "", line2: "", zip: "", city: "", phone: "" };
+
+  test("allt får lämnas tomt", () => {
+    assert.deepEqual(profileFromDraft({ name: "", company: "", orgNumber: "", delivery: EMPTY_ADDRESS }), { ok: true, profile: EMPTY_PROFILE });
+    assert.deepEqual(profileFromDraft(undefined), { ok: true, profile: EMPTY_PROFILE });
+    assert.deepEqual(profileFromDraft({ name: 12, delivery: "x" }), { ok: true, profile: EMPTY_PROFILE });
+  });
+
+  test("ifyllda uppgifter sparas, med organisationsnumret och postnumret som de ska skrivas", () => {
+    const result = profileFromDraft({
+      name: " Anna Lind ",
+      company: "Exempel AB",
+      orgNumber: " 5561234567 ",
+      delivery: { ...EMPTY_ADDRESS, name: "Exempel AB", line1: "Storgatan 1", zip: "11122", city: "Stockholm", phone: "070-123 45 67" },
+    });
+    assert.ok(result.ok);
+    assert.deepEqual(result.profile, {
+      name: "Anna Lind",
+      company: "Exempel AB",
+      orgNumber: "556123-4567",
+      delivery: { name: "Exempel AB", contactName: null, line1: "Storgatan 1", line2: null, zip: "111 22", city: "Stockholm", country: "SE", phone: "070-123 45 67" },
+    });
+  });
+
+  test("en påbörjad leveransadress ska vara hel, och ett ifyllt organisationsnummer rätt", () => {
+    const half = profileFromDraft({ name: "", company: "", orgNumber: "", delivery: { ...EMPTY_ADDRESS, line1: "Storgatan 1" } });
+    assert.equal(half.ok, false);
+    const wrong = profileFromDraft({ name: "", company: "", orgNumber: "123", delivery: EMPTY_ADDRESS });
+    assert.deepEqual(wrong, { ok: false, error: "Organisationsnumret ska ha tio siffror" });
   });
 });

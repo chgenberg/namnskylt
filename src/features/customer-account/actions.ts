@@ -16,11 +16,10 @@ import {
   customerPasswordSchema,
   MAX_PASSWORD_CHARS,
   MIN_CUSTOMER_PASSWORD_CHARS,
-  profileInputSchema,
-  type AccountProfile,
+  profileFromDraft,
+  type ProfileDraft,
 } from "@/lib/customer-auth/model";
 import { currentCustomer, endCustomerSessions, signInCustomer, signedOutCookie, type CustomerCookie } from "@/lib/customer-auth/session";
-import { addressFromDraft, type DeliveryDraft } from "@/lib/orders/delivery";
 import { databaseConfigured } from "@/lib/orders/repository";
 import { SHOP_SLUG } from "@/lib/shops/model";
 
@@ -43,29 +42,13 @@ async function setCookie(cookie: CustomerCookie): Promise<void> {
   (await cookies()).set(cookie.name, cookie.value, cookie.options);
 }
 
-export interface ProfileInput {
-  name: string;
-  company: string;
-  orgNumber: string;
-  delivery: DeliveryDraft;
-}
-
 /** Sparar kundens uppgifter. En helt tom leveransadress betyder att ingen adress sparas. */
-export async function saveProfileAction(shop: string | null, input: ProfileInput): Promise<AccountActionResult> {
+export async function saveProfileAction(shop: string | null, input: ProfileDraft): Promise<AccountActionResult> {
   const account = await signedIn(shop);
   if (!account) return { ok: false, error: NOT_SIGNED_IN };
-  const draft = input?.delivery;
-  const empty = !draft || Object.values(draft).every((value) => typeof value !== "string" || value.trim() === "");
-  const address = empty ? null : addressFromDraft(draft);
-  if (address && !address.ok) return { ok: false, error: address.error };
-  const parsed = profileInputSchema.safeParse({
-    name: input?.name,
-    company: input?.company,
-    orgNumber: typeof input?.orgNumber === "string" ? input.orgNumber.trim() : input?.orgNumber,
-    delivery: address ? address.address : null,
-  });
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Uppgifterna går inte att spara" };
-  await saveAccountProfile(account.id, parsed.data satisfies AccountProfile);
+  const parsed = profileFromDraft(input);
+  if (!parsed.ok) return parsed;
+  await saveAccountProfile(account.id, parsed.profile);
   return { ok: true };
 }
 
