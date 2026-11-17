@@ -30,6 +30,7 @@ const OPEN_PATHS = [
   "/korrektur/",
   "/offert/",
   "/order/",
+  "/konto/losenord/",
   "/butik/",
   "/inbaddning/",
   "/aterforsaljare/",

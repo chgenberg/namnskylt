@@ -4,6 +4,7 @@ import { Designer } from "@/features/designer/designer";
 import { ShopPriceProvider } from "@/features/designer/shop-price";
 import { ShopBeacon } from "@/features/shop/shop-beacon";
 import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
+import { customerDesignerContext } from "@/lib/customer-auth/designer-context";
 import { db } from "@/lib/db/client";
 import { ASSET_ID_PATTERN } from "@/lib/outreach/badge-asset";
 import { getAssetBadge } from "@/lib/outreach/repository";
@@ -14,7 +15,8 @@ import { engravingFontFor } from "@/lib/shops/typeface";
 
 interface ShopDesignerPageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ t?: string | string[]; d?: string | string[]; f?: string | string[] }>;
+  /** `igen` är en av den inloggade kundens ordrar i butiken, som ska beställas igen. */
+  searchParams: Promise<{ t?: string | string[]; d?: string | string[]; f?: string | string[]; igen?: string | string[] }>;
 }
 
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
@@ -34,6 +36,7 @@ export default async function ShopDesignerPage({ params, searchParams }: ShopDes
   // En butik utan ägare säljer som namnskylt.com: då sköter verkstaden ordern mot kunden.
   const direct = (await getShopOwner(shop.slug)) === null;
   const shared = (await decodeShareCode(first(query.d))) ?? (await outreachBadge(first(query.f)));
+  const customer = await customerDesignerContext(shop.slug, first(query.igen));
   return (
     <main>
       <ShopBeacon slug={shop.slug} kind="design" />
@@ -45,6 +48,7 @@ export default async function ShopDesignerPage({ params, searchParams }: ShopDes
           initialDoc={shared}
           shop={{ slug: shop.slug, name: shop.profile.name, priceList: shop.priceList ?? null, direct }}
           initialFont={engravingFontFor(shop.font)}
+          {...customer}
         />
       </ShopPriceProvider>
     </main>

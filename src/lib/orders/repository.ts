@@ -242,6 +242,31 @@ export async function listCustomerOrders(tenant: string, customerId: string): Pr
   return rows.map((row) => toOrder(row, model, "reseller"));
 }
 
+/** Ordrarna som lades av ett inloggat kundkonto, nyast först, lästa åt kunden: aldrig med inköpspriser. */
+export async function listAccountOrders(accountId: string): Promise<StoredOrder[]> {
+  const sql = requireDb();
+  const rows = await sql<OrderRow[]>`${selectOrders(sql)} where o.account_id = ${accountId} order by o.placed_at desc limit 200`;
+  const model = await getPriceModel();
+  return rows.map((row) => toOrder(row, model, "customer"));
+}
+
+/** En av kontots ordrar, läst åt kunden. `null` när ordern inte hör till kontot. */
+export async function getAccountOrder(accountId: string, orderNo: string): Promise<StoredOrder | null> {
+  const sql = requireDb();
+  const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.account_id = ${accountId} and o.order_no = ${orderNo}`;
+  return row ? toOrder(row, await getPriceModel(), "customer") : null;
+}
+
+/**
+ * Lägger en order på ett kundkonto som skapades i samma kassa. Bara en order
+ * utan konto flyttas, så att en order aldrig byter ägare.
+ */
+export async function attachOrderToAccount(accountId: string, orderNo: string): Promise<boolean> {
+  const rows = await requireDb()`
+    update orders set account_id = ${accountId} where order_no = ${orderNo} and account_id is null returning id`;
+  return rows.length > 0;
+}
+
 export interface NewOrder {
   customer: { name: string; email: string; company?: string | null; orgNumber?: string | null };
   badges: BadgeDocument[];
@@ -263,6 +288,8 @@ export interface NewOrder {
   delivery?: Delivery | null;
   /** Betalningen, när ordern är betald med kort. Utelämnad = faktura. */
   payment?: OrderPayment | null;
+  /** Kundkontot som var inloggat när ordern lades. Ordern visas då på kundens sida. */
+  accountId?: string | null;
   /** Återförsäljaren ordern tillhör; webbshoppen och butikerna är ägarens. */
   tenant: string;
 }
@@ -290,14 +317,16 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
     const [saved] = await tx<{ id: string; order_no: string; customer_token: string }[]>`
       insert into orders (customer_id, status, badges, pricing, price_model, total_sek, total_incl_vat_sek,
                           supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug, reseller_id, project,
-                          delivery, payment)
+                          delivery, payment, account_id)
       values (${customer.id}, ${order.status}, ${tx.json(badges as unknown as Json)},
               ${pricing ? tx.json(pricing as unknown as Json) : null}, ${tx.json(model as unknown as Json)},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
               ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false},
               ${order.badgeShot ?? null}, ${order.shopSlug ?? null}, ${tenant}, ${order.project ?? null},
               ${order.delivery ? tx.json(order.delivery as unknown as Json) : null},
-              ${order.payment ? tx.json(order.payment as unknown as Json) : null})
+              ${order.payment ? tx.json(order.payment as unknown as Json) : null},
+              -- Ett konto som hann tas bort får aldrig stoppa ordern: då sparas den utan konto.
+              (select id from customer_accounts where id = ${order.accountId ?? null}))
       returning id, order_no, customer_token`;
     if (!saved) throw new Error("Ordern kunde inte sparas");
     await tx`insert into order_events (order_id, status, note, at) values (${saved.id}, ${order.status}, ${order.note ?? null}, ${placedAt})`;

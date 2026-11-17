@@ -143,6 +143,17 @@ export async function getQuoteByToken(token: string): Promise<StoredQuote | null
   return row ? toQuote(row, await getPriceModel(), "customer") : null;
 }
 
+/**
+ * Kundkontot bakom ordern som offerten bygger vidare på, när kunden bad om
+ * fler skyltar med samma design från sin ordersida. Den nya ordern hör då
+ * till samma konto. `null` för alla andra offerter.
+ */
+export async function reorderAccountId(quoteId: string): Promise<string | null> {
+  const [row] = await requireDb()<{ account_id: string | null }[]>`
+    select o.account_id from quotes q join orders o on o.id = q.reorder_of where q.id = ${quoteId}`;
+  return row?.account_id ?? null;
+}
+
 export async function createQuote(input: {
   tenant: string;
   customerId: string;

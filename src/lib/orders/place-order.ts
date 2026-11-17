@@ -35,6 +35,8 @@ export interface PlaceOrderInput {
   delivery?: Delivery | null;
   /** Betalningen, när kunden redan har betalat med kort. Utelämnad = ordern faktureras. */
   payment?: OrderPayment | null;
+  /** Kundkontot som var inloggat när ordern lades. */
+  accountId?: string | null;
   /** Återförsäljaren ordern tillhör; webbshoppen och butikerna är ägarens. */
   tenant: string;
 }
@@ -104,6 +106,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     project: input.project,
     delivery: input.delivery,
     payment: input.payment,
+    accountId: input.accountId,
     tenant: input.tenant,
   });
 

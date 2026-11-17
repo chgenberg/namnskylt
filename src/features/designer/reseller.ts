@@ -15,6 +15,12 @@ export interface ShopContext {
   direct?: boolean;
 }
 
+/** En tidigare order som öppnas i skyltmotorn för att beställas igen, med ändringar. */
+export interface OrderCopy {
+  orderNo: string;
+  groups: BadgeGroup[];
+}
+
 /** Designern öppnad av återförsäljaren för att lägga en order eller göra en offert åt en kund. */
 export interface ResellerOrderContext {
   customerId: string;
@@ -31,5 +37,5 @@ export interface ResellerOrderContext {
    * En tidigare order som öppnas för ändring ("Beställ igen" med andra namn
    * eller antal). Dess skyltar ligger i varukorgen när skyltmotorn öppnas.
    */
-  copy?: { orderNo: string; groups: BadgeGroup[] };
+  copy?: OrderCopy;
 }

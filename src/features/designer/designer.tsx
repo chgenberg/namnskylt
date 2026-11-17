@@ -28,11 +28,13 @@ import {
   type FontId,
 } from "@/engine";
 import { useFontEngine } from "@/hooks/use-font-engine";
+import type { CustomerAccountView } from "@/lib/customer-auth/model";
 import { WEB_SCOPE } from "@/lib/designer-stats/model";
 import { openedWith, savedWorkKey, type RestoredWork } from "@/lib/designer-work/model";
 import { useVisualize } from "@/features/visualize/use-visualize";
 import { VisualizeView } from "@/features/visualize/visualize-view";
 import { BadgeEditor } from "./badge-editor";
+import { CartAccount } from "./cart-account";
 import { CartButton } from "./cart-button";
 import { CartDrawer } from "./cart-drawer";
 import cartStyles from "./cart.module.css";
@@ -51,7 +53,7 @@ import type { BadgeRecorder } from "./three/recorder";
 import { shareBadge } from "./share";
 import { videoFileName } from "./video-file";
 import { OnboardingDialog } from "./onboarding-dialog";
-import type { ResellerOrderContext, ShopContext } from "./reseller";
+import type { OrderCopy, ResellerOrderContext, ShopContext } from "./reseller";
 import { designerReducer, type DesignerAction } from "./state";
 import { isChoice, useDesignerSteps } from "./use-designer-steps";
 import { useSavedWork } from "./use-saved-work";
@@ -80,6 +82,13 @@ const FIRST_ROW_LABEL = "Rad 1";
 function focusFirstRow({ onlyEmpty = false }: { onlyEmpty?: boolean } = {}): void {
   const input = document.querySelector<HTMLInputElement>(`input[aria-label="${FIRST_ROW_LABEL}"]`);
   if (input && (!onlyEmpty || input.value.trim() === "")) input.focus();
+}
+/** Ordern är lagd: `igen` tas ur adressen, så att en omladdning inte öppnar samma order i varukorgen en gång till. */
+function forgetReorderInAddress(): void {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("igen")) return;
+  url.searchParams.delete("igen");
+  window.history.replaceState(window.history.state, "", url);
 }
 /** Ett varv runt skylten i 3D-filmen. */
 const VIDEO_SECONDS = 6;
@@ -128,11 +137,39 @@ interface DesignerProps {
    * skrivs i editorn efteråt.
    */
   fromStart?: boolean;
+  /**
+   * Kundkonton finns här: inloggningen visas högst upp i varukorgen, och
+   * kassan erbjuder ett konto. Av utan databas.
+   */
+  accounts?: boolean;
+  /** Kunden som är inloggad när sidan öppnas. Kassan fylls i med kontots uppgifter. */
+  customer?: CustomerAccountView | null;
+  /** En av den inloggade kundens tidigare ordrar, öppnad med "Beställ igen": dess skyltar ligger i varukorgen. */
+  reorder?: OrderCopy;
 }
 
-export function Designer({ initialText, initialDoc, reseller, shop, initialFont, cardPayments, fromStart = false }: DesignerProps) {
-  /** En tidigare order som återförsäljaren öppnar för ändring: dess designer ligger i varukorgen från början. */
-  const copy = reseller?.copy && reseller.copy.groups.length > 0 ? reseller.copy : null;
+export function Designer({
+  initialText,
+  initialDoc,
+  reseller,
+  shop,
+  initialFont,
+  cardPayments,
+  fromStart = false,
+  accounts = false,
+  customer = null,
+  reorder,
+}: DesignerProps) {
+  /**
+   * En tidigare order som öppnas för ändring, av återförsäljaren åt en kund eller av kunden själv
+   * med "Beställ igen": dess designer ligger i varukorgen från början.
+   */
+  const opened = reseller?.copy ?? reorder;
+  const copy = opened && opened.groups.length > 0 ? opened : null;
+  /** Kunden som är inloggad. Byts när kunden loggar in eller ut i varukorgen, eller skapar konto i kassan. */
+  const [account, setAccount] = useState<CustomerAccountView | null>(customer);
+  /** Ordern som beställs igen. Gäller den första ordern som läggs, inte nästa. */
+  const [repeatOf, setRepeatOf] = useState<string | null>(() => (!reseller && reorder ? reorder.orderNo : null));
   const [doc, dispatch] = useReducer(designerReducer, initialText, (text) => {
     // En delad eller äldre skylt kan bära ett material eller mått som inte säljs längre.
     if (initialDoc) return toOfferedDocument(initialDoc);
@@ -695,6 +732,19 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
             : `${cart.length === 1 ? "1 design" : `${cart.length} designer`} · ${cartQuantity} st`
         }
       >
+        {/* Längst upp: en kund som har beställt förut loggar in och får kassan ifylld. */}
+        {accounts && !reseller && (
+          <CartAccount
+            shop={shop?.slug ?? null}
+            account={account}
+            onChange={(next) => {
+              setAccount(next);
+              // Den som loggar ut tar sina uppgifter med sig: kassan börjar om tom, så att nästa
+              // person vid samma dator inte möts av dem. Ett kvitto som står kvar rörs inte.
+              if (!next && !ordered) setCheckoutRound((round) => round + 1);
+            }}
+          />
+        )}
         {cart.length === 0 && !ordered && (
           <p className={cartStyles.empty}>
             Varukorgen är tom. Designa skylten och lägg den i varukorgen med knappen vid priset. Flera olika skyltar går i
@@ -733,9 +783,15 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
           captureShot={() => (cart.length === 1 ? cartShot.current : null)}
           cart={designerCart}
           visitId={visitId}
+          accounts={accounts}
+          account={account}
+          onAccount={setAccount}
+          repeatOf={repeatOf}
           onStep={(step) => {
             track(step);
             if (step !== "ordered") return;
+            setRepeatOf(null);
+            forgetReorderInAddress();
             // Ordern är lagd: varukorgen ska inte komma tillbaka nästa gång.
             saved.finish();
             // Återförsäljaren skickas vidare till panelen. Kundens kvitto står kvar i en tom varukorg.

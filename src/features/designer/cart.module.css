@@ -160,3 +160,48 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* ── Inloggningen högst upp i varukorgen ── */
+
+.account {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  font-size: var(--text-sm);
+}
+
+.accountLead {
+  margin: 0;
+  color: var(--color-ink-2);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.accountLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+}
+
+.accountLinks a,
+.accountLinks button {
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-navy);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.accountLinks a {
+  display: inline-flex;
+  align-items: center;
+}

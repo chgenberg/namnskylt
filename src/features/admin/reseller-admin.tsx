@@ -10,7 +10,7 @@ import styles from "./admin.module.css";
 type Link = Extract<LinkResult, { ok: true }>;
 
 /** Länken som ska skickas vidare: går att kopiera eller öppna i ett färdigt mejl. Den visas bara nu. */
-function LinkBox({ link, subject, body }: { link: Link; subject: string; body: string }) {
+export function LinkBox({ link, subject, body }: { link: Link; subject: string; body: string }) {
   const [copied, setCopied] = useState(false);
   const mailto = `mailto:${link.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(`${body}\n\n${link.url}\n`)}`;
   return (

@@ -1,4 +1,5 @@
 import "server-only";
+import { pruneCustomerSessions } from "@/lib/customer-auth/session";
 import { pruneDesignerEvents } from "@/lib/designer-stats/repository";
 import { deleteUnusedLogoFiles } from "@/lib/logo-images/cleanup";
 import { pruneUnpaidCheckouts } from "@/lib/payments/checkout";
@@ -39,6 +40,12 @@ export const JOBS: readonly Job[] = [
     label: "Rensning av skyltmotorns statistik äldre än ett halvår",
     everyMs: DAY_MS,
     run: async () => `${await pruneDesignerEvents()} rader borttagna`,
+  },
+  {
+    name: "customer-session-prune",
+    label: "Rensning av kundernas inloggningar som har gått ut",
+    everyMs: DAY_MS,
+    run: async () => `${await pruneCustomerSessions()} inloggningar borttagna`,
   },
   {
     name: "logo-cleanup",

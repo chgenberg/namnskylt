@@ -15,6 +15,7 @@ import {
   getQuote,
   quotePriceModel,
   releaseAcceptance,
+  reorderAccountId,
   saveAcceptedDelivery,
 } from "./repository";
 
@@ -91,6 +92,8 @@ export async function acceptQuote(
       badgeShot: quote.badgeShot,
       project: quote.project,
       delivery,
+      // Fler skyltar beställda från en order på ett kundkonto hamnar på samma konto.
+      accountId: await reorderAccountId(quote.id),
       tenant,
     });
     await saveAcceptedDelivery(quote.id, delivery);

@@ -34,7 +34,7 @@ export const IMAGE_ID = /^[A-Za-z0-9_-]{10,40}$/;
 export const PAGE_PATH = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 /** Butikens egna adresser — en sida får inte heta som dem. */
 const RESERVED_PATHS = new Set([
-  "skapa", "logo", "ikon", "mejlbild", "bild", "forhandsvisning", "api", "admin", "korrektur", "offert", "inbaddning",
+  "skapa", "logo", "ikon", "mejlbild", "bild", "forhandsvisning", "api", "admin", "korrektur", "offert", "inbaddning", "konto",
 ]);
 /** Länkar till webbsidor, egna sidor, ankare, mejl och telefon — inget javascript:. */
 const HREF = /^(https?:\/\/[^\s<>"]+|\/[^\s<>"]*|#[\w-]*|mailto:[^\s<>"]+|tel:[+\d\s-]+)$/i;

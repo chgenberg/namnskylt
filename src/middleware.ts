@@ -22,7 +22,7 @@ const MAIN_HOSTS = (process.env.SITE_HOSTS ?? "namnskylt.com,www.namnskylt.com,l
   .filter(Boolean);
 
 /** Personliga länkar och butiker som inte ska indexeras, oavsett vad sidan själv säger. */
-const NOINDEX_PREFIXES = ["/for/", "/butik/", "/aterforsaljare/", "/order/", "/offert/", "/betalning/"];
+const NOINDEX_PREFIXES = ["/for/", "/butik/", "/aterforsaljare/", "/order/", "/offert/", "/betalning/", "/konto"];
 
 const domainCache = new Map<string, { slug: string | null; until: number }>();
 

@@ -24,9 +24,11 @@ import {
   type ShownPricePart,
 } from "@/engine";
 import { useOrderShipping } from "@/hooks/use-order-shipping";
+import { accountPaths, type CustomerAccountView } from "@/lib/customer-auth/model";
 import { formatSek } from "@/lib/format";
 import {
   DELIVERY_TO_LABEL,
+  draftFromAddress,
   EMPTY_DELIVERY_DRAFT,
   needsPhone,
   shippingAddressFromDraft,
@@ -40,6 +42,7 @@ import type { CustomerType } from "@/lib/payments/model";
 import { shopPrice, shopPriceParts } from "@/lib/shops/price-list";
 import type { ResellerOrderContext, ShopContext } from "../reseller";
 import type { DesignerAction } from "../state";
+import { contactFor, NewAccountField, type NewAccountChoice } from "./checkout-account";
 import styles from "./sections.module.css";
 
 /** Snabbval för antal; det sista är första antalet på nästa trappsteg i prismodellen. */
@@ -64,9 +67,15 @@ type OrderState =
   | { status: "idle" }
   | { status: "form"; message?: string }
   | { status: "sending" }
-  | { status: "done"; orderNumber: string; shipDate: string; orderPath: string | null; atWorkshop: boolean }
+  | { status: "done"; orderNumber: string; shipDate: string; orderPath: string | null; atWorkshop: boolean; account: AccountNote }
   | { status: "requested"; requestNumber: string }
   | { status: "error"; message: string };
+
+/**
+ * Vad kvittot säger om kundens konto: det skapades med ordern, ordern ligger på kontot kunden var
+ * inloggad på, eller e-postadressen hade redan ett konto. `null` = ordern lades utan konto.
+ */
+type AccountNote = "created" | "signed-in" | "exists" | null;
 
 const sek = new Intl.NumberFormat("sv-SE", { style: "currency", currency: "SEK", maximumFractionDigits: 0 });
 
@@ -131,6 +140,17 @@ interface OrderSectionProps {
   visitId?: () => string | null;
   /** Varukorgen. Order och offert görs alltid från den. */
   cart: DesignerCart;
+  /** Kundkonton finns här: kassan erbjuder då ett konto åt den som inte är inloggad. */
+  accounts?: boolean;
+  /** Kunden som är inloggad. Kassan fylls i med kontots uppgifter, och ordern läggs på kontot. */
+  account?: CustomerAccountView | null;
+  /**
+   * Kontot ändrades av en order: det skapades i kassan, eller fick de uppgifter som just fylldes i.
+   * `null` när servern svarar att inloggningen inte gäller längre.
+   */
+  onAccount?: (account: CustomerAccountView | null) => void;
+  /** En av kontots tidigare ordrar som den här beställs igen från. */
+  repeatOf?: string | null;
 }
 
 /**
@@ -168,6 +188,10 @@ export function OrderSection({
   onStep,
   visitId,
   cart,
+  accounts = false,
+  account = null,
+  onAccount,
+  repeatOf = null,
 }: OrderSectionProps) {
   const checkout = mode === "checkout";
   // En kund som beställer själv möts av formuläret direkt i varukorgen. Återförsäljaren väljer först order eller offert.
@@ -185,8 +209,9 @@ export function OrderSection({
   const methods: readonly ShippingMethod[] = shop ? SHOP_METHODS : privateCustomer ? CARD_METHODS : ALL_METHODS;
   // Ett leveranssätt som inte finns för den som beställer faller tillbaka på standardfrakten.
   const method = methods.includes(chosenMethod) ? chosenMethod : "standard";
+  // En inloggad kund får adressen från sin senaste order.
   const [addresses, setAddresses] = useState<DeliveryOptions>(
-    () => reseller?.delivery ?? { customer: EMPTY_DELIVERY_DRAFT, reseller: EMPTY_DELIVERY_DRAFT },
+    () => reseller?.delivery ?? { customer: draftFromAddress(account?.profile.delivery), reseller: EMPTY_DELIVERY_DRAFT },
   );
   const sectionRef = useRef<HTMLElement>(null);
   // Formulären hör till kassan. Efter ett fel står kundens formulär kvar med det som fyllts i, så att det går att skicka igen.
@@ -217,7 +242,21 @@ export function OrderSection({
   const standardShipping = useOrderShipping(badges, reseller?.purchaseList, Boolean(reseller) || (formOpen && active));
   // Det kunden har fyllt i om sig själv. Det ligger här och inte i fälten, så att det står kvar
   // när formuläret försvinner en stund, till exempel när varukorgens enda skylt öppnas för ändring.
-  const [contact, setContact] = useState({ company: "", orgNumber: "", name: "", email: "", terms: false });
+  // En inloggad kund får sina uppgifter ifyllda.
+  const [contact, setContact] = useState(() => contactFor(account));
+  /** Den som inte är inloggad kan skapa ett konto med ordern. */
+  const [newAccount, setNewAccount] = useState<NewAccountChoice>({ wanted: false, password: "" });
+  // Kunden loggade in i varukorgen medan kassan var öppen: kontots uppgifter fylls i då.
+  const filledFor = useRef(account?.email ?? null);
+  useEffect(() => {
+    const email = account?.email ?? null;
+    if (filledFor.current === email) return;
+    filledFor.current = email;
+    if (!account) return;
+    setContact((current) => contactFor(account, current));
+    const saved = account.profile.delivery;
+    if (saved) setAddresses((all) => ({ ...all, customer: draftFromAddress(saved) }));
+  }, [account]);
   // Upphämtning har ingen frakt. Expressfrakten sätter verkstaden i efterhand, så den är inte med i summan.
   const shipping = method === "standard" ? standardShipping : 0;
   const checkoutSek = price.totalSek + (shipping ?? 0);
@@ -247,6 +286,8 @@ export function OrderSection({
   const valid = useMemo(() => badges.every((badge) => badgeDocumentSchema.safeParse(badge).success), [badges]);
   // I kassan gäller det varukorgens skyltar, vid priset skylten i editorn.
   const partnerMade = (checkout ? badges : [doc]).some((badge) => isPartnerMade(badge.materialId));
+  // Ett konto skapas tillsammans med en order som faktureras. Kortbetalningen lämnar sidan innan ordern finns.
+  const offersAccount = accounts && !account && !privateCustomer;
 
   /** Återförsäljaren: ordern eller offerten läggs på kunden och panelen öppnar den. */
   async function submitForCustomer(context: ResellerOrderContext, kind: "order" | "quote") {
@@ -312,15 +353,23 @@ export function OrderSection({
           shippingMethod: method,
           acceptedTerms: form.get("acceptedTerms") === "on",
           ...(privateCustomer && { visit: visitId?.() ?? undefined }),
+          ...(offersAccount && newAccount.wanted && { account: { password: newAccount.password } }),
+          // Kassan visar kunden som inloggad. Gäller inloggningen inte längre säger servern till före ordern.
+          ...(account && { expectsAccount: true }),
+          ...(account && repeatOf && { repeatOf }),
         }),
       });
       const body = await response.json();
+      // Inloggningen har gått ut eller avslutats i en annan flik. Varukorgen visar det, och det ifyllda står kvar.
+      if (!response.ok && body.signedOut) onAccount?.(null);
       if (!response.ok) throw new Error(body.error ?? "Något gick fel");
       // En privatperson betalar med kort hos Stripe. Ordern läggs när betalningen är klar.
       if (body.status === "payment" && typeof body.url === "string") {
         window.location.href = body.url;
         return;
       }
+      // Kontot bär nu det som just fylldes i, eller skapades med ordern.
+      if (body.account) onAccount?.(body.account as CustomerAccountView);
       onStep?.("ordered");
       if (body.status === "request") {
         setOrder({ status: "requested", requestNumber: body.orderNumber });
@@ -333,6 +382,7 @@ export function OrderSection({
         orderPath: typeof body.customerToken === "string" ? `/order/${body.customerToken}` : null,
         // Bara en order som verkstaden har tagit emot får deras bekräftelse.
         atWorkshop: body.status === "received",
+        account: body.accountStatus === "created" || body.accountStatus === "exists" ? body.accountStatus : body.account ? "signed-in" : null,
       });
     } catch (error) {
       setOrder({ status: "error", message: error instanceof Error ? error.message : "Något gick fel" });
@@ -602,6 +652,7 @@ export function OrderSection({
                 onChange={(event) => setContact({ ...contact, email: event.target.value })}
               />
             </label>
+            {offersAccount && <NewAccountField value={newAccount} onChange={setNewAccount} disabled={order.status === "sending"} />}
             <div className={styles.delivery}>
               <p className={styles.specTitle}>Leveransadress</p>
               <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} phoneRequired={needsPhone(method)} />
@@ -667,10 +718,18 @@ export function OrderSection({
           {shop && !shop.direct
             ? ` ${shop.name} hör av sig med orderbekräftelse.`
             : order.atWorkshop && !reseller && !privateCustomer && !partnerMade && " Orderbekräftelsen kommer från Skylt & Gravyrteknik."}
+          {order.account === "created" && " Ditt konto är skapat, och du är inloggad."}
+          {order.account === "exists" && " Det fanns redan ett konto med e-postadressen, så inget nytt skapades."}
           {order.orderPath && (
             <>
               {" "}
               <a href={order.orderPath}>Följ din order</a>
+            </>
+          )}
+          {(order.account === "created" || order.account === "signed-in") && (
+            <>
+              {" · "}
+              <a href={accountPaths(shop?.slug ?? null).home}>Mitt konto</a>
             </>
           )}
         </motion.div>

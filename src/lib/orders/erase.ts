@@ -3,6 +3,7 @@ import type { Sql, TransactionSql } from "postgres";
 import { z } from "zod";
 import { requireDb } from "@/lib/db/client";
 import { isTrackableSupplierOrder } from "@/lib/supplier/status";
+import { isOwner } from "@/lib/tenants/model";
 import { parseDelivery } from "./delivery";
 import {
   ERASED_CUSTOMER_NAME,
@@ -71,9 +72,21 @@ export async function customerErasurePlan(tenant: string, customerId: string): P
  */
 export async function eraseCustomerIn(tx: TransactionSql, tenant: string, customerId: string): Promise<CustomerErasure | null> {
   if (!z.uuid().safeParse(customerId).success) return null;
-  const [customer] = await tx<{ id: string; company: string | null }[]>`
-    select id, company from customers where id = ${customerId} and reseller_id = ${tenant} for update`;
+  const [customer] = await tx<{ id: string; company: string | null; email: string }[]>`
+    select id, company, email from customers where id = ${customerId} and reseller_id = ${tenant} for update`;
   if (!customer) return null;
+  // Kundens eget konto bär samma uppgifter och tas bort med kunden: på namnskylt.com och i butiker
+  // utan ägare för namnskylt.coms kunder, i återförsäljarens butiker för dess kunder. Kontot känns
+  // igen på e-postadressen, eller på att kundens ordrar ligger på det: den som är inloggad kan
+  // beställa med en annan adress än kontots.
+  await tx`
+    delete from customer_accounts a
+     where (a.email = ${customer.email} or a.id in (select o.account_id from orders o where o.customer_id = ${customerId}))
+       and ${
+         isOwner(tenant)
+           ? tx`(a.shop_slug is null or exists (select 1 from shops s where s.slug = a.shop_slug and s.owner_id is null))`
+           : tx`exists (select 1 from shops s where s.slug = a.shop_slug and s.owner_id = ${tenant})`
+       }`;
   const orders = await customerOrders(tx, customerId, true);
   const kept = orders.filter(keeps);
   const removed = orders.filter((order) => !keeps(order)).map((order) => order.id);
@@ -93,8 +106,9 @@ export async function eraseCustomerIn(tx: TransactionSql, tenant: string, custom
   }
   for (const order of kept) {
     const delivery = erasedDelivery(parseDelivery(order.delivery), Boolean(customer.company?.trim()));
+    // En order som står kvar för bokföringen visas inte längre på något kundkonto.
     await tx`
-      update orders set badge_shot = null,
+      update orders set badge_shot = null, account_id = null,
              badges = ${tx.json(erasedBadges(order.badges) as Json)},
              delivery = ${delivery ? tx.json(delivery as unknown as Json) : null}
        where id = ${order.id}`;

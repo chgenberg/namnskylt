@@ -31,6 +31,8 @@ const payloadSchema = z.object({
   badgeShot: z.string().nullable(),
   /** Besökets id i skyltmotorns statistik; saknas i äldre kassor. */
   visit: z.string().nullish(),
+  /** Kundkontot som var inloggat i kassan; saknas i äldre kassor. */
+  accountId: z.uuid().nullish(),
 });
 
 export interface CheckoutOrder {
@@ -40,6 +42,8 @@ export interface CheckoutOrder {
   badgeShot: string | null;
   /** Besökets slumpade id i skyltmotorns statistik, så att den betalda ordern räknas till besöket. */
   visit?: string | null;
+  /** Kundkontot som var inloggat i kassan. Den betalda ordern visas då på kundens sida. */
+  accountId?: string | null;
 }
 
 /** Det kunden betalar med kort: skyltarna och frakten, med moms, i ören. */
@@ -142,6 +146,7 @@ export async function completeCheckout(sessionId: string): Promise<CheckoutOutco
       priceModel: storedPriceModel(row.price_model, await getPriceModel()),
       delivery: order.delivery,
       badgeShot: order.badgeShot,
+      accountId: order.accountId ?? null,
       payment: {
         method: "card",
         provider: "stripe",

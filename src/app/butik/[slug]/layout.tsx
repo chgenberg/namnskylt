@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { ShopFrame } from "@/features/shop/shop-frame";
+import { accountPaths } from "@/lib/customer-auth/model";
+import { currentCustomer } from "@/lib/customer-auth/session";
 import { siteOrigin } from "@/lib/http/origin";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { databaseConfigured } from "@/lib/orders/repository";
@@ -45,11 +47,17 @@ export const dynamic = "force-dynamic";
 export default async function ShopLayout({ children, params }: ShopLayoutProps) {
   const shop = await loadShop((await params).slug);
   if (!shop) notFound();
-  const [light, content] = await Promise.all([isLightLogo(shop.profile.logo), getPublishedContent(shop.slug)]);
+  const [light, content, customer] = await Promise.all([
+    isLightLogo(shop.profile.logo),
+    getPublishedContent(shop.slug),
+    currentCustomer(shop.slug),
+  ]);
+  const paths = accountPaths(shop.slug);
+  const account = customer ? { href: paths.home, label: "Mitt konto" } : { href: paths.login, label: "Logga in" };
   const plate = light ? darkPlate(shop.profile.primaryColor) : null;
   const menu = shopMenu(content);
   return (
-    <ShopFrame shop={shop} logoPlate={plate} pages={menu.pages} stepsId={menu.stepsId}>
+    <ShopFrame shop={shop} logoPlate={plate} pages={menu.pages} stepsId={menu.stepsId} account={account}>
       {children}
     </ShopFrame>
   );

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CustomerAccounts } from "@/features/admin/customer-accounts";
 import { adminTenant } from "@/features/admin/guard";
 import styles from "@/features/admin/admin.module.css";
 import { formatRelative, formatSek } from "@/lib/format";
@@ -62,6 +63,7 @@ export default async function CustomersPage() {
           </Link>
         ))}
       </div>
+      <CustomerAccounts tenant={tenant} />
     </>
   );
 }

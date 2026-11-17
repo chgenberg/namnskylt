@@ -15,10 +15,12 @@ interface ShopFrameProps {
   /** Butikens egna sidor efter startsidan. */
   pages: readonly NavPage[];
   stepsId: string | null;
+  /** Länken till kundens konto i butiken: inloggningen, eller Mitt konto för den som är inloggad. Utelämnad i förhandsvisningen. */
+  account?: { href: string; label: string };
   children: ReactNode;
 }
 
-export function ShopFrame({ shop, logoPlate, pages, stepsId, children }: ShopFrameProps) {
+export function ShopFrame({ shop, logoPlate, pages, stepsId, account, children }: ShopFrameProps) {
   const { profile } = shop;
   const webFamilies = shopWebFamilies(shop.font);
   return (
@@ -45,6 +47,15 @@ export function ShopFrame({ shop, logoPlate, pages, stepsId, children }: ShopFra
           </Link>
           <nav className={styles.nav} aria-label="Butiksmeny">
             <ShopNav base={shopPath(shop)} pages={pages} stepsId={stepsId} variant="header" />
+            {account && (
+              <Link href={account.href} className={styles.account} aria-label={account.label}>
+                <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+                  <circle cx="10" cy="7" r="3.2" />
+                  <path d="M3.8 16.5c.9-2.8 3.3-4.3 6.2-4.3s5.3 1.5 6.2 4.3" strokeLinecap="round" />
+                </svg>
+                <span className={styles.accountText}>{account.label}</span>
+              </Link>
+            )}
             <Link href={shopPath(shop, "/skapa")} className={`btn btn--primary ${styles.navCta}`}>
               Skapa skylt
             </Link>

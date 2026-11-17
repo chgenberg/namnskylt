@@ -595,6 +595,48 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
        where key = 'price_model' and value->'options' ? 'extraEngraving';
     `,
   },
+  {
+    // Slutkundens konto (beslut av ägaren 2026-11-17): e-post och lösenord, så att kunden slipper
+    // fylla i sina uppgifter igen och ser sina ordrar. Ett konto hör till namnskylt.com
+    // (`shop_slug` tomt) eller till en butik, och samma e-post får ha ett konto på varje ställe.
+    // - customer_accounts.profile: det kunden fyllde i senast, som kassan fylls i med nästa gång.
+    // - customer_sessions: en inloggning. Kakan bär en slumpad kod, och här ligger bara dess SHA-256.
+    // - customer_access_links: länken för nytt lösenord, som panelens ägare skapar. Bara dess SHA-256 sparas.
+    // - orders.account_id: ordern lades av ett inloggat konto och visas på kundens sida.
+    id: "030_customer_accounts",
+    sql: `
+      create table customer_accounts (
+        id uuid primary key default gen_random_uuid(),
+        shop_slug text references shops(slug) on delete cascade,
+        email text not null,
+        password_hash text not null,
+        profile jsonb not null default '{}'::jsonb,
+        created_at timestamptz not null default now(),
+        last_login_at timestamptz
+      );
+      create unique index customer_accounts_scope_email on customer_accounts (coalesce(shop_slug, ''), email);
+
+      create table customer_sessions (
+        token_hash text primary key check (token_hash ~ '^[0-9a-f]{64}$'),
+        account_id uuid not null references customer_accounts(id) on delete cascade,
+        created_at timestamptz not null default now(),
+        expires_at timestamptz not null
+      );
+      create index customer_sessions_account on customer_sessions (account_id);
+      create index customer_sessions_expires on customer_sessions (expires_at);
+
+      create table customer_access_links (
+        token_hash text primary key check (token_hash ~ '^[0-9a-f]{64}$'),
+        account_id uuid not null references customer_accounts(id) on delete cascade,
+        created_at timestamptz not null default now(),
+        expires_at timestamptz not null,
+        used_at timestamptz
+      );
+
+      alter table orders add column account_id uuid references customer_accounts(id) on delete set null;
+      create index orders_account on orders (account_id, placed_at desc) where account_id is not null;
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

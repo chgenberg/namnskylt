@@ -56,7 +56,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1120 tester, grönt 2026-11-17).
+# Kvalitetsgrinden. Kör den innan något lämnas (1147 tester, grönt 2026-11-17).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -92,6 +92,7 @@ pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
 | `src/lib/orders/`, `quotes/`, `production/` | Ordrar (med leveransadress, `delivery.ts`), offerter och korrektur, verkstadens arkpackning. |
 | `src/lib/supplier/` | Kontraktet mot Skylt & Gravyrteknik: `types.ts` (kontraktet), `map.ts` (skylt → deras dokument), `request.ts` (hela anropet), `dispatch.ts` (utskicket), `client.ts`, statuswebhook. |
 | `src/lib/reseller-auth/` | Återförsäljarnas konton, inlogg, ansökningar (`applications.ts`) och hemliga länkar för att välja lösenord (`access-links.ts`). |
+| `src/lib/customer-auth/` | Slutkundens konto: regler (`model.ts`), lagring (`accounts.ts`), inloggningens kaka (`session.ts`), lösenordslänken (`access-links.ts`) och webbläsarens anrop (`client.ts`). Se avsnittet Kundkonton. |
 | `src/lib/outreach/` | Utskicket till återförsäljare (se nedan). 42 filer i en platt mapp, vilket är känd skuld. |
 | `src/lib/email/` | Transport: `ResendEmailSender` och `MockEmailSender`, som skriver `.eml` till `tmp/outreach-outbox`. |
 | `src/lib/notices/` | Besked till panelens ägare när en kund har svarat eller beställt: texter (`model.ts`), lagring, `notify` och mejlet bakom en strömbrytare. |
@@ -666,6 +667,9 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
 
 ## Inlogg — läge 2026-11-14
 
+Slutkunden har sedan 2026-11-17 ett eget konto, se avsnittet Kundkonton. Det ger aldrig
+tillträde till panelen.
+
 Panelen ligger under `/admin` för båda parter, men det finns två skilda inlogg:
 
 - **Admin** (namnskylt.com): `/admin`, bara lösenord (`RESELLER_PASSWORD`), `POST /api/admin/session`
@@ -707,7 +711,8 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
   order och inställningarna; namnskylt.com ser demodatans välkomstyta. Översikten har knapparna
   Ny offert och Ny order.
 - Formuläret är `LoginForm` (`kind: "admin" | "reseller"`) i `src/features/admin/login-form.tsx`.
-  Sajtens meny länkar "Logga in" till `/aterforsaljare` och visar "Admin" eller "Mina sidor".
+  Sajtens meny visar "Admin" eller "Mina sidor" för den som är inloggad i panelen. "Logga in"
+  går sedan 2026-11-17 till kundens inloggning, som länkar vidare till `/aterforsaljare`.
 - **Bara admin** ser Tillverkning, Återförsäljare, Butiker, Utskick, Prismodell och Provision
   (sidor, actions och API-vägar kontrollerar `isOwner`). Varje adminsida kontrollerar inloggningen själv med `adminTenant()`.
 - **Provision** (`/admin/provision`) är adminens samlade vy över ordrarna verkstaden fakturerar:
@@ -1123,7 +1128,8 @@ på faktura, privatpersoner betalar med kort.**
   - Sist står ett eget stycke, "På namnskylt.com": att namnskylt.com förmedlar beställningen
     (med företagsuppgifterna ur panelen), vad som sparas här, att bara nödvändiga kakor
     används och att Google Analytics, Google Ads och Meta Pixel inte används här, att
-    varukorgen sparas i webbläsaren, och statistiken utan kakor. Lägg till något där om
+    varukorgen sparas i webbläsaren, statistiken utan kakor, och sedan 2026-11-17 vad ett
+    kundkonto sparar och att inloggningen bärs av en nödvändig kaka. Lägg till något där om
     sajten börjar använda annat, till exempel ett analysverktyg.
   - **Avsnittet om utskicket till återförsäljare är borttaget**, eftersom det hade
     platshållare för avsändare, rättslig grund och lagringstid. Utskickets mejl och
@@ -1160,6 +1166,102 @@ offert, och sidan är öppen förbi sajtspärren. Sidan läses åt kunden, aldri
 - Kända brister: en order med flera designer kan bara beställas om med den första. Kunden kan
   inte öppna sitt korrektur från ordersidan; det har en egen länk.
 
+## Kundkonton — läge 2026-11-17
+
+En slutkund kan ha ett konto med e-post och lösenord, för att slippa fylla i sina uppgifter
+igen och för att se sina ordrar (beslut av ägaren 2026-11-17, som valde "E-post och lösenord"
+och "Också i återförsäljarnas butiker"). Det är ett tredje inlogg, skilt från admin och
+återförsäljare. Koden ligger i `src/lib/customer-auth/` och `src/features/customer-account/`.
+
+- **Ett konto hör till ett ställe:** namnskylt.com (`customer_accounts.shop_slug` tomt) eller
+  en butik. Samma e-post får ha ett konto på varje ställe, och ett konto i en butik gäller
+  aldrig i en annan eller på namnskylt.com. Kakan heter `ns_kund` eller `ns_kund_<butik>`,
+  eftersom butikerna ligger på samma adress som namnskylt.com. Tabellerna kom med migrering 030.
+- **Sajten skickar inga mejl, så e-postadressen bekräftas aldrig.** Följden är regeln som
+  bär hela upplägget: **kontot visar bara ordrar som lades inloggad** (`orders.account_id`),
+  aldrig äldre ordrar med samma e-post. Annars kunde vem som helst skapa ett konto med någon
+  annans adress och läsa dess ordrar. Av samma skäl har kontot sina egna uppgifter
+  (`customer_accounts.profile`) och läser aldrig kundens rad i `customers`.
+  - En order hamnar på kontot på tre sätt: kunden var inloggad i kassan, kontot skapades med
+    ordern, eller kunden bad om fler skyltar från en order på kontot och godkände offerten
+    (`reorderAccountId` i `src/lib/quotes/repository.ts`; det sista är min tolkning).
+  - En order byter aldrig konto (`attachOrderToAccount` flyttar bara en order utan konto).
+- **Kontot skapas i kassan eller på inloggningssidan.** I kassan är det ett kryss, "Skapa
+  konto, så är uppgifterna ifyllda nästa gång och du ser dina ordrar", och ett lösenord på
+  minst 8 tecken (`NewAccountField` i `sections/checkout-account.tsx`). Kontot skapas efter
+  att ordern är lagd (`POST /api/orders`), så ett fel med kontot aldrig stoppar en order. Har
+  e-postadressen redan ett konto säger kassan det före ordern, så att kunden kan logga in.
+  Krysset finns inte för en privatperson som betalar med kort.
+  - Frågan om e-postadressen redan har ett konto ställs sist, när ordern annars skulle läggas,
+    och har en gräns på 10 per klient och timme. Annars gick det att fråga sig fram till vilka
+    som har konto utan att beställa.
+- **Inloggningen** är `POST /api/customer/session` (e-post, lösenord och butik), utloggningen
+  `DELETE` på samma väg och kontot från inloggningssidan `POST /api/customer/account`.
+  Inloggningar är rader i `customer_sessions`, där bara kakans SHA-256 ligger, och gäller i
+  180 dagar. Gränser i processens minne: 20 försök per klient och 10 per konto och timme.
+  - **Bara sajtens egna anrop får logga in eller skapa konto** (`isSameSiteJson` i
+    `src/lib/http/same-site.ts`): anropet ska bära `application/json` och får inte komma från
+    en annan sajt. Annars kunde en främmande sida logga in besökaren på någon annans konto, så
+    att besökarens nästa order och uppgifter hamnade där. Ta inte bort kontrollen.
+  - Sidhuvudets "Logga in" går till kundens inloggning `/konto/logga-in` (förut till
+    återförsäljarnas), som länkar vidare till "Logga in som återförsäljare". Inloggad kund ser
+    "Mitt konto". Butikens sidhuvud har samma länk till butikens konto.
+  - **Högst upp i varukorgen** står "Har du beställt förut? Logga in, så är dina uppgifter
+    ifyllda." med ett formulär som fälls ut, och på namnskylt.com länken "Logga in som
+    återförsäljare" (besked av ägaren 2026-11-17, `CartAccount` i `cart-account.tsx`).
+    Inloggningen fyller i kassan direkt, utan att sidan laddas om. Formuläret är delat med
+    inloggningssidan (`CustomerLoginForm` i `src/components/`).
+- **Kassan fylls i ur kontot** (`contactFor`): företag, organisationsnummer, namn, e-post och
+  leveransadressen från senaste ordern. Villkoren kryssas alltid i på nytt. Efter varje order
+  får kontot det kunden just fyllde i (`profileAfterOrder`).
+  - Den som loggar ut i varukorgen tar sina uppgifter med sig: kassan börjar om tom, så att
+    nästa person vid samma dator inte möts av dem.
+  - Gäller inloggningen inte längre när ordern skickas (utloggad i en annan flik) läggs ingen
+    order: kassan säger till, visar inloggningen igen och behåller det ifyllda
+    (`expectsAccount` i anropet, `signedOut` i svaret). Så hamnar en order aldrig utanför
+    kontot utan att kunden märker det.
+- **Mitt konto** (`/konto` och `/butik/<slug>/konto`, `AccountPage`): ordrarna nyast först med
+  status, antal och summa, knapparna Beställ igen, Visa order (kundens ordersida) och Följ
+  försändelsen, och formulär för uppgifterna, lösenordet och "Ta bort mitt konto". Ordrarna
+  läses åt kunden, aldrig med inköpspriser (`listAccountOrders`).
+- **Beställ igen** öppnar skyltmotorn med orderns skyltar i varukorgen
+  (`/skapa?igen=<ordernummer>`, `customerDesignerContext`), precis som återförsäljarens
+  "Ändra först". Bara en order som hör till det inloggade kontot öppnas. Den nya ordern pekar
+  tillbaka på den gamla (`repeatOf`) och får dagens pris. När ordern är lagd tas `igen` ur
+  adressen, så att en omladdning inte öppnar samma order i varukorgen en gång till.
+- **Glömt lösenord** löses i panelen: under Kunder finns listan "Kundkonton" med knappen
+  Lösenordslänk (`CustomerAccounts`, `customerPasswordLinkAction`). Länken gäller i tre dagar
+  och en gång, visas en gång och skickas för hand. Sidan `/konto/losenord/<kod>` är öppen förbi
+  sajtspärren. Ett nytt lösenord, från länken eller från Mitt konto, avslutar kontots övriga
+  inloggningar och gör väntande länkar ogiltiga.
+  - namnskylt.com sköter sina egna kunders konton och dem i butiker utan ägare. En
+    återförsäljare sköter kontona i sina butiker och ser inga andra (`managedCustomerAccount`).
+- **Radering:** kunden tar själv bort sitt konto. Tas en kund bort i panelen följer kontot med
+  samma e-post med (se Radering), och en butik som tas bort tar sina konton med sig. Ordrarna
+  står alltid kvar hos säljaren, utan koppling till kontot. Inloggningar som gått ut rensas av
+  jobbet `customer-session-prune`.
+- Provat lokalt i webbläsaren 2026-11-17, på dator och mobil och mot produktionsbygget:
+  konto i kassan, Mitt konto, Beställ igen, inloggning i varukorgen, lösenordslänken, en
+  butik utan ägare och en återförsäljares butik. Inte provat i drift, och inte i Safari.
+- Granskat av en oberoende agent 2026-11-17. Den hittade ingen väg till någon annans konto
+  eller ordrar. Sju fynd är rättade (de står som regler ovan), ett står under Kända brister.
+- Kända brister:
+  - En order från en godkänd offert, eller som återförsäljaren lägger åt kunden i panelen,
+    visas inte på kundens konto. Äldre ordrar utan konto går inte att lägga till i efterhand.
+  - Med sajtspärren på hamnar den som valt nytt lösenord på `/konto`, som kräver sajtkoden.
+  - Lösenordslänken byggs på panelens adress. En butik med egen domän får alltså en länk till
+    butiken på namnskylt.com, och kunden loggar sedan in på den egna domänen med lösenordet.
+  - Öppnas `/skapa?igen=…` av någon som inte är inloggad längre öppnas en tom skyltmotor.
+  - En privatperson som betalar med kort kan inte skapa konto i kassan. Den som redan är
+    inloggad får däremot den betalda ordern på kontot.
+  - Gränserna för inloggningsförsök nollas vid omstart, som sajtens övriga gränser.
+  - Den som känner en kunds e-postadress kan låsa kundens inloggning en timme i taget med tio
+    fel lösenord. Det är priset för taket mot att gissa lösenord. Kassan fungerar ändå utan
+    inloggning, och en lösenordslänk från panelen loggar in kunden.
+  - Återförsäljarnas och adminens inloggning (`/api/reseller/session`, `/api/admin/session`)
+    har inte kontrollen `isSameSiteJson`. Den som luras logga in där hamnar i fel panel, vilket
+    syns direkt, men det är samma slags lucka och inte åtgärdat.
+
 ## Radering — läge 2026-11-15
 
 Kunder, ansökningar och konton går att ta bort, så att en begäran om radering går att uppfylla
@@ -1178,6 +1280,11 @@ och testdata går att städa bort. Reglerna ligger i `src/lib/orders/erase-model
   telefon tas ur leveransen. Dialogen säger i förväg vad som tas bort och vad som behålls.
 - En borttagen kund syns inte i kundlistan eller i väljarna för ny order och offert, och kan
   inte få nya ordrar (`isErasedCustomer`, känns igen på e-postadressen).
+- **Kundens eget konto tas bort med kunden** (2026-11-17): kontot med samma e-post hos samma
+  säljare, alltså på namnskylt.com och i butiker utan ägare för namnskylt.coms kunder, och i
+  återförsäljarens butiker för dess kunder. Också ett konto med en annan e-post tas bort när
+  kundens ordrar ligger på det, eftersom den som är inloggad kan beställa med en annan adress
+  än kontots. Ordrar som behålls för bokföringen visas inte längre på något konto.
 - **Ta bort ansökan** och **Ta bort konto** finns under `/admin/aterforsaljare`, bara för
   admin (`src/lib/reseller-auth/erase.ts`). Ett konto tar med sig sina kunder (enligt regeln
   ovan), offerter, besked, inställningar, butiker och ansökningar. Bokföringsordrar står kvar
@@ -1198,7 +1305,7 @@ och testdata går att städa bort. Reglerna ligger i `src/lib/orders/erase-model
   är en rad i `JOBS`. Senaste körning sparas i `settings` under `maintenance_jobs`. Schemat
   körs även i `next dev`, mot utvecklingsdatabasen.
   - `dispatch-retry` (var 10:e minut), `error-log-prune`, `checkout-prune`,
-    `designer-events-prune` och `logo-cleanup` (en gång per dygn).
+    `designer-events-prune`, `customer-session-prune` och `logo-cleanup` (en gång per dygn).
 - **Omförsök av utskick till verkstaden** (`retryFailedDispatches` i
   `src/lib/supplier/retry.ts`, migrering 027): gör ingenting med kopplingen av. Annars provas
   ordrar som **redan har ett misslyckat försök** igen efter 10 min, 30 min, 2 h, 6 h och 24 h,

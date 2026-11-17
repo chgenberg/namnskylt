@@ -1,0 +1,107 @@
+import assert from "node:assert/strict";
+import { describe, test } from "node:test";
+import {
+  accountPaths,
+  customerCookieName,
+  customerPasswordSchema,
+  EMPTY_PROFILE,
+  MIN_CUSTOMER_PASSWORD_CHARS,
+  normalizeEmail,
+  parseProfile,
+  profileAfterOrder,
+  profileInputSchema,
+  SESSION_TOKEN_PATTERN,
+} from "./model";
+
+const ADDRESS = {
+  name: "Exempel AB",
+  contactName: "Anna Lind",
+  line1: "Storgatan 1",
+  line2: null,
+  zip: "111 22",
+  city: "Stockholm",
+  country: "SE" as const,
+  phone: "070-123 45 67",
+};
+
+describe("kundkontots plats", () => {
+  test("namnskylt.com och varje butik har sin egen kaka", () => {
+    assert.equal(customerCookieName(null), "ns_kund");
+    assert.equal(customerCookieName("exempel-profil"), "ns_kund_exempel-profil");
+    assert.notEqual(customerCookieName("a"), customerCookieName("b"));
+  });
+
+  test("sidorna ligger på namnskylt.com eller i butiken", () => {
+    assert.deepEqual(
+      { home: accountPaths(null).home, login: accountPaths(null).login, designer: accountPaths(null).designer },
+      { home: "/konto", login: "/konto/logga-in", designer: "/skapa" },
+    );
+    const shop = accountPaths("exempel-profil");
+    assert.equal(shop.home, "/butik/exempel-profil/konto");
+    assert.equal(shop.login, "/butik/exempel-profil/konto/logga-in");
+    assert.equal(shop.password("abc"), "/butik/exempel-profil/konto/losenord/abc");
+    assert.equal(shop.reorder("NS-1052"), "/butik/exempel-profil/skapa?igen=NS-1052");
+  });
+
+  test("e-postadressen sparas utan mellanslag och med gemener", () => {
+    assert.equal(normalizeEmail("  Anna.Lind@Exempel.SE "), "anna.lind@exempel.se");
+  });
+});
+
+describe("kundkontots lösenord och koder", () => {
+  test("lösenordet har en minsta längd", () => {
+    assert.equal(customerPasswordSchema.safeParse("a".repeat(MIN_CUSTOMER_PASSWORD_CHARS - 1)).success, false);
+    assert.equal(customerPasswordSchema.safeParse("a".repeat(MIN_CUSTOMER_PASSWORD_CHARS)).success, true);
+    assert.equal(customerPasswordSchema.safeParse("a".repeat(201)).success, false);
+  });
+
+  test("en kod är 32 byte i base64url och inget annat", () => {
+    assert.equal(SESSION_TOKEN_PATTERN.test("A".repeat(43)), true);
+    assert.equal(SESSION_TOKEN_PATTERN.test("A".repeat(42)), false);
+    assert.equal(SESSION_TOKEN_PATTERN.test(`${"A".repeat(42)}/`), false);
+  });
+});
+
+describe("kundkontots uppgifter", () => {
+  test("en sparad profil läses, och det som saknas eller är trasigt blir tomt", () => {
+    assert.deepEqual(parseProfile(null), EMPTY_PROFILE);
+    assert.deepEqual(parseProfile({}), EMPTY_PROFILE);
+    assert.deepEqual(parseProfile({ name: "Anna Lind", company: 12, delivery: { name: "x" } }), { ...EMPTY_PROFILE, name: "Anna Lind" });
+    assert.deepEqual(parseProfile({ name: "Anna Lind", company: "Exempel AB", orgNumber: "556123-4567", delivery: ADDRESS }), {
+      name: "Anna Lind",
+      company: "Exempel AB",
+      orgNumber: "556123-4567",
+      delivery: ADDRESS,
+    });
+  });
+
+  test("efter en order gäller det kunden just fyllde i", () => {
+    const before = { name: "Anna Lind", company: "Gamla AB", orgNumber: "556123-4567", delivery: ADDRESS };
+    const next = { ...ADDRESS, line1: "Nygatan 2" };
+    assert.deepEqual(profileAfterOrder(before, { name: "Anna Berg", company: "Nya AB", orgNumber: "556765-4321" }, next), {
+      name: "Anna Berg",
+      company: "Nya AB",
+      orgNumber: "556765-4321",
+      delivery: next,
+    });
+  });
+
+  test("det som inte fylldes i står kvar", () => {
+    const before = { name: "Anna Lind", company: "Exempel AB", orgNumber: "556123-4567", delivery: ADDRESS };
+    assert.deepEqual(profileAfterOrder(before, { name: " ", company: null }, null), before);
+  });
+
+  test("organisationsnumret får vara tomt men inte fel, och sparas med bindestreck", () => {
+    const base = { name: "Anna Lind", company: "Exempel AB", delivery: null };
+    assert.equal(profileInputSchema.safeParse({ ...base, orgNumber: "" }).success, true);
+    assert.equal(profileInputSchema.safeParse({ ...base, orgNumber: "12345" }).success, false);
+    const parsed = profileInputSchema.safeParse({ ...base, orgNumber: "5561234567" });
+    assert.equal(parsed.success && parsed.data.orgNumber, "556123-4567");
+  });
+
+  test("en leveransadress som fylls i ska vara hel", () => {
+    const base = { name: "", company: "", orgNumber: "" };
+    assert.equal(profileInputSchema.safeParse({ ...base, delivery: ADDRESS }).success, true);
+    assert.equal(profileInputSchema.safeParse({ ...base, delivery: { ...ADDRESS, zip: "12" } }).success, false);
+  });
+});

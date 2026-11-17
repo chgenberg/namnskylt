@@ -28,7 +28,8 @@ export function DeleteCustomerButton({ customerId, name, plan }: DeleteCustomerB
     >
       <p className={styles.muted}>{customerErasureSummary(plan)}</p>
       <p className={styles.muted}>
-        Kundens namn, e-post, telefon och adress raderas, liksom namnen på skyltarna i de ordrar som behålls. Det går inte att ångra.
+        Kundens namn, e-post, telefon och adress raderas, liksom namnen på skyltarna i de ordrar som behålls. Har kunden ett konto
+        för inloggning tas det också bort. Det går inte att ångra.
       </p>
     </DangerDialog>
   );

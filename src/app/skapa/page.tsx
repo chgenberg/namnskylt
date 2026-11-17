@@ -3,6 +3,7 @@ import { badgeGroups, engravedRows, toOfferedDocument } from "@/engine";
 import { resellerPriceTable } from "@/engine/price-model";
 import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
+import { customerDesignerContext } from "@/lib/customer-auth/designer-context";
 import { siteOrigin } from "@/lib/http/origin";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
@@ -21,6 +22,8 @@ interface SkapaPageProps {
     kopia?: string | string[];
     offert?: string | string[];
     projekt?: string | string[];
+    /** En av den inloggade kundens ordrar som ska beställas igen. */
+    igen?: string | string[];
   }>;
 }
 
@@ -80,6 +83,8 @@ export default async function SkapaPage({ searchParams }: SkapaPageProps) {
   const params = await searchParams;
   const shared = await decodeShareCode(first(params.d));
   const reseller = await resellerContext(first(params.kund), first(params.offert) === "1", first(params.projekt), first(params.kopia));
+  // Kundens eget konto gäller inte när en återförsäljare lägger en order åt en kund.
+  const customer = reseller ? null : await customerDesignerContext(null, first(params.igen));
   return (
     <main>
       <Designer
@@ -87,6 +92,7 @@ export default async function SkapaPage({ searchParams }: SkapaPageProps) {
         initialDoc={shared}
         reseller={reseller}
         cardPayments={paymentsConfigured() && databaseConfigured()}
+        {...customer}
         // Startsidans ruta skickar alltid med `t`, även tomt: då visas startrutan utan namn också.
         fromStart={first(params.t) !== undefined}
       />
