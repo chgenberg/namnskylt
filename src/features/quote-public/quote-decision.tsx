@@ -6,7 +6,7 @@ import { DeliveryFields } from "@/components/delivery-fields";
 import { ShippingMethodPicker } from "@/components/shipping-method-picker";
 import type { ShippingMethod } from "@/engine";
 import { formatSek } from "@/lib/format";
-import { addressFromDraft, type DeliveryDraft } from "@/lib/orders/delivery";
+import { needsPhone, shippingAddressFromDraft, type DeliveryDraft } from "@/lib/orders/delivery";
 import { decideQuoteAction } from "./actions";
 import styles from "./quote-public.module.css";
 
@@ -53,7 +53,7 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingO
   const send = (accept: boolean) => {
     setError(null);
     // Godkännandet behöver adressen; ett nej behöver den inte.
-    const delivery = accept && address ? addressFromDraft(address) : null;
+    const delivery = accept && address ? shippingAddressFromDraft(address, method) : null;
     if (delivery && !delivery.ok) {
       setError(delivery.error);
       return;
@@ -131,7 +131,7 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingO
           {address && (
             <div className={styles.delivery}>
               <p className={styles.label}>Vart ska skyltarna skickas?</p>
-              <DeliveryFields value={address} onChange={setAddress} disabled={pending} />
+              <DeliveryFields value={address} onChange={setAddress} disabled={pending} phoneRequired={needsPhone(method)} />
             </div>
           )}
           {shippingOptions.length > 1 && (

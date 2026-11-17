@@ -12,12 +12,16 @@ import {
   type FontEngine,
   type PriceTable,
 } from "@/engine";
+import { orgNumberDigits } from "@/lib/company/org-number";
 import type { CompanyProfile } from "@/lib/company/profile";
-import { shippingMethodOf, type Delivery, type DeliveryAddress } from "@/lib/orders/delivery";
+import { guessAddress, shippingMethodOf, type Delivery, type DeliveryAddress } from "@/lib/orders/delivery";
+import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { splitByProducer } from "@/lib/orders/partner";
+import { OWNER_TENANT } from "@/lib/tenants/model";
 import { toSupplierSignDocument } from "./map";
 import type {
   SupplierAddress,
+  SupplierBillingAddress,
   SupplierBuyer,
   SupplierOrderRequest,
   SupplierShippingMethod,
@@ -44,24 +48,71 @@ export function dispatchProblems(order: { badges: readonly BadgeDocument[]; deli
   const problems: string[] = [];
   if (!order.delivery) problems.push("Leveransadress saknas");
   if (!buyer?.orgNumber) problems.push("Återförsäljarens organisationsnummer saknas");
+  // Verkstaden läser tio siffror, även ur ett momsnummer eller ett nummer med sekel. Allt annat
+  // nekar den för gott, så ett sådant nummer ska rättas här i stället för att skickas.
+  else if (!orgNumberDigits(buyer.orgNumber)) problems.push("Återförsäljarens organisationsnummer ska ha tio siffror");
   if (!buyer?.email) problems.push("Återförsäljarens e-postadress saknas");
   if (splitByProducer(order.badges).workshop.length === 0) problems.push("Ordern har inga skyltar som verkstaden tillverkar");
   return problems;
 }
 
+/** Verkstadens gränser för adressens fält. En längre adress skickas hellre inte alls än stoppar ordern. */
+const BILLING_LINE_MAX = 200;
+const BILLING_CITY_MAX = 120;
+
+/**
+ * Fakturaadressen ur företagets fria adresstext, när den går att läsa som gata,
+ * postnummer och ort. Står företagets namn först i texten hoppas det över, så
+ * att gatan hamnar som gata, vare sig adressen är skriven på flera rader eller
+ * med komma emellan (delarna är desamma som `guessAddress` läser). `null` när
+ * adressen inte går att läsa säkert: då följer bara den fria texten med.
+ */
+function billingAddress(text: string, companyName: string): SupplierBillingAddress | null {
+  const parts = text
+    .split(/[\n,]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const withoutName = parts[0]?.toLowerCase() === companyName.trim().toLowerCase() ? parts.slice(1).join("\n") : text;
+  const { line1, line2, zip, city } = guessAddress(withoutName);
+  if (!line1 || !zip || !city) return null;
+  if (line1.length > BILLING_LINE_MAX || line2.length > BILLING_LINE_MAX || city.length > BILLING_CITY_MAX) return null;
+  return { line1, ...(line2 && { line2 }), zip, city, country: "SE" };
+}
+
 /** Beställaren hos verkstaden ur återförsäljarens uppgifter. E-posten är företagets adress för fakturor, annars företagets, annars kontots. */
 export function supplierBuyer(tenant: string, company: CompanyProfile, accountEmail: string | null): SupplierBuyer {
+  const billing = billingAddress(company.address, company.name);
+  const email = company.invoiceEmail || company.email || accountEmail || "";
+  const contactEmail = company.email || accountEmail || "";
   return {
     id: tenant,
     name: company.name,
     orgNumber: company.orgNumber,
-    email: company.invoiceEmail || company.email || accountEmail || "",
+    email,
+    ...(contactEmail && contactEmail !== email && { contactEmail }),
     ...(company.phone && { phone: company.phone }),
     ...(company.address && { address: company.address }),
+    ...(billing && { billingAddress: billing }),
   };
 }
 
-function supplierAddress(address: DeliveryAddress): SupplierAddress {
+/**
+ * Adressen transportören aviserar leveransen på. namnskylt.coms egna kunder
+ * aviseras direkt. I övrigt aviseras återförsäljaren, på sin vanliga adress
+ * och inte fakturabrevlådan: både när skyltarna går dit och när de går till
+ * återförsäljarens kund (beslut av ägaren 2026-11-17: verkstaden står som
+ * avsändare i aviseringen och ska inte synas för butikens kund). Vid
+ * upphämtning aviseras ingen. En borttagen kund har ingen adress att avisera på.
+ */
+function notificationEmail(input: Pick<SupplierRequestInput, "buyer" | "customer" | "delivery">): string {
+  if (shippingMethodOf(input.delivery) === "pickup") return "";
+  const reseller = (input.buyer.contactEmail || input.buyer.email).trim();
+  const ownCustomer = input.delivery.to === "customer" && input.buyer.id === OWNER_TENANT && !isErasedCustomer(input.customer);
+  return (ownCustomer && input.customer.email.trim()) || reseller;
+}
+
+/** `email` är adressen transportören aviserar på, se `notificationEmail`. */
+function supplierAddress(address: DeliveryAddress, email: string): SupplierAddress {
   return {
     name: address.name,
     ...(address.contactName && { contactName: address.contactName }),
@@ -71,6 +122,7 @@ function supplierAddress(address: DeliveryAddress): SupplierAddress {
     city: address.city,
     country: address.country,
     ...(address.phone && { phone: address.phone }),
+    ...(email && { email }),
   };
 }
 
@@ -148,7 +200,7 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
     shipping: {
       method: supplierShippingMethod(input.delivery, price.goodsSek, input.purchaseList),
       costSek: price.shippingSek,
-      address: supplierAddress(input.delivery.address),
+      address: supplierAddress(input.delivery.address, notificationEmail(input)),
     },
     lines,
     minimumTopUpSek: price.minimumTopUpSek,

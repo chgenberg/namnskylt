@@ -1,6 +1,6 @@
 import "server-only";
 import type { ShippingMethod } from "@/engine";
-import { shippingMethodOf, type Delivery, type DeliveryAddress } from "@/lib/orders/delivery";
+import { deliveryPhoneIssue, shippingMethodOf, type Delivery, type DeliveryAddress } from "@/lib/orders/delivery";
 import { isOwner } from "@/lib/tenants/model";
 import { customerLabel } from "@/lib/notices/model";
 import { notify } from "@/lib/notices/notify";
@@ -22,6 +22,7 @@ import {
 export type AcceptResult = { ok: true; orderNo: string; orderPath: string | null } | { ok: false; error: string };
 
 export const MISSING_DELIVERY_ERROR = "Fyll i leveransadressen innan offerten godkänns.";
+export const MISSING_PHONE_ERROR = "Fyll i telefon på leveransen innan offerten godkänns. Transportören aviserar på den.";
 
 /**
  * Vart den godkända offertens skyltar ska. Ska de till kunden gäller adressen
@@ -39,6 +40,17 @@ export function acceptedDelivery(
   const address = toCustomer ? (fromCustomer ?? quote.delivery.address) : quote.delivery.address;
   const method = (toCustomer ? chosen : null) ?? shippingMethodOf(quote.delivery);
   return address ? { to: quote.delivery.to, address, ...(method !== "standard" && { method }) } : null;
+}
+
+/**
+ * Det som stoppar ett godkännande på grund av leveransen, eller `null`. Utan
+ * adress går offerten aldrig att godkänna. Godkänner återförsäljaren åt kunden
+ * frågas ingen om telefonen, så numret ska då stå på offerten när skyltarna
+ * fraktas. Kunden fyller i det själv i sitt formulär.
+ */
+export function acceptanceIssue(delivery: Delivery | null, byReseller: boolean): string | null {
+  if (!delivery) return MISSING_DELIVERY_ERROR;
+  return byReseller && deliveryPhoneIssue(delivery.address, delivery.method) ? MISSING_PHONE_ERROR : null;
 }
 
 /**
@@ -62,7 +74,8 @@ export async function acceptQuote(
     return { ok: false, error: "Leveranssättet går inte att välja för den här offerten." };
   }
   const delivery = acceptedDelivery(before, address, method);
-  if (!delivery) return { ok: false, error: MISSING_DELIVERY_ERROR };
+  const issue = acceptanceIssue(delivery, byReseller);
+  if (!delivery || issue) return { ok: false, error: issue ?? MISSING_DELIVERY_ERROR };
   const quote = await claimForAcceptance(tenant, quoteNo, byReseller);
   if (!quote) return { ok: false, error: "Offerten kan inte godkännas längre" };
   try {

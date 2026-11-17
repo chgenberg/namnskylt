@@ -148,12 +148,57 @@ export function parseQuoteDelivery(value: unknown): QuoteDelivery {
   return parsed.success ? parsed.data : { to: "customer", address: null };
 }
 
-/** Adressen ur ett formulär, eller felet som ska visas. */
-export function addressFromDraft(draft: DeliveryDraft): { ok: true; address: DeliveryAddress } | { ok: false; error: string } {
+/**
+ * En leverans som fraktas behöver mottagarens telefon: verkstadens fraktbokning
+ * kräver den, och transportören aviserar på den (beslut av ägaren 2026-11-17).
+ * Den som hämtar själv behöver ingen. En leverans utan valt fraktsätt har standardfrakt.
+ */
+export function needsPhone(method: ShippingMethod | undefined): boolean {
+  return (method ?? "standard") !== "pickup";
+}
+
+export const PHONE_REQUIRED_TEXT = "Telefon krävs, så att transportören kan avisera leveransen";
+export const PHONE_INVALID_TEXT = "Ange ett telefonnummer med riktnummer, så att transportören kan avisera leveransen";
+
+/** Färst siffror i ett nummer som går att ringa: riktnummer och abonnentnummer. Ett streck eller "vet ej" är inget nummer. */
+const PHONE_MIN_DIGITS = 7;
+
+/**
+ * Felet som ska visas när en ny leverans saknar ett telefonnummer, annars
+ * `null`. Gäller det som fylls i nu. Äldre ordrar och offerter får sakna
+ * telefon: då bokar verkstaden frakten för hand. Utan fraktsätt gäller
+ * standardfrakt, som överallt annars.
+ */
+export function deliveryPhoneIssue(address: Pick<DeliveryAddress, "phone"> | null | undefined, method: ShippingMethod | undefined): string | null {
+  if (!address || !needsPhone(method)) return null;
+  const phone = address.phone?.trim() ?? "";
+  if (!phone) return PHONE_REQUIRED_TEXT;
+  return phone.replace(/\D/g, "").length < PHONE_MIN_DIGITS ? PHONE_INVALID_TEXT : null;
+}
+
+type AddressResult = { ok: true; address: DeliveryAddress } | { ok: false; error: string };
+
+/**
+ * Adressen ur ett formulär, eller felet som ska visas. Prövar inte telefonen:
+ * använd `shippingAddressFromDraft` för en leverans som läggs nu.
+ */
+export function addressFromDraft(draft: DeliveryDraft): AddressResult {
   const parsed = deliveryAddressSchema.safeParse(draft);
   return parsed.success
     ? { ok: true, address: parsed.data }
     : { ok: false, error: parsed.error.issues[0]?.message ?? "Fyll i leveransadressen" };
+}
+
+/**
+ * Adressen ur ett formulär för en leverans som läggs nu, med telefon när
+ * leveransen fraktas (`deliveryPhoneIssue`). `method` är leveransens fraktsätt;
+ * utan det gäller standardfrakt.
+ */
+export function shippingAddressFromDraft(draft: DeliveryDraft, method: ShippingMethod | undefined): AddressResult {
+  const parsed = addressFromDraft(draft);
+  if (!parsed.ok) return parsed;
+  const phoneIssue = deliveryPhoneIssue(parsed.address, method);
+  return phoneIssue ? { ok: false, error: phoneIssue } : parsed;
 }
 
 export function draftFromAddress(address: DeliveryAddress | null | undefined): DeliveryDraft {

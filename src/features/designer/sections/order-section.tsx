@@ -26,9 +26,10 @@ import {
 import { useOrderShipping } from "@/hooks/use-order-shipping";
 import { formatSek } from "@/lib/format";
 import {
-  addressFromDraft,
   DELIVERY_TO_LABEL,
   EMPTY_DELIVERY_DRAFT,
+  needsPhone,
+  shippingAddressFromDraft,
   type DeliveryDraft,
   type DeliveryOptions,
   type DeliveryTo,
@@ -228,7 +229,7 @@ export function OrderSection({
     const quote = kind === "quote";
     setSendingKind(kind);
     // En offert får sin leverans på offerten. En order behöver adressen nu.
-    const delivery = quote ? null : addressFromDraft(address);
+    const delivery = quote ? null : shippingAddressFromDraft(address, method);
     if (delivery && !delivery.ok) {
       setOrder({ status: "form", message: delivery.error });
       return;
@@ -262,7 +263,7 @@ export function OrderSection({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const delivery = addressFromDraft(address);
+    const delivery = shippingAddressFromDraft(address, method);
     if (!delivery.ok) {
       setOrder({ status: "form", message: delivery.error });
       return;
@@ -450,7 +451,7 @@ export function OrderSection({
                 <p className={styles.specTitle}>Leverans</p>
                 <Segmented label="Skyltarna skickas" value={deliverTo} options={DELIVERY_TO_OPTIONS} onChange={setDeliverTo} />
               </div>
-              <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
+              <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} phoneRequired={needsPhone(method)} />
               <p className={styles.specTitle}>Leveranssätt</p>
               <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} disabled={order.status === "sending"} />
               <OrderTotals label="Kundens pris" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} method={method} vat={false} />
@@ -547,7 +548,7 @@ export function OrderSection({
             </label>
             <div className={styles.delivery}>
               <p className={styles.specTitle}>Leveransadress</p>
-              <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} />
+              <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} phoneRequired={needsPhone(method)} />
             </div>
             <div className={styles.delivery}>
               <p className={styles.specTitle}>Leveranssätt</p>

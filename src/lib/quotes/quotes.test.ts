@@ -5,7 +5,7 @@ import { endPriceTable } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
 import type { DeliveryAddress } from "@/lib/orders/delivery";
-import { acceptedDelivery } from "./accept";
+import { MISSING_DELIVERY_ERROR, MISSING_PHONE_ERROR, acceptanceIssue, acceptedDelivery } from "./accept";
 import { quoteHtml } from "./document";
 import { addDays, canCustomerAnswer, canEditQuote, displayStatus, type StoredQuote } from "./model";
 
@@ -149,6 +149,20 @@ describe("leveransen när offerten godkänns", () => {
     // Frakten följer offerten, inte kundens pris: en rabatt eller en extrarad ändrar den inte.
     assert.match(quoteHtml(quote(), approxFonts, DEFAULT_COMPANY), /<span>Frakt<\/span><span>75\skr<\/span>/);
     assert.doesNotMatch(quoteHtml(quote({ shippingSek: 0 }), approxFonts, DEFAULT_COMPANY), /<span>Frakt<\/span>/);
+  });
+
+  it("godkänner återförsäljaren åt kunden ska telefonen stå på offerten när skyltarna fraktas", () => {
+    const withPhone = { to: "customer", address: { ...stored, phone: "070-123 45 67" } } as const;
+    const withoutPhone = { to: "customer", address: { ...stored, phone: null } } as const;
+    assert.equal(acceptanceIssue(null, true), MISSING_DELIVERY_ERROR);
+    assert.equal(acceptanceIssue(null, false), MISSING_DELIVERY_ERROR);
+    assert.equal(acceptanceIssue(withPhone, true), null);
+    assert.equal(acceptanceIssue(withoutPhone, true), MISSING_PHONE_ERROR);
+    // Den som hämtar själv behöver ingen telefon.
+    assert.equal(acceptanceIssue({ ...withoutPhone, method: "pickup" }, true), null);
+    // Kundens eget godkännande prövas i kundens formulär, och en äldre offert till återförsäljaren får sakna telefon.
+    assert.equal(acceptanceIssue(withoutPhone, false), null);
+    assert.equal(acceptanceIssue({ to: "reseller", address: { ...stored, phone: null } }, false), null);
   });
 
   it("till återförsäljaren: kunden kan inte byta adress", () => {

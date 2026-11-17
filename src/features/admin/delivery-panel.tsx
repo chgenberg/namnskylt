@@ -13,6 +13,8 @@ import {
   draftFromAddress,
   SHIPPING_METHOD_INFO,
   SHIPPING_METHOD_LABEL,
+  needsPhone,
+  shippingAddressFromDraft,
   shippingMethodOf,
   type DeliveryAddress,
   type DeliveryDraft,
@@ -55,13 +57,16 @@ export function DeliveryPanel({ target, delivery, options, locked }: DeliveryPan
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const quote = target.kind === "quote";
+  /** En offert till kunden: kunden ser adressen och kompletterar den när offerten godkänns. */
+  const customerFills = quote && to === "customer";
 
   const save = () => {
     setError(null);
     const draft = drafts[to];
     // På en offert till kunden får adressen vänta tills kunden godkänner.
-    const leaveEmpty = quote && to === "customer" && isEmpty(draft);
-    const parsed = leaveEmpty ? null : addressFromDraft(draft);
+    const leaveEmpty = customerFills && isEmpty(draft);
+    // Telefonen också: kunden bekräftar adressen och fyller i numret när offerten godkänns.
+    const parsed = leaveEmpty ? null : customerFills ? addressFromDraft(draft) : shippingAddressFromDraft(draft, method);
     if (parsed && !parsed.ok) {
       setError(parsed.error);
       return;
@@ -90,9 +95,10 @@ export function DeliveryPanel({ target, delivery, options, locked }: DeliveryPan
           value={drafts[to]}
           onChange={(draft) => setDrafts((all) => ({ ...all, [to]: draft }))}
           disabled={pending}
-          required={!(quote && to === "customer")}
+          required={!customerFills}
+          phoneRequired={!customerFills && needsPhone(method)}
         />
-        {quote && to === "customer" && (
+        {customerFills && (
           <p className={styles.muted}>Lämna adressen tom om du inte har den. Kunden fyller då i den när offerten godkänns.</p>
         )}
         <ShippingMethodPicker value={method} onChange={setMethod} methods={SHIPPING_METHODS} disabled={pending} />

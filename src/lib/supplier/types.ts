@@ -125,6 +125,23 @@ export interface SupplierAddress {
   city: string;
   country: "SE";
   phone?: string;
+  /**
+   * Dit transportören aviserar leveransen. namnskylt.coms egna kunder aviseras
+   * direkt. Går skyltarna till en återförsäljares kund eller till
+   * återförsäljaren själv är det återförsäljarens adress, så att verkstadens
+   * namn inte hamnar i butikskundens inkorg (beslut av ägaren 2026-11-17).
+   * Saknas vid upphämtning.
+   */
+  email?: string;
+}
+
+/** Beställarens fakturaadress som gata, postnummer och ort. */
+export interface SupplierBillingAddress {
+  line1: string;
+  line2?: string;
+  zip: string;
+  city: string;
+  country: "SE";
 }
 
 /**
@@ -139,9 +156,21 @@ export interface SupplierBuyer {
   orgNumber: string;
   /** Dit fakturan och orderbekräftelsen går. */
   email: string;
+  /**
+   * Företagets vanliga adress, när den skiljer sig från `email`. Vi använder
+   * den själva för att välja aviseringens adress (`shipping.address.email`):
+   * fakturabrevlådan är fel ställe för ett besked om leverans. Leverantören
+   * läser inte fältet i dag; orderbekräftelsen och statusmejlen går till `email`.
+   */
+  contactEmail?: string;
   phone?: string;
   /** Fakturaadressen som fri text, som den står i återförsäljarens uppgifter. */
   address?: string;
+  /**
+   * Samma adress tolkad, när den fria texten går att läsa som gata, postnummer
+   * och ort. Leverantören lägger den på kundkortet när beställaren läggs upp.
+   */
+  billingAddress?: SupplierBillingAddress;
 }
 
 /**

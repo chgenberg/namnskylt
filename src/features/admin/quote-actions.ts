@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { siteOrigin } from "@/lib/http/origin";
-import { quoteDeliverySchema, type QuoteDelivery } from "@/lib/orders/delivery";
+import { deliveryPhoneIssue, quoteDeliverySchema, type QuoteDelivery } from "@/lib/orders/delivery";
 import { pricingSchema, type Pricing } from "@/lib/orders/pricing";
 import { saveResellerDeliveryAddress } from "@/lib/orders/repository";
 import { acceptQuote } from "@/lib/quotes/accept";
@@ -60,6 +60,9 @@ export async function updateQuoteDeliveryAction(quoteNo: string, delivery: Quote
   try {
     const parsed = quoteDeliverySchema.parse(delivery);
     if (parsed.to === "reseller" && !parsed.address) return { ok: false, error: "Fyll i adressen skyltarna ska skickas till" };
+    // Till kunden fyller kunden i telefonen när offerten godkänns. Till återförsäljaren frågas ingen mer.
+    const phoneIssue = parsed.to === "reseller" ? deliveryPhoneIssue(parsed.address, parsed.method) : null;
+    if (phoneIssue) return { ok: false, error: phoneIssue };
     const ok = await updateQuoteDelivery(tenant, quoteNoSchema.parse(quoteNo), parsed);
     if (!ok) return { ok: false, error: "Offerten går inte att ändra längre" };
     if (parsed.to === "reseller" && parsed.address) await saveResellerDeliveryAddress(tenant, parsed.address);

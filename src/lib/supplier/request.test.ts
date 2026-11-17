@@ -104,6 +104,8 @@ describe("ordern till verkstaden", () => {
       zip: "111 22",
       city: "Stockholm",
       country: "SE",
+      // Skyltarna går till en återförsäljares kund: transportören aviserar återförsäljaren.
+      email: "order@example.se",
     });
   });
 
@@ -187,6 +189,91 @@ describe("det som stoppar en order", () => {
       "faktura@example.se",
     );
     assert.equal(supplierBuyer("exempelprofil", company, null).email, "");
+  });
+
+  it("beställarens fakturaadress skickas tolkad när den fria texten går att läsa", () => {
+    const company = { ...DEFAULT_COMPANY, name: "Exempelprofil AB", orgNumber: "556000-0000", email: "order@example.se" };
+    const buyer = supplierBuyer("exempelprofil", { ...company, address: "Storgatan 1\nBox 12\n111 22 Stockholm" }, null);
+    assert.equal(buyer.address, "Storgatan 1\nBox 12\n111 22 Stockholm");
+    assert.deepEqual(buyer.billingAddress, { line1: "Storgatan 1", line2: "Box 12", zip: "111 22", city: "Stockholm", country: "SE" });
+    assert.deepEqual(supplierBuyer("exempelprofil", { ...company, address: "Storgatan 1, 111 22 Stockholm" }, null).billingAddress, {
+      line1: "Storgatan 1",
+      zip: "111 22",
+      city: "Stockholm",
+      country: "SE",
+    });
+    // Står företagets namn först hoppas den raden över, så att gatan blir gata.
+    assert.deepEqual(supplierBuyer("exempelprofil", { ...company, address: "Exempelprofil AB\nStorgatan 1\n111 22 Stockholm" }, null).billingAddress, {
+      line1: "Storgatan 1",
+      zip: "111 22",
+      city: "Stockholm",
+      country: "SE",
+    });
+    // Samma sak när adressen står på en rad med komma emellan.
+    assert.deepEqual(supplierBuyer("exempelprofil", { ...company, address: "Exempelprofil AB, Storgatan 1, 111 22 Stockholm" }, null).billingAddress, {
+      line1: "Storgatan 1",
+      zip: "111 22",
+      city: "Stockholm",
+      country: "SE",
+    });
+    // En rad längre än verkstaden tar emot skickas inte tolkad: ett valfritt fält får inte stoppa ordern.
+    const long = supplierBuyer("exempelprofil", { ...company, address: `${"Storgatan ".repeat(25)}1\n111 22 Stockholm` }, null);
+    assert.equal(long.billingAddress, undefined);
+    assert.ok((long.address ?? "").length > 200);
+    // Går texten inte att läsa följer bara den fria texten med: en halv adress är sämre än ingen.
+    const unclear = supplierBuyer("exempelprofil", { ...company, address: "Storgatan 1" }, null);
+    assert.equal(unclear.address, "Storgatan 1");
+    assert.equal(unclear.billingAddress, undefined);
+    assert.equal(supplierBuyer("exempelprofil", company, null).billingAddress, undefined);
+  });
+
+  it("namnskylt.coms egna kunder aviseras direkt av transportören", () => {
+    const owner = supplierBuyer("namnskylt", { ...DEFAULT_COMPANY, orgNumber: "556000-0000", email: "hej@example.se" }, null);
+    const own = buildSupplierRequest(input([named("Anna Lind")], { buyer: owner }));
+    assert.equal(own.shipping.address.email, "anna@example.se");
+    // Utan adress till kunden aviseras vi själva.
+    const unknown = buildSupplierRequest(input([named("Anna Lind")], { buyer: owner, customer: { name: "Anna Lind", email: " ", company: null } }));
+    assert.equal(unknown.shipping.address.email, "hej@example.se");
+    // En borttagen kund har en platshållare till adress: den går inte att avisera på.
+    const erased = { name: "Borttagen kund", email: "borttagen-3f2b8c1e-5d4a-4c6b-9e7f-0a1b2c3d4e5f@borttagen.invalid", company: null };
+    assert.equal(buildSupplierRequest(input([named("Anna Lind")], { buyer: owner, customer: erased })).shipping.address.email, "hej@example.se");
+  });
+
+  it("en återförsäljares kund aviseras aldrig direkt: beskedet går till återförsäljaren", () => {
+    // Verkstaden står som avsändare i transportörens avisering, och ska inte synas för butikens kund.
+    const toCustomer = buildSupplierRequest(input([named("Anna Lind")]));
+    assert.equal(toCustomer.shipping.address.email, "order@example.se");
+    const toReseller = buildSupplierRequest(input([named("Anna Lind")], { delivery: { ...DELIVERY, to: "reseller" } }));
+    assert.equal(toReseller.shipping.address.email, "order@example.se");
+  });
+
+  it("aviseringen går till företagets vanliga adress, inte fakturabrevlådan", () => {
+    const company = { ...DEFAULT_COMPANY, name: "Exempelprofil AB", orgNumber: "556000-0000", email: "order@example.se", invoiceEmail: "faktura@example.se" };
+    const buyer = supplierBuyer("exempelprofil", company, "konto@example.se");
+    assert.equal(buyer.email, "faktura@example.se");
+    assert.equal(buyer.contactEmail, "order@example.se");
+    for (const to of ["customer", "reseller"] as const) {
+      const request = buildSupplierRequest(input([named("Anna Lind")], { buyer, delivery: { ...DELIVERY, to } }));
+      assert.equal(request.shipping.address.email, "order@example.se", to);
+    }
+    // Är adresserna samma skickas bara den ena.
+    assert.equal("contactEmail" in BUYER, false);
+  });
+
+  it("vid upphämtning aviseras ingen", () => {
+    const pickup = buildSupplierRequest(input([named("Anna Lind")], { delivery: { ...DELIVERY, method: "pickup" } }));
+    assert.equal("email" in pickup.shipping.address, false);
+  });
+
+  it("ett organisationsnummer som verkstaden inte kan läsa stoppar utskicket här, inte hos verkstaden", () => {
+    const order = { badges: [named("Anna Lind")], delivery: DELIVERY };
+    for (const orgNumber of ["55600", "556000-00000", "ej klart", "SE55600000000"]) {
+      assert.deepEqual(dispatchProblems(order, { ...BUYER, orgNumber }), ["Återförsäljarens organisationsnummer ska ha tio siffror"], orgNumber);
+    }
+    // Det verkstaden läser som tio siffror går igenom: med eller utan bindestreck, som momsnummer och med sekel.
+    for (const orgNumber of ["5560000000", "556000 - 0000", "SE556000000001", "16556000-0000"]) {
+      assert.deepEqual(dispatchProblems(order, { ...BUYER, orgNumber }), [], orgNumber);
+    }
   });
 
   it("en logga som pekar på en bild hos oss ska läggas in innan anropet byggs", () => {

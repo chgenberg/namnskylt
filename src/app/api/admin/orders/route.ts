@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
-import { deliverySchema } from "@/lib/orders/delivery";
+import { deliveryPhoneIssue, deliverySchema } from "@/lib/orders/delivery";
 import { ERASED_CUSTOMER_ERROR, isErasedCustomer } from "@/lib/orders/erase-model";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
@@ -35,6 +35,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: issue?.path[0] === "delivery" ? issue.message : "Ogiltig order" }, { status: 400 });
   }
   if (!allOffered(parsed.data.badges)) return NextResponse.json({ error: NOT_OFFERED_ERROR }, { status: 400 });
+  // En leverans som fraktas behöver mottagarens telefon. Formuläret kräver den; här gäller samma regel.
+  const phoneIssue = deliveryPhoneIssue(parsed.data.delivery.address, parsed.data.delivery.method);
+  if (phoneIssue) return NextResponse.json({ error: phoneIssue }, { status: 400 });
 
   const customer = await getCustomer(tenant, parsed.data.customerId);
   if (!customer) return NextResponse.json({ error: "Kunden finns inte" }, { status: 404 });

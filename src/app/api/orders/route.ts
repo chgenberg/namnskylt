@@ -7,7 +7,7 @@ import { endPriceTable } from "@/engine/price-model";
 import { orgNumberSchema } from "@/lib/company/org-number";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
 import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages } from "@/lib/logo-images/repository";
-import { deliveryAddressSchema, shippingMethodSchema } from "@/lib/orders/delivery";
+import { deliveryAddressSchema, deliveryPhoneIssue, shippingMethodSchema } from "@/lib/orders/delivery";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { splitByProducer } from "@/lib/orders/partner";
 import { placeOrder } from "@/lib/orders/place-order";
@@ -61,6 +61,9 @@ export async function POST(request: Request) {
   }
 
   if (!allOffered(parsed.data.badges)) return bad(NOT_OFFERED_ERROR);
+  // En leverans som fraktas behöver mottagarens telefon. Formuläret kräver den; här gäller samma regel.
+  const phoneIssue = deliveryPhoneIssue(parsed.data.delivery, parsed.data.shippingMethod);
+  if (phoneIssue) return bad(phoneIssue);
 
   try {
     const { badgeShot, shop: shopSlug, delivery, shippingMethod = "standard", customerType, customer, badges, visit } = parsed.data;

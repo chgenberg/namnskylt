@@ -8,7 +8,7 @@ import { requireDb } from "@/lib/db/client";
 import { insertDemoData, removeDemoData } from "@/lib/orders/demo-data";
 import { pricingSchema, type Pricing } from "@/lib/orders/pricing";
 import { companyProfileSchema, type CompanyProfile } from "@/lib/company/profile";
-import { deliverySchema, type Delivery } from "@/lib/orders/delivery";
+import { deliveryPhoneIssue, deliverySchema, type Delivery } from "@/lib/orders/delivery";
 import { ERASED_CUSTOMER_ERROR, isBookkeepingOrder, isErasedCustomer } from "@/lib/orders/erase-model";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
@@ -284,6 +284,8 @@ export async function updateOrderDeliveryAction(orderNo: string, delivery: Deliv
   const tenant = await requireReseller();
   try {
     const parsed = deliverySchema.parse(delivery);
+    const phoneIssue = deliveryPhoneIssue(parsed.address, parsed.method);
+    if (phoneIssue) return { ok: false, error: phoneIssue };
     const ok = await updateOrderDelivery(tenant, orderNoSchema.parse(orderNo), parsed);
     if (!ok) return { ok: false, error: "Ordern har redan gått till verkstaden. Hör av dig till namnskylt.com om adressen ska ändras." };
     if (parsed.to === "reseller") await saveResellerDeliveryAddress(tenant, parsed.address);

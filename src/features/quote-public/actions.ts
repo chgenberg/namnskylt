@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { deliveryAddressSchema, shippingMethodSchema } from "@/lib/orders/delivery";
+import { deliveryAddressSchema, deliveryPhoneIssue, shippingMethodOf, shippingMethodSchema } from "@/lib/orders/delivery";
 import { acceptQuote, declineByCustomer } from "@/lib/quotes/accept";
 import { canCustomerAnswer } from "@/lib/quotes/model";
 import { getQuoteByToken } from "@/lib/quotes/repository";
@@ -34,6 +34,9 @@ export async function decideQuoteAction(
       const ok = await declineByCustomer(quote, reason || null);
       return ok ? { ok: true } : { ok: false, error: "Offerten är redan besvarad" };
     }
+    // Adressen kunden fyller i nu ska ha telefon när skyltarna fraktas, med fraktsättet som gäller för ordern.
+    const phoneIssue = deliveryPhoneIssue(delivery, method ?? shippingMethodOf(quote.delivery));
+    if (phoneIssue) return { ok: false, error: phoneIssue };
     const result = await acceptQuote(quote.resellerId, quote.quoteNo, false, delivery ?? null, method ?? null);
     return result.ok ? { ok: true, orderNo: result.orderNo, orderPath: result.orderPath } : { ok: false, error: result.error };
   } catch (error) {

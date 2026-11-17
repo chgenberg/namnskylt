@@ -54,7 +54,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1091 tester, grönt 2026-11-17).
+# Kvalitetsgrinden. Kör den innan något lämnas (1101 tester, grönt 2026-11-17).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -728,8 +728,8 @@ verkstaden sin provision per period.
 
 - **Kopplingen är byggd men avstängd.** Strömbrytaren är `SUPPLIER_API_URL` och
   `SUPPLIER_API_KEY` (`supplierApiConfigured`). Utan dem sparas ordrar och väntar. Verkstadens
-  mottagare är byggd i skyltmotor-projektet (2026-11-17) men inte deployad, se avsnittet
-  Leverantören. Basadressen får ha en egen sökväg (`supplierUrl` i `client.ts`): i drift blir
+  mottagare är byggd i skyltmotor-projektet och deployad till AWS 2026-11-17, men stängd: ingen
+  nyckel är satt där, så den svarar 503. Se avsnittet Leverantören. Basadressen får ha en egen sökväg (`supplierUrl` i `client.ts`): i drift blir
   den `https://www.skyltochgravyr.com/api/partner`.
 - **Ordern sparas alltid först** (`placeOrder`), sedan skickas den (`dispatchOrder` i
   `src/lib/supplier/dispatch.ts`). Misslyckas utskicket ligger ordern kvar med felet
@@ -742,7 +742,9 @@ verkstaden sin provision per period.
   JSON utan att skicka något (`GET /api/admin/supplier/request/<order>`). Ett misslyckat utskick
   görs inte om av sig självt; det finns inget schemalagt jobb.
 - **Det som stoppar en order** (`dispatchProblems`): leveransadress saknas, återförsäljarens
-  organisationsnummer eller e-post saknas, eller ordern har inga skyltar som verkstaden gör.
+  organisationsnummer eller e-post saknas, organisationsnumret går inte att läsa som tio
+  siffror (`orgNumberDigits` i `src/lib/company/org-number.ts`, verkstadens egen regel: även
+  momsnummer och nummer med sekel går), eller ordern har inga skyltar som verkstaden gör.
   Beställaren (`SupplierBuyer`) är återförsäljaren ordern tillhör, läst ur dess
   företagsuppgifter. namnskylt.coms egna ordrar har namnskylt.com som beställare, så ägarens
   företagsuppgifter måste vara ifyllda innan kopplingen slås på.
@@ -769,6 +771,23 @@ verkstaden sin provision per period.
     ordern har gått till verkstaden.
   - "Beställ igen" och "Ny personal" ärver förra orderns leverans, en order från en mall får
     kundens senaste. Saknas adressen sparas ordern ändå, men den går inte att skicka.
+  - **Telefon krävs när skyltarna fraktas** (beslut av ägaren 2026-11-17: "Kräv telefon i
+    formuläret"). Verkstadens fraktbokning behöver mottagarens nummer, och transportören
+    aviserar på det. Regeln är `needsPhone` och `deliveryPhoneIssue` i `delivery.ts`: standard
+    och express kräver ett nummer med minst sju siffror, upphämtning inget.
+    - Formulären läser adressen med `shippingAddressFromDraft` och märker fältet
+      (`DeliveryFields.phoneRequired`): kassan, återförsäljarens leveranssteg, kundens
+      godkännande av en offert och `DeliveryPanel`. `addressFromDraft` prövar aldrig telefonen
+      och är till för adresser som bara fylls i i förväg.
+    - Servern prövar samma regel i `POST /api/orders`, `POST /api/admin/orders`,
+      `decideQuoteAction`, `updateOrderDeliveryAction` och `updateQuoteDeliveryAction`.
+    - På en offert till kunden får telefonen vänta: kunden ser adressen och fyller i numret när
+      offerten godkänns. Godkänner återförsäljaren åt kunden frågas ingen, så då ska numret stå
+      på offerten (`acceptanceIssue`, `MISSING_PHONE_ERROR` i `src/lib/quotes/accept.ts`). På en
+      offert till återförsäljaren krävs numret i panelen.
+    - Regeln gäller det som fylls i nu. "Beställ igen", "Ny personal" och en order från en mall
+      ärver leveransen som den är. En äldre leverans utan telefon skickas ändå till verkstaden,
+      som då bokar frakten för hand (ägarens besked). Ingen reserv till beställarens nummer.
 - **Statusen tillbaka** går som förut via `/api/supplier/webhook` (signerad) och hämtas vid
   behov med `GET /orders/<nr>`.
 - **Flera designer i samma order** heter Varukorg i skyltmotorn (`CartSection`, `BadgeGroup` i
@@ -840,6 +859,10 @@ verkstaden sin provision per period.
   utvecklingsläge): en ny order skickas av sig själv och blir en order i Mottagen där, och
   statusbytena Tillverkning och Skickad kommer tillbaka med spårningslänk. Aldrig provat mot
   skyltmotorn i drift på AWS.
+  - Samma dag, efter rättningarna: ordrar från kassan, panelen, en godkänd offert och en
+    återförsäljare kom fram med rätt mottagare, telefon och aviseringsadress, upphämtning utan
+    mottagare, och expressfraktens pris kom tillbaka med statusbytet. Telefonkravet är provat i
+    alla fyra formulär i webbläsaren.
 - Kontrollerat 2026-11-14 mot en låtsasverkstad på datorn (produktionsbygget med kopplingen
   på): en ny order skickas en gång, ett fel går att göra om, en väntande order skickas från
   översikten och statusen kommer tillbaka. Aldrig provat mot verkstadens riktiga system.
@@ -1141,8 +1164,10 @@ gamla ska inte godkännas.
 med Prisma, AWS och SST, byggt av samma ägare. Namnskylts katalog (`supplierCode`, färg-id:n)
 speglar `packages/catalog` där.
 
-**Mottagaren är byggd där (2026-11-17, efter ägarens uttryckliga ja), lokalt och inte
-deployad.** Ingenting är satt i AWS och kopplingen i Namnskylts drift är av. Lästes
+**Mottagaren är byggd där och deployad till AWS (2026-11-17, efter ägarens uttryckliga ja),
+men stängd.** Inga hemligheter är satta i AWS, så `/api/partner/orders` svarar 503
+"Mottagaren är inte aktiverad", och kopplingen i Namnskylts drift är av. Ingenting i deras
+egna vyer är ändrat: metallämnet ligger utanför deras materiallista och slås bara upp på kod. Lästes
 2026-11-14: deras `Order` har redan `customerPo`, `orderName`, `shippingMethod`,
 `shippingCost`, `shippingAddress`, `minOrderAdjustment`, betalsättet `invoice` med
 Fortnox-följesedel vid Skickad, och `Company.collectiveInvoice` för samfakturering.
@@ -1177,10 +1202,38 @@ Fortnox-följesedel vid Skickad, och `Company.collectiveInvoice` för samfakture
   `src/server/partner-orders.ts`, `src/server/partner-notify.ts`, de två vägarna under
   `src/app/api/partner/orders/`, ett anrop i `src/server/orders.ts` och hemligheterna
   `PartnerApiKey` och `PartnerWebhookSecret` i `infra/sst.config.ts`.
-- **Kvar innan drift:** deras bug-hunt och deploy till AWS (kräver ägarens ja där), de två
-  hemligheterna och `PARTNER_WEBHOOK_URL` i AWS, och sist våra tre variabler på Railway.
-  Ägarens företagsuppgifter i Namnskylt behöver organisationsnummer, annars stannar
-  namnskylt.coms egna ordrar som "Saknar uppgifter".
+- **Rättat i mottagaren efter deras bug-hunt och deployat där 2026-11-17 (15:43), med
+  mottagaren fortfarande stängd:**
+  - Fraktbokningen aviserar den vi pekar ut. Aviseringens e-post skickas på leveransadressen
+    (`SupplierAddress.email`, `notificationEmail` i `request.ts`): **namnskylt.coms egna
+    kunder aviseras direkt, en återförsäljares kund aldrig** (beslut av ägaren 2026-11-17,
+    eftersom verkstaden står som avsändare i aviseringen). För en återförsäljares order är det
+    återförsäljarens vanliga adress (`SupplierBuyer.contactEmail`, inte fakturabrevlådan),
+    både när skyltarna går till kunden och till återförsäljaren. Vid upphämtning skickas ingen
+    adress, och en borttagen kund aviseras inte.
+    - `contactEmail` läses inte av mottagaren: orderbekräftelsen och statusmejlen därifrån går
+      till `buyer.email`, alltså fakturaadressen när en sådan finns.
+    - Mottagarens telefon är alltid den på leveransadressen, också för en återförsäljares kund
+      (beslut av ägaren 2026-11-17: budet behöver nå den som tar emot). Följden är att ett sms
+      från transportören kan nämna verkstaden för butikens kund, fast mejlet går till
+      återförsäljaren.
+  - Personalen kan inte ändra rader på en order från oss i deras admin (antal, text, ta bort).
+    Raderna bär våra priser. Ska något ändras makuleras ordern och vi skickar en ny.
+    Frakten på en order från oss går inte heller att ändra där, utom expressfraktens pris,
+    som sätts i hela kronor.
+  - Företaget väljs av `choosePartnerCompany` hos dem. Organisationsnumret jämförs på
+    siffrorna (med eller utan bindestreck, som momsnummer eller med sekel), bara aktiva företag
+    räknas, och filialer med samma nummer skiljs på exakt namn. Finns numret inte gäller en
+    namnträff bara en enda rad utan nummer, som då får numret. Allt annat ger ett nej (422)
+    med skälet: inaktivt företag, samma namn med annat nummer eller flera möjliga företag.
+  - En ny beställare läggs upp med faktura-e-post, telefon och fakturaadress. Adressen
+    skickar vi tolkad (`SupplierBuyer.billingAddress`, `guessAddress`) när den fria texten går
+    att läsa som gata, postnummer och ort.
+- **Kvar innan drift:**
+  - De två hemligheterna i AWS (`PartnerApiKey`, `PartnerWebhookSecret`). De gäller först
+    efter nästa deploy där. Webhookadressen är redan förvald för prod.
+  - Sist våra tre variabler på Railway. Ägarens företagsuppgifter i Namnskylt behöver
+    organisationsnummer, annars stannar namnskylt.coms egna ordrar som "Saknar uppgifter".
 
 **Det proven visade, och det som gjordes åt det (lokalt 2026-11-17, på ägarens begäran):**
 - **Typsnitten är nu verkstadens.** Deras "Arial" ritas med Roboto och "Arial Narrow" med

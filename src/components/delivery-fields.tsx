@@ -10,10 +10,12 @@ interface DeliveryFieldsProps {
   disabled?: boolean;
   /** Fälten som måste fyllas i märks ut och krävs av webbläsaren. Av när adressen får lämnas tom. */
   required?: boolean;
+  /** Telefonen krävs när leveransen fraktas: transportören aviserar på den. Se `needsPhone`. */
+  phoneRequired?: boolean;
 }
 
 /** Leveransadressens fält, samma överallt: mottagare, kontakt, adress, postnummer, ort och telefon. */
-export function DeliveryFields({ value, onChange, disabled, required = true }: DeliveryFieldsProps) {
+export function DeliveryFields({ value, onChange, disabled, required = true, phoneRequired = false }: DeliveryFieldsProps) {
   const id = useId();
   const field = (key: keyof DeliveryDraft, label: string, options: { wide?: boolean; must?: boolean; autoComplete?: string; inputMode?: "numeric" | "tel" } = {}) => (
     <div className={styles.row} data-wide={options.wide || undefined}>
@@ -39,7 +41,7 @@ export function DeliveryFields({ value, onChange, disabled, required = true }: D
     <div className={styles.grid}>
       {field("name", "Mottagare, företag eller namn", { wide: true, must: true, autoComplete: "organization" })}
       {field("contactName", "Att, kontaktperson", { autoComplete: "name" })}
-      {field("phone", "Telefon", { autoComplete: "tel", inputMode: "tel" })}
+      {field("phone", "Telefon", { must: phoneRequired, autoComplete: "tel", inputMode: "tel" })}
       {field("line1", "Gatuadress", { wide: true, must: true, autoComplete: "address-line1" })}
       {field("line2", "c/o, våning eller port", { wide: true, autoComplete: "address-line2" })}
       {field("zip", "Postnummer", { must: true, autoComplete: "postal-code", inputMode: "numeric" })}

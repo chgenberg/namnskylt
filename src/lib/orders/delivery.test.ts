@@ -3,13 +3,18 @@ import { describe, it } from "node:test";
 import {
   addressFromDraft,
   deliveryLines,
+  deliveryPhoneIssue,
   deliverySchema,
   draftForRecipient,
   draftFromAddress,
   EMPTY_DELIVERY_DRAFT,
   guessAddress,
+  needsPhone,
   parseDelivery,
+  PHONE_INVALID_TEXT,
+  PHONE_REQUIRED_TEXT,
   parseQuoteDelivery,
+  shippingAddressFromDraft,
   shippingMethodOf,
   shippingNote,
   type DeliveryAddress,
@@ -39,6 +44,48 @@ describe("leveransadressen", () => {
       const parsed = addressFromDraft({ ...draftFromAddress(ADDRESS), zip });
       assert.deepEqual(parsed, { ok: false, error: "Postnumret ska ha fem siffror" }, zip);
     }
+  });
+
+  it("en leverans som fraktas kräver telefon; den som hämtar själv behöver ingen", () => {
+    assert.equal(needsPhone("standard"), true);
+    assert.equal(needsPhone("express"), true);
+    assert.equal(needsPhone("pickup"), false);
+    // En leverans utan valt fraktsätt har standardfrakt.
+    assert.equal(needsPhone(undefined), true);
+    const withoutPhone = { ...draftFromAddress(ADDRESS), phone: " " };
+    assert.deepEqual(shippingAddressFromDraft(withoutPhone, "standard"), { ok: false, error: PHONE_REQUIRED_TEXT });
+    assert.deepEqual(shippingAddressFromDraft(withoutPhone, "express"), { ok: false, error: PHONE_REQUIRED_TEXT });
+    // Utan fraktsätt gäller standardfrakt, här som överallt annars.
+    assert.deepEqual(shippingAddressFromDraft(withoutPhone, undefined), { ok: false, error: PHONE_REQUIRED_TEXT });
+    assert.equal(shippingAddressFromDraft(withoutPhone, "pickup").ok, true);
+    assert.equal(shippingAddressFromDraft(draftFromAddress(ADDRESS), "standard").ok, true);
+    // Övriga fel visas först: telefonen prövas på en adress som annars är hel.
+    assert.deepEqual(shippingAddressFromDraft({ ...withoutPhone, line1: "" }, "standard"), { ok: false, error: "Gatuadress krävs" });
+  });
+
+  it("ett streck eller några ord är inget telefonnummer", () => {
+    for (const phone of ["-", "vet ej", "ring växeln", "12345"]) {
+      assert.equal(deliveryPhoneIssue({ phone }, "standard"), PHONE_INVALID_TEXT, phone);
+    }
+    for (const phone of ["070-123 45 67", "+46 (0)70 123 45 67", "08-12 34 56", "0123-123 45", "växel 031-12 34 56, anknytning 12"]) {
+      assert.equal(deliveryPhoneIssue({ phone }, "express"), null, phone);
+    }
+    // Vid upphämtning prövas inte numret alls.
+    assert.equal(deliveryPhoneIssue({ phone: "-" }, "pickup"), null);
+    assert.deepEqual(shippingAddressFromDraft({ ...draftFromAddress(ADDRESS), phone: "vet ej" }, "standard"), { ok: false, error: PHONE_INVALID_TEXT });
+  });
+
+  it("servern prövar samma regel för en ny leverans, och låter äldre leveranser vara", () => {
+    assert.equal(deliveryPhoneIssue({ phone: null }, "standard"), PHONE_REQUIRED_TEXT);
+    assert.equal(deliveryPhoneIssue({ phone: "" }, undefined), PHONE_REQUIRED_TEXT);
+    assert.equal(deliveryPhoneIssue({ phone: null }, "pickup"), null);
+    assert.equal(deliveryPhoneIssue({ phone: "070-123 45 67" }, "express"), null);
+    // Ingen adress att pröva (en offert där kunden fyller i den senare).
+    assert.equal(deliveryPhoneIssue(null, "standard"), null);
+    // En sparad leverans utan telefon läses fortfarande: verkstaden bokar då frakten för hand.
+    assert.equal(parseDelivery({ to: "customer", address: { ...ADDRESS, phone: null } })?.address.phone, null);
+    // Den vanliga tolkningen prövar aldrig telefonen: den läser också adresser som bara ska fyllas i förväg.
+    assert.equal(addressFromDraft({ ...draftFromAddress(ADDRESS), phone: "" }).ok, true);
   });
 
   it("mottagare, gatuadress och ort krävs; kontakt, andra raden och telefon får vara tomma", () => {
