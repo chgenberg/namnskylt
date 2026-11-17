@@ -27,6 +27,22 @@ describe("rosterFromTable", () => {
     assert.deepEqual(roster.entries, [["Ali Haddad", "Nattportier"]]);
   });
 
+  it("en överskrift som nämner namn tas inte för rubrikraden när tabellens rubriker står under", () => {
+    const roster = rosterFromTable([["54 namn och titlar"], [], ["Namn", "Titel"], ["Ali Haddad", "Nattportier"], ["Sara Lind", "Concierge"]]);
+    assert.deepEqual(roster.entries, [["Ali Haddad", "Nattportier"], ["Sara Lind", "Concierge"]]);
+    assert.deepEqual(roster.columns, { name: "Namn", title: "Titel" });
+    // Finns bara överskriften gäller den som förut.
+    assert.deepEqual(rosterFromTable([["Namn på personalen"], ["Ali Haddad"]]).entries, [["Ali Haddad"]]);
+  });
+
+  it("en kolumn med rubriken Namn och titel delas vid kommatecknet", () => {
+    const roster = rosterFromTable([["Namn och titel"], ["Ali Haddad, Nattportier"], ["Sara Lind, Chef, IT"], ["Maria Ek"]]);
+    assert.deepEqual(roster.entries, [["Ali Haddad", "Nattportier"], ["Sara Lind", "Chef / IT"], ["Maria Ek"]]);
+    assert.equal(rosterText(roster.entries), "Ali Haddad, Nattportier\nSara Lind, Chef / IT\nMaria Ek");
+    // Med en egen titelkolumn delas ingenting: kommatecknet hör då till namnet.
+    assert.deepEqual(rosterFromTable([["Namn", "Titel"], ["Holm, Erik", "Läkare"]]).entries, [["Holm / Erik", "Läkare"]]);
+  });
+
   it("gissar kolumnerna utan rubrikrad — titeln först, namnet sist", () => {
     const roster = rosterFromTable([
       ["Receptionist", "Maria Ek", "maria@hotell.se"],

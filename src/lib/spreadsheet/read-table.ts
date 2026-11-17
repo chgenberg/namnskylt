@@ -1,5 +1,7 @@
 /**
- * Läser första bladet i en .xlsx eller en CSV/TSV till en tabell av strängar.
+ * Läser en .xlsx eller en CSV/TSV till en tabell av strängar. Ur en .xlsx
+ * läses första bladet som har något i sig: en fil gjord av ett skript har ofta
+ * ett tomt förvalt blad först och innehållet på nästa.
  * Körs i webbläsaren — filen lämnar aldrig kundens dator.
  */
 
@@ -11,7 +13,7 @@ export class SpreadsheetError extends Error {}
 export type Table = string[][];
 
 export interface ReadTableOptions {
-  /** Bladets namn i en .xlsx; utan namn läses första bladet. */
+  /** Bladets namn i en .xlsx; utan namn läses första bladet som inte är tomt. */
   sheet?: string;
   maxBytes?: number;
   maxRows?: number;
@@ -168,43 +170,62 @@ function columnIndex(ref: string | null, fallback: number): number {
   return [...letters].reduce((n, ch) => n * 26 + (ch.charCodeAt(0) - 64), 0) - 1;
 }
 
-function sheetRelId(workbook: string, sheetName: string | undefined): string | null {
+/** Bladens relations-id i arbetsbokens ordning: det namngivna bladet, eller alla när inget namn är givet. */
+function sheetRelIds(workbook: string, sheetName: string | undefined): string[] {
   const sheets = [...workbook.matchAll(/<sheet\b([^>]*)\/?>/g)].map((m) => m[1] ?? "");
-  if (sheetName === undefined) return attribute(sheets[0] ?? "", "r:id");
-  const match = sheets.find((attrs) => decodeXml(attribute(attrs, "name") ?? "") === sheetName);
-  if (!match) throw new SpreadsheetError(`Hittade inget blad som heter ${sheetName}.`);
-  return attribute(match, "r:id");
+  const wanted = sheetName === undefined ? sheets : sheets.filter((attrs) => decodeXml(attribute(attrs, "name") ?? "") === sheetName);
+  if (sheetName !== undefined && wanted.length === 0) throw new SpreadsheetError(`Hittade inget blad som heter ${sheetName}.`);
+  return wanted.map((attrs) => attribute(attrs, "r:id")).filter((id): id is string => id !== null);
 }
 
-async function sheetPath(
+/** Sökvägarna till bladen som ska prövas, i arbetsbokens ordning. */
+async function sheetPaths(
   bytes: Uint8Array,
   entries: Map<string, ZipEntry>,
   sheetName: string | undefined,
-): Promise<string> {
+): Promise<string[]> {
   const workbook = await readEntry(bytes, entries, "xl/workbook.xml");
   const rels = await readEntry(bytes, entries, "xl/_rels/workbook.xml.rels");
-  const relId = workbook ? sheetRelId(workbook, sheetName) : null;
-  if (rels && relId) {
-    for (const match of rels.matchAll(/<Relationship\b([^>]*)\/?>/g)) {
-      const attrs = match[1] ?? "";
-      const target = attribute(attrs, "Target");
-      if (attribute(attrs, "Id") === relId && target) {
-        return target.startsWith("/") ? target.slice(1) : `xl/${target.replace(/^\.\//, "")}`;
-      }
-    }
+  const targets = new Map<string, string>();
+  for (const match of (rels ?? "").matchAll(/<Relationship\b([^>]*)\/?>/g)) {
+    const attrs = match[1] ?? "";
+    const id = attribute(attrs, "Id");
+    const target = attribute(attrs, "Target");
+    if (id && target) targets.set(id, target.startsWith("/") ? target.slice(1) : `xl/${target.replace(/^\.\//, "")}`);
   }
-  const fallback = [...entries.keys()].filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort()[0];
-  if (!fallback) throw new SpreadsheetError("Hittade inget kalkylblad i filen.");
-  return fallback;
+  const paths = (workbook ? sheetRelIds(workbook, sheetName) : [])
+    .map((id) => targets.get(id))
+    .filter((path): path is string => path !== undefined && entries.has(path));
+  if (paths.length > 0) return paths;
+  const fallback = [...entries.keys()].filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort();
+  if (fallback.length === 0) throw new SpreadsheetError("Hittade inget kalkylblad i filen.");
+  return sheetName === undefined ? fallback : fallback.slice(0, 1);
+}
+
+/** De delade strängarna. Filen heter oftast `sharedStrings.xml`, men skiftläget skiljer mellan programmen som skriver den. */
+async function sharedStrings(bytes: Uint8Array, entries: Map<string, ZipEntry>): Promise<string[]> {
+  const name = [...entries.keys()].find((entry) => entry.toLowerCase() === "xl/sharedstrings.xml");
+  const xml = name ? await readEntry(bytes, entries, name) : null;
+  return xml ? [...xml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((m) => textRuns(m[1] ?? "")) : [];
 }
 
 async function readXlsx(bytes: Uint8Array, sheetName: string | undefined, maxRows: number): Promise<Table> {
   const entries = zipDirectory(bytes);
-  const sharedXml = await readEntry(bytes, entries, "xl/sharedStrings.xml");
-  const shared = sharedXml ? [...sharedXml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((m) => textRuns(m[1] ?? "")) : [];
-  const sheet = await readEntry(bytes, entries, await sheetPath(bytes, entries, sheetName));
-  if (!sheet) throw new SpreadsheetError("Hittade inget kalkylblad i filen.");
+  const shared = await sharedStrings(bytes, entries);
+  let first: Table | null = null;
+  for (const path of await sheetPaths(bytes, entries, sheetName)) {
+    const sheet = await readEntry(bytes, entries, path);
+    if (sheet === null) continue;
+    const rows = sheetRows(sheet, shared, maxRows);
+    // Första bladet som har något i sig. Är alla tomma gäller det första, som förut.
+    if (rows.some((row) => row.some((cell) => cell.trim() !== ""))) return rows;
+    first ??= rows;
+  }
+  if (first === null) throw new SpreadsheetError("Hittade inget kalkylblad i filen.");
+  return first;
+}
 
+function sheetRows(sheet: string, shared: readonly string[], maxRows: number): Table {
   const rows: Table = [];
   for (const rowMatch of sheet.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
     const row: string[] = [];

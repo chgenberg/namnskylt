@@ -32,11 +32,22 @@ function normalizeHeader(cell: string): string {
   return cell.toLowerCase().replace(/[^\p{L}\s-]/gu, " ").replace(/\s+/g, " ").trim();
 }
 
+function hasWord(header: string, kind: ColumnKind): boolean {
+  return HEADER_WORDS[kind].some((word) => header.includes(` ${word} `));
+}
+
+/** Rubriken säger både namn och titel, som "Namn och titel": kolumnen bär båda, med kommatecken emellan. */
+function isCombinedHeader(cell: string): boolean {
+  const header = ` ${normalizeHeader(cell)} `;
+  return hasWord(header, "name") && hasWord(header, "title");
+}
+
 function classifyHeader(cell: string): ColumnKind | null {
   const header = ` ${normalizeHeader(cell)} `;
   if (!header.trim()) return null;
+  if (isCombinedHeader(cell)) return "name";
   for (const kind of CLASSIFY_ORDER) {
-    if (HEADER_WORDS[kind].some((word) => header.includes(` ${word} `))) return kind;
+    if (hasWord(header, kind)) return kind;
   }
   return null;
 }
@@ -62,12 +73,28 @@ function share(values: readonly string[], test: (value: string) => boolean): num
   return values.length === 0 ? 0 : values.filter(test).length / values.length;
 }
 
+/**
+ * Rubrikraden: raden bland de första som har flest rubriker vi känner igen, och
+ * minst en för namnet. En överskrift ovanför tabellen, som "54 namn och titlar",
+ * har bara en cell och förlorar mot raden med både Namn och Titel.
+ */
 function findHeader(table: readonly (readonly string[])[]): { index: number; kinds: (ColumnKind | null)[] } | null {
+  let best: { index: number; kinds: (ColumnKind | null)[]; known: number } | null = null;
   for (let index = 0; index < Math.min(HEADER_SCAN_ROWS, table.length); index++) {
     const kinds = (table[index] ?? []).map(classifyHeader);
-    if (kinds.some((kind) => kind === "name" || kind === "first" || kind === "last")) return { index, kinds };
+    if (!kinds.some((kind) => kind === "name" || kind === "first" || kind === "last")) continue;
+    const known = kinds.filter((kind) => kind !== null).length;
+    if (!best || known > best.known) best = { index, kinds, known };
   }
-  return null;
+  return best;
+}
+
+/** En cell med både namn och titel, "Anna Lind, Säljare": namnet före första kommatecknet och titeln efter. */
+function nameAndTitle(cell: string | undefined): string[] {
+  const text = clean(cell);
+  const comma = text.indexOf(",");
+  if (comma < 0) return text ? [text] : [];
+  return [text.slice(0, comma).trim(), cellText(text.slice(comma + 1))].filter(Boolean);
 }
 
 function fromHeader(table: readonly (readonly string[])[], header: { index: number; kinds: (ColumnKind | null)[] }): Roster {
@@ -82,9 +109,11 @@ function fromHeader(table: readonly (readonly string[])[], header: { index: numb
       ? [first >= 0 ? cellText(row[first]) : "", last >= 0 ? cellText(row[last]) : ""].filter(Boolean).join(" ")
       : cellText(row[name]);
 
+  // En kolumn med rubriken "Namn och titel" bär båda i samma cell.
+  const combined = title < 0 && first < 0 && last < 0 && isCombinedHeader(headings[name] ?? "");
   const entries = table
     .slice(header.index + 1)
-    .map((row) => [nameOf(row), title >= 0 ? cellText(row[title]) : ""].filter(Boolean))
+    .map((row) => (combined ? nameAndTitle(row[name]) : [nameOf(row), title >= 0 ? cellText(row[title]) : ""].filter(Boolean)))
     .filter((entry) => entry.length > 0);
 
   const nameHeading =

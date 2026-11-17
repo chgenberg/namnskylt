@@ -63,6 +63,27 @@ describe("readTable — xlsx", () => {
     });
   }
 
+  it("hoppar över ett tomt första blad: en fil från ett skript har ofta namnen på nästa", async () => {
+    const files = {
+      "xl/workbook.xml": `<workbook><sheets><sheet name="Sheet" sheetId="1" r:id="rId1"/><sheet name="Namn och titlar" sheetId="2" r:id="rId2"/></sheets></workbook>`,
+      "xl/_rels/workbook.xml.rels": `<Relationships><Relationship Id="rId1" Target="/xl/worksheets/sheet1.xml"/><Relationship Id="rId2" Target="/xl/worksheets/sheet2.xml"/></Relationships>`,
+      "xl/worksheets/sheet1.xml": `<worksheet><sheetData/></worksheet>`,
+      "xl/worksheets/sheet2.xml": `<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Namn</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>Erik Holm</t></is></c></row></sheetData></worksheet>`,
+    };
+    assert.deepEqual(await readTable("lista.xlsx", zip(files, true)), [["Namn"], ["Erik Holm"]]);
+    // Ett namngivet blad läses som det är, också när det är tomt.
+    assert.deepEqual(await readTable("lista.xlsx", zip(files, true), { sheet: "Sheet" }), []);
+    // Är alla blad tomma finns inget att läsa, men det är inget fel i filen.
+    const empty = { ...files, "xl/worksheets/sheet2.xml": `<worksheet><sheetData/></worksheet>` };
+    assert.deepEqual(await readTable("lista.xlsx", zip(empty, true)), []);
+  });
+
+  it("hittar de delade strängarna oavsett skiftläge i filnamnet", async () => {
+    const { "xl/sharedStrings.xml": shared, ...rest } = WORKBOOK;
+    const table = await readTable("personal.xlsx", zip({ ...rest, "xl/SharedStrings.xml": shared }, true));
+    assert.deepEqual(table[1], ["Åsa Öberg", "42", "Säljchef & VD"]);
+  });
+
   it("avvisar gamla .xls med ett begripligt fel", async () => {
     await assert.rejects(readTable("lista.xls", new Uint8Array([0xd0, 0xcf, 0x11, 0xe0])), SpreadsheetError);
   });

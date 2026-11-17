@@ -39,7 +39,7 @@ function useRosterImport(text: string, onTextChange: (text: string) => void) {
       const table = await readTable(file.name, new Uint8Array(await file.arrayBuffer()));
       const roster = rosterFromTable(table);
       if (roster.entries.length === 0) {
-        setStatus({ kind: "error", text: `Hittade inga namn i ${file.name}.` });
+        setStatus({ kind: "error", text: `Hittade inga namn i ${file.name}. Kopiera namnen ur filen och klistra in dem i rutan ovan, så går det också bra.` });
         return;
       }
       const lines = rosterText(roster.entries);
@@ -55,7 +55,10 @@ function useRosterImport(text: string, onTextChange: (text: string) => void) {
     }
   }
 
-  return { status, busy, importFile };
+  /** Kunden skriver eller klistrar in själv: beskedet om den senaste filen gäller inte längre. */
+  const clearStatus = () => setStatus(null);
+
+  return { status, busy, importFile, clearStatus };
 }
 
 const PLACEHOLDER = "Erik Holm, Överläkare\nWilma Berg, Barista\nMarcus Holm, VD";
@@ -112,7 +115,7 @@ export function BatchSection({
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const { status, busy, importFile } = useRosterImport(text, onTextChange);
+  const { status, busy, importFile, clearStatus } = useRosterImport(text, onTextChange);
 
   function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -152,7 +155,11 @@ export function BatchSection({
         <span className="visually-hidden">Fler namn, en skylt per rad</span>
         <textarea
           value={text}
-          onChange={(event) => onTextChange(event.target.value)}
+          onChange={(event) => {
+            // Ett fel från en fil som inte gick att läsa ska inte stå kvar när namnen har klistrats in för hand.
+            clearStatus();
+            onTextChange(event.target.value);
+          }}
           placeholder={PLACEHOLDER}
           rows={4}
           spellCheck={false}

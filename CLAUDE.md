@@ -56,7 +56,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1116 tester, grönt 2026-11-17).
+# Kvalitetsgrinden. Kör den innan något lämnas (1120 tester, grönt 2026-11-17).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -888,6 +888,19 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   - Provat lokalt i webbläsaren 2026-11-17 på dator och mobil (390 och 320 px): kundens
     flöde, panelens offert och order, en order öppnad för ändring och en butik. Inte provat
     i drift.
+- **Namnlistan under "Fler namn" läses ur Excel eller CSV i webbläsaren** (`readTable` i
+  `src/lib/spreadsheet/read-table.ts`, `rosterFromTable` i `src/engine/roster.ts`). Rättat
+  2026-11-17 efter att ägaren fick "Hittade inga namn" på en fil med 54 namn:
+  - Ur en .xlsx läses första bladet som har något i sig. En fil gjord av ett skript har ofta
+    ett tomt förvalt blad först och namnen på nästa, och gav då noll rader.
+  - Rubrikraden är raden med flest rubriker vi känner igen. En överskrift ovanför tabellen,
+    som "54 namn och titlar", togs förut för rubrikraden.
+  - En kolumn med rubriken "Namn och titel" delas vid kommatecknet.
+  - Felet försvinner när namnen skrivs eller klistras in för hand, och det säger att man
+    kan klistra in.
+  - Ägarens egen fil fanns inte på datorn. Felet är återskapat med egna filer från
+    LibreOffice, openpyxl och xlsxwriter, där filen med tomt första blad gav just det
+    meddelandet. Att det var orsaken i ägarens fil är alltså inte bekräftat.
 - **Flera designer i samma order**: varje design är en rad i varukorgen (`BadgeGroup` i
   motorn). Priset räknas på hela ordern, så trappsteg,
   startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom
