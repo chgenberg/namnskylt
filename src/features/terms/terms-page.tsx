@@ -1,5 +1,5 @@
-import Link from "next/link";
 import styles from "./terms.module.css";
+import { WorkshopTerms } from "./workshop-terms";
 
 /**
  * Företaget villkoren visas för. I en butik är det återförsäljaren, som är
@@ -27,59 +27,47 @@ interface TermsPageProps {
   cardPayments?: boolean;
 }
 
-/** Fakturans betalningstid på namnskylt.com, samma som hos Skylt & Gravyrteknik. */
-const INVOICE_DAYS = 30;
-/** Dagen villkoren senast ändrades. */
+/** Dagen återförsäljarnas villkor senast ändrades. */
 const UPDATED = "2026-11-17";
-const WORKSHOP = "Skylt & Gravyrteknik";
 
 /**
- * Köpvillkoren. Texten utgår från Skylt & Gravyrtekniks egna villkor och från
- * det sajten redan lovar: korrektur innan produktion och leverans inom fem
- * arbetsdagar. Säljarens uppgifter kommer ur företagsuppgifterna i panelen.
+ * Köpvillkoren. Där Skylt & Gravyrteknik är säljare gäller deras egna villkor,
+ * ordagrant (`WorkshopTerms`). I en återförsäljares butik är återförsäljaren
+ * säljare, och texten nedan utgår från det sajten lovar: korrektur innan
+ * produktion och leverans inom fem arbetsdagar. Säljarens uppgifter kommer ur
+ * företagsuppgifterna i panelen.
  */
 export function TermsPage({ seller, shopName, direct = !shopName, cardPayments = false }: TermsPageProps) {
-  const shop = Boolean(shopName);
   const address = seller.address.split("\n").map((line) => line.trim()).filter(Boolean).join(", ");
   const sellerLine = [seller.name, seller.orgNumber && `org.nr ${seller.orgNumber}`, address].filter(Boolean).join(", ");
+  if (direct) {
+    return (
+      <WorkshopTerms
+        place={shopName ? `hos ${shopName}` : "på namnskylt.com"}
+        agentLine={sellerLine}
+        agentEmail={seller.email}
+        privacyLink={!shopName}
+        cardPayments={cardPayments && !shopName}
+      />
+    );
+  }
   return (
     <article className={styles.page}>
       <p className={styles.eyebrow}>Villkor</p>
       <h1 className={styles.title}>Köpvillkor</h1>
-      <p className={styles.lead}>
-        Villkoren gäller när du beställer namnskyltar {shop ? `hos ${shopName}` : "på namnskylt.com"}.
-      </p>
+      <p className={styles.lead}>Villkoren gäller när du beställer namnskyltar {shopName ? `hos ${shopName}` : "här"}.</p>
 
       <section className={styles.section}>
         <h2>Säljare</h2>
-        {!direct ? (
-          <>
-            <p>
-              {sellerLine}.{" "}
-              {seller.email && (
-                <>
-                  Du når oss på <a href={`mailto:${seller.email}`}>{seller.email}</a>.
-                </>
-              )}
-            </p>
-            <p>Skyltarna tillverkas i Sverige.</p>
-          </>
-        ) : (
-          <>
-            <p>
-              Skyltarna säljs av {WORKSHOP}, som tillverkar dem i Sverige, levererar dem och fakturerar ordern.
-              Orderbekräftelsen och fakturan kommer därifrån.
-            </p>
-            <p>
-              Beställningen görs {shop ? `hos ${shopName}` : "på namnskylt.com"}. namnskylt.com förmedlar den: {sellerLine}.{" "}
-              {seller.email && (
-                <>
-                  Du når oss på <a href={`mailto:${seller.email}`}>{seller.email}</a>.
-                </>
-              )}
-            </p>
-          </>
-        )}
+        <p>
+          {sellerLine}.{" "}
+          {seller.email && (
+            <>
+              Du når oss på <a href={`mailto:${seller.email}`}>{seller.email}</a>.
+            </>
+          )}
+        </p>
+        <p>Skyltarna tillverkas i Sverige.</p>
       </section>
 
       <section className={styles.section}>
@@ -93,22 +81,10 @@ export function TermsPage({ seller, shopName, direct = !shopName, cardPayments =
 
       <section className={styles.section}>
         <h2>Betalning</h2>
-        {!direct ? (
-          <p>
-            Vi säljer till företag och verksamheter. Ordern betalas mot faktura från {seller.name}, och betalningstiden
-            står på fakturan.
-          </p>
-        ) : (
-          <>
-            <p>
-              Företag och verksamheter betalar mot faktura från {WORKSHOP}, med {INVOICE_DAYS} dagars betalningstid.
-              Fakturan skickas när ordern har levererats, och beställningen kräver ett organisationsnummer.
-            </p>
-            {cardPayments && !shop && (
-              <p>Privatpersoner betalar med kort när beställningen läggs. Ordern registreras när betalningen är klar.</p>
-            )}
-          </>
-        )}
+        <p>
+          Vi säljer till företag och verksamheter. Ordern betalas mot faktura från {seller.name}, och betalningstiden
+          står på fakturan.
+        </p>
       </section>
 
       <section className={styles.section}>
@@ -128,7 +104,6 @@ export function TermsPage({ seller, shopName, direct = !shopName, cardPayments =
         <p>
           Standardfrakten är varubrev eller paket, beroende på orderns storlek. Väljer du expressfrakt bestäms priset av
           storlek och vikt och meddelas innan ordern skickas.
-          {!shop && " Skyltarna går också att hämta hos verkstaden i Högsbo, utan fraktkostnad."}
         </p>
       </section>
 
@@ -147,24 +122,13 @@ export function TermsPage({ seller, shopName, direct = !shopName, cardPayments =
           Är en skylt felaktig eller skadad när den kommer fram rättar vi felet eller ersätter skylten. Hör av dig så snart
           du har upptäckt felet, med ordernumret och gärna en bild.
         </p>
-        {!shop && cardPayments && (
-          <p>
-            Som privatperson har du rätt att reklamera enligt konsumentköplagen i upp till tre år. Kommer vi inte överens kan
-            du vända dig till Allmänna reklamationsnämnden, arn.se.
-          </p>
-        )}
       </section>
 
       <section className={styles.section}>
         <h2>Personuppgifter</h2>
         <p>
-          Vi använder uppgifterna du lämnar för att tillverka, leverera och fakturera ordern.
-          {direct && ` De lämnas till ${WORKSHOP}, som gör just det.`} Du kan be oss rätta eller ta bort dem. Det som hör till bokföringen måste vi spara i sju år, men då utan namnen på skyltarna.{" "}
-          {!shop && (
-            <>
-              Mer står på sidan <Link href="/integritet">Så hanterar vi uppgifter</Link>.
-            </>
-          )}
+          Vi använder uppgifterna du lämnar för att tillverka, leverera och fakturera ordern. Du kan be oss rätta eller ta
+          bort dem. Det som hör till bokföringen måste vi spara i sju år, men då utan namnen på skyltarna.
         </p>
       </section>
 

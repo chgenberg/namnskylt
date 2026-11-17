@@ -1093,20 +1093,26 @@ på faktura, privatpersoner betalar med kort.**
   (`src/lib/payments/checkout.integration.test.ts`) och i webbläsaren. Aldrig provat mot
   Stripes riktiga system. Stripe anropas med `fetch` och formulärkodning; kontrollera mot
   Stripes dokumentation när nycklarna läggs in.
-- **På namnskylt.com är Skylt & Gravyrteknik säljare** (följd av ägarens beslut 2026-11-17):
-  köpvillkoren säger att verkstaden säljer, levererar och fakturerar och att namnskylt.com
-  förmedlar beställningen, och kassan säger "Betalas mot faktura från Skylt & Gravyrteknik".
-  I en butik är återförsäljaren säljare, som förut. Formuleringen är min och inte granskad av
-  ägaren eller en jurist, och verkstadens organisationsnummer står inte i texten.
+- **På namnskylt.com är Skylt & Gravyrteknik säljare** (följd av ägarens beslut 2026-11-17),
+  och kassan säger "Betalas mot faktura från Skylt & Gravyrteknik". I en butik som en
+  återförsäljare äger är återförsäljaren säljare, som förut.
   Kortbetalningen går inte ihop med upplägget: en kortbetald order faktureras namnskylt.com.
 - **Köpvillkor** finns på `/villkor` och, för butiker, `/butik/<slug>/villkor`
-  (`TermsPage` i `src/features/terms/`). Sidorna är öppna förbi sajtspärren. Säljaren läses ur
-  företagsuppgifterna: namnskylt.com på vår sajt, butikens ägare i en butik. Kassan kräver ett
+  (`TermsPage` i `src/features/terms/`). Sidorna är öppna förbi sajtspärren. Kassan kräver ett
   kryss i "Jag godkänner köpvillkoren" (`acceptedTerms`).
-  - Texten utgår från Skylt & Gravyrtekniks villkor och det sajten redan lovar. **Antaganden
-    som ägaren inte har bekräftat:** 30 dagars betalningstid på faktura (`INVOICE_DAYS`) och
-    formuleringarna om reklamation. Texten är inte granskad av en jurist.
-  - Ägarens företagsuppgifter saknar organisationsnummer, så det står inte under Säljare.
+  - **Där verkstaden är säljare gäller Skylt & Gravyrtekniks egna köpvillkor, ordagrant**
+    (på ägarens begäran 2026-11-17, `WorkshopTerms` i `workshop-terms.tsx`): på namnskylt.com
+    och i en butik utan ägare. Texten, företagsnamnet, organisationsnumret och adressen är
+    hämtade från skyltochgravyr.com/villkor 2026-11-17, och sidan länkar dit. Ändrar
+    verkstaden sina villkor ska samma ändring göras här: ingenting hämtas automatiskt.
+  - Under deras villkor står två egna stycken: "Om namnskylt.com" (att namnskylt.com
+    förmedlar beställningen, med företagsuppgifterna ur panelen) och "Personuppgifter".
+  - Deras villkor säger "Leveranstid meddelas per order" och att produktionen börjar när
+    betalningen har bekräftats. Sajten lovar på andra ställen leverans inom fem arbetsdagar,
+    och företag betalar mot faktura i efterhand. Ägarens besked 2026-11-17: samma villkor
+    gäller ändå, skillnaden spelar ingen roll.
+  - I en återförsäljares butik gäller den äldre texten, med återförsäljaren som säljare ur
+    dess företagsuppgifter. Den texten är inte granskad av en jurist.
 - **Integritetssidan** (`/integritet`) har fått två stycken: vad som sparas när någon
   beställer, och statistiken utan kakor. Resten gäller fortfarande utskicket och har
   platshållare.
