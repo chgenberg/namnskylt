@@ -181,6 +181,15 @@ export function tierIndexFor(quantity: number, table: PriceTable): number {
   return table.tiers.reduce((index, moreThan, i) => (quantity > moreThan ? i : index), 0);
 }
 
+/**
+ * Trappsteget med flest skyltar, 501 eller fler i kalkylen. Där är priset
+ * lägst, och det är priset väljarna visar som "Pris från" (beslut av ägaren
+ * 2026-11-17).
+ */
+export function lastTierIndex(table: PriceTable): number {
+  return Math.max(0, table.tiers.length - 1);
+}
+
 /** Priset för ett tillbehör eller tillval på ett trappsteg — det som läggs på skyltpriset. */
 export function optionPriceSek(option: PriceOptionId, table: PriceTable, tierIndex = 0): number {
   // En lista härledd ur en äldre modell kan sakna en rad som kommit till senare; den kostar då ingenting.

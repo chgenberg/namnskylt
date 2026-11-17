@@ -617,7 +617,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
           <MarkingSection doc={doc} dispatch={update} tierIndex={tierIndex} />
           <LogoSection doc={doc} dispatch={update} onWorkplace={visualize.setWorkplace} />
           <MaterialSection doc={doc} dispatch={update} />
-          <FormatSection doc={doc} dispatch={update} tierIndex={tierIndex} />
+          <FormatSection doc={doc} dispatch={update} />
           <MountingSection doc={doc} dispatch={update} />
           <BatchSection
             current={doc}
@@ -671,7 +671,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
         />
       </aside>
       {/* Visas först när det sparade är läst, så att rutan inte blinkar förbi för den som kommer tillbaka. */}
-      {onboarding && saved.ready && <OnboardingDialog doc={doc} fonts={fonts} dispatch={update} tierIndex={tierIndex} onClose={finishOnboarding} />}
+      {onboarding && saved.ready && <OnboardingDialog doc={doc} fonts={fonts} dispatch={update} onClose={finishOnboarding} />}
     </div>
   );
 }

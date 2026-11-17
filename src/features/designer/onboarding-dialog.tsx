@@ -32,13 +32,11 @@ interface OnboardingDialogProps {
   doc: BadgeDocument;
   fonts: FontEngine;
   dispatch: Dispatch<DesignerAction>;
-  /** Trappsteget för orderns antal, som tillägget för egen form följer. */
-  tierIndex: number;
   onClose: () => void;
 }
 
 /** Visas när kunden kommer från startsidan med sin text: välj det viktigaste först. */
-export function OnboardingDialog({ doc, fonts, dispatch, tierIndex, onClose }: OnboardingDialogProps) {
+export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const recorderRef = useRef<BadgeRecorder | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
@@ -48,7 +46,7 @@ export function OnboardingDialog({ doc, fonts, dispatch, tierIndex, onClose }: O
   const shapeName = shapeLabel(doc);
   const severalMaterials = OFFERED_MATERIALS.length > 1;
   // Samma former som i panelen till höger, även "Egen form", så att ingen missar den här.
-  const customShape = useCustomShapeChoice(doc, dispatch, tierIndex);
+  const customShape = useCustomShapeChoice(doc, dispatch);
   // Rutan har inget ritverktyg: formen som visas är ett förslag, och den riktiga väljs i nästa steg.
   const customChoice = customShape?.available ? { ...customShape, hint: CUSTOM_SHAPE_HINT } : customShape;
 

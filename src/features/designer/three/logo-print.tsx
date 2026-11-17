@@ -85,23 +85,36 @@ export function LogoPrint({ doc, fonts, frontZ, onTexture }: LogoPrintProps) {
 
 interface InkPrintProps {
   doc: BadgeDocument;
-  /** Det som printas i gravyrens färg: namnet, ramen eller en svartvit logga. Se `printedPaths`. */
+  /** Det som printas i en färg: namnet, ramen eller en svartvit logga. Se `printedPaths`. */
   printed: readonly EngravedPath[];
   frontZ: number;
 }
 
 /**
  * Print i en färg på skyltens framsida: ett namn eller en logga som kunden har
- * valt att printa i stället för att gravera. Trycket ligger plant på ytan, i
- * gravyrens färg, och fräses aldrig ur plattan.
+ * valt att printa i stället för att gravera. Trycket ligger plant på ytan och
+ * fräses aldrig ur plattan. Färgen är gravyrens, om inte kunden har angett en
+ * hexkod för trycket eller för raden; varje färg blir en egen yta.
  */
 export function InkPrint({ doc, printed, frontZ }: InkPrintProps) {
-  const geometry = useMemo(() => (printed.length > 0 ? printSurface(doc, printed) : null), [doc, printed]);
-  useEffect(() => () => geometry?.dispose(), [geometry]);
-  if (!geometry) return null;
-  return (
-    <mesh geometry={geometry} position={[0, 0, frontZ + LIFT_UNITS]}>
-      <meshStandardMaterial color={getColor(doc.materialId, doc.colorId).engraving} roughness={0.62} metalness={0} />
+  const surfaces = useMemo(() => {
+    const byInk = new Map<string, EngravedPath[]>();
+    for (const path of printed) byInk.set(path.ink ?? "", [...(byInk.get(path.ink ?? "") ?? []), path]);
+    return [...byInk].flatMap(([ink, paths]) => {
+      const geometry = printSurface(doc, paths);
+      return geometry ? [{ ink, geometry }] : [];
+    });
+  }, [doc, printed]);
+  useEffect(() => () => surfaces.forEach((surface) => surface.geometry.dispose()), [surfaces]);
+  const engraving = getColor(doc.materialId, doc.colorId).engraving;
+  return surfaces.map(({ ink, geometry }) => (
+    <mesh key={ink} geometry={geometry} position={[0, 0, frontZ + LIFT_UNITS]}>
+      {ink ? (
+        // Kundens egen färg visas som den är angiven, oberoende av ljussättningen, som en logga i färg.
+        <meshBasicMaterial color={ink} toneMapped={false} />
+      ) : (
+        <meshStandardMaterial color={engraving} roughness={0.62} metalness={0} />
+      )}
     </mesh>
-  );
+  ));
 }

@@ -16,16 +16,16 @@ const CUSTOM_SHAPE_ELSEWHERE = "Endast möjlig för plastskyltar";
  * Valet "Egen form" i formväljaren. Startrutan och panelen frågar här båda två,
  * så att de alltid visar samma former: på ett material som skärs ur ark går
  * formen att välja, på övriga syns den med en rad om var den finns.
- * `tierIndex` är trappsteget för orderns antal, som tilläggets pris följer.
+ * Priset är tilläggets lägsta, det som gäller på trappsteget med flest skyltar.
  */
-export function useCustomShapeChoice(doc: BadgeDocument, dispatch: Dispatch<DesignerAction>, tierIndex: number): CustomShapeChoice | undefined {
-  const { customShapePrice } = useShopPrices(tierIndex);
+export function useCustomShapeChoice(doc: BadgeDocument, dispatch: Dispatch<DesignerAction>): CustomShapeChoice | undefined {
+  const { customShapeFrom } = useShopPrices();
   const checked = doc.shape === "custom";
   if (getMaterial(doc.materialId).customShape) {
     return {
       available: true,
       checked,
-      priceSek: customShapePrice(doc.materialId),
+      fromPriceSek: customShapeFrom(doc.materialId),
       onSelect: () => {
         if (!checked) dispatch({ type: "custom/preset", presetId: FIRST_PRESET_ID });
       },

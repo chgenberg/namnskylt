@@ -43,6 +43,12 @@ export const badgeDocumentSchema = z
           text: z.string().max(TEXT_LIMITS.maxChars),
           capHeightMm: z.number().min(TEXT_LIMITS.minCapHeightMm).max(TEXT_LIMITS.maxCapHeightMm),
           bold: z.boolean(),
+          // Kundens färgkod för radens tryck: fritext utan styrtecken, som koden för hela trycket.
+          printColor: z
+            .string()
+            .max(PRINT_COLOR_MAX)
+            .regex(/^[^\u0000-\u001f\u007f]*$/)
+            .optional(),
         }),
       )
       .min(1)

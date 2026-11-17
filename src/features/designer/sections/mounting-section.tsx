@@ -17,6 +17,7 @@ import {
   type Mounting,
   type MountingId,
 } from "@/engine";
+import { fromPriceLabel, useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
@@ -67,13 +68,16 @@ interface MountingSectionProps {
 }
 
 /**
- * Fästets pris står i specifikationen vid antal och pris, inte här: det beror
- * på orderns antal. Ett fäste som inte går att få på skylten syns ändå,
- * streckat och med en rad om var det finns, så att ingen missar att det finns.
+ * Varje fäste som går att välja visar sitt pris från, alltså det lägsta (beslut
+ * av ägaren 2026-11-17). Priset för just den här ordern står i specifikationen
+ * vid antal och pris, eftersom det beror på orderns antal. Ett fäste som inte
+ * går att få på skylten syns ändå, streckat och med en rad om var det finns,
+ * så att ingen missar att det finns.
  * Klämman kräver plast och minst 80 × 25 mm, och kunden väljer själv om den
  * ska sitta horisontellt eller vertikalt där båda ryms.
  */
 export function MountingSection({ doc, dispatch }: MountingSectionProps) {
+  const { mountingFrom } = useShopPrices();
   const orientation = clipOrientationOf(doc);
   const fitting = clipOrientations(doc.size);
   return (
@@ -115,6 +119,7 @@ export function MountingSection({ doc, dispatch }: MountingSectionProps) {
               </svg>
               <span className={styles.materialName}>{m.name}</span>
               {note && <span className={styles.mountingNote}>{note}</span>}
+              {available && <span className={styles.mountingPrice}>{fromPriceLabel(mountingFrom(m.id, doc.materialId))}</span>}
             </button>
           );
         })}

@@ -4,7 +4,18 @@ import { AnimatePresence, motion } from "motion/react";
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Segmented } from "@/components/ui/segmented";
-import { FONTS, TEXT_LIMITS, type BadgeDocument, type BadgeLayout, type TextAlign } from "@/engine";
+import {
+  FONTS,
+  PRINT_COLOR_MAX,
+  TEXT_LIMITS,
+  getColor,
+  nameMarking,
+  printColorHex,
+  rowPrintInkOf,
+  type BadgeDocument,
+  type BadgeLayout,
+  type TextAlign,
+} from "@/engine";
 import { formatMm } from "@/lib/format";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
@@ -40,6 +51,10 @@ interface TextSectionProps {
 
 export function TextSection({ doc, layout, dispatch, onPlace, placing = false }: TextSectionProps) {
   const canAdd = doc.rows.length < TEXT_LIMITS.maxRows;
+  // Färg per rad finns bara i tryck: gravyren får materialets färg, lika på alla rader.
+  const namePrinted = nameMarking(doc) === "print";
+  /** Färgen en rad utan egen hexkod visas i, som väljaren utgår från. */
+  const defaultInk = printColorHex(getColor(doc.materialId, doc.colorId).engraving) ?? "#000000";
 
   return (
     <PanelSection step={1} title="Text" aside={`${doc.rows.length}/${TEXT_LIMITS.maxRows} rader`}>
@@ -107,6 +122,31 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
                     />
                     <span className={`mono ${styles.sliderValue}`}>{formatMm(row.capHeightMm)} mm</span>
                   </label>
+                  {namePrinted && (
+                    <div className={styles.rowColor}>
+                      <span className={styles.sliderLabel}>Färgkod</span>
+                      <input
+                        type="color"
+                        className={styles.rowSwatch}
+                        aria-label={`Välj färg för rad ${i + 1}`}
+                        title="Välj färg"
+                        // Väljaren kräver sex siffror i gemener.
+                        value={(rowPrintInkOf(doc, row) ?? defaultInk).toLowerCase()}
+                        onChange={(e) => dispatch({ type: "row/color", id: row.id, code: e.target.value.toUpperCase() })}
+                      />
+                      <span className="field">
+                        <input
+                          type="text"
+                          aria-label={`Färgkod för rad ${i + 1}`}
+                          value={row.printColor ?? ""}
+                          maxLength={PRINT_COLOR_MAX}
+                          placeholder="PMS eller hex"
+                          autoComplete="off"
+                          onChange={(e) => dispatch({ type: "row/color", id: row.id, code: e.target.value })}
+                        />
+                      </span>
+                    </div>
+                  )}
                   {issue && drawn && (
                     <p className={styles.issue} data-severity={issue.code === "row-too-long" ? "error" : "info"}>
                       {issue.code === "row-too-long"
@@ -120,6 +160,11 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
           })}
         </AnimatePresence>
       </ul>
+      <p className={styles.hint}>
+        {namePrinted
+          ? "En hexkod, till exempel #0057B8, visas på skylten. PMS och andra koder följer med ordern utan att bilden ändras."
+          : "Egen färg per rad går att ange när namnet printas, se Märkningsmetod."}
+      </p>
 
       {canAdd && (
         <button type="button" className={`btn btn--ghost ${styles.addRow}`} onClick={() => dispatch({ type: "row/add", id: crypto.randomUUID() })}>

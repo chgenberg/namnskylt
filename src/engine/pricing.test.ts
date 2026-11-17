@@ -7,8 +7,10 @@ import {
   NO_SHIPPING,
   badgePriceParts,
   fromPriceSek,
+  lastTierIndex,
   lineUnitPrices,
   mountingPriceSek,
+  optionPriceSek,
   priceItems,
   priceOrder,
   resellerOrder,
@@ -359,6 +361,16 @@ describe("tillbehör och tillval per trappsteg", () => {
   it("från-priset tar trappstegets billigaste fäste", () => {
     assert.equal(fromPriceSek("metal", list, 0), 122 + 8);
     assert.equal(fromPriceSek("metal", list, 3), 102 + 3);
+  });
+
+  it("priset från i väljarna är det som gäller på sista trappsteget, 501 eller fler", () => {
+    const last = lastTierIndex(list);
+    assert.equal(last, 3);
+    assert.equal(tierRangeLabel(last, list), "501 st eller fler");
+    assert.equal(mountingPriceSek("pin", list, last), 3);
+    assert.equal(optionPriceSek("extraEngraving", list, last), 22);
+    // En lista utan trappsteg har bara ett pris.
+    assert.equal(lastTierIndex({ ...list, tiers: [] }), 0);
   });
 
   it("modellen kräver ett pris per trappsteg", () => {

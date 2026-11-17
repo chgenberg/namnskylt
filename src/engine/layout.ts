@@ -2,7 +2,7 @@ import { TEXT_LIMITS } from "./catalog";
 import { engravedRows } from "./document";
 import { availableHalfWidth, isEllipseShape, outlinePath } from "./shape";
 import { logoEngravingPath, placeLogoPath } from "./logo";
-import { logoMarking, nameMarking } from "./marking";
+import { logoMarking, nameMarking, printInkOf, rowPrintInkOf } from "./marking";
 import { ZERO_OFFSET, clampOffset, moveRect, rectsOverlap, unionRect } from "./placement";
 import type { BadgeDocument, BadgeLogo, FontId, Mm, Offset, Rect, TextAlign } from "./types";
 
@@ -47,6 +47,8 @@ export interface LaidOutRow {
   bold: boolean;
   anchor: TextAnchor;
   widthMm: Mm;
+  /** Kundens hexfärg för radens tryck, när namnet printas. Utan den ritas raden i gravyrens färg. */
+  ink?: string;
 }
 
 /** Ram som fylld ring: yttre och inre kontur i samma path, fylls med evenodd. */
@@ -92,6 +94,8 @@ export interface BadgeLayout {
   logoOverlapsText: boolean;
   /** Namnet, alltså text och ram, printas i stället för att graveras. */
   namePrinted: boolean;
+  /** Kundens hexfärg för hela trycket: ramen och en svartvit logga som printas. `null` ger gravyrens färg. */
+  printInk: string | null;
 }
 
 /**
@@ -307,6 +311,7 @@ export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout 
     const xMm =
       doc.align === "left" ? span.left : doc.align === "right" ? span.right : (span.left + span.right) / 2;
     const rowWidth = widthAt(i, cap);
+    const ink = rowPrintInkOf(doc, row);
     const leftMm =
       doc.align === "left" ? xMm : doc.align === "right" ? xMm - rowWidth : xMm - rowWidth / 2;
 
@@ -322,6 +327,7 @@ export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout 
       bold: row.bold,
       anchor: ANCHOR_BY_ALIGN[doc.align],
       widthMm: rowWidth,
+      ...(ink && { ink }),
     };
   });
 
@@ -348,6 +354,7 @@ export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout 
     textBox: unionRect(rowBoxes),
     logoOverlapsText: logoBox !== null && rowBoxes.some((box) => rectsOverlap(box, logoBox)),
     namePrinted: nameMarking(doc) === "print",
+    printInk: printInkOf(doc),
   };
 }
 

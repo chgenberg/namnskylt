@@ -41,6 +41,13 @@ export interface BadgeTextRow {
   /** Versalhöjd i mm — så mäter gravören, inte i punkter. */
   capHeightMm: Mm;
   bold: boolean;
+  /**
+   * Kundens egen färgkod för radens tryck (PMS, hex eller liknande), som
+   * fritext. En hexkod ritas på skylten, övriga koder följer bara med ordern.
+   * Gäller bara när namnet printas, som hos verkstaden: läs med
+   * `rowPrintColorOf` och `rowPrintInkOf`.
+   */
+  printColor?: string;
 }
 
 export interface BadgeFrame {

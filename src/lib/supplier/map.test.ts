@@ -152,6 +152,20 @@ describe("toSupplierSignDocument", () => {
       "Märkningsmetod: Endast print. Namn: Print. Tryckfärg PMS 286 C.",
     );
     assert.equal(toSupplierSignDocument({ ...base, printColor: "PMS 286 C" }, approxFonts).productionNote, undefined);
+    // En rad med egen kod: hexkoden går i radens färgfält, och alla koder står i klartext.
+    const two = createBadgeDocument(["Anna", "Säljare"]);
+    const rows = two.rows.map((row, i) => ({ ...row, printColor: i === 0 ? "#c8102e" : "PMS 300 C" }));
+    const rowColors = (doc: typeof two) =>
+      toSupplierSignDocument(doc, approxFonts).layers.flatMap((l) => (l.data.kind === "text" ? l.data.rows.map((row) => row.color) : []));
+    assert.deepEqual(rowColors({ ...two, rows, marking: "print" }), ["#C8102E", undefined]);
+    assert.equal(
+      toSupplierSignDocument({ ...two, rows, marking: "print" }, approxFonts).productionNote,
+      "Märkningsmetod: Endast print. Namn: Print. Tryckfärg rad 1 #c8102e, rad 2 PMS 300 C.",
+    );
+    // En hexkod för hela trycket blir färgen på rader utan egen kod.
+    assert.deepEqual(rowColors({ ...two, marking: "print", printColor: "#0057b8" }), ["#0057B8", "#0057B8"]);
+    // När namnet graveras följer ingen radfärg med.
+    assert.deepEqual(rowColors({ ...two, rows }), [undefined, undefined]);
     assert.ok(namePrinted.layers.some((l) => l.data.kind === "text"));
     // En skylt som bara graveras ser ut som förut.
     assert.equal(toSupplierSignDocument(base, approxFonts).productionNote, undefined);

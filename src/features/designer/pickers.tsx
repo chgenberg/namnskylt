@@ -20,6 +20,7 @@ import {
   type MaterialFinish,
   type MaterialId,
 } from "@/engine";
+import { fromPriceLabel } from "./shop-price";
 import styles from "./pickers.module.css";
 
 /** Luft runt konturen i ikonens ruta, i mm. */
@@ -164,8 +165,8 @@ export type CustomShapeChoice =
   | {
       available: true;
       checked: boolean;
-      /** Tillägget per skylt för slutkunden. */
-      priceSek: number;
+      /** Tilläggets lägsta pris per skylt för slutkunden, det som gäller på trappsteget med flest skyltar. */
+      fromPriceSek: number;
       onSelect: () => void;
       /** En rad under priset, till exempel att formen väljs i nästa steg. */
       hint?: string;
@@ -209,7 +210,7 @@ export function BlankPicker({ value, materialId, onChange, custom }: BlankPicker
         <button type="button" role="radio" aria-checked={custom.checked} className={styles.blankCard} onClick={custom.onSelect}>
           <CustomShapeIcon />
           <span>Egen form</span>
-          <span className={`mono ${styles.blankSize}`}>+{custom.priceSek} kr</span>
+          <span className={styles.blankSize}>{fromPriceLabel(custom.fromPriceSek)}</span>
           {custom.hint && <span className={styles.blankNote}>{custom.hint}</span>}
         </button>
       )}

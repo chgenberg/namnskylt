@@ -14,6 +14,11 @@ export interface SupplierTextRow {
   bold: boolean;
   italic: false;
   locked: false;
+  /**
+   * Kundens hexfärg för radens tryck (`#RRGGBB`), deras `TextRow.color`. Bara
+   * när namnet printas; deras motor läser fältet på tryckta skyltar.
+   */
+  color?: string;
 }
 
 export type SupplierLayer =

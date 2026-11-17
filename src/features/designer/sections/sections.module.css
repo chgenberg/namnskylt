@@ -64,6 +64,46 @@
   color: var(--color-ink-2);
 }
 
+/* Radens färgkod för trycket: en färgväljare och ett fält för koden, i linje med reglaget ovanför. */
+.rowColor {
+  display: grid;
+  /* Fältet får krympa under sin egen bredd, annars sticker det ut ur kortet på mobil. */
+  grid-template-columns: 84px 36px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rowColor :global(.field) {
+  min-width: 0;
+  height: 36px;
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.rowSwatch {
+  width: 36px;
+  height: 36px;
+  padding: 3px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  cursor: pointer;
+}
+
+.rowSwatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.rowSwatch::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 3px);
+}
+
+.rowSwatch::-moz-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 3px);
+}
+
 .issue {
   font-size: var(--text-xs);
   color: var(--color-navy-3);
@@ -219,16 +259,18 @@
 
 .mountingGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* Tre fästen säljs. Tre kolumner fyller raden och ger priset plats på en rad. */
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-2);
 }
 
 .mountingCard {
   position: relative;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   /* Ikon och namn står överst i alla kort, även när ett kort har en rad till under namnet. */
-  align-content: start;
-  justify-items: center;
+  justify-content: flex-start;
+  align-items: center;
   gap: var(--space-1);
   padding: var(--space-3);
   border-radius: var(--radius-md);
@@ -260,6 +302,15 @@
   font-size: var(--text-xs);
   line-height: 1.3;
   text-wrap: balance;
+}
+
+/* Fästets pris från står längst ner i kortet, i linje mellan korten även när ett av dem har en rad till. */
+.mountingPrice {
+  margin-top: auto;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Ett fäste som syns men inte går att välja på det här materialet. */

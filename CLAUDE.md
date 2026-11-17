@@ -54,7 +54,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1047 tester, grönt 2026-11-16).
+# Kvalitetsgrinden. Kör den innan något lämnas (1059 tester, grönt 2026-11-17).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -254,8 +254,31 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     Läs alltid med `printColorOf`, som bara ger koden när något faktiskt printas, så att en kod
     som står kvar efter ett byte till gravyr inte följer med. `printColorLabel` ("Tryckfärg PMS
     286 C") står bredvid fästet på ordersidor, offert, korrektur och i Tillverkning, och i
-    verkstadens `productionNote`. Förhandsvisningen ändras inte av koden.
-  - Preliminärt: att verkstaden printar text, och i vilken färg. Printat namn visas i gravyrens färg.
+    verkstadens `productionNote`.
+  - **Varje textrad kan få en egen färgkod** (besked via ägaren 2026-11-17): när namnet printas
+    har varje rad i sektionen Text raden "Färgkod", med en färgväljare och ett fält för PMS
+    eller hex (`BadgeTextRow.printColor`, åtgärden `row/color`, samma längd och rensning som
+    koden för hela trycket). Regeln är verkstadens egen (deras `TextRow.color`): färg per rad
+    finns bara i tryck, och gravyr struntar i den, eftersom gravyren får materialets färg på
+    alla rader. Läs alltid med `rowPrintColorOf` och `rowPrintInkOf`.
+    - När namnet graveras visas inga fält, bara raden "Egen färg per rad går att ange när
+      namnet printas, se Märkningsmetod.", så att ingen letar förgäves.
+    - **En hexkod ritas på skylten**, i ritningen, 3D-vyn och fotoläget (`printColorHex`,
+      `LaidOutRow.ink`, `EngravedPath.ink`; i 3D en yta per färg, olyst som en logga i färg).
+      Det gäller nu också koden för hela trycket (`printInkOf`, `BadgeLayout.printInk`): den
+      färgar ramen, en svartvit logga som printas och rader utan egen kod. PMS och andra koder
+      går inte att rita, eftersom vi inte har deras färger, och följer bara med ordern. En rad
+      med egen PMS-kod visas i gravyrens färg, inte i tryckets. Tre siffror läses bara som hex
+      med brädgård, så att PMS-numret 286 inte blir en färg.
+    - Koderna står i samma etikett som koden för hela trycket: "Tryckfärg PMS 286 C, rad 2
+      #C8102E" (`printColorLabel`). Raderna räknas som de står på skylten, utan tomma rader.
+    - Verkstaden får radens hexfärg i sitt eget fält (`SupplierTextRow.color`, `#RRGGBB`) och
+      alla koder i klartext i `productionNote`. Deras motor läser fältet bara på tryckta
+      skyltar och klistermärken, så tills de kan printa ett namn är det klartexten som gäller.
+    - "Fler namn" och "Ny personal" ger varje nytt namn samma färg per rad som mallen.
+    - Produktionsfilen och maskinfilerna bär aldrig färgen: de har bara gravyren.
+  - Preliminärt: att verkstaden printar text, och i vilken färg. Utan egen hexkod visas ett
+    printat namn i gravyrens färg.
   - Kända brister: produktionsfilen saknar det som printas och ingen tryckfil för namnet skapas.
     Gravyranimationen sveper inte över det som printas. Fotoläget, korrekturet, offertens PDF
     och delningsbilden är inte öppnade i webbläsaren med ett printat namn.
@@ -425,10 +448,11 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
     skyltmotorn, varukorgen eller på företagssidan. Uppdelningen med startkostnaden på egen rad
     finns bara i `/admin/prismodell`. Återförsäljarens inköpsprislista (`/admin/inkopspriser`)
     anger den fortfarande, eftersom en prislista inte kan lägga in den utan ett antal.
-  - **Inga "från"-priser** (samma besked): priset per skylt beror på antalet, så materialkorten,
-    startdialogen och inspirationsbanken visar inget pris. Företagssidan visar priset per skylt
-    vid 10, 50, 100 och 500 skyltar, med startkostnaden inräknad. `withoutStartCost` används
-    bara där återförsäljaren ställer in butikens priser.
+  - **Inga "från"-priser på själva skylten** (samma besked): priset per skylt beror på antalet,
+    så materialkorten och inspirationsbanken visar inget pris. Företagssidan visar priset per
+    skylt vid 10, 50, 100 och 500 skyltar, med startkostnaden inräknad. `withoutStartCost`
+    används bara där återförsäljaren ställer in butikens priser. Tillvalen har däremot ett pris
+    från, se nedan.
 - **Frakten** (beslut av ägaren 2026-11-14) är Skylt & Gravyrtekniks egen, rakt av: varubrev 75 kr
   för en order med varuvärde upp till 500 kr, annars paket 159 kr (`PriceModel.shipping`,
   `ShippingRule`, kortet "Frakt" i `/admin/prismodell`, hela kronor).
@@ -501,11 +525,21 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   ett fäste (nål, klämma eller magnet), märkningsmetoden när den har ett pris och skyltens del av
   startkostnaden. Textrader, ram och logga ingår. Slutkundens delar avrundas var för sig till hela
   kronor.
-- **Skyltmotorn visar inget pris på fästena**, eftersom priset beror på orderns antal. I stället
-  står en specifikation per skylt bredvid antal och pris (`order-section.tsx`): skylten (med
-  startkostnaden i), fästet, loggan och egen form, som summerar till priset per skylt
-  (`badgePriceParts` i motorn, `shopPriceParts` med butikens påslag, `withStartInSign`).
-  "Egen form" visar fortfarande sitt tillägg i formväljaren. Materialen visar inget pris.
+- **Tillvalen visar "Pris från: X kr"** (beslut av ägaren 2026-11-17): fästena, "Egen form"
+  och märkningsmetoderna visar sitt lägsta pris, alltså priset på sista trappsteget, 501 eller
+  fler (`lastTierIndex` i `pricing.ts`, `fromPriceLabel` och `markingFrom`, `customShapeFrom`,
+  `mountingFrom` i `shop-price.tsx`). Priset är slutkundens, med butikens påslag, och ändras
+  inte med orderns antal. Ett tillval som kostar 0 kr visar "Ingår".
+  - Ett fäste som inte går att välja på skylten visar raden om var det finns, och inget pris.
+    Fästenas kort står i tre kolumner, så att priset ryms på en rad.
+  - Startrutan visar samma pris på "Egen form" som panelen. Materialen visar inget pris.
+  - Priset som gäller för just den här ordern står kvar i specifikationen per skylt bredvid
+    antal och pris (`order-section.tsx`): skylten (med startkostnaden i), fästet, loggan och
+    egen form, som summerar till priset per skylt (`badgePriceParts` i motorn,
+    `shopPriceParts` med butikens påslag, `withStartInSign`). Märkningsmetodens sammanfattning
+    "Pristillägg per skylt" visar också orderns pris, "+X kr".
+  - Regeln läser sista trappsteget, inte det lägsta talet: sätter ägaren ett högre pris på
+    501 eller fler än på ett tidigare steg stämmer inte ordet "från".
 - **Mängdrabatten står sist i specifikationen** (besked via ägaren 2026-11-16): från två skyltar
   visas raden "Mängdrabatt −N kr (X %)", med jämförelsen i klartext som verktygstips. Jämförelsen
   är vad samma skylt hade kostat ensam i ordern (`shopPriceParts(doc, 1, …)`), alltså både
@@ -522,7 +556,7 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
   `markingEngraveNamePrintLogo` och `markingPrintNameEngraveLogo`, ett pris per trappsteg som
   övriga tillval (`MARKING_OPTION`, `markingPriceSek`). Alla står på 0 kr tills ägaren sätter
   priser i `/admin/prismodell`, kortet "Märkningsmetod" (beslut av ägaren). Med 0 kr visas metoden
-  som "Ingår", annars "+X kr".
+  som "Ingår", annars "Pris från: X kr" vid valet och "+X kr" i sammanfattningen under valen.
   - **Loggan kostar inget eget** (besked via ägaren 2026-11-16, efter att en kollega valde Endast
     gravyr och ändå fick ett logotillägg): `extraEngraving` är 0 kr i kalkylen, och migrering 029
     nollade priset i den sparade modellen i `settings`. Med 0 kr har loggan ingen egen del och
@@ -761,10 +795,17 @@ verkstaden sin provision per period.
 - Kontrollerat i produktion 2026-11-14 med kopplingen av, för alla roller: ansökan, godkännande,
   val av lösenord, order med leverans, offert med två designer, kundens godkännande och nej,
   korrektur, en kunds egen beställning och adminens sidor. Testordrarna togs bort genom
-  gränssnittet. **Kvar i produktionens databas** ligger ett testkonto som heter
-  `TEST Flödeskontroll … (ta bort)` med sin ansökan, sina två offerter och sin kund, och en
-  testkund under namnskylt.com. Det finns ingen funktion för att ta bort konton, ansökningar
-  eller kunder, och databasen nås inte utifrån.
+  gränssnittet.
+- **Produktionen städades 2026-11-16** på ägarens begäran, genom panelens egna knappar: all
+  demodata, alla ordrar, kunder och offerter under admin och alla tre återförsäljarkonton med
+  sina ansökningar togs bort. Efteråt finns inga konton, ordrar, kunder eller offerter i
+  produktion. Kvar är admininlogget och de 327 butiker som byggdes åt tänkta återförsäljare
+  2026-10-27 (ägarens besked: behåll dem). Demofunktionerna i koden ("Fyll med demodata" och
+  `/verkstad`) är också kvar.
+  - Adminens företagsnamn är nu namnskylt.com. Övriga företagsuppgifter under Inställningar
+    (logga, undertitel, organisationsnummer, e-post, telefon, hemsida, adress och färger) är
+    inte ändrade och tillhör fortfarande företaget som stod där förut. De syns på offerter och
+    köpvillkor, och ägaren behöver byta dem.
 - Skyltmotorn på mobil och låga skärmar: beställningsformuläret öppnas sist i panelen, och
   sidan rullar dit först när formuläret har vecklat ut sig (`FORM_OPEN_MS`, `[data-order-form]`
   med `scroll-margin-top`). Rullas det direkt avbryts rullningen av att sidan ändrar höjd.
@@ -1072,6 +1113,8 @@ Luckor i kontraktet:
 - Fästet skickas som text i stället för artikelkod.
 - Ett printat namn går inte att uttrycka: deras text- och ramlager har inget läge för print.
   Märkningsmetoden skickas som text i `productionNote`, och de behöver ett fält för det.
+  Radens färg skickas i deras `TextRow.color`, men deras motor läser den bara på tryckta
+  skyltar och klistermärken, inte på en graverad skylt med printat namn.
 - Vi skickar deras fyra fraktsätt: varubrev, paket, `postnord-express` och `pickup-hogsbo`.
   Expressfraktens pris läses ur statusen de skickar (`SupplierOrderState.shippingCost`, hela
   kronor exklusive moms); de behöver skicka fältet.

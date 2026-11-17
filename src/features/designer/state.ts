@@ -39,6 +39,8 @@ export type DesignerAction =
   | { type: "texts"; texts: string[] }
   | { type: "row/cap"; id: string; capHeightMm: number }
   | { type: "row/bold"; id: string }
+  /** Kundens egen färgkod för radens tryck, som fritext. Tom text tar bort den. */
+  | { type: "row/color"; id: string; code: string }
   | { type: "row/add"; id: string }
   | { type: "row/remove"; id: string }
   | { type: "font"; font: FontId }
@@ -122,6 +124,15 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       }));
     case "row/bold":
       return mapRow(doc, action.id, (row) => ({ ...row, bold: !row.bold }));
+    case "row/color": {
+      const code = cleanPrintColor(action.code);
+      return mapRow(doc, action.id, (row) => {
+        if (code.trim() !== "") return { ...row, printColor: code };
+        const rest = { ...row };
+        delete rest.printColor;
+        return rest;
+      });
+    }
     case "row/add":
       if (doc.rows.length >= TEXT_LIMITS.maxRows) return doc;
       return {

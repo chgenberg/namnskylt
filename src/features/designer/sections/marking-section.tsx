@@ -12,7 +12,7 @@ import {
   type BadgeDocument,
 } from "@/engine";
 import { formatSek } from "@/lib/format";
-import { useShopPrices } from "../shop-price";
+import { fromPriceLabel, useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
@@ -23,7 +23,7 @@ interface MarkingSectionProps {
   tierIndex: number;
 }
 
-/** En metod som ingår i skylten kostar inget; övriga visar sitt tillägg per skylt. */
+/** Tillägget per skylt i den här ordern. En metod som ingår i skylten kostar inget. */
 function priceLabel(sek: number): string {
   return sek > 0 ? `+${formatSek(sek)}` : "Ingår";
 }
@@ -31,11 +31,12 @@ function priceLabel(sek: number): string {
 /**
  * Märkningsmetoden: om namn och logotyp graveras eller printas. En metod ingår
  * i skylten. De två kombinerade valen kräver en logotyp och syns annars
- * streckade, så att ingen missar att de finns. Priserna kommer ur prismodellen
- * och följer orderns trappsteg och butikens påslag.
+ * streckade, så att ingen missar att de finns. Priserna kommer ur prismodellen,
+ * med butikens påslag. Vid valen står priset från, alltså det lägsta, och i
+ * sammanfattningen under dem tillägget som gäller för orderns antal.
  */
 export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps) {
-  const { markingPrice } = useShopPrices(tierIndex);
+  const { markingPrice, markingFrom } = useShopPrices(tierIndex);
   const selected = getMarkingMethod(markingOf(doc));
   // Färgkoden gäller trycket: fältet visas bara när namnet eller loggan printas.
   const printsSomething = selected.nameMode === "print" || (Boolean(doc.logo) && selected.logoMode === "print");
@@ -62,7 +63,7 @@ export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps
                   {available ? method.description : `${method.description}. Lägg till en logotyp nedan för att välja.`}
                 </span>
               </span>
-              <span className={styles.markingPrice}>{priceLabel(markingPrice(method.id, doc.materialId))}</span>
+              <span className={styles.markingPrice}>{fromPriceLabel(markingFrom(method.id, doc.materialId))}</span>
             </button>
           );
         })}
@@ -95,7 +96,8 @@ export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps
             />
           </span>
           <span className={styles.hint}>
-            Valfritt. Koden följer med ordern till tillverkningen. Förhandsvisningen ändras inte av den.
+            Valfritt. Gäller allt som printas; en rad kan få en egen kod under Text. En hexkod visas på skylten, andra koder
+            följer med ordern.
           </span>
         </label>
       )}

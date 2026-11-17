@@ -14,8 +14,6 @@ import styles from "./sections.module.css";
 interface FormatSectionProps {
   doc: BadgeDocument;
   dispatch: Dispatch<DesignerAction>;
-  /** Trappsteget för orderns antal — tillvalets pris kan skilja mellan trappstegen. */
-  tierIndex: number;
 }
 
 /**
@@ -23,10 +21,10 @@ interface FormatSectionProps {
  * som skärs ur ark kan dessutom få en egen form, som ritas här under. På övriga
  * material syns valet ändå, med en rad om var det finns.
  */
-export function FormatSection({ doc, dispatch, tierIndex }: FormatSectionProps) {
+export function FormatSection({ doc, dispatch }: FormatSectionProps) {
   const { widthMm, heightMm } = doc.size;
   // Samma val som i startrutan, så att de två alltid visar samma former.
-  const customChoice = useCustomShapeChoice(doc, dispatch, tierIndex);
+  const customChoice = useCustomShapeChoice(doc, dispatch);
   const custom = doc.shape === "custom";
 
   return (

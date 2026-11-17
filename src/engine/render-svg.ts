@@ -95,8 +95,11 @@ export function renderBadgeSvg(
   const isPreview = mode === "preview";
   const pad = isPreview && showDimensions ? DIMENSION_PAD_MM : 0;
   const engraveFill = isPreview ? color.engraving : PRODUCTION_ENGRAVE;
-  const fillFor = (rowId: string | undefined) =>
-    isPreview && rowId && placeholderRowIds?.has(rowId) ? PLACEHOLDER_FILL : engraveFill;
+  // Kundens hexfärg gäller bara trycket, som bara ritas i förhandsvisningen.
+  const fillFor = (rowId: string | undefined, ink?: string) => {
+    if (isPreview && rowId && placeholderRowIds?.has(rowId)) return PLACEHOLDER_FILL;
+    return isPreview && ink ? ink : engraveFill;
+  };
 
   const gradientId = `${idPrefix}-sheen`;
   const parts: string[] = [];
@@ -128,21 +131,22 @@ export function renderBadgeSvg(
   if (engraving) {
     // Printen ligger på ytan, under gravyren.
     for (const path of [...(printed ?? []), ...engraving]) {
-      parts.push(`<path d="${path.d}" fill="${fillFor(path.rowId)}" fill-rule="${path.fillRule}"/>`);
+      parts.push(`<path d="${path.d}" fill="${fillFor(path.rowId, path.ink)}" fill-rule="${path.fillRule}"/>`);
     }
   } else {
+    const printFill = isPreview && layout.printInk ? layout.printInk : engraveFill;
     if (drawName) {
       for (const frame of layout.frames) {
-        parts.push(`<path d="${frame.d}" fill="${engraveFill}" fill-rule="evenodd"/>`);
+        parts.push(`<path d="${frame.d}" fill="${layout.namePrinted ? printFill : engraveFill}" fill-rule="evenodd"/>`);
       }
     }
     if (layout.logo && !layout.logo.imageSrc && drawLogo) {
-      parts.push(`<path d="${layout.logo.d}" fill="${engraveFill}" fill-rule="evenodd"/>`);
+      parts.push(`<path d="${layout.logo.d}" fill="${layout.logo.printed ? printFill : engraveFill}" fill-rule="evenodd"/>`);
     }
     const family = escapeXml(getFont(doc.font).css);
     for (const row of drawName ? layout.rows : []) {
       parts.push(
-        `<text x="${num(row.xMm)}" y="${num(row.baselineMm)}" text-anchor="${row.anchor}" font-family="${family}" font-size="${num(row.fontSizeMm)}" font-weight="${row.bold ? 700 : 400}" fill="${fillFor(row.id)}">${escapeXml(row.text)}</text>`,
+        `<text x="${num(row.xMm)}" y="${num(row.baselineMm)}" text-anchor="${row.anchor}" font-family="${family}" font-size="${num(row.fontSizeMm)}" font-weight="${row.bold ? 700 : 400}" fill="${fillFor(row.id, row.ink)}">${escapeXml(row.text)}</text>`,
       );
     }
   }

@@ -82,6 +82,8 @@ export function toSupplierSignDocument(
           bold: row.bold,
           italic: false,
           locked: false,
+          // En kod som inte är hex (PMS) står bara i klartext i `productionNote`.
+          ...(row.ink && { color: row.ink }),
         },
       ],
     },
