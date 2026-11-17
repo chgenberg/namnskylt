@@ -125,23 +125,27 @@ const PLASTIC_15_COLORS: readonly ColorCombo[] = PLASTIC_15_ORDER.map((id) => {
 
 export const MATERIALS: readonly BadgeMaterial[] = [
   {
-    // Preliminärt tills verkstaden bekräftat: artikelkod, tjocklek och gravyrens färg.
+    // Ytorna och ämnena är verkstadens egna (underlag från ägaren 2026-11-17, se `BLANKS`).
+    // Preliminärt tills verkstaden bekräftat: artikelkoden och gravyrens färg.
     id: "metal",
     name: "Metall",
     tagline: "Stilren, i tre ytor",
-    description: "Tunn metallskylt med graverad text, i vitt, borstat guld eller borstat silver.",
+    description: "Tunn metallskylt med graverad text, i vit matt aluminium, mässing eller nickel.",
     finish: "aluminium",
     producer: "skylt-gravyr",
     exclusive: false,
     offered: true,
     precut: true,
     supplierCode: "namnskylt-metall",
+    // Tjockleken skiljer mellan ytorna och står på ämnet (`blankArticle`). Den här gäller en äldre skylt utan ämne.
     thicknessMm: 0.5,
     priceClass: "premium",
+    // Id:na är dem verkstadens mottagare känner (`metal-white`, `metal-gold`, `metal-silver`) och
+    // skickas rakt av i ordern. Namnen är verkstadens ytor: vit matt aluminium, mässing och nickel.
     colors: [
-      { id: "metal-white", name: "Vit", surface: "#F7F7F5", engraving: BLACK, lacquered: true },
-      { id: "metal-gold", name: "Borstat guld", surface: "#C8A440", engraving: BLACK },
-      { id: "metal-silver", name: "Borstat silver", surface: "#B4B6B8", engraving: BLACK },
+      { id: "metal-white", name: "Vit matt", surface: "#F7F7F5", engraving: BLACK, lacquered: true },
+      { id: "metal-gold", name: "Mässing", surface: "#C8A440", engraving: BLACK },
+      { id: "metal-silver", name: "Nickel", surface: "#B4B6B8", engraving: BLACK },
     ],
   },
   {
@@ -342,25 +346,113 @@ export interface BadgeBlank {
   cornerRadiusMm: Mm;
   /** Ämnet finns bara på material med de här ytorna. Utelämnat = alla material. */
   finishes?: readonly MaterialFinish[];
+  /** Välvd: skylten är lätt kupad. Ritningen och måttet är desamma som för en plan skylt. */
+  domed?: boolean;
+  /**
+   * Verkstadens artikel per yta, för färdiga ämnen: benämningen som den står
+   * hos verkstaden, och plåtens tjocklek. Nyckeln är ytans id (`colorId`).
+   */
+  articles?: Readonly<Record<string, BlankArticle>>;
+}
+
+/** Ett färdigt ämne i en viss yta, som verkstaden har det på hyllan. */
+export interface BlankArticle {
+  name: string;
+  thicknessMm: Mm;
+}
+
+const METAL: readonly MaterialFinish[] = ["aluminium"];
+const PLASTIC: readonly MaterialFinish[] = ["plastic"];
+
+/** Verkstadens tre ytor på ett metallämne, i samma ordning som i deras lista: vit matt aluminium, mässing och nickel. */
+function metalArticles(white: string, brass: string, nickel: string, thinMm: Mm): Record<string, BlankArticle> {
+  return {
+    "metal-white": { name: white, thicknessMm: 0.8 },
+    "metal-gold": { name: brass, thicknessMm: thinMm },
+    "metal-silver": { name: nickel, thicknessMm: thinMm },
+  };
 }
 
 /**
- * Ämnena som säljs. Måtten är uppskattade från foton och preliminära tills
- * verkstaden lämnat de riktiga — ändra dem här, ingen annanstans.
+ * Ämnena som säljs. Ändra dem här, ingen annanstans.
+ *
+ * Metallens ämnen är verkstadens egna, med deras mått, tjocklek och
+ * benämningar (underlag från ägaren 2026-11-17): fem format i tre ytor.
+ * Benämningarna står ordagrant som i verkstadens lista och följer med ordern,
+ * så att rätt ämne plockas. Hörnens rundning på rektanglarna och TV-brickans
+ * form är uppskattade.
+ *
+ * Plastens format är oförändrade (ägarens besked samma dag): plasten skärs ur
+ * ark, och skyltarna är desamma som på verkstadens egen sajt.
  */
 export const BLANKS: readonly BadgeBlank[] = [
-  { id: "rectangle", name: "Rektangel", shape: "rounded", widthMm: 75, heightMm: 25, cornerRadiusMm: 3 },
-  { id: "oval", name: "Oval", shape: "oval", widthMm: 70, heightMm: 40, cornerRadiusMm: 0 },
-  { id: "rectangle-large", name: "Stor rektangel", shape: "rounded", widthMm: 75, heightMm: 45, cornerRadiusMm: 4 },
-  { id: "cushion", name: "Kudde", shape: "cushion", widthMm: 75, heightMm: 35, cornerRadiusMm: 0 },
-  // Plastens format för klämman, som kräver minst 80 × 25 mm (beslut av ägaren 2026-11-16).
-  // Bara plast: metallens ämnen är färdiga och finns inte i det måttet.
-  { id: "rectangle-long", name: "Lång rektangel", shape: "rounded", widthMm: 80, heightMm: 25, cornerRadiusMm: 3, finishes: ["plastic"] },
+  {
+    id: "metal-rectangle",
+    name: "Rektangel",
+    shape: "rounded",
+    widthMm: 60,
+    heightMm: 30,
+    cornerRadiusMm: 3,
+    finishes: METAL,
+    articles: metalArticles("Namnskylt Vit alu matt 60x30", "Namnskylt Mässing 60x30", "Namnskylt Nickel 60x30", 0.51),
+  },
+  {
+    id: "metal-rectangle-slim",
+    name: "Smal rektangel",
+    shape: "rounded",
+    widthMm: 60,
+    heightMm: 18,
+    cornerRadiusMm: 2,
+    finishes: METAL,
+    articles: metalArticles("Namnskylt Vit alu matt 60x18", "Namnskylt Mässing 60x18", "Namnskylt Nickel 60x18", 0.51),
+  },
+  {
+    id: "metal-tv",
+    name: "TV-bricka",
+    shape: "cushion",
+    widthMm: 62,
+    heightMm: 32,
+    cornerRadiusMm: 0,
+    finishes: METAL,
+    articles: metalArticles("Namnskylt Alu Vit matt TV-bricka", "Namnskylt Mässing TV-Bricka", "Namnskylt Nickel TV-Bricka", 0.51),
+  },
+  {
+    id: "metal-oval",
+    name: "Oval",
+    shape: "oval",
+    widthMm: 63,
+    heightMm: 32,
+    cornerRadiusMm: 0,
+    finishes: METAL,
+    articles: metalArticles("Oval Alu Vit Matt 63 x 32mm", "Oval Alu Vit Matt 63 x 32 mm Mässing", "Oval Alu Vit Matt 63 x 32 mm Förnicklad", 0.5),
+  },
+  {
+    id: "metal-oval-domed",
+    name: "Oval, välvd",
+    shape: "oval",
+    widthMm: 59,
+    heightMm: 34,
+    cornerRadiusMm: 0,
+    finishes: METAL,
+    domed: true,
+    articles: metalArticles("Oval Alu Vit matt 59x 34 mm Välvd", "Oval Mässing 59x 34 mm Välvd kant Mässing", "Oval Mässing 59x 34 mm Välvd kant Förnicklad", 0.5),
+  },
+  { id: "rectangle", name: "Rektangel", shape: "rounded", widthMm: 75, heightMm: 25, cornerRadiusMm: 3, finishes: PLASTIC },
+  { id: "oval", name: "Oval", shape: "oval", widthMm: 70, heightMm: 40, cornerRadiusMm: 0, finishes: PLASTIC },
+  { id: "rectangle-large", name: "Stor rektangel", shape: "rounded", widthMm: 75, heightMm: 45, cornerRadiusMm: 4, finishes: PLASTIC },
+  { id: "cushion", name: "Kudde", shape: "cushion", widthMm: 75, heightMm: 35, cornerRadiusMm: 0, finishes: PLASTIC },
+  // Formatet för klämman, som kräver minst 80 × 25 mm (beslut av ägaren 2026-11-16).
+  { id: "rectangle-long", name: "Lång rektangel", shape: "rounded", widthMm: 80, heightMm: 25, cornerRadiusMm: 3, finishes: PLASTIC },
 ];
 
-/** Sant när ämnet finns på materialet. De flesta finns på alla; den långa rektangeln bara på plast. */
+/** Sant när ämnet finns på materialet. Metallens ämnen är färdiga och har egna mått; plastens skärs ur ark. */
 export function blankFits(blank: BadgeBlank, materialId: MaterialId): boolean {
   return !blank.finishes || blank.finishes.includes(getMaterial(materialId).finish);
+}
+
+/** Verkstadens artikel för ämnet i en viss yta, eller `null` när ämnet inte är ett färdigt ämne i den ytan. */
+export function blankArticle(blank: BadgeBlank, colorId: string): BlankArticle | null {
+  return blank.articles?.[colorId] ?? null;
 }
 
 export const SIZE_LIMITS = {

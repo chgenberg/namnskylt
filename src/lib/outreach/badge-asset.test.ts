@@ -52,14 +52,13 @@ describe("skylten för ett lead", () => {
     }
   });
 
-  test("rutorna visar alla fyra former och alla tre ytor, med mejlets skylt först", () => {
+  test("rutorna visar fyra av metallens format och alla tre ytor, med mejlets skylt först", () => {
     const tiles = tileChoices();
     assert.deepEqual(tiles[0], HERO_CHOICE);
-    // Alla former som finns i metall: den långa rektangeln finns bara i plast.
-    assert.deepEqual(
-      new Set(tiles.map((t) => t.blankId)),
-      new Set(BLANKS.filter((b) => blankFits(b, HERO_MATERIAL)).map((b) => b.id)),
-    );
+    // Fyra olika format, alla ur metallens fem: plastens ämnen har andra mått.
+    const metal = BLANKS.filter((b) => blankFits(b, HERO_MATERIAL)).map((b) => b.id);
+    assert.equal(new Set(tiles.map((t) => t.blankId)).size, 4);
+    assert.ok(tiles.every((t) => metal.includes(t.blankId)));
     assert.deepEqual(
       new Set(tiles.map((t) => t.colorId)),
       new Set(getMaterial(HERO_MATERIAL).colors.map((c) => c.id)),
@@ -67,8 +66,8 @@ describe("skylten för ett lead", () => {
   });
 
   test("rutan heter efter yta och form; en äldre ruta efter sitt material", () => {
-    const { doc } = badgeForLead(lead, null, { colorId: "metal-silver", blankId: "oval" });
-    assert.equal(tileLabel({ ...doc, ...doc.size }), "Borstat silver, oval");
+    const { doc } = badgeForLead(lead, null, { colorId: "metal-silver", blankId: "metal-oval" });
+    assert.equal(tileLabel({ ...doc, ...doc.size }), "Nickel, oval");
     const old = { shape: "rounded" as const, widthMm: 70, heightMm: 25 };
     assert.equal(tileLabel({ ...old, materialId: "plastic-2-layer", colorId: "white-black" }), "Gravyrplast, Vit / Svart");
     assert.equal(tileLabel({ ...old, materialId: "stainless", colorId: "steel-laser" }), "Rostfritt stål");
@@ -87,7 +86,7 @@ describe("skylten för ett lead", () => {
 
   test("bildtexten nämner material, yta och skyltens egna mått", () => {
     const { doc } = badgeForLead(lead, null);
-    assert.equal(badgeCaption({ ...doc, ...doc.size }), "metall, borstat guld, 75 × 25 mm");
+    assert.equal(badgeCaption({ ...doc, ...doc.size }), "metall, mässing, 60 × 30 mm");
     // En äldre bild får sin egen text, inte dagens mått.
     assert.equal(
       badgeCaption({ materialId: "plastic-2-layer", colorId: "darkblue-white", widthMm: 70, heightMm: 25 }),

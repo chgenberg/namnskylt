@@ -2,7 +2,7 @@
 
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
-import { OFFERED_MATERIALS, getColor, getMaterial, isPartnerMade, type BadgeDocument } from "@/engine";
+import { OFFERED_MATERIALS, getColor, getMaterial, isPartnerMade, thicknessOf, type BadgeDocument } from "@/engine";
 import { ColorPicker, MaterialPicker } from "../pickers";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
@@ -24,7 +24,8 @@ export function MaterialSection({ doc, dispatch }: MaterialSectionProps) {
         onChange={(materialId) => dispatch({ type: "material", materialId })}
       />
       <p className={styles.description}>
-        {material.description} {material.thicknessMm} mm tjock.
+        {/* Tjockleken är ämnets i den valda ytan: metallens ytor är olika tjocka. */}
+        {material.description} {thicknessOf(doc).toLocaleString("sv-SE")} mm tjock.
         {isPartnerMade(material.id) && " Tillverkas av vår partner – leveranstid och pris bekräftas via e-post."}
       </p>
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { before, describe, it } from "node:test";
-import { approxFonts, createBadgeDocument, layoutBadge, withBlank, withShapePreset, type FontEngine } from "@/engine";
+import { approxFonts, createBadgeDocument, layoutBadge, toOfferedDocument, withBlank, withShapePreset, type FontEngine } from "@/engine";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { toSupplierSignDocument } from "./map";
 
@@ -79,7 +79,7 @@ describe("toSupplierSignDocument", () => {
     assert.ok(layer?.data.kind === "image");
     assert.equal(layer.data.renderMode, "engrave");
     assert.equal(layer.data.widthMm, 12);
-    assert.equal(layer.transform.position.y, 12.5);
+    assert.equal(layer.transform.position.y, 15);
     assert.match(layer.data.vector.markup, /^<path d="M0 0L10 0L10 10L0 10Z" fill="#000000" fill-rule="evenodd"\/>$/);
   });
 
@@ -151,26 +151,29 @@ describe("toSupplierSignDocument", () => {
       return { supplier, data: layer.data };
     };
     const base = createBadgeDocument(["Anna"]);
+    // Ett färdigt metallämne står alltid med verkstadens benämning, också när skylten bara graveras.
+    const ARTICLE = "Ämne: Namnskylt Mässing 60x30, 0,51 mm.";
+    const withArticle = (note: string) => `${ARTICLE} ${note}`;
     // En logga i färg som kunden valt att gravera skickas med sina banor, inte som tryckbild.
     const engraved = sent({ ...base, logo: color, marking: "engrave" });
     assert.equal(engraved.data.renderMode, "engrave");
     assert.equal(engraved.data.src, thumb);
     assert.ok("vector" in engraved.data);
-    assert.equal(engraved.supplier.productionNote, undefined);
+    assert.equal(engraved.supplier.productionNote, ARTICLE);
     // En svartvit logga som printas skickas som sin miniatyr.
     const printed = sent({ ...base, logo: mono, marking: "engrave-name-print-logo" });
     assert.equal(printed.data.renderMode, "print");
     assert.equal(printed.data.src, thumb);
-    assert.equal(printed.supplier.productionNote, "Märkningsmetod: Namn graveras · logotyp printas. Namn: Gravyr. Logotyp: Print.");
+    assert.equal(printed.supplier.productionNote, withArticle("Märkningsmetod: Namn graveras · logotyp printas. Namn: Gravyr. Logotyp: Print."));
     // Textlagret har inget läge hos leverantören: ett printat namn sägs i klartext.
     const namePrinted = toSupplierSignDocument({ ...base, marking: "print" }, approxFonts);
-    assert.equal(namePrinted.productionNote, "Märkningsmetod: Endast print. Namn: Print.");
+    assert.equal(namePrinted.productionNote, withArticle("Märkningsmetod: Endast print. Namn: Print."));
     // Kundens färgkod för trycket följer med i samma rad, men bara när något printas.
     assert.equal(
       toSupplierSignDocument({ ...base, marking: "print", printColor: "PMS 286 C" }, approxFonts).productionNote,
-      "Märkningsmetod: Endast print. Namn: Print. Tryckfärg PMS 286 C.",
+      withArticle("Märkningsmetod: Endast print. Namn: Print. Tryckfärg PMS 286 C."),
     );
-    assert.equal(toSupplierSignDocument({ ...base, printColor: "PMS 286 C" }, approxFonts).productionNote, undefined);
+    assert.equal(toSupplierSignDocument({ ...base, printColor: "PMS 286 C" }, approxFonts).productionNote, ARTICLE);
     // En rad med egen kod: hexkoden går i radens färgfält, och alla koder står i klartext.
     const two = createBadgeDocument(["Anna", "Säljare"]);
     const rows = two.rows.map((row, i) => ({ ...row, printColor: i === 0 ? "#c8102e" : "PMS 300 C" }));
@@ -179,28 +182,34 @@ describe("toSupplierSignDocument", () => {
     assert.deepEqual(rowColors({ ...two, rows, marking: "print" }), ["#C8102E", undefined]);
     assert.equal(
       toSupplierSignDocument({ ...two, rows, marking: "print" }, approxFonts).productionNote,
-      "Märkningsmetod: Endast print. Namn: Print. Tryckfärg rad 1 #C8102E, rad 2 PMS 300 C.",
+      withArticle("Märkningsmetod: Endast print. Namn: Print. Tryckfärg rad 1 #C8102E, rad 2 PMS 300 C."),
     );
     // En CMYK-kod går i radens färgfält som skärmens ungefärliga färg; koden själv står i klartext.
     const cmykRows = two.rows.map((row, i) => (i === 0 ? { ...row, printColor: "c0 m100 y80 k0" } : row));
     assert.deepEqual(rowColors({ ...two, rows: cmykRows, marking: "print", printColor: "100/60/0/20" }), ["#FF0033", "#0052CC"]);
     assert.equal(
       toSupplierSignDocument({ ...two, rows: cmykRows, marking: "print", printColor: "100/60/0/20" }, approxFonts).productionNote,
-      "Märkningsmetod: Endast print. Namn: Print. Tryckfärg CMYK 100/60/0/20, rad 1 CMYK 0/100/80/0.",
+      withArticle("Märkningsmetod: Endast print. Namn: Print. Tryckfärg CMYK 100/60/0/20, rad 1 CMYK 0/100/80/0."),
     );
     // Loggans egna koder står sist i samma rad, när loggan printas.
     assert.equal(
       sent({ ...base, logo: { ...color, printColor: "blå 100/60/0/20, röd 0/100/80/0" } }).supplier.productionNote,
-      "Märkningsmetod: Namn graveras · logotyp printas. Namn: Gravyr. Logotyp: Print. Tryckfärg logga blå 100/60/0/20, röd 0/100/80/0.",
+      withArticle("Märkningsmetod: Namn graveras · logotyp printas. Namn: Gravyr. Logotyp: Print. Tryckfärg logga blå 100/60/0/20, röd 0/100/80/0."),
     );
-    assert.equal(sent({ ...base, logo: { ...color, printColor: "100/60/0/20" }, marking: "engrave" }).supplier.productionNote, undefined);
+    assert.equal(sent({ ...base, logo: { ...color, printColor: "100/60/0/20" }, marking: "engrave" }).supplier.productionNote, ARTICLE);
     // En hexkod för hela trycket blir färgen på rader utan egen kod.
     assert.deepEqual(rowColors({ ...two, marking: "print", printColor: "#0057b8" }), ["#0057B8", "#0057B8"]);
     // När namnet graveras följer ingen radfärg med.
     assert.deepEqual(rowColors({ ...two, rows }), [undefined, undefined]);
     assert.ok(namePrinted.layers.some((l) => l.data.kind === "text"));
-    // En skylt som bara graveras ser ut som förut.
-    assert.equal(toSupplierSignDocument(base, approxFonts).productionNote, undefined);
+    // En skylt som bara graveras bär bara ämnets benämning, i den yta som är vald.
+    assert.equal(toSupplierSignDocument(base, approxFonts).productionNote, ARTICLE);
+    assert.equal(
+      toSupplierSignDocument({ ...base, colorId: "metal-white" }, approxFonts).productionNote,
+      "Ämne: Namnskylt Vit alu matt 60x30, 0,8 mm.",
+    );
+    // En plastskylt skärs ur ark och har inget färdigt ämne att peka ut.
+    assert.equal(toSupplierSignDocument(toOfferedDocument({ ...base, materialId: "plastic", colorId: "white-black" }), approxFonts).productionNote, undefined);
   });
 
   it("lägger ramen som eget lager och ovalen som oval", () => {
@@ -219,7 +228,7 @@ describe("toSupplierSignDocument", () => {
     const base = createBadgeDocument(["Anna"]);
     const stadium = toSupplierSignDocument({ ...base, shape: "stadium" }, approxFonts);
     assert.equal(stadium.shape, "rectangular");
-    assert.equal(stadium.cornerRadiusMm, 12.5);
+    assert.equal(stadium.cornerRadiusMm, 15);
     const hexagon = toSupplierSignDocument({ ...base, shape: "hexagon" }, approxFonts);
     assert.equal(hexagon.shape, "hexagon");
     assert.equal(hexagon.cornerRadiusMm, 0);
@@ -235,7 +244,8 @@ describe("det som printas skickas som ett trycklager", () => {
   /** Det verkstadens vektorlager släpper igenom (deras `sanitizeVectorMarkup`): bara dessa banor, i den här ordningen. */
   const WORKSHOP_MARKUP = /^(<path d="[MLCZ0-9 .eE+-]+" fill="#[0-9a-f]{6}"( fill-rule="evenodd")?\/>)+$/;
   const mono = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 12 };
-  const plastic = (rows: string[]) => ({ ...createBadgeDocument(rows), materialId: "plastic" as const, colorId: "white-black" });
+  // Plastens rektangel, 75 × 25 mm: metallens och plastens ämnen har olika mått.
+  const plastic = (rows: string[]) => withBlank({ ...createBadgeDocument(rows), materialId: "plastic" as const, colorId: "white-black" }, "rectangle");
   const printLayerOf = (supplier: ReturnType<typeof toSupplierSignDocument>) => {
     const layer = supplier.layers.find((l) => l.id === "print");
     return layer?.data.kind === "image" && layer.data.renderMode === "print" ? layer : undefined;

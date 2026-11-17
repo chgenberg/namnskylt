@@ -17,7 +17,7 @@ export default function InspirationPage() {
           <p className="eyebrow">Inspirationsbank</p>
           <h1 className={styles.title}>Så ser en namnskylt ut på riktigt</h1>
           <p className={styles.lede}>
-            Fyra svenska varumärken i borstat guld och borstat silver. Klicka på ett foto för att se skylten,
+            Fyra svenska varumärken i mässing och nickel. Klicka på ett foto för att se skylten,
             ytan och hur du gör en liknande.
           </p>
         </header>

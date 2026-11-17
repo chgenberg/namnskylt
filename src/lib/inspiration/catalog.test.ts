@@ -24,7 +24,8 @@ test("varje exempel går att beställa i dag, så att Gör en liknande ger samma
 });
 
 test("texterna lovar inga material som inte säljs", () => {
-  const old = /mässing|akryl|epoxy|gravyrplast|rostfri|aluminium/i;
+  // Mässing är en av metallens ytor sedan 2026-11-17 och får nämnas. Borstat guld och silver finns inte längre.
+  const old = /akryl|epoxy|gravyrplast|rostfri|borstat guld|borstat silver/i;
   for (const entry of INSPIRATION) {
     const text = [entry.title, entry.lead, entry.body, ...entry.highlights].join(" ");
     assert.doesNotMatch(text, old, entry.slug);

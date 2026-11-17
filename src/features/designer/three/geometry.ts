@@ -5,6 +5,7 @@ import {
   badgeOutline,
   frameBands,
   getMaterial,
+  thicknessOf,
   type BadgeDocument,
   type BadgeShape,
   type EngravedPath,
@@ -23,7 +24,7 @@ const THIN_BEVEL_MM = 0.18;
 
 /** Plattans tjocklek och avfasning i vyn, i mm. */
 function plateProfile(doc: BadgeDocument): { depthMm: number; bevelMm: number } {
-  const thicknessMm = getMaterial(doc.materialId).thicknessMm;
+  const thicknessMm = thicknessOf(doc);
   return thicknessMm < THIN_SHEET_BELOW_MM
     ? { depthMm: THIN_VISUAL_THICKNESS_MM, bevelMm: THIN_BEVEL_MM }
     : { depthMm: Math.max(thicknessMm, MIN_VISUAL_THICKNESS_MM), bevelMm: BEVEL_MM };

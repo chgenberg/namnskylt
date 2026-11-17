@@ -19,7 +19,7 @@ import type { BadgeDocument } from "./types";
 
 const metal: BadgeDocument = { ...toOfferedDocument(createBadgeDocument(["Anna Lind"])), materialId: "metal", colorId: "metal-gold" };
 /** Plastens rektangel, 75 × 25 mm: för kort för klämman. */
-const plastic: BadgeDocument = { ...metal, materialId: "plastic", colorId: "white-black" };
+const plastic: BadgeDocument = withBlank({ ...metal, materialId: "plastic", colorId: "white-black" }, "rectangle");
 /** Plastens långa rektangel, 80 × 25 mm: klämmans format. */
 const long = withBlank(plastic, "rectangle-long");
 /** En egen form i plast med valfritt mått. */

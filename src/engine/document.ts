@@ -4,6 +4,7 @@ import {
   OFFERED_MATERIALS,
   SHAPES,
   TEXT_LIMITS,
+  blankArticle,
   blankFits,
   clipOrientations,
   getBlank,
@@ -13,6 +14,7 @@ import {
   mountingFits,
   type BadgeBlank,
   type BadgeMaterial,
+  type BlankArticle,
   type ColorCombo,
 } from "./catalog";
 import { customOutlineIssue, scaleOutline } from "./custom-outline";
@@ -46,13 +48,16 @@ export function createRow(index: number, text = "", id = `row-${index}`): BadgeT
   };
 }
 
+/** Ämnet en ny skylt börjar på: metallens rektangel, 60 × 30 mm. */
+const DEFAULT_BLANK: BlankId = "metal-rectangle";
+
 export function createBadgeDocument(texts: readonly string[] = []): BadgeDocument {
   const rows = (texts.length > 0 ? texts : [""]).map((text, i) => createRow(i, text));
   return {
     version: 1,
     materialId: "metal",
     colorId: "metal-gold",
-    ...blankGeometry(getBlank("rectangle")),
+    ...blankGeometry(getBlank(DEFAULT_BLANK)),
     frame: { style: "none", insetMm: 1.5, thicknessMm: 0.4 },
     font: "arial",
     align: "center",
@@ -134,17 +139,41 @@ export function isValidCustomShape(doc: BadgeDocument): boolean {
   );
 }
 
-/** Ämnet som ligger närmast en äldre skylt: samma formfamilj först, sedan närmast i höjd. */
+/**
+ * Ämnet på skyltens material som ligger närmast skylten: samma formfamilj
+ * först, sedan närmast i mått. Metallens och plastens ämnen har olika mått,
+ * så ett byte av material byter också ämne: rektangel blir rektangel, oval
+ * blir oval och TV-brickan blir kudde.
+ */
 function nearestBlank(doc: BadgeDocument): BadgeBlank {
   const family = (shape: BadgeDocument["shape"]) =>
     shape === "oval" || shape === "round" ? "ellipse" : shape === "cushion" ? "cushion" : "rect";
-  // Bara ämnen som finns på skyltens material: den långa rektangeln finns inte i metall.
   const offered = BLANKS.filter((b) => blankFits(b, doc.materialId));
   const sameFamily = offered.filter((b) => family(b.shape) === family(doc.shape));
   const candidates = sameFamily.length > 0 ? sameFamily : offered;
-  return candidates.reduce((best, b) =>
-    Math.abs(b.heightMm - doc.size.heightMm) < Math.abs(best.heightMm - doc.size.heightMm) ? b : best,
-  );
+  const distance = (b: BadgeBlank) => Math.abs(b.widthMm - doc.size.widthMm) + Math.abs(b.heightMm - doc.size.heightMm);
+  // Vid lika avstånd gäller det som står först i katalogen.
+  return candidates.reduce((best, b) => (distance(b) < distance(best) ? b : best));
+}
+
+/**
+ * Skylten på ett ämne som finns på dess material. En skylt som redan ligger
+ * på ett sådant, eller har en egen form i ett material som tillåter det, rörs
+ * inte. Annars flyttas den till närmaste ämne, till exempel när materialet byts.
+ */
+export function withFittingBlank(doc: BadgeDocument): BadgeDocument {
+  return hasOfferedBlank(doc) || isValidCustomShape(doc) ? doc : withBlank(doc, nearestBlank(doc).id);
+}
+
+/** Verkstadens artikel för skylten, när den ligger på ett färdigt ämne: benämningen och plåtens tjocklek. */
+export function blankArticleOf(doc: Pick<BadgeDocument, "shape" | "size" | "cornerRadiusMm" | "colorId">): BlankArticle | null {
+  const blank = blankOf(doc);
+  return blank ? blankArticle(blank, doc.colorId) : null;
+}
+
+/** Skyltens tjocklek: ämnets i den valda ytan när den är känd, annars materialets. */
+export function thicknessOf(doc: Pick<BadgeDocument, "materialId" | "shape" | "size" | "cornerRadiusMm" | "colorId">): Mm {
+  return blankArticleOf(doc)?.thicknessMm ?? getMaterial(doc.materialId).thicknessMm;
 }
 
 const METAL_FINISHES: ReadonlySet<MaterialFinish> = new Set(["aluminium", "steel", "brass"]);

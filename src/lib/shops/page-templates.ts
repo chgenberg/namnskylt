@@ -84,9 +84,9 @@ export interface TemplateShop {
 
 /** Ytorna exempelbilderna visar, i den ordning de ritas. */
 export const SHOWCASE_MATERIALS = [
-  { materialId: "metal", colorId: "metal-gold", name: "Borstat guld", line: "Klassisk och elegant" },
-  { materialId: "metal", colorId: "metal-silver", name: "Borstat silver", line: "Diskret och stilren" },
-  { materialId: "metal", colorId: "metal-white", name: "Vit", line: "Ren och tydlig" },
+  { materialId: "metal", colorId: "metal-gold", name: "Mässing", line: "Klassisk och elegant" },
+  { materialId: "metal", colorId: "metal-silver", name: "Nickel", line: "Diskret och stilren" },
+  { materialId: "metal", colorId: "metal-white", name: "Vit matt", line: "Ren och tydlig" },
 ] as const;
 
 const ORDER_STEPS = [
@@ -100,7 +100,7 @@ const FAQ = [
   { question: "Hur lång är leveranstiden?", answer: "Skyltarna tillverkas och skickas inom fem arbetsdagar efter att korrekturen är godkänd." },
   { question: "Får jag se skylten innan den tillverkas?", answer: "Ja. Du ser skylten i 3D när du beställer och godkänner en korrektur innan något tillverkas." },
   { question: "Kan jag beställa till hela teamet på en gång?", answer: "Ja. Skriv ett namn per rad eller ladda upp en Excel-lista — namn och titel hittas automatiskt." },
-  { question: "Vilka material finns?", answer: "Metallskyltar i vitt, borstat guld och borstat silver och plastskyltar i arton färgkombinationer. Metallen finns i fyra former och plasten i fem, eller i egen form." },
+  { question: "Vilka material finns?", answer: "Metallskyltar i vit matt aluminium, mässing och nickel och plastskyltar i arton färgkombinationer. Metallen finns i fem format och plasten i fem, eller i egen form." },
   { question: "Vilka fästen kan jag välja?", answer: "Nål eller magnet på alla skyltar, och klämma på plastskyltar som är minst 80 × 25 mm. Magneten är skonsam mot kläderna." },
   { question: "Kan vi få vår logga på skylten?", answer: "Ja. Ladda upp loggan i skyltmotorn. En svartvit logga graveras med texten och en logga i färg trycks." },
   { question: "Blir det billigare om vi beställer fler?", answer: "Ja. Priset per skylt sjunker vid större beställningar — ju fler, desto lägre pris per skylt." },
@@ -181,7 +181,7 @@ function templateBlocks(id: PageTemplateId, shop: TemplateShop, imageIds: readon
           kind: "header",
           id: b(),
           title: "Material och sortiment",
-          lead: "Metallskyltar i vitt, borstat guld och borstat silver — alla med ert namn.",
+          lead: "Metallskyltar i vit matt aluminium, mässing och nickel — alla med ert namn.",
           imageId: null,
           align: "left",
         },

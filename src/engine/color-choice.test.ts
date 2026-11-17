@@ -17,7 +17,8 @@ describe("plastens färger", () => {
   });
 
   it("går alla att beställa", () => {
-    const base = { ...toOfferedDocument(createBadgeDocument(["Anna Lind"])), materialId: "plastic" as const };
+    // En plastskylt på plastens rektangel: metallens och plastens ämnen har olika mått.
+    const base = toOfferedDocument({ ...createBadgeDocument(["Anna Lind"]), materialId: "plastic", colorId: "white-black" });
     for (const color of plastic.colors) assert.equal(isOfferedDocument({ ...base, colorId: color.id }), true, color.id);
     assert.equal(isOfferedDocument({ ...base, colorId: "violet-white" }), false);
   });
@@ -77,7 +78,7 @@ describe("färgvalet i två steg", () => {
 
   it("metallen ser ut som förut: en prick per yta och inget andra steg", () => {
     const { fronts, cores } = colorChoices(metal.colors, "metal-gold");
-    assert.deepEqual(fronts.map((f) => f.name), ["Vit", "Borstat guld", "Borstat silver"]);
+    assert.deepEqual(fronts.map((f) => f.name), ["Vit matt", "Mässing", "Nickel"]);
     assert.deepEqual(cores, []);
   });
 

@@ -4,7 +4,6 @@ import {
   LOGO_PRINT_COLOR_MAX,
   TEXT_LIMITS,
   blankFits,
-  blankOf,
   cleanPrintColor,
   clipOrientations,
   createRow,
@@ -14,6 +13,7 @@ import {
   mountingFitsDocument,
   resizeCustomShape,
   withBlank,
+  withFittingBlank,
   withFittingMounting,
   withLogoMarking,
   withMarking,
@@ -163,12 +163,10 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       const material = getMaterial(action.materialId);
       const colorId = material.colors.some((c) => c.id === doc.colorId) ? doc.colorId : material.colors[0]!.id;
       const next = { ...doc, materialId: action.materialId, colorId };
-      const blank = blankOf(next);
-      // Bara material som skärs ur ark kan ha en egen form, och den långa rektangeln finns bara i plast:
-      // annars tillbaka till rektangeln, som finns på alla material.
-      const leavesShape = (next.shape === "custom" && !material.customShape) || (blank !== null && !blankFits(blank, action.materialId));
+      // Metallens och plastens ämnen har olika mått, och bara material som skärs ur ark kan ha en
+      // egen form: skylten flyttas till närmaste ämne på det nya materialet (`withFittingBlank`).
       // Ett fäste som inte går att få på den nya skylten (klämman på metall) byts mot nålen.
-      return withFittingMounting(leavesShape ? withBlank(next, "rectangle") : next);
+      return withFittingMounting(withFittingBlank(next));
     }
     case "color":
       return { ...doc, colorId: action.colorId };

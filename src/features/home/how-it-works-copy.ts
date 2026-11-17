@@ -34,7 +34,7 @@ export const HOW_IT_WORKS = {
       title: "Välj yta och form",
       lead: "Samma motor som verkstaden tillverkar efter.",
       body: [
-        "Välj mellan vitt, borstat guld och borstat silver. Vrid skylten i 3D, se gravyren i ljuset och kontrollera måtten i ritningsvyn.",
+        "Välj mellan vit matt aluminium, mässing och nickel. Vrid skylten i 3D, se gravyren i ljuset och kontrollera måtten i ritningsvyn.",
       ],
       options: [
         { title: "Form", body: "Fyra färdiga former: rektangel, oval, stor rektangel och kudde." },

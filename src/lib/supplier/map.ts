@@ -1,5 +1,6 @@
 import {
   badgeOutline,
+  blankArticleOf,
   effectiveCornerRadius,
   MARKING_MODE_NAME,
   getColor,
@@ -234,6 +235,14 @@ export function toSupplierSignDocument(
         ]
       : [];
 
+  // Ett färdigt ämne står med verkstadens egen benämning, så att rätt ämne plockas: ytorna heter
+  // annat i deras katalog, och formatet går inte att läsa ur materialkoden.
+  const article = blankArticleOf(doc);
+  const notes = [
+    article ? `Ämne: ${article.name}, ${article.thicknessMm.toLocaleString("sv-SE")} mm.` : null,
+    method !== "engrave" ? markingNote(doc, nameInPrintLayer ? layout.rows.map((row) => row.text) : []) : null,
+  ].filter((note): note is string => note !== null);
+
   return {
     productType: "sign",
     material: getMaterial(doc.materialId).supplierCode,
@@ -245,8 +254,6 @@ export function toSupplierSignDocument(
     mounting: mountingLabel(doc),
     holes: { type: "none", count: 0, diameterMm: 3.2, placement: "none" },
     layers: [...frameLayers, ...logoLayers, ...textLayers, ...(print ? [print] : [])],
-    ...(method !== "engrave" && {
-      productionNote: markingNote(doc, nameInPrintLayer ? layout.rows.map((row) => row.text) : []),
-    }),
+    ...(notes.length > 0 && { productionNote: notes.join(" ") }),
   };
 }

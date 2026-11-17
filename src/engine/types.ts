@@ -9,8 +9,18 @@ export type Mm = number;
 export type FontId = "arial" | "arial-narrow";
 export type TextAlign = "left" | "center" | "right";
 export type BadgeShape = "rectangle" | "rounded" | "stadium" | "oval" | "round" | "hexagon" | "octagon" | "cushion" | "custom";
-/** Färdigskurna ämnen som skylten graveras på — fast form och fast mått. */
-export type BlankId = "rectangle" | "oval" | "rectangle-large" | "cushion" | "rectangle-long";
+/** Färdigskurna ämnen som skylten graveras på — fast form och fast mått. Metallens och plastens ämnen är olika. */
+export type BlankId =
+  | "metal-tv"
+  | "metal-rectangle"
+  | "metal-rectangle-slim"
+  | "metal-oval"
+  | "metal-oval-domed"
+  | "rectangle"
+  | "oval"
+  | "rectangle-large"
+  | "cushion"
+  | "rectangle-long";
 export type FrameStyle = "none" | "solid" | "double";
 export type MountingId = "pin" | "magnet" | "clip" | "safety-pin";
 /** Hur klämman sitter på baksidan: längs skylten eller på höjden. */

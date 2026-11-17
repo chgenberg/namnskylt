@@ -54,7 +54,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     placedAt: "2026-10-27T08:03:00+01:00",
     status: "new",
     badges: team(
-      { ...withBlank(base, "rectangle-large"), colorId: "metal-silver", mounting: "magnet", logo: DEMO_LOGO },
+      { ...withBlank(base, "metal-rectangle"), colorId: "metal-silver", mounting: "magnet", logo: DEMO_LOGO },
       [
         ["Gunilla Berg", "Tandhygienist"],
         ["Karim Haddad", "Tandläkare"],
@@ -72,7 +72,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     status: "in-production",
     badges: team(
       {
-        ...withBlank(base, "cushion"),
+        ...withBlank(base, "metal-tv"),
         colorId: "metal-gold",
         mounting: "magnet",
         frame: { style: "solid", insetMm: 1.5, thicknessMm: 0.4 },
@@ -117,7 +117,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     placedAt: "2026-10-25T15:48:00+01:00",
     status: "in-production",
     badges: team(
-      { ...withBlank(base, "rectangle-large"), colorId: "metal-silver" },
+      { ...withBlank(base, "metal-rectangle"), colorId: "metal-silver" },
       [
         ["Helena Kraft", "Rådgivare"],
         ["David Lindgren", "Försäkringsspecialist"],
@@ -132,7 +132,7 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
     email: "jonas@example.se",
     placedAt: "2026-10-25T09:30:00+01:00",
     status: "shipped",
-    badges: team(withBlank(base, "oval"), [
+    badges: team(withBlank(base, "metal-oval"), [
       ["Jonas", "Barista"],
       ["Elsa", "Barista"],
       ["Moa", "Bagare"],

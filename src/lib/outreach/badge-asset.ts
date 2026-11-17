@@ -70,8 +70,8 @@ export interface BadgeChoice {
   blankId: BlankId;
 }
 
-/** Mejlets skylt: borstat guld på rektangeln — den som syns bäst mot ljust papper. */
-export const HERO_CHOICE: BadgeChoice = { colorId: "metal-gold", blankId: "rectangle" };
+/** Mejlets skylt: mässing på rektangeln — den som syns bäst mot ljust papper. */
+export const HERO_CHOICE: BadgeChoice = { colorId: "metal-gold", blankId: "metal-rectangle" };
 
 /** Kontaktnamnet graveras bara om det ser ut som ett namn. */
 export function engravedName(contactName: string | null): string | null {
@@ -99,13 +99,13 @@ export function personaBadgeName(contactName: string | null): string | null {
   return firstNameOf(engravedName(contactName));
 }
 
-/** Rutorna på landningssidan: metallens alla fyra former och alla tre ytor. Den första är mejlets skylt. */
+/** Rutorna på landningssidan: fyra av metallens format och alla tre ytor. Den första är mejlets skylt. */
 export function tileChoices(): BadgeChoice[] {
   return [
     HERO_CHOICE,
-    { colorId: "metal-silver", blankId: "oval" },
-    { colorId: "metal-white", blankId: "rectangle-large" },
-    { colorId: "metal-silver", blankId: "cushion" },
+    { colorId: "metal-silver", blankId: "metal-oval" },
+    { colorId: "metal-white", blankId: "metal-rectangle-slim" },
+    { colorId: "metal-silver", blankId: "metal-tv" },
   ];
 }
 
@@ -118,7 +118,7 @@ export interface TileBadge {
 }
 
 /**
- * Etiketten under rutan: `Borstat silver, oval`. Äldre rutor ligger inte på
+ * Etiketten under rutan: `Nickel, oval`. Äldre rutor ligger inte på
  * något ämne och heter efter materialet: `Gravyrplast, Vit / Svart` eller `Rostfritt stål`.
  */
 export function tileLabel(tile: TileBadge): string {
@@ -155,7 +155,7 @@ export function badgeForLead(input: BadgeLeadInput, logo: TracedLogo | null, cho
   return { doc: parsed.data as BadgeDocument, logoStatus: logo ? "logo" : "text-only" };
 }
 
-/** Bildtexten under hjältebilden: `metall, borstat guld, 75 × 25 mm`. */
+/** Bildtexten under hjältebilden: `metall, mässing, 60 × 30 mm`. */
 export function badgeCaption(badge: { materialId: MaterialId; colorId: string; widthMm: number; heightMm: number }): string {
   const material = getMaterial(badge.materialId);
   const color = getColor(badge.materialId, badge.colorId);

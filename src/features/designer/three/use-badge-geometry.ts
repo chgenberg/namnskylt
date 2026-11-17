@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   engravingPaths,
   getMaterial,
+  thicknessOf,
   layoutBadge,
   type BadgeDocument,
   type FontEngine,
@@ -36,7 +37,7 @@ function remember(key: string, arrays: BadgeArrays) {
  * på ytan. Bara det som påverkar geometrin bygger om — färgbyten rör den inte.
  */
 export function useBadgeGeometry(doc: BadgeDocument, fonts: FontEngine): BadgeGeometry | null {
-  const thicknessMm = getMaterial(doc.materialId).thicknessMm;
+  const thicknessMm = thicknessOf(doc);
   const finish = getMaterial(doc.materialId).finish;
 
   const input = useMemo(() => {

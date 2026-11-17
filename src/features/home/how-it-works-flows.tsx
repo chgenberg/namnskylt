@@ -4,7 +4,7 @@ import { createBadgeDocument, getMaterial, withBlank, type BadgeDocument, type B
 import type { HowItWorksFlow } from "./how-it-works-copy";
 import styles from "./how-it-works.module.css";
 
-function badge(texts: string[], colorId = "metal-white", blankId: BlankId = "rectangle"): BadgeDocument {
+function badge(texts: string[], colorId = "metal-white", blankId: BlankId = "metal-rectangle"): BadgeDocument {
   return withBlank({ ...createBadgeDocument(texts), colorId }, blankId);
 }
 

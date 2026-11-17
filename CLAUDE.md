@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1176 tester, grönt 2026-11-17).
+# Kvalitetsgrinden. Kör den innan något lämnas (1181 tester, grönt 2026-11-17).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -115,8 +115,10 @@ pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
 Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
 
 - **Material:** bara material med `offered: true` i `src/engine/catalog.ts` går att välja.
-  - `metal`: tre ytor, `metal-white` (lackad), `metal-gold` och `metal-silver` (borstade).
-    Färdiga ämnen (`precut`), så verkstaden graverar bara.
+  - `metal`: tre ytor, som heter som verkstadens sedan 2026-11-17: **Vit matt** (`metal-white`,
+    lackad aluminium), **Mässing** (`metal-gold`) och **Nickel** (`metal-silver`). Id:na är
+    oförändrade, eftersom verkstadens mottagare känner dem. Färdiga ämnen (`precut`), så
+    verkstaden graverar bara.
   - `plastic`: tvålagers gravyrplast 1,5 mm (verkstadens kod `plastic-1.5mm`). Skärs ur ark och
     får därför ha egen form (`customShape`).
     - **Alla verkstadens 18 färgkombinationer för 1,5 mm säljs** (beslut av ägaren 2026-11-16),
@@ -142,12 +144,35 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       (`toOfferedDocument`), eftersom id:na är desamma.
     - När kunden hämtar sin logga från hemsidan väljs den kombination som ligger närmast
       varumärkets färg (`matchColorCombo`), och den har nu fler att välja bland.
-- **Ämnen:** `BLANKS` har fyra färdiga former med fast mått som gäller både metall och plast:
-  rektangel, oval, stor rektangel och kudde (formen `cushion`, en superellips). Plasten har
-  dessutom **Lång rektangel, 80 × 25 mm** (`rectangle-long`, beslut av ägaren 2026-11-16), som är
-  klämmans format. Ett ämne kan vara bundet till vissa material (`BadgeBlank.finishes`,
-  `blankFits`): formväljaren visar bara ämnen som finns på materialet, och byter kunden till
-  metall med den långa rektangeln vald blir skylten rektangeln på 75 × 25 mm.
+- **Ämnen:** metallen och plasten har olika ämnen (`BLANKS`, `BadgeBlank.finishes`, `blankFits`),
+  och formväljaren visar bara dem som finns på materialet.
+  - **Metallens ämnen är verkstadens egna** (underlag från ägaren 2026-11-17, en lista med
+    benämning, mått och tjocklek): fem format, alla i de tre ytorna.
+
+    | Ämne | Id | Mått | Vit matt | Mässing, nickel |
+    | --- | --- | --- | --- | --- |
+    | Rektangel | `metal-rectangle` | 60 × 30 mm | 0,8 mm | 0,51 mm |
+    | Smal rektangel | `metal-rectangle-slim` | 60 × 18 mm | 0,8 mm | 0,51 mm |
+    | TV-bricka | `metal-tv` | 62 × 32 mm | 0,8 mm | 0,51 mm |
+    | Oval | `metal-oval` | 63 × 32 mm | 0,8 mm | 0,5 mm |
+    | Oval, välvd | `metal-oval-domed` | 59 × 34 mm | 0,8 mm | 0,5 mm |
+
+    - Varje ämne bär verkstadens benämning och tjocklek per yta (`BadgeBlank.articles`,
+      `blankArticleOf`, `thicknessOf`). Benämningen står ordagrant som i deras lista och följer
+      med ordern i `productionNote` ("Ämne: Namnskylt Mässing 60x30, 0,51 mm."), så att rätt ämne
+      plockas: ytorna heter annat i deras katalog, och formatet går inte att läsa ur materialkoden.
+    - En ny skylt börjar på rektangeln, 60 × 30 mm, i mässing. Det valde jag; listan säger inget
+      om vilket format som är vanligast.
+    - TV-brickan ritas med formen `cushion` (en superellips), och den välvda ovalen ritas plan.
+  - **Plastens format är orörda** (ägarens besked samma dag: plasten är densamma som på
+    verkstadens egen sajt): rektangel 75 × 25, oval 70 × 40, stor rektangel 75 × 45, kudde
+    75 × 35 och **Lång rektangel, 80 × 25 mm** (`rectangle-long`, beslut av ägaren 2026-11-16),
+    som är klämmans format.
+  - Byter kunden material flyttas skylten till närmaste ämne på det nya materialet
+    (`withFittingBlank`): rektangel blir rektangel, oval blir oval och TV-brickan blir kudde.
+  - En metallskylt i de tidigare måtten (75 × 25, 70 × 40, 75 × 45 och 75 × 35 mm) är inte i
+    sortimentet längre: den går inte att beställa igen som den är, och flyttas till närmaste
+    ämne när den öppnas (`toOfferedDocument`).
 - **Egen form** (bara plast, tillägg i prismodellen): `shape: "custom"` med `customOutline`,
   hörnpunkter i mm inom måttet, högst 120 × 120 mm och 64 punkter, rundade med `cornerRadiusMm`.
   - Geometrin ligger i `src/engine/custom-outline.ts`: kontroller (självkorsning, kortaste kant,
@@ -439,13 +464,16 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
 - **Verkstaden:** metallskylten har `precut: true` och produktionsmetoden `blank`. Ämnena läggs
   med gods emellan och bara skyltens text graveras. Ämnets kant och rubrikerna är hjälplinjer
   (`guide`) som syns på skärm och korrektur men aldrig skrivs till maskinfilerna.
-- **Inspirationsbanken** har fyra exempel, alla i dagens sortiment, med nya skyltbilder från
-  fotoläget. Bilderna för de fyra borttagna exemplen ligger kvar i `public/inspiration/`.
+- **Inspirationsbanken** har fyra exempel, alla i dagens sortiment: tre på rektangeln 60 × 30 mm
+  och ett på ovalen 63 × 32 mm, med skyltbilder från fotoläget tagna 2026-11-17. Personbilderna
+  är äldre och visar skyltar i de tidigare proportionerna. Bilderna för de fyra borttagna
+  exemplen ligger kvar i `public/inspiration/`.
 - **Preliminärt tills verkstaden bekräftat:**
-  - Ämnenas mått (75×25, 70×40, 75×45 och 75×35 mm) är uppskattade från foton.
-  - Artikelkoden `namnskylt-metall`, tjockleken 0,5 mm och priset 89 kr är antaganden.
-  - Gravyren visas svart på alla tre ytor.
-  - Kuddens exponent (`CUSHION_EXPONENT`) är uppskattad från foto.
+  - Metallämnenas mått och tjocklek är verkstadens egna sedan 2026-11-17. Uppskattade är
+    fortfarande rektanglarnas hörnrundning (3 och 2 mm) och TV-brickans form.
+  - Artikelkoden `namnskylt-metall` och priset 89 kr är antaganden.
+  - Gravyren visas svart på alla tre ytor, och mässing och nickel ritas borstade.
+  - Kuddens exponent (`CUSHION_EXPONENT`), som också ritar TV-brickan, är uppskattad från foto.
   - Avståndet mellan ämnena i fixturen (`BLANK_GAP_MM`, 4 mm) och att rubrikerna inte graveras.
   - Att verkstaden kan trycka i färg på både metall och plast, och vilken tryckfil den behöver.
     I dag finns bara bilden på 640 px; originalfilen sparas inte.
@@ -1125,6 +1153,23 @@ på faktura, privatpersoner betalar med kort.**
   och kassan säger "Betalas mot faktura från Skylt & Gravyrteknik". I en butik som en
   återförsäljare äger är återförsäljaren säljare, som förut.
   Kortbetalningen går inte ihop med upplägget: en kortbetald order faktureras namnskylt.com.
+- **Kortbetalningen väntar, och ska gå via verkstadens Stripe när den tas upp** (besked av
+  ägaren 2026-11-17: "Vänta lite med kortbetalning då"). Ägarens tanke är att använda Skylt &
+  Gravyrtekniks Stripe-konto, så att verkstaden får betalningen direkt och namnskylt.com får sin
+  del som på övriga direktordrar. Inget av det är byggt, och kassan är oförändrad: företag
+  beställer på faktura utan konto. Beslutat inför den dagen:
+  - **Kassan ska fungera som på verkstadens sajt:** gäster betalar med kort, och faktura finns
+    bara för den som är inloggad på sitt kundkonto med företag och organisationsnummer.
+  - **Verkstadens projekt ska inte röras.**
+  - Det som då måste lösas (läst i deras kod 2026-11-17, utan att ändra något):
+    - Deras webhook tar emot alla betalningar på kontot och slår upp ordern på
+      `metadata.orderId` eller `client_reference_id`. Våra betalningar får alltså inte bära de
+      fälten (`createSession` skickar i dag kassans id som referens), annars felar deras webhook.
+    - En order vi skickar blir alltid en fakturaorder hos dem. En kortbetald order faktureras
+      därför en gång till om inget görs. Utan ändring hos dem återstår en tydlig rad i ordern
+      och att personalen stänger fakturan för hand, med risk för dubbel debitering.
+    - Nyckeln och en egen webhook för namnskylt.com i deras Stripe-konto. Ägaren har inte
+      sagt hur de ska ordnas.
 - **Köpvillkor** finns på `/villkor` och, för butiker, `/butik/<slug>/villkor`
   (`TermsPage` i `src/features/terms/`). Sidorna är öppna förbi sajtspärren. Kassan kräver ett
   kryss i "Jag godkänner köpvillkoren" (`acceptedTerms`).
@@ -1473,9 +1518,9 @@ Våg A har 15 leads: 14 i `draft` och 1 i `in_sequence`. Av dem har 14 en egen b
 har en persona-bild som väntar på granskning. Ett
 `ready`-meddelande ligger i kön, och kontrolläget är `dry_run` och pausat.
 
-**Skylten i utskicket** är sedan 2026-11-13 en metallskylt: mejlbilden är borstat guld på
-rektangeln (`HERO_CHOICE`), och landningssidans fyra rutor visar alla former och ytor
-(`tileChoices`). Bildtexten läser skyltens mått ur den sparade bilden. De 13 förberedda
+**Skylten i utskicket** är sedan 2026-11-13 en metallskylt: mejlbilden är mässing på
+rektangeln 60 × 30 mm (`HERO_CHOICE`), och landningssidans fyra rutor visar fyra av metallens
+fem format och alla tre ytor (`tileChoices`). Bildtexten läser skyltens mått ur den sparade bilden. De 13 förberedda
 bilderna i databasen är däremot **inte omgjorda**: skyltbild, rutor och persona-bild visar
 fortfarande gravyrplast. `pnpm outreach:prepare --lead <uuid> --no-persona` ritar om skyltbild
 och rutor utan AI-kostnad. Persona-bilderna kräver en ny bildgenerering per kund, och de
@@ -1623,8 +1668,10 @@ Fortnox-följesedel vid Skickad, och `Company.collectiveInvoice` för samfakture
   deras system om priset med sin egen prislista.
 
 Luckor i kontraktet:
-- Metallämnets mått, tjocklek och artikelkod är fortfarande våra uppskattningar. Ämnet finns
-  i deras katalog bara som ett namn och tre ytor.
+- Metallämnets artikelkod är fortfarande vår uppskattning. Ämnet finns i deras katalog bara
+  som ett namn och tre ytor, som där heter "Vit lackad", "Borstat guld" och "Borstat silver".
+  Måtten står i dokumentet, och verkstadens egen benämning på ämnet står i `productionNote`.
+  De nya måtten (minst 60 × 18 mm) är inte provade mot deras mottagare.
 - Egen form och kudde i plast skickas som deras fria polygon (`shape: "freeform"`,
   `customShapePoints`). Deras designer säljer inte fri form i plast; det är mottagaren som
   släpper igenom den för våra ordrar.
