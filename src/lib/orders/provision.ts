@@ -10,26 +10,35 @@ import {
   type ShippingMethod,
 } from "@/engine";
 import { endPriceTable, orderShippingSek, provisionSplit, resellerPriceTable, type PriceModel } from "@/engine/price-model";
+import { OWNER_TENANT, isOwner } from "@/lib/tenants/model";
 import { toCsv } from "./csv";
 import { ORDER_STATUS_LABEL, type OrderStatus } from "./model";
+import { priceWithPricing, type Pricing } from "./pricing";
 
 /**
- * Hur en återförsäljares order delas mellan parterna. Bara för admin:
- * provisionen får aldrig nå en återförsäljare eller en kund.
+ * Hur en order delas mellan parterna. Bara för admin: provisionen får aldrig
+ * nå en återförsäljare eller en kund.
  */
 export interface OrderShare {
   quantity: number;
-  /** Varuvärdet återförsäljaren betalar, exkl. moms och frakt, med minsta ordervärde inräknat. Får ha ören. */
+  /**
+   * Varuvärdet verkstaden fakturerar, exkl. moms och frakt, med minsta
+   * ordervärde inräknat: det återförsäljaren betalar, eller det kunden betalar
+   * på en direktorder. Får ha ören.
+   */
   resellerSek: number;
-  /** Frakten återförsäljaren betalar. Den har ingen provision och går oavkortad till verkstaden. */
+  /** Frakten på ordern. Den har ingen provision och går oavkortad till verkstaden. */
   shippingSek: number;
   /** Provisionen i snitt på ordern. Den räknas steg för steg och har decimaler när ordern går över flera trappsteg. */
   provisionPercent: number;
-  /** Plattformens del av det återförsäljaren betalar. */
+  /** Plattformens del av det verkstaden fakturerar. */
   provisionSek: number;
   /** Skylt & Gravyrtekniks del av varuvärdet. Frakten tillkommer. */
   supplierSek: number;
 }
+
+/** Så heter direktordrarna i listor och underlag, där återförsäljarens namn annars står. */
+export const DIRECT_SELLER_NAME = "namnskylt.com, direkt";
 
 /**
  * Fördelningen för en order, räknad med modellen som gällde när ordern lades.
@@ -42,20 +51,56 @@ export function orderShare(
   /** Expressfraktens pris när verkstaden har satt det. */
   expressSek: number | null = null,
 ): OrderShare {
-  const purchase = resellerOrder(badges, withShippingMethod(resellerPriceTable(model), method));
+  const { purchase, shippingSek } = purchaseOf(badges, model, method, expressSek);
   return {
     quantity: purchase.quantity,
     resellerSek: purchase.goodsSek,
-    // Expressfrakten följer ingen regel: den är beloppet verkstaden satte, och 0 tills dess.
-    shippingSek: method === "express" ? (expressSek ?? 0) : purchase.shippingSek,
+    shippingSek,
     ...provisionSplit(model, purchase.goodsSek, purchase.quantity),
+  };
+}
+
+/**
+ * Orderns inköp och frakt. Frakten är densamma i alla led och räknas på inköpet.
+ * Expressfrakten följer ingen regel: den är beloppet verkstaden satte, och 0 tills dess.
+ */
+function purchaseOf(badges: readonly BadgeDocument[], model: PriceModel, method: ShippingMethod, expressSek: number | null) {
+  const purchase = resellerOrder(badges, withShippingMethod(resellerPriceTable(model), method));
+  return { purchase, shippingSek: method === "express" ? (expressSek ?? 0) : purchase.shippingSek };
+}
+
+/**
+ * Fördelningen för en direktorder, lagd hos namnskylt.com utan återförsäljare
+ * (beslut av ägaren 2026-11-17). Verkstaden fakturerar kunden kundens pris, och
+ * plattformens del är prismodellens marginal på det beloppet (40 % i kalkylen)
+ * i stället för trappstegens provision. Det är påslaget en återförsäljare
+ * annars hade behållit, så verkstaden får listprisets inköpsvärde.
+ */
+export function directOrderShare(
+  badges: readonly BadgeDocument[],
+  pricing: Pricing | null,
+  model: PriceModel,
+  method: ShippingMethod = "standard",
+  /** Expressfraktens pris när verkstaden har satt det. */
+  expressSek: number | null = null,
+): OrderShare {
+  const { purchase, shippingSek } = purchaseOf(badges, model, method, expressSek);
+  const sale = priceWithPricing(badges, pricing, endPriceTable(model), shippingSek);
+  const provisionSek = toOre((sale.goodsSek * model.endMarginPercent) / 100);
+  return {
+    quantity: purchase.quantity,
+    resellerSek: sale.goodsSek,
+    shippingSek,
+    provisionPercent: model.endMarginPercent,
+    provisionSek,
+    supplierSek: toOre(sale.goodsSek - provisionSek),
   };
 }
 
 export interface ShareTotals {
   orders: number;
   quantity: number;
-  /** Det kunderna betalar återförsäljarna. */
+  /** Det kunderna betalar: till återförsäljaren, eller till verkstaden på en direktorder. */
   customerSek: number;
   resellerSek: number;
   /** Frakten på ordrarna, utöver varuvärdet. */
@@ -72,7 +117,7 @@ export interface ResellerOrderRow {
   resellerName: string;
   /** Kundens företag, eller namn när företag saknas. */
   customer: string;
-  /** Det kunden betalar återförsäljaren, exkl. moms. */
+  /** Det kunden betalar, exkl. moms: till återförsäljaren, eller till verkstaden på en direktorder. */
   customerSek: number;
   share: OrderShare;
 }
@@ -142,6 +187,9 @@ const EXAMPLE_ORDERS: readonly {
   { resellerId: "exempel-reklam", resellerName: "Exempel Reklam AB", customer: "Exempelkund Bygghandel", status: "shipped", daysAgo: 16, badges: [{ ...examplePlastic(120, "clip"), logo: EXAMPLE_LOGO }] },
   { resellerId: "exempel-kontor", resellerName: "Exempel Kontor AB", customer: "Exempelkund Vårdbolag", status: "delivered", daysAgo: 33, badges: [exampleMetal(350, "pin")] },
   { resellerId: "exempel-kontor", resellerName: "Exempel Kontor AB", customer: "Exempelkund Butikskedja", status: "delivered", daysAgo: 40, badges: [exampleMetal(600, "magnet")] },
+  // Direktordrar: kunden beställde hos namnskylt.com, och verkstaden fakturerar kunden.
+  { resellerId: OWNER_TENANT, resellerName: DIRECT_SELLER_NAME, customer: "Exempelkund Bageri", status: "received", daysAgo: 2, badges: [examplePlastic(4, "pin")] },
+  { resellerId: OWNER_TENANT, resellerName: DIRECT_SELLER_NAME, customer: "Exempelkund Klinik", status: "shipped", daysAgo: 12, badges: [exampleMetal(25, "pin")] },
 ];
 
 /**
@@ -159,7 +207,7 @@ export function exampleResellerOrders(model: PriceModel, now: Date): ResellerOrd
     customer: example.customer,
     // Det kunden betalar är listpriset med samma frakt som återförsäljaren betalar.
     customerSek: priceOrder(example.badges, endPriceTable(model), orderShippingSek(model, priceItemsOf(example.badges))).totalSek,
-    share: orderShare(example.badges, model),
+    share: isOwner(example.resellerId) ? directOrderShare(example.badges, null, model) : orderShare(example.badges, model),
   }));
 }
 
@@ -186,10 +234,10 @@ export function inPeriod<T extends Pick<ResellerOrderRow, "placedAt">>(rows: rea
 }
 
 /**
- * Underlaget för en period som CSV: en rad per order med vad återförsäljaren
- * betalar, frakten, provisionen och verkstadens del. Skylt & Gravyrteknik
- * fakturerar återförsäljaren varor och frakt, och plattformen fakturerar
- * verkstaden provisionen. Bara för admin.
+ * Underlaget för en period som CSV: en rad per order med vad verkstaden
+ * fakturerar, frakten, provisionen och verkstadens del. Skylt & Gravyrteknik
+ * fakturerar återförsäljaren, eller kunden på en direktorder, varor och frakt,
+ * och plattformen fakturerar verkstaden provisionen. Bara för admin.
  */
 export function provisionCsv(rows: readonly ResellerOrderRow[]): string {
   return toCsv(
@@ -197,10 +245,10 @@ export function provisionCsv(rows: readonly ResellerOrderRow[]): string {
       "Order",
       "Datum",
       "Status",
-      "Återförsäljare",
+      "Säljare",
       "Kund",
       "Skyltar",
-      "Varor exkl. moms",
+      "Verkstaden fakturerar, varor exkl. moms",
       "Frakt exkl. moms",
       "Provision %",
       "Provision kr",

@@ -28,9 +28,11 @@ Läs dessa när du arbetar i respektive område:
 - **Slå aldrig på kortbetalningen.** `STRIPE_SECRET_KEY` och `STRIPE_WEBHOOK_SECRET` ska vara
   tomma i driften tills användaren har ett Stripe-konto och säger till. Med dem satta betalar
   privatpersoner med kort på riktigt. Se avsnittet Kassan, betalning och köpvillkor.
-- **Slå aldrig på kopplingen till verkstaden.** `SUPPLIER_API_URL` och `SUPPLIER_API_KEY` ska
-  vara tomma i driften tills användaren säger till. Med dem satta skickas varje ny order till
-  Skylt & Gravyrteknik, som tillverkar och fakturerar. Se avsnittet Ordern till verkstaden.
+- **Rör inte kopplingen till verkstaden utan att användaren säger till.** Ägaren slog själv på
+  den i driften 2026-11-17: `SUPPLIER_API_URL`, `SUPPLIER_API_KEY` och `SUPPLIER_WEBHOOK_SECRET`
+  är satta på Railway. Med dem satta skickas varje ny order till Skylt & Gravyrteknik, som
+  tillverkar och fakturerar. Ändra dem inte, ta inte bort dem och sätt dem inte i någon annan
+  miljö. Se avsnittet Ordern till verkstaden.
 - **Kunddata stannar utanför repot.** Kundlistan (`PROFIL KUNDER 2026.xlsx`) ligger i iCloud
   och läses via `OUTREACH_LEADS_FILE`. Skriv aldrig namn eller adresser i loggar, svar eller
   commits. Filer med kundnamn hör hemma i `tmp/` (gitignorerad och dockerignorerad).
@@ -54,7 +56,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1101 tester, grönt 2026-11-17).
+# Kvalitetsgrinden. Kör den innan något lämnas (1116 tester, grönt 2026-11-17).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -262,7 +264,8 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - En logga i färg som graveras behåller sina banor i en delad länk; ryms de inte tappas loggan.
   - Sektionen ligger som nummer 02 i panelen, före Logga & varumärke (03), eftersom metoden
     avgör hur loggan sedan märks (besked via ägaren 2026-11-16). Därefter Material 04, Form 05,
-    Fäste 06, Fler namn 07 och Varukorg 08.
+    Fäste 06 och Fler namn 07. Varukorgen är ingen sektion i panelen längre, se Ordern till
+    verkstaden.
   - **Kunden kan ange en egen färgkod för trycket** (besked via ägaren 2026-11-16): fältet
     "Färgkod för trycket: CMYK, PMS eller hex" visas i sektionen när namnet eller loggan printas
     (`BadgeDocument.printColor`, åtgärden `print/color`, högst `PRINT_COLOR_MAX` tecken fritext).
@@ -447,6 +450,9 @@ Alla priser kommer ur en prismodell (`PriceModel` i `src/engine/price-model.ts`)
 i `/admin/prismodell`. Den sparas i `settings` under nyckeln `price_model`; utan sparad modell
 gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
 
+- **Direktordrar följer en egen regel** (2026-11-17): hos namnskylt.com utan återförsäljare
+  fakturerar verkstaden kunden slutkundens pris, och plattformens del är marginalen på det
+  beloppet, inte trappstegens provision. Se Ordern till verkstaden.
 - **Tre parter:** tabellen anger vad återförsäljaren betalar. Provisionen är plattformens andel
   av det beloppet och resten går till Skylt & Gravyrteknik. Slutkundens pris är återförsäljarens
   pris delat med (1 − marginalen), alltså marginal och inte påslag.
@@ -704,15 +710,17 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
   Sajtens meny länkar "Logga in" till `/aterforsaljare` och visar "Admin" eller "Mina sidor".
 - **Bara admin** ser Tillverkning, Återförsäljare, Butiker, Utskick, Prismodell och Provision
   (sidor, actions och API-vägar kontrollerar `isOwner`). Varje adminsida kontrollerar inloggningen själv med `adminTenant()`.
-- **Provision** (`/admin/provision`) är adminens samlade vy över återförsäljarnas ordrar: vad
-  återförsäljaren betalar, provisionen och verkstadens del, per order och per återförsäljare
-  (rena regler i `src/lib/orders/provision.ts`, frågan i `provision-store.ts`). Ägarens egna
-  ordrar, demoordrar och avbrutna ordrar är inte med. Vyn filtreras per månad
+- **Provision** (`/admin/provision`) är adminens samlade vy över ordrarna verkstaden fakturerar:
+  vad som faktureras, provisionen och verkstadens del, per order och per säljare
+  (rena regler i `src/lib/orders/provision.ts`, frågan i `provision-store.ts`). Sedan 2026-11-17
+  är direktordrarna hos namnskylt.com med, under säljaren "namnskylt.com, direkt", med
+  marginalen som plattformens del (se Ordern till verkstaden). Demoordrar, avbrutna ordrar och
+  ordrar betalda med kort är inte med. Vyn filtreras per månad
   (`?period=2026-11`, månaden ordern lades i svensk tid) och laddas ner som CSV
   (`/api/admin/provision/export`, `provisionCsv`): varor, frakt, provision och verkstadens del
   per order. Det är underlaget för plattformens faktura till Skylt & Gravyrteknik. Vyn läser
   alla ordrar varje gång, vilket håller så länge de är få. Innan den första riktiga ordern
-  finns visar sidan sex påhittade ordrar (`exampleResellerOrders`, nummer `EX-…`), räknade med
+  finns visar sidan åtta påhittade ordrar (`exampleResellerOrders`, nummer `EX-…`, två av dem direktordrar), räknade med
   dagens prismodell, så att fördelningen går att kontrollera. Med riktiga ordrar nås de via
   "Visa exempel" (`?exempel=1`). De ligger inte i databasen och är aldrig med i underlaget. Under Ordrar ser admin fortfarande
   bara ordrar under hyresgästen `namnskylt`; alla återförsäljares ordrar syns under Tillverkning.
@@ -726,11 +734,66 @@ med eget namn och egen logga, och ordern går till Skylt & Gravyrteknik, som til
 och **fakturerar återförsäljaren** (beslut av ägaren 2026-11-14). Plattformen fakturerar
 verkstaden sin provision per period.
 
-- **Kopplingen är byggd men avstängd.** Strömbrytaren är `SUPPLIER_API_URL` och
-  `SUPPLIER_API_KEY` (`supplierApiConfigured`). Utan dem sparas ordrar och väntar. Verkstadens
-  mottagare är byggd i skyltmotor-projektet och deployad till AWS 2026-11-17, men stängd: ingen
-  nyckel är satt där, så den svarar 503. Se avsnittet Leverantören. Basadressen får ha en egen sökväg (`supplierUrl` i `client.ts`): i drift blir
-  den `https://www.skyltochgravyr.com/api/partner`.
+**namnskylt.com är bara provisionssäljare** (beslut av ägaren 2026-11-17). Vem verkstaden
+fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/dispatch.ts`):
+
+- **En återförsäljares order faktureras alltid återförsäljaren**, till inköpspris, som förut.
+  Plattformens del är trappstegens provision på det beloppet.
+- **En direktorder sköter Skylt & Gravyrteknik helt mot kunden.** Direktorder är varje order
+  under hyresgästen `namnskylt` som inte är betald med kort (`isDirectOrder` i
+  `src/lib/orders/model.ts`, den enda platsen för regeln): en kund som
+  beställer själv på namnskylt.com, en order eller godkänd offert som admin lägger åt en kund,
+  och en order i en butik som ingen återförsäljare har tagit över. En sådan butik säger samma
+  sak som namnskylt.com i kassan, på kvittot och i sina villkor (`ShopContext.direct`,
+  `TermsPage` med `direct`).
+  - Kunden är beställaren hos verkstaden (`customerBuyer` i `request.ts`): företaget, dess
+    organisationsnummer och e-post, med kundens adress eller leveransadressen som fakturaadress.
+    Raderna bär **kundens pris** (`DirectSale`, `priceWithPricing`), inte inköpspriset. Frakten
+    är densamma som i övriga led.
+  - Verkstadens system bekräftar ordern, mejlar, aviserar och fakturerar kunden. namnskylt.com
+    fakturerar aldrig någon och skickar inga egna mejl.
+  - **Plattformens del är prismodellens marginal på det verkstaden fakturerar kunden** (40 % i
+    kalkylen, fältet Marginal i `/admin/prismodell`), i stället för trappstegens provision
+    (`directOrderShare` i `src/lib/orders/provision.ts`). Ägarens ord: "istället ska vår
+    provision vara 40 % och inte 15 %". Att procenten är just modellens marginal är min
+    tolkning: det är påslaget en återförsäljare annars behåller, så verkstaden får listprisets
+    inköpsvärde. Ändras marginalen ändras både kundens pris och plattformens del.
+  - En direktorder stoppas ("Saknar uppgifter") när kunden saknar organisationsnummer eller
+    e-post, när kunden är borttagen, eller när ordern har **rabatt i procent eller extrarader**
+    (anropet har bara rader med à-pris, `isLineInvoiceable` i `pricing.ts`).
+  - **Priset på en direktorder:** panelens prisredigerare sparar redan en rabatt som à-pris per
+    skylt, så det som nekas i praktiken är extrarader (`DIRECT_PRICING_ERROR` i
+    `updateOrderPricingAction` och `updateQuotePricingAction`). När ordern har gått till
+    verkstaden, eller är på väg dit, går priset inte att ändra alls
+    (`DIRECT_PRICE_LOCKED_ERROR`): verkstaden fakturerar det pris ordern skickades med.
+    Båda kontrollerna görs i `updateOrderPricing` med raden låst. Demoordrar och demoofferter
+    är undantagna, och en återförsäljares priser mot sin kund är orörda.
+  - **En order betald med kort** är ingen direktorder: kunden har redan betalat namnskylt.com,
+    så verkstaden fakturerar namnskylt.com till inköpspris, som före direktordrarna. Kunden
+    aviseras ändå direkt av transportören: aviseringen följer säljaren, inte fakturan.
+    Kortbetalningen är avstängd och går inte ihop med att verkstaden sköter allt mot kunden.
+  - Provat lokalt mot skyltmotorn 2026-11-17: ordern blir en fakturaorder på kundens företag,
+    till kundens pris, med bekräftelsen till kundens adress. Inte provat i drift.
+  - Kända följder: verkstaden räknar momsen med ören, så fakturan kan skilja upp till 50 öre
+    från summan kunden såg (633 kr mot 632,50). En offert som admin gör åt en direktkund bär
+    fortfarande namnskylt.coms namn och villkor. Fakturaunderlaget i panelen behövs inte längre
+    för direktordrar. Kundens telefon följer bara med på leveransadressen, inte på kundkortet.
+  - Känd brist: beställaren läses ur kundens rad när ordern skickas, inte ur en kopia på
+    ordern. Om ett utskick misslyckas och samma e-postadress hinner beställa åt ett annat
+    företag innan omförsöket, skickas den första ordern med det nya företagets namn och
+    organisationsnummer. En kopia av beställaren på ordern (ny migrering) löser det.
+
+- **Kopplingen är påslagen i Namnskylts drift sedan 2026-11-17** (ägaren satte variablerna på
+  Railway). Strömbrytaren är `SUPPLIER_API_URL` och `SUPPLIER_API_KEY`
+  (`supplierApiConfigured`). Utan dem sparas ordrar och väntar. Värdena stämmer med
+  hemligheterna i verkstadens AWS (jämfört 2026-11-17 utan att visas).
+  - Verkstadens mottagare i skyltmotor-projektet är **öppen sedan 2026-11-17 16:35** (deploy
+    efter ägarens ja): utan eller med fel nyckel svarar den 401, med rätt nyckel svarar den.
+    Varje ny order blir alltså en riktig fakturaorder i verkstadens Mottagen, och verkstadens
+    system mejlar orderbekräftelsen till beställarens adress och en notis till deras ordermejl.
+  - **Ingen riktig order har gått genom kopplingen i drift än.** Kedjan är bara provad lokalt.
+  - Basadressen får ha en egen sökväg (`supplierUrl` i `client.ts`): i drift är den
+    `https://www.skyltochgravyr.com/api/partner`.
 - **Ordern sparas alltid först** (`placeOrder`), sedan skickas den (`dispatchOrder` i
   `src/lib/supplier/dispatch.ts`). Misslyckas utskicket ligger ordern kvar med felet
   (`orders.supplier_error`, `supplier_attempts`), och kunden får aldrig ett fel för det. Förut
@@ -746,8 +809,9 @@ verkstaden sin provision per period.
   siffror (`orgNumberDigits` i `src/lib/company/org-number.ts`, verkstadens egen regel: även
   momsnummer och nummer med sekel går), eller ordern har inga skyltar som verkstaden gör.
   Beställaren (`SupplierBuyer`) är återförsäljaren ordern tillhör, läst ur dess
-  företagsuppgifter. namnskylt.coms egna ordrar har namnskylt.com som beställare, så ägarens
-  företagsuppgifter måste vara ifyllda innan kopplingen slås på.
+  företagsuppgifter. På en direktorder är beställaren kunden, och felen pekar då på kunden
+  ("Kundens organisationsnummer saknas"). namnskylt.coms egna företagsuppgifter används där
+  bara för aviseringen när skyltarna skickas till oss själva.
 - **Anropet** (`SupplierOrderRequest`, byggs i `request.ts`): vårt ordernummer som `orderRef`
   och i huvudet `Idempotency-Key`, projektet, beställaren som faktureras, slutkunden som
   referens, fraktsätt (`postnord-varubrev` eller `dhl-paket`), fraktkostnad och adress, och per
@@ -790,9 +854,42 @@ verkstaden sin provision per period.
       som då bokar frakten för hand (ägarens besked). Ingen reserv till beställarens nummer.
 - **Statusen tillbaka** går som förut via `/api/supplier/webhook` (signerad) och hämtas vid
   behov med `GET /orders/<nr>`.
-- **Flera designer i samma order** heter Varukorg i skyltmotorn (`CartSection`, `BadgeGroup` i
-  motorn): "Lägg i varukorgen och designa en till" lägger undan skylten i editorn och börjar på
-  nästa med samma design utan text. Den nya räknas inte in förrän den ändrats. Priset räknas på hela ordern, så trappsteg,
+- **Varukorgen ligger bakom symbolen längst upp till höger, för alla** (besked av ägaren
+  2026-11-17: "en kundkorgssymbol längst upp till höger ... och därifrån skickas en offert
+  istället för att man gör det direkt från motorn"). Det gäller kunder som beställer själva,
+  butikerna och återförsäljarna.
+  - **I skyltmotorn läggs skylten i varukorgen**, med knappen "Lägg i varukorgen" vid priset
+    (`OrderSection` med `mode="price"`). Där finns ingen knapp "Beställ" längre, och panelen
+    har ingen egen sektion för varukorgen. Skylten i editorn läggs undan och nästa börjar
+    med samma design utan text (`addDesign`, `pending`).
+  - **Symbolen** (`CartButton` i `src/features/designer/cart-button.tsx`) visar antalet
+    skyltar. Skyltmotorn sätter den i sidhuvudets plats `[data-cart-slot]`, som finns i
+    `SiteHeader` och i butikens `ShopFrame`. Utan en sådan plats ligger den fast längst upp
+    till höger över sidan. På andra sidor än skyltmotorn finns ingen symbol.
+  - **Varukorgen** (`CartDrawer`, en modal `dialog` från höger) öppnas av symbolen, och av
+    sig själv när en skylt läggs dit. Den visar designerna (`CartList`: Ändra, Ta bort) och
+    kassan (`OrderSection` med `mode="checkout"`, på varukorgens skyltar): kundens formulär
+    och "Skicka order", eller återförsäljarens "Skapa offert" och "Lägg order".
+  - Panelen finns kvar i sidan när den är stängd, så att det som är ifyllt i kassan står
+    kvar. Efter kundens order töms varukorgen och kvittot står kvar där; nästa skylt som
+    läggs dit ger en ny kassa (`checkoutRound`), och arbetet sparas igen (`saved.restart`).
+  - Det som ligger i varukorgen är det som beställs. En ändrad skylt i editorn som inte är
+    lagd dit följer inte med, och varukorgen säger det.
+  - Kassan räknas som öppnad i statistiken när kunden börjar fylla i formuläret. Varukorgen
+    öppnas av sig själv när en skylt läggs dit, så att bara se den är inget steg. Siffrorna
+    för "kassan öppnad" före 2026-11-17 gällde ett klick på "Beställ" och går inte att jämföra.
+  - Kundens uppgifter i kassan (företag, organisationsnummer, namn, e-post, kryss för
+    villkoren) ligger i komponentens tillstånd, så att de står kvar när varukorgens enda
+    skylt öppnas för ändring och formuläret försvinner en stund.
+  - "Ändra" på en design lägger skylten i editorn på dess plats bara när den har ett namn.
+    En tom skylt i editorn kastas, så att den inte hamnar i ordern av sig själv.
+  - Kvittot säger att bekräftelsen kommer från Skylt & Gravyrteknik bara när verkstaden har
+    tagit emot ordern (`status: "received"`).
+  - Provat lokalt i webbläsaren 2026-11-17 på dator och mobil (390 och 320 px): kundens
+    flöde, panelens offert och order, en order öppnad för ändring och en butik. Inte provat
+    i drift.
+- **Flera designer i samma order**: varje design är en rad i varukorgen (`BadgeGroup` i
+  motorn). Priset räknas på hela ordern, så trappsteg,
   startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom
   bilden bara visar en av dem, och panelen fyller inte heller i en bild i efterhand
   (`sameDesign` i motorn, `missingBadgeShots`).
@@ -800,10 +897,9 @@ verkstaden sin provision per period.
   (`/admin/ny-order`, `/admin/ny-offert`) öppnas skyltmotorn rakt i editorn, utan startsida
   och startruta, med markören i skyltens första rad.
   - Knappen vid priset heter **"Lägg i varukorgen"** så länge skylten i editorn inte ligger
-    där. Först när allt som är designat ligger i varukorgen (skylten i editorn är ny och
-    orörd, `pending`) visas **"Skapa offert"** och **"Lägg order"**, båda två. Så ryms flera
-    olika designer i samma offert eller order (`ResellerCart`, `checkout` i
-    `order-section.tsx`; `CartSection` med `explicit`).
+    där, och "Öppna varukorgen" när allt som är designat ligger där (`pending`).
+    **"Skapa offert"** och **"Lägg order"** finns i varukorgen, båda två. Så ryms flera
+    olika designer i samma offert eller order (`DesignerCart` i `order-section.tsx`).
   - Sättet återförsäljaren kom in på avgör bara vilken av knapparna som är framhävd
     (`reseller.mode`). "Lägg order" öppnar leveransen först, som förut.
   - En halvfärdig skylt i editorn kastas med "Fortsätt utan den här skylten"
@@ -815,7 +911,8 @@ verkstaden sin provision per period.
     bild, och panelen ritar den i efterhand.
   - När allt ligger i varukorgen visas bara dess summa vid priset. Antalsväljaren och
     specifikationen per skylt gäller skylten i editorn och visas medan man designar.
-  - En kund som beställer själv har kvar sin knapp "Beställ" och varukorgen som ett tillval.
+  - En kund som beställer själv gör sedan 2026-11-17 likadant: lägger i varukorgen och
+    beställer därifrån.
 - **Beställ igen med ändringar** (besked av ägaren 2026-11-16): dialogen "Beställ igen" har
   kvar samma order med ett klick, och dessutom "Ändra först", som öppnar
   `/skapa?kund=<id>&kopia=<ordernummer>`. Den gamla orderns skyltar ligger då i varukorgen
@@ -925,6 +1022,12 @@ som syns i panelen. Det återförsäljaren gör själv ger inget besked.
 
 ## Mejl från sajten — läge 2026-11-15
 
+**Sajten ska inte skicka egna mejl** (besked av ägaren 2026-11-17: "vi ska inte ha någonting
+med Resend att göra"). Kundens orderbekräftelse, statusmejl och faktura kommer från Skylt &
+Gravyrtekniks system, till beställaren på ordern: kunden på en direktorder, återförsäljaren
+annars. Mejlen nedan ligger kvar i koden men ska förbli avstängda tills ägaren säger annat.
+Om beskedet också gäller utskicket till återförsäljare är inte sagt: fråga innan något görs där.
+
 Sajten har fyra egna mejl utöver utskicket. Alla är byggda och avstängda, bakom samma
 strömbrytare: `RESEND_API_KEY` och `NOTICE_FROM_EMAIL` (`noticeEmailSettings`,
 `sendTransactional` i `src/lib/email/transactional.ts`). Inget av dem är provat mot Resend.
@@ -977,6 +1080,12 @@ på faktura, privatpersoner betalar med kort.**
   (`src/lib/payments/checkout.integration.test.ts`) och i webbläsaren. Aldrig provat mot
   Stripes riktiga system. Stripe anropas med `fetch` och formulärkodning; kontrollera mot
   Stripes dokumentation när nycklarna läggs in.
+- **På namnskylt.com är Skylt & Gravyrteknik säljare** (följd av ägarens beslut 2026-11-17):
+  köpvillkoren säger att verkstaden säljer, levererar och fakturerar och att namnskylt.com
+  förmedlar beställningen, och kassan säger "Betalas mot faktura från Skylt & Gravyrteknik".
+  I en butik är återförsäljaren säljare, som förut. Formuleringen är min och inte granskad av
+  ägaren eller en jurist, och verkstadens organisationsnummer står inte i texten.
+  Kortbetalningen går inte ihop med upplägget: en kortbetald order faktureras namnskylt.com.
 - **Köpvillkor** finns på `/villkor` och, för butiker, `/butik/<slug>/villkor`
   (`TermsPage` i `src/features/terms/`). Sidorna är öppna förbi sajtspärren. Säljaren läses ur
   företagsuppgifterna: namnskylt.com på vår sajt, butikens ägare i en butik. Kassan kräver ett
@@ -1164,9 +1273,10 @@ gamla ska inte godkännas.
 med Prisma, AWS och SST, byggt av samma ägare. Namnskylts katalog (`supplierCode`, färg-id:n)
 speglar `packages/catalog` där.
 
-**Mottagaren är byggd där och deployad till AWS (2026-11-17, efter ägarens uttryckliga ja),
-men stängd.** Inga hemligheter är satta i AWS, så `/api/partner/orders` svarar 503
-"Mottagaren är inte aktiverad", och kopplingen i Namnskylts drift är av. Ingenting i deras
+**Mottagaren är byggd där, deployad till AWS och öppen sedan 2026-11-17 16:35 (efter ägarens
+uttryckliga ja).** Hemligheterna är satta och inlästa, och kopplingen i Namnskylts drift är på.
+Stängs den igen (tom `PartnerApiKey` och en deploy där) svarar `/api/partner/orders` 503
+"Mottagaren är inte aktiverad". Ingenting i deras
 egna vyer är ändrat: metallämnet ligger utanför deras materiallista och slås bara upp på kod. Lästes
 2026-11-14: deras `Order` har redan `customerPo`, `orderName`, `shippingMethod`,
 `shippingCost`, `shippingAddress`, `minOrderAdjustment`, betalsättet `invoice` med
@@ -1202,8 +1312,7 @@ Fortnox-följesedel vid Skickad, och `Company.collectiveInvoice` för samfakture
   `src/server/partner-orders.ts`, `src/server/partner-notify.ts`, de två vägarna under
   `src/app/api/partner/orders/`, ett anrop i `src/server/orders.ts` och hemligheterna
   `PartnerApiKey` och `PartnerWebhookSecret` i `infra/sst.config.ts`.
-- **Rättat i mottagaren efter deras bug-hunt och deployat där 2026-11-17 (15:43), med
-  mottagaren fortfarande stängd:**
+- **Rättat i mottagaren efter deras bug-hunt och deployat där 2026-11-17 (15:43):**
   - Fraktbokningen aviserar den vi pekar ut. Aviseringens e-post skickas på leveransadressen
     (`SupplierAddress.email`, `notificationEmail` i `request.ts`): **namnskylt.coms egna
     kunder aviseras direkt, en återförsäljares kund aldrig** (beslut av ägaren 2026-11-17,
@@ -1229,11 +1338,14 @@ Fortnox-följesedel vid Skickad, och `Company.collectiveInvoice` för samfakture
   - En ny beställare läggs upp med faktura-e-post, telefon och fakturaadress. Adressen
     skickar vi tolkad (`SupplierBuyer.billingAddress`, `guessAddress`) när den fria texten går
     att läsa som gata, postnummer och ort.
-- **Kvar innan drift:**
-  - De två hemligheterna i AWS (`PartnerApiKey`, `PartnerWebhookSecret`). De gäller först
-    efter nästa deploy där. Webhookadressen är redan förvald för prod.
-  - Sist våra tre variabler på Railway. Ägarens företagsuppgifter i Namnskylt behöver
-    organisationsnummer, annars stannar namnskylt.coms egna ordrar som "Saknar uppgifter".
+- **Läget i drift:**
+  - De två hemligheterna i AWS (`PartnerApiKey`, `PartnerWebhookSecret`) är satta sedan
+    2026-11-17 på ägarens begäran och inlästa av deployen 16:35. Värdena finns bara i SST
+    (`sst secret list --stage prod`). Webhookadressen är förvald för prod.
+  - Våra tre variabler på Railway är satta av ägaren 2026-11-17 och stämmer med AWS.
+    Ägarens företagsuppgifter har organisationsnummer sedan samma dag. E-post, telefon och
+    adress där är det verkstaden fakturerar och lägger på kundkortet, så de ska vara
+    namnskylt.coms egna (inte kontrollerat av någon annan än ägaren).
 
 **Det proven visade, och det som gjordes åt det (lokalt 2026-11-17, på ägarens begäran):**
 - **Typsnitten är nu verkstadens.** Deras "Arial" ritas med Roboto och "Arial Narrow" med

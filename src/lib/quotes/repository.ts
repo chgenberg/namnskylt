@@ -7,9 +7,9 @@ import { endPriceTable, type PriceModel } from "@/engine/price-model";
 import { requireDb } from "@/lib/db/client";
 import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages, withStoredLogoImages } from "@/lib/logo-images/repository";
 import { parseQuoteDelivery, quoteDeliverySchema, shippingMethodOf, type QuoteDelivery } from "@/lib/orders/delivery";
-import { isCustomPricing, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
+import { isCustomPricing, parsePricing, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
 import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "@/lib/orders/price-lists";
-import { getPriceModel, parsePricing } from "@/lib/orders/repository";
+import { getPriceModel } from "@/lib/orders/repository";
 import {
   addDays,
   isQuoteStatus,

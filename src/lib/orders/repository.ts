@@ -18,7 +18,7 @@ import {
   type DeliveryAddress,
 } from "./delivery";
 import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "./price-lists";
-import { isCustomPricing, pricingSchema, priceWithPricing, type Pricing } from "./pricing";
+import { isCustomPricing, isLineInvoiceable, parsePricing, priceWithPricing, type Pricing } from "./pricing";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
 import { isOwner, OWNER_TENANT, settingsKey } from "@/lib/tenants/model";
 import {
@@ -29,6 +29,7 @@ import {
   type OrderSource,
   type OrderStatus,
   type StoredOrder,
+  isDirectOrder,
 } from "./model";
 
 const badgesSchema = z.array(badgeDocumentSchema);
@@ -126,11 +127,6 @@ function toOrder(row: OrderRow, currentModel: PriceModel, audience: PriceAudienc
     expressShippingSek: row.express_shipping_sek,
     customerToken: row.customer_token,
   };
-}
-
-export function parsePricing(value: unknown): Pricing | null {
-  const parsed = pricingSchema.safeParse(value);
-  return parsed.success && isCustomPricing(parsed.data) ? parsed.data : null;
 }
 
 /** Kundens kolumner som ett `Customer` — samma urval överallt. */
@@ -630,16 +626,47 @@ export async function upsertCustomer(tenant: string, input: CustomerInput): Prom
   return row;
 }
 
-/** Nya priser på en order. Totalerna räknas om och ändringen syns i tidslinjen. */
-export async function updateOrderPricing(tenant: string, orderNo: string, pricing: Pricing): Promise<boolean> {
+/** Vad som hände när priserna skulle sparas. `locked`: priset går inte att ändra längre, `refused`: priset går inte att fakturera. */
+export type PricingUpdate = "saved" | "missing" | "locked" | "refused";
+
+/**
+ * Nya priser på en order. Totalerna räknas om och ändringen syns i tidslinjen.
+ *
+ * På en direktorder fakturerar verkstaden kunden det pris ordern skickades med.
+ * Priset ska därför gå att fakturera rad för rad (`isLineInvoiceable`), och det
+ * ändras inte när ordern har gått till verkstaden eller är på väg dit. Kontrollen
+ * görs med raden låst, så att ett utskick som pågår inte hinner emellan.
+ */
+export async function updateOrderPricing(tenant: string, orderNo: string, pricing: Pricing): Promise<PricingUpdate> {
   const sql = requireDb();
   const currentModel = await getPriceModel();
   return sql.begin(async (tx) => {
-    const [row] = await tx<{ id: string; badges: unknown; status: string; price_model: unknown; delivery: unknown; express_shipping_sek: number | null }[]>`
-      select id, badges, status, price_model, delivery, express_shipping_sek from orders
+    const [row] = await tx<
+      {
+        id: string;
+        badges: unknown;
+        status: string;
+        price_model: unknown;
+        delivery: unknown;
+        express_shipping_sek: number | null;
+        payment: unknown;
+        is_demo: boolean;
+        sent: boolean;
+        claimed: boolean;
+      }[]
+    >`
+      select id, badges, status, price_model, delivery, express_shipping_sek, payment, is_demo,
+             supplier_sent_at is not null as sent,
+             coalesce(supplier_claimed_at > now() - interval '2 minutes', false) as claimed
+        from orders
        where order_no = ${orderNo} and reseller_id = ${tenant} for update`;
     const badges = badgesSchema.safeParse(row?.badges);
-    if (!row || !badges.success) return false;
+    if (!row || !badges.success) return "missing";
+    // En demoorder går aldrig till verkstaden, så där gäller ingen av spärrarna.
+    if (!row.is_demo && isDirectOrder({ resellerId: tenant, payment: row.payment })) {
+      if (row.sent || row.claimed) return "locked";
+      if (!isLineInvoiceable(pricing)) return "refused";
+    }
     const custom = isCustomPricing(pricing) ? pricing : null;
     const model = storedPriceModel(row.price_model, currentModel);
     const method = shippingMethodOf(parseDelivery(row.delivery));
@@ -654,7 +681,7 @@ export async function updateOrderPricing(tenant: string, orderNo: string, pricin
         }`
       : "Återställt till listpris";
     await tx`insert into order_events (order_id, status, note) values (${row.id}, ${row.status}, ${note})`;
-    return true;
+    return "saved";
   });
 }
 

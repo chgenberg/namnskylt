@@ -6,9 +6,10 @@ import admin from "./admin.module.css";
 import styles from "./reseller-orders.module.css";
 
 /**
- * Adminens samlade vy över återförsäljarnas ordrar: vad återförsäljaren
- * betalar, plattformens provision och verkstadens del, per order och per
- * återförsäljare. Serverkomponent — inget av det här når en återförsäljare.
+ * Adminens samlade vy över ordrarna verkstaden fakturerar: vad som faktureras
+ * (återförsäljaren, eller kunden på en direktorder), plattformens provision och
+ * verkstadens del, per order och per säljare. Serverkomponent — inget av det
+ * här når en återförsäljare.
  */
 export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
   const total = sumShares(rows);
@@ -22,10 +23,10 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
           <span className={admin.kpiHint}>{total.quantity} skyltar</span>
         </div>
         <div className={admin.kpi}>
-          <span className={admin.kpiLabel}>Återförsäljarna betalar</span>
+          <span className={admin.kpiLabel}>Verkstaden fakturerar</span>
           <span className={admin.kpiValue}>{formatSek(total.resellerSek)}</span>
           <span className={admin.kpiHint}>
-            varor · frakt {formatSek(total.shippingSek)} tillkommer · kunderna betalar dem {formatSek(total.customerSek)}
+            varor · frakt {formatSek(total.shippingSek)} tillkommer · kunderna betalar {formatSek(total.customerSek)}
           </span>
         </div>
         <div className={admin.kpi} data-tone="gold">
@@ -42,14 +43,14 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
       <section className={`${admin.panel} ${admin.section}`} aria-labelledby="per-reseller">
         <div className={admin.sectionHead}>
           <h2 id="per-reseller" className={admin.sectionTitle}>
-            Per återförsäljare
+            Per säljare
           </h2>
         </div>
         <div className={styles.scroll}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th scope="col">Återförsäljare</th>
+                <th scope="col">Säljare</th>
                 <th scope="col" className={styles.num}>
                   Ordrar
                 </th>
@@ -57,7 +58,7 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
                   Skyltar
                 </th>
                 <th scope="col" className={styles.num}>
-                  Betalar, varor
+                  Faktureras, varor
                 </th>
                 <th scope="col" className={styles.num}>
                   Frakt
@@ -94,14 +95,17 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
           <h2 id="per-order" className={admin.sectionTitle}>
             Per order
           </h2>
-          <span className={admin.muted}>Nyast först. Alla belopp exkl. moms. Provisionen räknas på varorna, inte på frakten.</span>
+          <span className={admin.muted}>
+            Nyast först. Alla belopp exkl. moms. Provisionen räknas på varorna, inte på frakten: trappstegens procent på en
+            återförsäljares order, prismodellens marginal på en direktorder.
+          </span>
         </div>
         <div className={styles.scroll}>
           <table className={styles.table}>
             <thead>
               <tr>
                 <th scope="col">Order</th>
-                <th scope="col">Återförsäljare</th>
+                <th scope="col">Säljare</th>
                 <th scope="col">Status</th>
                 <th scope="col" className={styles.num}>
                   Skyltar
@@ -110,7 +114,7 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
                   Kund betalar
                 </th>
                 <th scope="col" className={styles.num}>
-                  Återförsäljaren betalar, varor
+                  Verkstaden fakturerar, varor
                 </th>
                 <th scope="col" className={styles.num}>
                   Frakt

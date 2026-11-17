@@ -143,3 +143,22 @@ export function isCustomPricing(pricing: Pricing | null): pricing is Pricing {
     pricing && (pricing.discountPercent > 0 || pricing.unitOverrides.some((u) => u != null) || pricing.extras.length > 0),
   );
 }
+
+/** Orderns eller offertens egna priser ur databasen; `null` = listpris, också när kolumnen inte går att läsa. */
+export function parsePricing(value: unknown): Pricing | null {
+  const parsed = pricingSchema.safeParse(value);
+  return parsed.success && isCustomPricing(parsed.data) ? parsed.data : null;
+}
+
+export const DIRECT_PRICING_ERROR =
+  "Verkstaden fakturerar kunden rad för rad. Lägg priset som à-pris per skylt, utan rabatt i procent och utan extrarader.";
+export const DIRECT_PRICE_LOCKED_ERROR = "Ordern har gått till verkstaden med kundens pris, så priset går inte att ändra här.";
+
+/**
+ * Går priset att fakturera rad för rad? På en direktorder fakturerar verkstaden
+ * kunden, och anropet dit har bara rader med à-pris. En rabatt i procent och
+ * egna extrarader har ingen plats där.
+ */
+export function isLineInvoiceable(pricing: Pricing | null | undefined): boolean {
+  return (pricing?.discountPercent ?? 0) === 0 && (pricing?.extras.length ?? 0) === 0;
+}

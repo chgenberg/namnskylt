@@ -1,5 +1,6 @@
 import { isOfferedDocument, type BadgeDocument, type PriceTable } from "@/engine";
 import type { OrderPayment } from "@/lib/payments/model";
+import { isOwner } from "@/lib/tenants/model";
 import type { Delivery } from "./delivery";
 import type { Pricing } from "./pricing";
 
@@ -150,4 +151,15 @@ export function stepTimes(events: readonly OrderEvent[]): Partial<Record<OrderSt
   const times: Partial<Record<OrderStatus, string>> = {};
   for (const event of events) times[event.status] = event.at;
   return times;
+}
+
+/**
+ * Direktorder: lagd hos namnskylt.com utan återförsäljare, och inte redan
+ * betald med kort. Den sköter Skylt & Gravyrteknik helt mot kunden: kunden är
+ * beställaren och faktureras sitt eget pris (beslut av ägaren 2026-11-17). En
+ * återförsäljares order faktureras alltid återförsäljaren. En order som kunden
+ * har betalat med kort till namnskylt.com faktureras inte kunden en gång till.
+ */
+export function isDirectOrder(order: { resellerId: string; payment?: unknown }): boolean {
+  return isOwner(order.resellerId) && !order.payment;
 }

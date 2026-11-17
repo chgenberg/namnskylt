@@ -16,7 +16,9 @@ import { orgNumberDigits } from "@/lib/company/org-number";
 import type { CompanyProfile } from "@/lib/company/profile";
 import { guessAddress, shippingMethodOf, type Delivery, type DeliveryAddress } from "@/lib/orders/delivery";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
+import type { Customer } from "@/lib/orders/model";
 import { splitByProducer } from "@/lib/orders/partner";
+import { isLineInvoiceable, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
 import { OWNER_TENANT } from "@/lib/tenants/model";
 import { toSupplierSignDocument } from "./map";
 import type {
@@ -43,16 +45,33 @@ function supplierShippingMethod(delivery: Delivery, goodsSek: number, purchaseLi
   return SHIPPING_METHOD[shippingKind(goodsSek, purchaseList) ?? "letter"];
 }
 
-/** Det som saknas för att en order ska gå att skicka till verkstaden. Tom lista = klar att skicka. */
-export function dispatchProblems(order: { badges: readonly BadgeDocument[]; delivery: Delivery | null }, buyer: SupplierBuyer | null): string[] {
+/**
+ * Det som saknas för att en order ska gå att skicka till verkstaden. Tom lista = klar att skicka.
+ * `direct` är en direktorder, där kunden är den verkstaden fakturerar (se `DirectSale`).
+ */
+export function dispatchProblems(
+  order: { badges: readonly BadgeDocument[]; delivery: Delivery | null; pricing?: Pricing | null },
+  buyer: SupplierBuyer | null,
+  direct = false,
+): string[] {
+  const who = direct ? "Kundens" : "Återförsäljarens";
   const problems: string[] = [];
   if (!order.delivery) problems.push("Leveransadress saknas");
-  if (!buyer?.orgNumber) problems.push("Återförsäljarens organisationsnummer saknas");
+  if (!buyer?.orgNumber) problems.push(`${who} organisationsnummer saknas`);
   // Verkstaden läser tio siffror, även ur ett momsnummer eller ett nummer med sekel. Allt annat
   // nekar den för gott, så ett sådant nummer ska rättas här i stället för att skickas.
-  else if (!orgNumberDigits(buyer.orgNumber)) problems.push("Återförsäljarens organisationsnummer ska ha tio siffror");
-  if (!buyer?.email) problems.push("Återförsäljarens e-postadress saknas");
+  else if (!orgNumberDigits(buyer.orgNumber)) problems.push(`${who} organisationsnummer ska ha tio siffror`);
+  if (!buyer?.email) problems.push(`${who} e-postadress saknas`);
   if (splitByProducer(order.badges).workshop.length === 0) problems.push("Ordern har inga skyltar som verkstaden tillverkar");
+  if (direct) {
+    // En borttagen kund har en platshållare till adress och ska varken faktureras eller mejlas.
+    if (buyer?.email && isErasedCustomer({ email: buyer.email })) problems.push("Kunden är borttagen");
+    // Verkstaden fakturerar kunden rad för rad. En rabatt i procent och egna extrarader har ingen
+    // plats i anropet, och ett belopp som inte stämmer med kundens ska hellre vänta än faktureras.
+    if (!isLineInvoiceable(order.pricing)) {
+      problems.push("Ordern har rabatt i procent eller extrarader, som verkstaden inte kan fakturera. Lägg priset som à-pris per skylt");
+    }
+  }
   return problems;
 }
 
@@ -97,6 +116,45 @@ export function supplierBuyer(tenant: string, company: CompanyProfile, accountEm
 }
 
 /**
+ * Beställaren hos verkstaden på en direktorder: kunden själv, med företagets
+ * organisationsnummer. Verkstaden bekräftar, fakturerar och mejlar då kunden
+ * direkt. Fakturaadressen är kundens egen när den går att läsa, annars
+ * leveransadressen när skyltarna ska till kunden.
+ */
+export function customerBuyer(customer: Pick<Customer, "name" | "company" | "orgNumber" | "email" | "phone" | "address">, delivery: Delivery | null): SupplierBuyer {
+  const name = customer.company?.trim() || customer.name;
+  const own = customer.address ? billingAddress(customer.address, name) : null;
+  const to = delivery?.to === "customer" ? delivery.address : null;
+  const billing: SupplierBillingAddress | null =
+    own ?? (to ? { line1: to.line1, ...(to.line2 && { line2: to.line2 }), zip: to.zip, city: to.city, country: "SE" } : null);
+  return {
+    id: OWNER_TENANT,
+    name,
+    orgNumber: customer.orgNumber ?? "",
+    email: customer.email,
+    ...(customer.phone && { phone: customer.phone }),
+    ...(customer.address && { address: customer.address }),
+    ...(billing && { billingAddress: billing }),
+  };
+}
+
+/**
+ * En direktorder: kunden beställde av namnskylt.com, utan återförsäljare. Då
+ * sköter Skylt & Gravyrteknik allt mot kunden (beslut av ägaren 2026-11-17):
+ * kunden är beställaren (`customerBuyer`), raderna bär kundens pris, och
+ * verkstaden bekräftar och fakturerar kunden. En återförsäljares order
+ * faktureras alltid återförsäljaren, till inköpspris.
+ */
+interface DirectSale {
+  /** Slutkundens prislista från när ordern lades. */
+  priceList: PriceTable;
+  /** Egna priser på ordern; `null` = listpris. Rabatt i procent och extrarader stoppas av `dispatchProblems`. */
+  pricing: Pricing | null;
+  /** namnskylt.coms egen adress, dit aviseringen går när skyltarna skickas till oss själva. */
+  sellerEmail: string;
+}
+
+/**
  * Adressen transportören aviserar leveransen på. namnskylt.coms egna kunder
  * aviseras direkt. I övrigt aviseras återförsäljaren, på sin vanliga adress
  * och inte fakturabrevlådan: både när skyltarna går dit och när de går till
@@ -104,11 +162,13 @@ export function supplierBuyer(tenant: string, company: CompanyProfile, accountEm
  * avsändare i aviseringen och ska inte synas för butikens kund). Vid
  * upphämtning aviseras ingen. En borttagen kund har ingen adress att avisera på.
  */
-function notificationEmail(input: Pick<SupplierRequestInput, "buyer" | "customer" | "delivery">): string {
+function notificationEmail(input: Pick<SupplierRequestInput, "buyer" | "customer" | "delivery" | "direct">): string {
   if (shippingMethodOf(input.delivery) === "pickup") return "";
-  const reseller = (input.buyer.contactEmail || input.buyer.email).trim();
+  // Säljarens adress: återförsäljarens vanliga, eller namnskylt.coms egen på en direktorder.
+  const seller = (input.direct ? input.direct.sellerEmail : input.buyer.contactEmail || input.buyer.email).trim();
+  // Regeln följer säljaren, inte hur ordern faktureras: också en kortbetald order hos namnskylt.com aviserar kunden.
   const ownCustomer = input.delivery.to === "customer" && input.buyer.id === OWNER_TENANT && !isErasedCustomer(input.customer);
-  return (ownCustomer && input.customer.email.trim()) || reseller;
+  return (ownCustomer && input.customer.email.trim()) || seller;
 }
 
 /** `email` är adressen transportören aviserar på, se `notificationEmail`. */
@@ -147,8 +207,10 @@ export interface SupplierRequestInput {
   delivery: Delivery;
   /** Orderns alla skyltar, med loggornas bilder inlagda (`withInlineLogoImages`). */
   badges: readonly BadgeDocument[];
-  /** Återförsäljarens prislista från när ordern lades. */
+  /** Återförsäljarens prislista från när ordern lades. Frakten följer alltid den, också på en direktorder. */
   purchaseList: PriceTable;
+  /** Satt på en direktorder: kunden faktureras, till kundens pris. */
+  direct?: DirectSale;
   fonts: FontEngine;
   /** Svartvit miniatyr av en graverad logga. */
   logoPng?: (logo: BadgeLogo) => string;
@@ -156,13 +218,16 @@ export interface SupplierRequestInput {
 
 /**
  * Ordern som verkstaden ska ha den: dokument och produktionsfil per skylt, det
- * återförsäljaren betalar per rad, frakten och leveransadressen. Priserna
- * räknas på hela ordern, så att trappsteget och startkostnaden blir samma som
- * i panelen.
+ * beställaren betalar per rad, frakten och leveransadressen. Priserna räknas
+ * på hela ordern, så att trappsteget och startkostnaden blir samma som i
+ * panelen. Beställaren är återförsäljaren, som betalar inköpspris, eller
+ * kunden på en direktorder, som betalar sitt eget pris (`DirectSale`).
  */
 export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrderRequest {
   // Frakten följer orderns fraktsätt: upphämtning och express har ingen fraktkostnad i anropet.
+  // Den räknas alltid på inköpslistan, så att den är samma i alla led.
   const price = resellerOrder(input.badges, withShippingMethod(input.purchaseList, shippingMethodOf(input.delivery)));
+  const sale = input.direct ? priceWithPricing(input.badges, input.direct.pricing, input.direct.priceList, price.shippingSek) : null;
   const { workshop } = splitByProducer(input.badges);
   const images: Record<string, string> = {};
   const lines = input.badges.flatMap((badge, i) => {
@@ -184,7 +249,7 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
         productionSvg: renderBadgeSvg(badge, layoutBadge(badge, input.fonts), { mode: "production", fonts: input.fonts }),
         quantity: Math.max(1, Math.floor(badge.quantity)),
         reference: `${input.orderNo}-${i + 1}`,
-        unitPriceSek: price.unitSek[i] ?? 0,
+        unitPriceSek: (sale ? sale.lines[i]?.unitSek : price.unitSek[i]) ?? 0,
       },
     ];
   });
@@ -203,8 +268,8 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
       address: supplierAddress(input.delivery.address, notificationEmail(input)),
     },
     lines,
-    minimumTopUpSek: price.minimumTopUpSek,
-    goodsSek: price.goodsSek,
+    minimumTopUpSek: sale ? sale.minimumTopUpSek : price.minimumTopUpSek,
+    goodsSek: sale ? sale.goodsSek : price.goodsSek,
     images,
   };
 }

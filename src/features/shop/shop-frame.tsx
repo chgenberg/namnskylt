@@ -48,6 +48,8 @@ export function ShopFrame({ shop, logoPlate, pages, stepsId, children }: ShopFra
             <Link href={shopPath(shop, "/skapa")} className={`btn btn--primary ${styles.navCta}`}>
               Skapa skylt
             </Link>
+            {/* Här sätter skyltmotorn varukorgens symbol (`CartButton`). På övriga sidor är platsen tom. */}
+            <div data-cart-slot className={styles.cartSlot} />
           </nav>
         </div>
       </header>

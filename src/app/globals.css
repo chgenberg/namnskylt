@@ -29,6 +29,8 @@
 
   --surface-glass: rgb(244 242 236 / 0.78);
   --surface-highlight: rgb(255 255 255 / 0.9);
+  /* Slöjan bakom en panel som ligger över sidan. */
+  --surface-scrim: rgb(10 18 32 / 0.45);
   --surface-highlight-0: rgb(255 255 255 / 0);
   --navy-glow: rgb(10 10 11 / 0.04);
   --navy-glow-0: rgb(10 10 11 / 0);

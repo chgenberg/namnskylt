@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { withPlaceholders } from "@/components/badge-preview";
 import { usePriceList } from "@/components/price-list-provider";
 import { ProgressBanner } from "@/components/ui/progress-banner";
@@ -32,9 +33,12 @@ import { openedWith, savedWorkKey, type RestoredWork } from "@/lib/designer-work
 import { useVisualize } from "@/features/visualize/use-visualize";
 import { VisualizeView } from "@/features/visualize/visualize-view";
 import { BadgeEditor } from "./badge-editor";
+import { CartButton } from "./cart-button";
+import { CartDrawer } from "./cart-drawer";
+import cartStyles from "./cart.module.css";
 import styles from "./designer.module.css";
 import { BatchSection } from "./sections/batch-section";
-import { CartSection } from "./sections/cart-section";
+import { CartList } from "./sections/cart-section";
 import { FormatSection } from "./sections/format-section";
 import { LogoSection } from "./sections/logo-section";
 import { MarkingSection } from "./sections/marking-section";
@@ -159,6 +163,20 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
   const [pending, setPending] = useState(() => Boolean(copy));
   /** Stillbilden av designen som ensam ligger i varukorgen, tagen när den lades dit. */
   const cartShot = useRef<string | null>(null);
+  /**
+   * Varukorgen öppnas med symbolen längst upp till höger, och därifrån skickas ordern eller
+   * offerten (besked av ägaren 2026-11-17). En öppnad order börjar i varukorgen.
+   */
+  const [cartOpen, setCartOpen] = useState(() => Boolean(copy));
+  /** Kunden har just beställt: kvittot står kvar i varukorgen tills nästa skylt läggs dit. */
+  const [ordered, setOrdered] = useState(false);
+  /** Kassan börjar om från början efter en lagd order. */
+  const [checkoutRound, setCheckoutRound] = useState(0);
+  /** Platsen i sidhuvudet där varukorgens symbol sitter. Utan sidhuvud ligger symbolen fast över sidan. */
+  const [cartSlot, setCartSlot] = useState<{ element: Element | null } | null>(null);
+  useEffect(() => {
+    setCartSlot({ element: document.querySelector("[data-cart-slot]") });
+  }, []);
   /** Det skyltmotorn öppnades med. Dit går "Börja om", och mot det jämförs det som är sparat i webbläsaren. */
   const [opening] = useState(() => ({
     doc,
@@ -282,10 +300,13 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
     setPhoto(false);
   };
 
+  const { restart: resumeSaving } = saved;
   const update = useCallback((action: DesignerAction) => {
     dispatch(action);
     // Kommer i bakgrunden när loggans originalfil har sparats eller gravyrformen har räknats: kunden har inte ändrat något.
     if (action.type === "logo/original" || action.type === "logo/engraving") return;
+    // Efter en lagd order sparas inget förrän kunden börjar på något nytt. Det gör hen nu.
+    resumeSaving();
     if (isChoice(action)) track("choice");
     // En ny skylt räknas in i ordern så fort den ändras.
     setPending(false);
@@ -293,7 +314,7 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
     // Fästet sitter på baksidan: skylten vänds när fästet eller klämmans riktning väljs.
     const side = action.type === "mounting" || action.type === "clip/orientation" ? "back" : photo ? "hero" : "front";
     setFocus({ side, key: performance.now() });
-  }, [photo, track]);
+  }, [photo, track, resumeSaving]);
 
   /** Kollegans skylt in i editorn; den som redigerades tar hennes plats i listan. */
   const openColleague = (index: number) => {
@@ -320,6 +341,14 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
     setPending(true);
     setFocus({ side: "front", key: performance.now() });
     track("cart");
+    // En ny varukorg efter en lagd order: kvittot ger plats för en ny kassa, och arbetet sparas igen.
+    if (ordered) {
+      setOrdered(false);
+      setCheckoutRound((round) => round + 1);
+    }
+    resumeSaving();
+    // Varukorgen visar vad som ligger där och hur ordern eller offerten skickas.
+    setCartOpen(true);
   };
 
   /** Öppnar en design ur ordern i editorn. Den som redigerades tar dess plats, om den inte var ny och orörd. */
@@ -327,7 +356,10 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
     const target = cart[index];
     if (!target) return;
     cartShot.current = null;
-    setCart((groups) => (pending ? groups.filter((_, i) => i !== index) : groups.map((group, i) => (i === index ? { doc, batchText } : group))));
+    // Skylten i editorn tar designens plats i varukorgen bara när den har ett namn: en tom skylt
+    // som bara har fått en annan färg ska inte hamna i ordern utan att någon lagt den där.
+    const stash = !pending && (hasText || batchText.trim() !== "");
+    setCart((groups) => (stash ? groups.map((group, i) => (i === index ? { doc, batchText } : group)) : groups.filter((_, i) => i !== index)));
     dispatch({ type: "load", doc: target.doc });
     setBatchText(target.batchText);
     setPending(false);
@@ -362,15 +394,15 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
     closedByRestore.current = { onboarding: false };
   };
 
-  /** Ångrar den nya skylten: senaste designen ur ordern tillbaka i editorn. */
-  const undoDesign = () => {
-    const last = cart.at(-1);
-    if (!last) return;
-    cartShot.current = null;
-    setCart((groups) => groups.slice(0, -1));
-    dispatch({ type: "load", doc: last.doc });
-    setBatchText(last.batchText);
-    setPending(false);
+  const cartQuantity = cartBadges.reduce((total, badge) => total + Math.max(1, Math.floor(badge.quantity)), 0);
+  const designerCart = {
+    designs: cart.length,
+    pending,
+    // Skylten i editorn är redan inräknad: den flyttas bara in i varukorgen.
+    canAdd: orderBadges.length <= MAX_ORDER_BADGES,
+    onAdd: addDesign,
+    onDiscard: discardDesign,
+    onOpen: () => setCartOpen(true),
   };
 
   const layout = useMemo(() => layoutBadge(doc, fonts), [doc, fonts]);
@@ -632,44 +664,95 @@ export function Designer({ initialText, initialDoc, reseller, shop, initialFont,
             overflow={batchEntries.length - batch.length}
             fonts={fonts}
           />
-          <CartSection
-            groups={cart}
-            pending={pending}
-            canAdd={orderBadges.length < MAX_ORDER_BADGES}
-            onAdd={addDesign}
-            onEdit={editDesign}
-            onRemove={removeDesign}
-            onUndo={undoDesign}
-            // En återförsäljare utgår alltid från varukorgen: där blir skyltarna en order eller en offert.
-            explicit={Boolean(reseller)}
-          />
         </div>
+        {/* Vid priset läggs skylten i varukorgen. Order och offert skickas från varukorgen, inte härifrån. */}
         <OrderSection
+          mode="price"
           doc={doc}
           badges={orderBadges}
           dispatch={update}
           reseller={reseller}
           shop={shop}
-          cardPayments={cardPayments}
           designs={cart.length + (pending ? 0 : 1)}
-          // Stillbilden visar en enda design. En order med flera designer visas med sina ritningar i stället.
-          // Återförsäljarens skylt ligger i varukorgen när ordern läggs, så bilden togs när den lades dit.
-          captureShot={() =>
-            reseller ? (cart.length === 1 && pending ? cartShot.current : null) : cart.length > 0 ? null : (recorderRef.current?.still() ?? null)
-          }
-          cart={
-            reseller
-              ? { designs: cart.length, pending, canAdd: orderBadges.length < MAX_ORDER_BADGES, onAdd: addDesign, onDiscard: discardDesign }
-              : undefined
-          }
+          cart={designerCart}
+        />
+      </aside>
+      {/* Symbolen sitter i sidhuvudet, längst upp till höger. Sidor utan sidhuvud får den fast över sidan. */}
+      {cartSlot &&
+        (cartSlot.element ? (
+          createPortal(<CartButton count={cartQuantity} onOpen={() => setCartOpen(true)} />, cartSlot.element)
+        ) : (
+          <CartButton count={cartQuantity} onOpen={() => setCartOpen(true)} floating />
+        ))}
+      <CartDrawer
+        open={cartOpen}
+        onClose={() => setCartOpen(false)}
+        summary={
+          cart.length === 0
+            ? ordered
+              ? "Ordern är skickad"
+              : "Tom"
+            : `${cart.length === 1 ? "1 design" : `${cart.length} designer`} · ${cartQuantity} st`
+        }
+      >
+        {cart.length === 0 && !ordered && (
+          <p className={cartStyles.empty}>
+            Varukorgen är tom. Designa skylten och lägg den i varukorgen med knappen vid priset. Flera olika skyltar går i
+            samma {reseller ? "order eller offert" : "order"}, med gemensam frakt.
+          </p>
+        )}
+        {cart.length > 0 && (
+          <CartList
+            groups={cart}
+            onEdit={(index) => {
+              editDesign(index);
+              setCartOpen(false);
+            }}
+            onRemove={removeDesign}
+          />
+        )}
+        {cart.length > 0 && !pending && hasText && (
+          <p className={cartStyles.note} role="status">
+            Skylten i editorn ligger inte i varukorgen än. Stäng varukorgen och lägg den dit med knappen vid priset, om den
+            ska med.
+          </p>
+        )}
+        <OrderSection
+          key={checkoutRound}
+          mode="checkout"
+          active={cartOpen}
+          doc={doc}
+          badges={cartBadges}
+          dispatch={update}
+          reseller={reseller}
+          shop={shop}
+          cardPayments={cardPayments}
+          designs={cart.length}
+          // Stillbilden visar en enda design och togs när den lades i varukorgen.
+          // En order med flera designer visas med sina ritningar i stället.
+          captureShot={() => (cart.length === 1 ? cartShot.current : null)}
+          cart={designerCart}
           visitId={visitId}
           onStep={(step) => {
             track(step);
+            if (step !== "ordered") return;
             // Ordern är lagd: varukorgen ska inte komma tillbaka nästa gång.
-            if (step === "ordered") saved.finish();
+            saved.finish();
+            // Återförsäljaren skickas vidare till panelen. Kundens kvitto står kvar i en tom varukorg.
+            if (!reseller) {
+              cartShot.current = null;
+              setCart([]);
+              setPending(false);
+              setOrdered(true);
+            }
           }}
         />
-      </aside>
+        <div className={cartStyles.actions}>
+          <button type="button" className="btn" onClick={() => setCartOpen(false)}>
+            {cart.length === 0 ? "Stäng" : "Fortsätt designa"}
+          </button>
+        </div>
+      </CartDrawer>
       {/* Visas först när det sparade är läst, så att rutan inte blinkar förbi för den som kommer tillbaka. */}
       {onboarding && saved.ready && <OnboardingDialog doc={doc} fonts={fonts} dispatch={update} onClose={finishOnboarding} />}
     </div>

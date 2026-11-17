@@ -71,8 +71,10 @@ interface SavedWorkControls {
   /** Vad som lästes tillbaka och som kunden ska få veta om; `null` när inget behöver sägas. */
   notice: RestoredWork["notice"];
   dismiss: () => void;
-  /** Ordern är lagd: det sparade tas bort, och inget mer sparas förrän sidan öppnas igen. */
+  /** Ordern är lagd: det sparade tas bort, och inget mer sparas förrän `restart` anropas eller sidan öppnas igen. */
   finish: () => void;
+  /** Kunden har börjat på något nytt efter en lagd order: arbetet sparas igen. */
+  restart: () => void;
 }
 
 /**
@@ -139,5 +141,9 @@ export function useSavedWork({ storageKey, incoming, work, onRestore, replaces =
     setNotice(null);
   }, [storageKey]);
 
-  return { ready, notice, dismiss, finish };
+  const restart = useCallback(() => {
+    finished.current = false;
+  }, []);
+
+  return { ready, notice, dismiss, finish, restart };
 }

@@ -2,7 +2,7 @@ import "server-only";
 import { formatDate, formatDay } from "@/lib/format";
 import { logoOriginalHref, referencedLogoOriginals } from "@/lib/logo-images/original-model";
 import { SHIPPING_METHOD_LABEL, shippingMethodOf } from "@/lib/orders/delivery";
-import { badgeCount } from "@/lib/orders/model";
+import { badgeCount, isDirectOrder } from "@/lib/orders/model";
 import type { DispatchOrder } from "@/lib/orders/repository";
 import type { DispatchState, DispatchStatus } from "@/lib/supplier/dispatch";
 import { DispatchButton } from "./dispatch-button";
@@ -88,7 +88,11 @@ export function DispatchQueue({ rows, connected }: { rows: DispatchRow[]; connec
                   </th>
                   <td className={styles.wrap}>
                     {resellerName}
-                    <span className={styles.sub}>{order.customer.company ?? order.customer.name}</span>
+                    <span className={styles.sub}>
+                      {order.customer.company ?? order.customer.name}
+                      {/* En direktorder hos namnskylt.com sköter verkstaden mot kunden. */}
+                      {isDirectOrder(order) && " · kunden faktureras"}
+                    </span>
                   </td>
                   <td className={styles.num}>{badgeCount(order)}</td>
                   <td className={styles.wrap}>

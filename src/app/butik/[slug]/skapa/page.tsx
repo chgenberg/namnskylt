@@ -7,6 +7,7 @@ import { badgeDocumentSchema, type BadgeDocument } from "@/engine";
 import { db } from "@/lib/db/client";
 import { ASSET_ID_PATTERN } from "@/lib/outreach/badge-asset";
 import { getAssetBadge } from "@/lib/outreach/repository";
+import { getShopOwner } from "@/lib/shops/editor-repository";
 import { getShop } from "@/lib/shops/repository";
 import { decodeShareCode } from "@/lib/share/share-link";
 import { engravingFontFor } from "@/lib/shops/typeface";
@@ -30,6 +31,8 @@ export default async function ShopDesignerPage({ params, searchParams }: ShopDes
   preloadDesignerAssets();
   const [shop, query] = await Promise.all([getShop((await params).slug), searchParams]);
   if (!shop) notFound();
+  // En butik utan ägare säljer som namnskylt.com: då sköter verkstaden ordern mot kunden.
+  const direct = (await getShopOwner(shop.slug)) === null;
   const shared = (await decodeShareCode(first(query.d))) ?? (await outreachBadge(first(query.f)));
   return (
     <main>
@@ -40,7 +43,7 @@ export default async function ShopDesignerPage({ params, searchParams }: ShopDes
           // Butikens startsida skickar alltid med `t`, även tomt: då visas startrutan utan namn också.
           fromStart={first(query.t) !== undefined}
           initialDoc={shared}
-          shop={{ slug: shop.slug, name: shop.profile.name, priceList: shop.priceList ?? null }}
+          shop={{ slug: shop.slug, name: shop.profile.name, priceList: shop.priceList ?? null, direct }}
           initialFont={engravingFontFor(shop.font)}
         />
       </ShopPriceProvider>

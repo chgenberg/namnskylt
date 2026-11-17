@@ -95,8 +95,9 @@ export interface SupplierOrderLine {
   /** Vår referens per rad, återkommer i leverantörens följesedel. */
   reference: string;
   /**
-   * Det återförsäljaren betalar per skylt, exkl. moms, med skyltens del av
-   * startkostnaden inräknad. Leverantören fakturerar det priset, inte sin egen
+   * Det beställaren betalar per skylt, exkl. moms, med skyltens del av
+   * startkostnaden inräknad: återförsäljarens inköpspris, eller kundens pris på
+   * en direktorder. Leverantören fakturerar det priset, inte sin egen
    * prislista. Får ha ören.
    */
   unitPriceSek: number;
@@ -145,12 +146,17 @@ export interface SupplierBillingAddress {
 }
 
 /**
- * Den som beställer hos leverantören och får fakturan: återförsäljaren.
- * Leverantören lägger upp den som företagskund första gången och känner sedan
- * igen den på `id`.
+ * Den som beställer hos leverantören och får fakturan: återförsäljaren, eller
+ * kunden själv på en direktorder hos namnskylt.com. Leverantören känner igen
+ * företaget på organisationsnumret och lägger upp det som företagskund första
+ * gången.
  */
 export interface SupplierBuyer {
-  /** Vårt id för återförsäljaren. Ändras aldrig. */
+  /**
+   * Kontot ordern lades under hos oss: återförsäljarens id, eller `namnskylt`
+   * för alla direktordrar. Det säger alltså inte vilket företag som beställer;
+   * det gör organisationsnumret.
+   */
   id: string;
   name: string;
   orgNumber: string;

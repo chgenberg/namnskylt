@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { siteOrigin } from "@/lib/http/origin";
 import { deliveryPhoneIssue, quoteDeliverySchema, type QuoteDelivery } from "@/lib/orders/delivery";
-import { pricingSchema, type Pricing } from "@/lib/orders/pricing";
+import { DIRECT_PRICING_ERROR, isLineInvoiceable, pricingSchema, type Pricing } from "@/lib/orders/pricing";
 import { saveResellerDeliveryAddress } from "@/lib/orders/repository";
 import { acceptQuote } from "@/lib/quotes/accept";
-import { cancelQuote, markSent, updateQuote, updateQuoteDelivery } from "@/lib/quotes/repository";
+import { isOwner } from "@/lib/tenants/model";
+import { cancelQuote, getQuote, markSent, updateQuote, updateQuoteDelivery } from "@/lib/quotes/repository";
 import { requireReseller } from "@/lib/reseller-auth/session";
 import type { ActionResult } from "./actions";
 
@@ -27,7 +28,14 @@ function done(result: Extract<ActionResult, { ok: true }> = { ok: true }): Actio
 export async function updateQuotePricingAction(quoteNo: string, pricing: Pricing): Promise<ActionResult> {
   const tenant = await requireReseller();
   try {
-    const ok = await updateQuote(tenant, quoteNoSchema.parse(quoteNo), { pricing: pricingSchema.parse(pricing) });
+    const parsed = pricingSchema.parse(pricing);
+    // En offert hos namnskylt.com blir en direktorder, som verkstaden fakturerar kunden rad för rad.
+    // En demooffert blir en demoorder, som aldrig går till verkstaden.
+    if (isOwner(tenant) && !isLineInvoiceable(parsed)) {
+      const quote = await getQuote(tenant, quoteNoSchema.parse(quoteNo));
+      if (quote && !quote.demo) return { ok: false, error: DIRECT_PRICING_ERROR };
+    }
+    const ok = await updateQuote(tenant, quoteNoSchema.parse(quoteNo), { pricing: parsed });
     return ok ? done() : { ok: false, error: "Offerten går inte att ändra längre" };
   } catch (error) {
     return fail(error, "Priserna kunde inte sparas");

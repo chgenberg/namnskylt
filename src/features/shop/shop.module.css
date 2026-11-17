@@ -690,3 +690,8 @@
     text-align: left;
   }
 }
+
+/* Platsen för varukorgens symbol. Den tar ingen plats när den är tom. */
+.cartSlot {
+  display: contents;
+}

@@ -150,3 +150,16 @@
     display: none;
   }
 }
+
+
+/* Platsen för varukorgens symbol. Den tar ingen plats när den är tom. */
+.cartSlot {
+  display: contents;
+}
+
+@media (max-width: 640px) {
+  /* Med varukorgens symbol i menyn ryms inte fler länkar bredvid loggan på en mobil. */
+  .nav:has(.cartSlot > *) .link:nth-child(2) {
+    display: none;
+  }
+}

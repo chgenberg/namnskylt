@@ -6,7 +6,7 @@ import { MAX_ORDER_BADGES } from "@/engine";
 import { priceModelSchema, type PriceModel } from "@/engine/price-model";
 import { requireDb } from "@/lib/db/client";
 import { insertDemoData, removeDemoData } from "@/lib/orders/demo-data";
-import { pricingSchema, type Pricing } from "@/lib/orders/pricing";
+import { DIRECT_PRICE_LOCKED_ERROR, DIRECT_PRICING_ERROR, pricingSchema, type Pricing } from "@/lib/orders/pricing";
 import { companyProfileSchema, type CompanyProfile } from "@/lib/company/profile";
 import { deliveryPhoneIssue, deliverySchema, type Delivery } from "@/lib/orders/delivery";
 import { ERASED_CUSTOMER_ERROR, isBookkeepingOrder, isErasedCustomer } from "@/lib/orders/erase-model";
@@ -299,8 +299,11 @@ export async function updateOrderDeliveryAction(orderNo: string, delivery: Deliv
 export async function updateOrderPricingAction(orderNo: string, pricing: Pricing): Promise<ActionResult> {
   const tenant = await requireReseller();
   try {
-    const ok = await updateOrderPricing(tenant, orderNoSchema.parse(orderNo), pricingSchema.parse(pricing));
-    return ok ? done(orderNo) : { ok: false, error: "Ordern finns inte" };
+    // På en direktorder avgör `updateOrderPricing` om priset får sparas: verkstaden fakturerar kunden det.
+    const outcome = await updateOrderPricing(tenant, orderNoSchema.parse(orderNo), pricingSchema.parse(pricing));
+    if (outcome === "saved") return done(orderNo);
+    const error = outcome === "locked" ? DIRECT_PRICE_LOCKED_ERROR : outcome === "refused" ? DIRECT_PRICING_ERROR : "Ordern finns inte";
+    return { ok: false, error };
   } catch (error) {
     return fail(error, "Priserna kunde inte sparas");
   }

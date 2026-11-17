@@ -3,7 +3,7 @@ import { adminTenant } from "@/features/admin/guard";
 import styles from "@/features/admin/admin.module.css";
 import { listOrdersForDispatch } from "@/lib/orders/repository";
 import { supplierApiConfigured } from "@/lib/supplier/client";
-import { buyerFor, dispatchStatus } from "@/lib/supplier/dispatch";
+import { dispatchStatus, partyFor } from "@/lib/supplier/dispatch";
 import type { SupplierBuyer } from "@/lib/supplier/types";
 import { isOwner } from "@/lib/tenants/model";
 
@@ -14,11 +14,12 @@ export default async function DispatchPage() {
   // Översikten visar alla återförsäljares ordrar. Bara namnskylt.com får se den.
   if (!tenant || !isOwner(tenant)) return null;
   const orders = await listOrdersForDispatch();
-  const buyers = new Map<string, SupplierBuyer>();
-  for (const { order } of orders) {
-    if (!buyers.has(order.resellerId)) buyers.set(order.resellerId, await buyerFor(order.resellerId));
+  // Varje återförsäljares uppgifter läses en gång. En direktorder har kunden som beställare.
+  const sellers = new Map<string, SupplierBuyer>();
+  const rows: DispatchRow[] = [];
+  for (const row of orders) {
+    rows.push({ ...row, status: dispatchStatus(row.order, await partyFor(row.order, sellers)) });
   }
-  const rows: DispatchRow[] = orders.map((row) => ({ ...row, status: dispatchStatus(row.order, buyers.get(row.order.resellerId) ?? null) }));
   const connected = supplierApiConfigured();
 
   return (
@@ -28,8 +29,9 @@ export default async function DispatchPage() {
           <p className={styles.eyebrow}>Tillverkning</p>
           <h1 className={styles.pageTitle}>Ordrar till verkstaden</h1>
           <p className={styles.pageLead}>
-            Varje order sparas här först och skickas sedan till Skylt &amp; Gravyrteknik med skyltarna, återförsäljaren som
-            faktureras, leveransadressen och frakten. Under Underlag syns exakt det som skickas.
+            Varje order sparas här först och skickas sedan till Skylt &amp; Gravyrteknik med skyltarna, den som
+            faktureras, leveransadressen och frakten. En återförsäljares order faktureras återförsäljaren. En order direkt
+            hos namnskylt.com faktureras kunden. Under Underlag syns exakt det som skickas.
           </p>
         </div>
       </header>

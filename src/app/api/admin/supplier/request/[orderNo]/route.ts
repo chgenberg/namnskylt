@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { databaseConfigured, getOrderForDispatch } from "@/lib/orders/repository";
 import { currentTenant } from "@/lib/reseller-auth/session";
-import { buyerFor, supplierRequestFor } from "@/lib/supplier/dispatch";
+import { partyFor, supplierRequestFor } from "@/lib/supplier/dispatch";
 import { isOwner } from "@/lib/tenants/model";
 
 export const runtime = "nodejs";
 
 /**
  * Anropet till Skylt & Gravyrteknik för en order, som det skulle skickas nu.
- * Läser bara — ingenting skickas. Innehåller återförsäljarens inköpspriser, så
- * bara admin får svaret.
+ * Läser bara — ingenting skickas. Innehåller återförsäljarens inköpspriser eller
+ * kundens uppgifter, så bara admin får svaret.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ orderNo: string }> }) {
   const tenant = databaseConfigured() ? await currentTenant() : null;
@@ -18,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ord
   if (!/^NS-\d{1,9}$/.test(orderNo)) return NextResponse.json({ error: "Ogiltigt ordernummer" }, { status: 400 });
   const order = await getOrderForDispatch(orderNo);
   if (!order || order.demo) return NextResponse.json({ error: "Ordern finns inte" }, { status: 404 });
-  const request = await supplierRequestFor(order, await buyerFor(order.resellerId));
+  const request = await supplierRequestFor(order, await partyFor(order));
   if (!request) return NextResponse.json({ error: "Ordern saknar uppgifter och går inte att skicka" }, { status: 409 });
   return NextResponse.json(request, { headers: { "cache-control": "no-store" } });
 }

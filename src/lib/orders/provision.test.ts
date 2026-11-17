@@ -4,6 +4,8 @@ import { createBadgeDocument, NO_SHIPPING, type BadgeDocument } from "@/engine";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import type { PriceModel } from "@/engine/price-model";
 import {
+  DIRECT_SELLER_NAME,
+  directOrderShare,
   exampleResellerOrders,
   inPeriod,
   orderShare,
@@ -79,6 +81,52 @@ describe("fördelningen av en återförsäljares order", () => {
   it("räknar med modellen ordern sparades med", () => {
     const older: PriceModel = { ...M, tiers: M.tiers.map((tier) => ({ ...tier, provisionPercent: 25 })) };
     assert.equal(orderShare(badges(10), older).provisionSek, 195);
+  });
+});
+
+describe("fördelningen av en direktorder hos namnskylt.com", () => {
+  it("10 skyltar: verkstaden fakturerar kunden 1 300 kr, 40 % är plattformens och verkstaden får inköpsvärdet", () => {
+    // Kundens pris är inköpspriset delat med 0,6, avrundat per del: 122 + 8 kr per skylt.
+    assert.deepEqual(directOrderShare(badges(10), null, M), {
+      quantity: 10,
+      resellerSek: 1300,
+      shippingSek: 0,
+      provisionPercent: 40,
+      provisionSek: 520,
+      supplierSek: 780,
+    });
+    // Samma order via en återförsäljare ger verkstaden mindre: där dras trappstegens provision från inköpsvärdet.
+    assert.equal(orderShare(badges(10), M).supplierSek, 663);
+  });
+
+  it("en ensam skylt: provisionen räknas på kundens minsta ordervärde", () => {
+    const share = directOrderShare(badges(1), null, M);
+    assert.equal(share.resellerSek, M.endMinOrderSek);
+    assert.equal(share.provisionSek, Math.round(M.endMinOrderSek * 40) / 100);
+    assert.equal(Math.round((share.provisionSek + share.supplierSek) * 100) / 100, share.resellerSek);
+  });
+
+  it("procenten är prismodellens marginal, och egna à-priser ändrar beloppet den räknas på", () => {
+    assert.equal(directOrderShare(badges(10), null, { ...M, endMarginPercent: 30 }).provisionPercent, 30);
+    const priced = directOrderShare(badges(10), { unitOverrides: [100], discountPercent: 0, extras: [] }, M);
+    assert.deepEqual([priced.resellerSek, priced.provisionSek, priced.supplierSek], [1000, 400, 600]);
+  });
+
+  it("frakten har ingen provision och är densamma som via en återförsäljare", () => {
+    const withShipping = { ...M, shipping: DEFAULT_PRICE_MODEL.shipping };
+    const share = directOrderShare(badges(10), null, withShipping);
+    assert.equal(share.shippingSek, orderShare(badges(10), withShipping).shippingSek);
+    assert.equal(share.provisionSek, 520);
+    assert.equal(directOrderShare(badges(10), null, withShipping, "pickup").shippingSek, 0);
+    assert.equal(directOrderShare(badges(10), null, withShipping, "express", 249).shippingSek, 249);
+  });
+
+  it("exemplen på provisionssidan visar båda slagen av order", () => {
+    const examples = exampleResellerOrders(DEFAULT_PRICE_MODEL, new Date("2026-11-17T10:00:00Z"));
+    const directRows = examples.filter((example) => example.resellerName === DIRECT_SELLER_NAME);
+    assert.equal(directRows.length, 2);
+    assert.ok(directRows.every((example) => example.share.provisionPercent === 40));
+    assert.ok(examples.some((example) => example.share.provisionPercent === 15));
   });
 });
 
@@ -170,7 +218,9 @@ describe("exempelordrarna på sidan Provision", () => {
     assert.ok(rows.length > 0);
     assert.ok(rows.every((row) => /^EX-\d{4}$/.test(row.orderNo)));
     assert.equal(new Set(rows.map((row) => row.orderNo)).size, rows.length);
-    assert.ok(rows.every((row) => row.resellerName.startsWith("Exempel ") && row.customer.startsWith("Exempelkund ")));
+    // Återförsäljarna är påhittade. Direktordrarna säljs av namnskylt.com självt, men kunderna är påhittade även där.
+    assert.ok(rows.every((row) => row.resellerName.startsWith("Exempel ") || row.resellerName === DIRECT_SELLER_NAME));
+    assert.ok(rows.every((row) => row.customer.startsWith("Exempelkund ")));
   });
 
   it("25 skyltar räknas som i prismodellens kalkyl: 2 150 kr, 322,50 kr i provision och 1 827,50 kr till verkstaden", () => {

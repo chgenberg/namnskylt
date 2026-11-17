@@ -8,6 +8,11 @@ export interface ShopContext {
   name: string;
   /** Butikens priser mot riktpris; saknas = riktpris. */
   priceList?: ShopPriceList | null;
+  /**
+   * Butiken har ingen återförsäljare som ägare. Då är ordern en direktorder hos
+   * namnskylt.com: Skylt & Gravyrteknik bekräftar och fakturerar kunden.
+   */
+  direct?: boolean;
 }
 
 /** Designern öppnad av återförsäljaren för att lägga en order eller göra en offert åt en kund. */

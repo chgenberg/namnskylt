@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState, type Dispatch, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent } from "react";
 import { DeliveryFields } from "@/components/delivery-fields";
 import { ShippingMethodPicker } from "@/components/shipping-method-picker";
 import { usePriceList } from "@/components/price-list-provider";
@@ -64,7 +64,7 @@ type OrderState =
   | { status: "idle" }
   | { status: "form"; message?: string }
   | { status: "sending" }
-  | { status: "done"; orderNumber: string; shipDate: string; orderPath: string | null }
+  | { status: "done"; orderNumber: string; shipDate: string; orderPath: string | null; atWorkshop: boolean }
   | { status: "requested"; requestNumber: string }
   | { status: "error"; message: string };
 
@@ -102,8 +102,19 @@ function partLabel(part: ShownPricePart, doc: BadgeDocument): string {
 }
 
 interface OrderSectionProps {
+  /**
+   * `price` är delen vid priset i skyltmotorn: antal, pris och knappen som lägger skylten i
+   * varukorgen. `checkout` är kassan i varukorgen, som öppnas med symbolen längst upp till höger:
+   * där blir det som ligger i varukorgen en order eller en offert (besked av ägaren 2026-11-17).
+   */
+  mode: "price" | "checkout";
+  /** Kassan syns, alltså varukorgen är öppen. Frakten frågas först då. Bara i `checkout`. */
+  active?: boolean;
   doc: BadgeDocument;
-  /** Allt som beställs: skyltarna med designen i editorn och de designer som redan ligger i ordern. */
+  /**
+   * I `price`: allt som är designat, skyltarna i varukorgen och skylten i editorn, så att priset
+   * gäller hela orderns antal. I `checkout`: det som ligger i varukorgen, alltså det som beställs.
+   */
   badges: readonly BadgeDocument[];
   /** Antal olika designer i ordern. Med fler än en gäller antalet och specifikationen skylten i editorn. */
   designs?: number;
@@ -118,17 +129,16 @@ interface OrderSectionProps {
   onStep?: (step: CheckoutStep) => void;
   /** Besökets id i statistiken. Det följer med till kortbetalningen, så att den betalda ordern räknas till samma besök. */
   visitId?: () => string | null;
-  /** Återförsäljarens varukorg. Order och offert görs alltid från den. */
-  cart?: ResellerCart;
+  /** Varukorgen. Order och offert görs alltid från den. */
+  cart: DesignerCart;
 }
 
 /**
- * Varukorgen när en återförsäljare designar åt en kund. Skylten i editorn
- * läggs i varukorgen med ett klick, och först när den ligger där går det att
- * lägga en order eller skapa en offert. Så ryms flera olika designer i samma
- * order eller offert.
+ * Varukorgen i skyltmotorn. Skylten i editorn läggs i varukorgen med ett
+ * klick, och det är varukorgen som blir en order eller en offert. Så ryms
+ * flera olika designer i samma order eller offert.
  */
-export interface ResellerCart {
+interface DesignerCart {
   /** Antal designer som ligger i varukorgen. */
   designs: number;
   /** Skylten i editorn är ny och orörd: allt som är designat ligger i varukorgen. */
@@ -138,11 +148,15 @@ export interface ResellerCart {
   onAdd: () => void;
   /** Kastar skylten i editorn och går tillbaka till varukorgen som den är. */
   onDiscard: () => void;
+  /** Öppnar varukorgen, där kassan ligger. */
+  onOpen: () => void;
 }
 
 const designCount = (count: number) => (count === 1 ? "1 design" : `${count} designer`);
 
 export function OrderSection({
+  mode,
+  active = true,
   doc,
   badges,
   designs = 1,
@@ -155,11 +169,13 @@ export function OrderSection({
   visitId,
   cart,
 }: OrderSectionProps) {
-  const [order, setOrder] = useState<OrderState>({ status: "idle" });
+  const checkout = mode === "checkout";
+  // En kund som beställer själv möts av formuläret direkt i varukorgen. Återförsäljaren väljer först order eller offert.
+  const [order, setOrder] = useState<OrderState>(() => (mode === "checkout" && !reseller ? { status: "form" } : { status: "idle" }));
   /** Det återförsäljaren håller på att skapa, medan det skickas. */
   const [sendingKind, setSendingKind] = useState<"order" | "quote">("order");
-  // Återförsäljaren går vidare från varukorgen: allt som är designat ligger där, och skylten i editorn är ny och orörd.
-  const checkout = Boolean(reseller && cart?.pending && cart.designs > 0);
+  // Allt som är designat ligger i varukorgen: skylten i editorn är ny och orörd.
+  const inCart = cart.pending && cart.designs > 0;
   // Ett företag faktureras. En privatperson betalar med kort, där det går.
   const [customerType, setCustomerType] = useState<CustomerType>("company");
   const privateCustomer = cardPayments && !shop && customerType === "private";
@@ -173,18 +189,21 @@ export function OrderSection({
     () => reseller?.delivery ?? { customer: EMPTY_DELIVERY_DRAFT, reseller: EMPTY_DELIVERY_DRAFT },
   );
   const sectionRef = useRef<HTMLElement>(null);
-  // Återförsäljarens leveranssteg hör till varukorgen: börjar hen på en ny skylt stängs det.
-  const formOpen = (order.status === "form" || order.status === "sending") && (!reseller || checkout);
-  // Formuläret öppnas under priset. På mobil och låga skärmar ligger det då sist i panelen, långt
-  // utanför det som syns. Rullningen väntar tills formuläret har vecklat ut sig: börjar den medan
-  // sidan ändrar höjd avbryts den, och den som beställer blir kvar högst upp utan formulär.
+  // Formulären hör till kassan. Efter ett fel står kundens formulär kvar med det som fyllts i, så att det går att skicka igen.
+  const formOpen =
+    checkout && badges.length > 0 && (order.status === "form" || order.status === "sending" || (!reseller && order.status === "error"));
+  // Återförsäljarens leveranssteg öppnas först när hen väljer att lägga en order, långt ner i
+  // varukorgen. Rullningen väntar tills formuläret har vecklat ut sig: börjar den medan panelen
+  // ändrar höjd avbryts den. Kundens formulär ligger redan under varukorgens innehåll och ska
+  // inte dra bort blicken från det som ligger i varukorgen.
+  const scrollToForm = formOpen && Boolean(reseller);
   useEffect(() => {
-    if (!formOpen) return;
+    if (!scrollToForm) return;
     const timer = window.setTimeout(() => {
       sectionRef.current?.querySelector("[data-order-form]")?.scrollIntoView({ block: "start", behavior: "smooth" });
     }, FORM_OPEN_MS);
     return () => window.clearTimeout(timer);
-  }, [formOpen]);
+  }, [scrollToForm]);
   const formError = order.status === "form" && order.message ? order.message : null;
   const address = addresses[deliverTo];
   const setAddress = (draft: DeliveryDraft) => setAddresses((all) => ({ ...all, [deliverTo]: draft }));
@@ -195,7 +214,10 @@ export function OrderSection({
   const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, priceList, 0) } : listPrice;
   // Frakten är samma för kunden och återförsäljaren. Återförsäljaren räknar den ur sin inköpslista,
   // en kund får den av servern när kassan öppnas.
-  const standardShipping = useOrderShipping(badges, reseller?.purchaseList, Boolean(reseller) || formOpen);
+  const standardShipping = useOrderShipping(badges, reseller?.purchaseList, Boolean(reseller) || (formOpen && active));
+  // Det kunden har fyllt i om sig själv. Det ligger här och inte i fälten, så att det står kvar
+  // när formuläret försvinner en stund, till exempel när varukorgens enda skylt öppnas för ändring.
+  const [contact, setContact] = useState({ company: "", orgNumber: "", name: "", email: "", terms: false });
   // Upphämtning har ingen frakt. Expressfrakten sätter verkstaden i efterhand, så den är inte med i summan.
   const shipping = method === "standard" ? standardShipping : 0;
   const checkoutSek = price.totalSek + (shipping ?? 0);
@@ -221,8 +243,10 @@ export function OrderSection({
         : nextTier !== undefined
           ? `Lägre pris från ${nextTier + 1} st`
           : "Lägsta styckpris";
-  const valid = badges.every((badge) => badgeDocumentSchema.safeParse(badge).success);
-  const partnerMade = isPartnerMade(doc.materialId);
+  // Varukorgens skyltar ändras sällan, men kassan ritas om för varje tangenttryckning i editorn.
+  const valid = useMemo(() => badges.every((badge) => badgeDocumentSchema.safeParse(badge).success), [badges]);
+  // I kassan gäller det varukorgens skyltar, vid priset skylten i editorn.
+  const partnerMade = (checkout ? badges : [doc]).some((badge) => isPartnerMade(badge.materialId));
 
   /** Återförsäljaren: ordern eller offerten läggs på kunden och panelen öppnar den. */
   async function submitForCustomer(context: ResellerOrderContext, kind: "order" | "quote") {
@@ -307,6 +331,8 @@ export function OrderSection({
         orderNumber: body.orderNumber,
         shipDate: body.estimatedShipDate,
         orderPath: typeof body.customerToken === "string" ? `/order/${body.customerToken}` : null,
+        // Bara en order som verkstaden har tagit emot får deras bekräftelse.
+        atWorkshop: body.status === "received",
       });
     } catch (error) {
       setOrder({ status: "error", message: error instanceof Error ? error.message : "Något gick fel" });
@@ -314,10 +340,16 @@ export function OrderSection({
   }
 
   return (
-    <section ref={sectionRef} className={styles.order} aria-label="Antal och pris" data-open={formOpen || undefined}>
+    <section
+      ref={sectionRef}
+      className={checkout ? styles.checkout : styles.order}
+      aria-label={checkout ? "Kassa" : "Antal och pris"}
+    >
+      {!checkout && (
+      <>
       <div className={styles.summary}>
         {/* Antalet gäller skylten i editorn. I varukorgen ändras en design med "Ändra". */}
-        {!checkout && (
+        {!inCart && (
           <div className={styles.quantityRow}>
             <div className={`field ${styles.stepper}`}>
               <button type="button" aria-label="Minska antal" onClick={() => dispatch({ type: "quantity", quantity: doc.quantity - 1 })}>
@@ -352,7 +384,7 @@ export function OrderSection({
         )}
         <div className={styles.priceBlock}>
           <p className={styles.priceLabel}>
-            {checkout
+            {inCart
               ? `${price.quantity} st · ${mixed ? "i snitt " : ""}`
               : mixed
                 ? `${designs} designer · ${price.quantity} st · i snitt `
@@ -372,7 +404,7 @@ export function OrderSection({
             </motion.p>
           </AnimatePresence>
         </div>
-        {!checkout && (
+        {!inCart && (
           <div className={styles.spec}>
             <p className={styles.specTitle}>{mixed ? "Pris för skylten ovan" : "Pris per skylt"}</p>
             <dl>
@@ -405,30 +437,28 @@ export function OrderSection({
           exkl. moms och frakt
           {(discountSek <= 0 || price.minimumTopUpSek > 0) && ` · ${priceNote}`}
         </p>
-        {!reseller && (order.status === "idle" || order.status === "error") ? (
-          <button
-            type="button"
-            className="btn btn--primary btn--lg"
-            disabled={!valid}
-            onClick={() => {
-              setOrder({ status: "form" });
-              onStep?.("checkout");
-            }}
-          >
-            Beställ
-          </button>
-        ) : null}
       </div>
 
       {reseller && <PurchaseSummary badges={badges} reseller={reseller} saleSek={price.totalSek} />}
 
-      {reseller && cart && !checkout && (
+      {inCart ? (
+        <>
+          {/* Allt som är designat ligger i varukorgen. Därifrån skickas ordern eller offerten. */}
+          <p className={styles.specTitle}>
+            I varukorgen · {designCount(cart.designs)} · {price.quantity} st
+          </p>
+          <button type="button" className="btn btn--primary btn--block" onClick={cart.onOpen}>
+            Öppna varukorgen
+          </button>
+          <p className={styles.cartNote}>Skriv ett nytt namn i editorn för att lägga till en design till.</p>
+        </>
+      ) : (
         <>
           {/* Skylten i editorn ligger inte i varukorgen än. Order och offert görs därifrån. */}
           <button type="button" className="btn btn--primary btn--block" disabled={!valid || !cart.canAdd} onClick={cart.onAdd}>
             Lägg i varukorgen
           </button>
-          {/* Vad varukorgen är till för står redan i sektionen Varukorg ovanför. */}
+          {!cart.canAdd && <p className={styles.cartNote}>Varukorgen är full. Lägg resten i en ny order.</p>}
           {cart.designs > 0 && (
             <p className={styles.cartNote}>
               {designCount(cart.designs)} ligger redan i varukorgen.{" "}
@@ -439,12 +469,13 @@ export function OrderSection({
           )}
         </>
       )}
+      </>
+      )}
 
-      {reseller && checkout && (
+      {checkout && reseller && badges.length > 0 && <PurchaseSummary badges={badges} reseller={reseller} saleSek={price.totalSek} />}
+
+      {reseller && checkout && badges.length > 0 && (
         <>
-          <p className={styles.specTitle}>
-            Varukorgen · {designCount(cart?.designs ?? 0)} · {price.quantity} st
-          </p>
           {formOpen && (
             <div className={styles.delivery} data-order-form>
               <div className={styles.deliveryHead}>
@@ -490,7 +521,7 @@ export function OrderSection({
                   : "Lägg order"}
             </button>
           </div>
-          <p className={styles.cartNote}>Till {reseller.customerName}. Skriv ett nytt namn i editorn för att lägga till en design till.</p>
+          <p className={styles.cartNote}>Till {reseller.customerName}.</p>
         </>
       )}
 
@@ -501,10 +532,14 @@ export function OrderSection({
             className={styles.orderForm}
             data-order-form
             onSubmit={submit}
+            // Kassan räknas som öppnad i statistiken när kunden börjar fylla i den. Varukorgen öppnas
+            // av sig själv när en skylt läggs dit, så att bara se den är inget steg.
+            onFocusCapture={() => onStep?.("checkout")}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
           >
+            <p className={styles.specTitle}>Beställare</p>
             {cardPayments && !shop && (
               <Segmented label="Jag beställer som" value={customerType} options={CUSTOMER_TYPE_OPTIONS} onChange={setCustomerType} />
             )}
@@ -512,7 +547,16 @@ export function OrderSection({
               <>
                 <label className="field">
                   <span className="visually-hidden">Företagsnamn</span>
-                  <input name="company" placeholder="Företagsnamn" required minLength={2} maxLength={120} autoComplete="organization" />
+                  <input
+                    name="company"
+                    placeholder="Företagsnamn"
+                    required
+                    minLength={2}
+                    maxLength={120}
+                    autoComplete="organization"
+                    value={contact.company}
+                    onChange={(event) => setContact({ ...contact, company: event.target.value })}
+                  />
                 </label>
                 <label className="field">
                   <span className="visually-hidden">Organisationsnummer</span>
@@ -524,6 +568,8 @@ export function OrderSection({
                     maxLength={20}
                     pattern="\d{6}[\s\-]?\d{4}"
                     title="Tio siffror, till exempel 556123-4567"
+                    value={contact.orgNumber}
+                    onChange={(event) => setContact({ ...contact, orgNumber: event.target.value })}
                   />
                 </label>
               </>
@@ -535,6 +581,8 @@ export function OrderSection({
                 placeholder="Ditt namn"
                 required
                 autoComplete="name"
+                value={contact.name}
+                onChange={(event) => setContact({ ...contact, name: event.target.value })}
                 // Den som beställer är oftast också mottagaren. Namnet behöver inte skrivas två gånger.
                 onBlur={(event) => {
                   const name = event.target.value.trim();
@@ -544,7 +592,15 @@ export function OrderSection({
             </label>
             <label className="field">
               <span className="visually-hidden">E-post</span>
-              <input name="email" type="email" placeholder="E-post" required autoComplete="email" />
+              <input
+                name="email"
+                type="email"
+                placeholder="E-post"
+                required
+                autoComplete="email"
+                value={contact.email}
+                onChange={(event) => setContact({ ...contact, email: event.target.value })}
+              />
             </label>
             <div className={styles.delivery}>
               <p className={styles.specTitle}>Leveransadress</p>
@@ -558,10 +614,18 @@ export function OrderSection({
             <p className={styles.payNote}>
               {privateCustomer
                 ? "Du betalar med kort i nästa steg. Ordern läggs när betalningen är klar."
-                : "Betalas mot faktura. Vi säljer till företag och verksamheter, så beställningen kräver ett organisationsnummer."}
+                : shop && !shop.direct
+                  ? "Betalas mot faktura. Vi säljer till företag och verksamheter, så beställningen kräver ett organisationsnummer."
+                  : "Betalas mot faktura från Skylt & Gravyrteknik, som tillverkar och levererar skyltarna. Beställningen kräver ett organisationsnummer."}
             </p>
             <label className={styles.consent}>
-              <input type="checkbox" name="acceptedTerms" required />
+              <input
+                type="checkbox"
+                name="acceptedTerms"
+                required
+                checked={contact.terms}
+                onChange={(event) => setContact({ ...contact, terms: event.target.checked })}
+              />
               <span>
                 Jag godkänner{" "}
                 <a href={shop ? `/butik/${shop.slug}/villkor` : "/villkor"} target="_blank" rel="noreferrer">
@@ -585,6 +649,8 @@ export function OrderSection({
         )}
       </AnimatePresence>
 
+      {checkout && (
+      <>
       <ProgressBanner
         active={order.status === "sending" && !reseller}
         failed={order.status === "error"}
@@ -597,7 +663,10 @@ export function OrderSection({
       {order.status === "done" && (
         <motion.div className={styles.receipt} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} role="status">
           <strong>Order {order.orderNumber} mottagen.</strong> Beräknat skickdatum {order.shipDate}.
-          {shop && ` ${shop.name} hör av sig med orderbekräftelse.`}
+          {/* En återförsäljares butik bekräftar själv. Annars sköter verkstaden ordern mot kunden. */}
+          {shop && !shop.direct
+            ? ` ${shop.name} hör av sig med orderbekräftelse.`
+            : order.atWorkshop && !reseller && !privateCustomer && !partnerMade && " Orderbekräftelsen kommer från Skylt & Gravyrteknik."}
           {order.orderPath && (
             <>
               {" "}
@@ -616,6 +685,8 @@ export function OrderSection({
         <p className={styles.issue} data-severity="error" role="alert">
           {order.message}
         </p>
+      )}
+      </>
       )}
     </section>
   );

@@ -39,11 +39,12 @@ export default async function ProvisionPage({ searchParams }: ProvisionPageProps
       <header className={styles.pageHead}>
         <div>
           <p className={styles.eyebrow}>Provision</p>
-          <h1 className={styles.pageTitle}>Återförsäljarnas ordrar</h1>
+          <h1 className={styles.pageTitle}>Ordrar och provision</h1>
           <p className={styles.pageLead}>
-            Alla ordrar som återförsäljarna har lagt eller fått i sina butiker: vad återförsäljaren betalar, er provision och
-            vad som går till Skylt &amp; Gravyrteknik. Varje order räknas med prismodellen som gällde när den lades.
-            Demoordrar och avbrutna ordrar är inte med.
+            Alla ordrar som Skylt &amp; Gravyrteknik fakturerar: vad som faktureras, er provision och vad som går till
+            verkstaden. En återförsäljares order faktureras återförsäljaren, och ni får trappstegens provision. En order
+            direkt hos namnskylt.com faktureras kunden, och ni får prismodellens marginal. Varje order räknas med
+            prismodellen som gällde när den lades. Demoordrar och avbrutna ordrar är inte med.
           </p>
         </div>
         <div className={styles.actionBar}>

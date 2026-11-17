@@ -1,7 +1,12 @@
 import Link from "next/link";
 import styles from "./terms.module.css";
 
-/** Säljaren som villkoren gäller: namnskylt.com på vår egen sajt, återförsäljaren i en butik. */
+/**
+ * Företaget villkoren visas för. I en butik är det återförsäljaren, som är
+ * säljare. På namnskylt.com är det namnskylt.com, som förmedlar beställningen:
+ * där är Skylt & Gravyrteknik säljare och sköter order, leverans och faktura
+ * (beslut av ägaren 2026-11-17).
+ */
 export interface TermsSeller {
   name: string;
   orgNumber: string;
@@ -11,8 +16,13 @@ export interface TermsSeller {
 
 interface TermsPageProps {
   seller: TermsSeller;
-  /** Butikens namn när villkoren visas i en återförsäljares butik. Där säljs bara till företag, på faktura. */
+  /** Butikens namn när villkoren visas i en butik. Där säljs bara till företag, på faktura. */
   shopName?: string;
+  /**
+   * Skylt & Gravyrteknik är säljare och fakturerar kunden: på namnskylt.com, och
+   * i en butik som ingen återförsäljare har tagit över. Utelämnat = på namnskylt.com.
+   */
+  direct?: boolean;
   /** Privatpersoner kan betala med kort. Bara på namnskylt.com, och bara när kortbetalningen är påslagen. */
   cardPayments?: boolean;
 }
@@ -20,14 +30,15 @@ interface TermsPageProps {
 /** Fakturans betalningstid på namnskylt.com, samma som hos Skylt & Gravyrteknik. */
 const INVOICE_DAYS = 30;
 /** Dagen villkoren senast ändrades. */
-const UPDATED = "2026-11-15";
+const UPDATED = "2026-11-17";
+const WORKSHOP = "Skylt & Gravyrteknik";
 
 /**
  * Köpvillkoren. Texten utgår från Skylt & Gravyrtekniks egna villkor och från
  * det sajten redan lovar: korrektur innan produktion och leverans inom fem
  * arbetsdagar. Säljarens uppgifter kommer ur företagsuppgifterna i panelen.
  */
-export function TermsPage({ seller, shopName, cardPayments = false }: TermsPageProps) {
+export function TermsPage({ seller, shopName, direct = !shopName, cardPayments = false }: TermsPageProps) {
   const shop = Boolean(shopName);
   const address = seller.address.split("\n").map((line) => line.trim()).filter(Boolean).join(", ");
   const sellerLine = [seller.name, seller.orgNumber && `org.nr ${seller.orgNumber}`, address].filter(Boolean).join(", ");
@@ -41,15 +52,34 @@ export function TermsPage({ seller, shopName, cardPayments = false }: TermsPageP
 
       <section className={styles.section}>
         <h2>Säljare</h2>
-        <p>
-          {sellerLine}.{" "}
-          {seller.email && (
-            <>
-              Du når oss på <a href={`mailto:${seller.email}`}>{seller.email}</a>.
-            </>
-          )}
-        </p>
-        <p>{shop ? "Skyltarna tillverkas i Sverige." : "Skyltarna tillverkas i Sverige av Skylt & Gravyrteknik."}</p>
+        {!direct ? (
+          <>
+            <p>
+              {sellerLine}.{" "}
+              {seller.email && (
+                <>
+                  Du når oss på <a href={`mailto:${seller.email}`}>{seller.email}</a>.
+                </>
+              )}
+            </p>
+            <p>Skyltarna tillverkas i Sverige.</p>
+          </>
+        ) : (
+          <>
+            <p>
+              Skyltarna säljs av {WORKSHOP}, som tillverkar dem i Sverige, levererar dem och fakturerar ordern.
+              Orderbekräftelsen och fakturan kommer därifrån.
+            </p>
+            <p>
+              Beställningen görs {shop ? `hos ${shopName}` : "på namnskylt.com"}. namnskylt.com förmedlar den: {sellerLine}.{" "}
+              {seller.email && (
+                <>
+                  Du når oss på <a href={`mailto:${seller.email}`}>{seller.email}</a>.
+                </>
+              )}
+            </p>
+          </>
+        )}
       </section>
 
       <section className={styles.section}>
@@ -63,7 +93,7 @@ export function TermsPage({ seller, shopName, cardPayments = false }: TermsPageP
 
       <section className={styles.section}>
         <h2>Betalning</h2>
-        {shop ? (
+        {!direct ? (
           <p>
             Vi säljer till företag och verksamheter. Ordern betalas mot faktura från {seller.name}, och betalningstiden
             står på fakturan.
@@ -71,10 +101,10 @@ export function TermsPage({ seller, shopName, cardPayments = false }: TermsPageP
         ) : (
           <>
             <p>
-              Företag och verksamheter betalar mot faktura med {INVOICE_DAYS} dagars betalningstid. Fakturan skickas när
-              ordern har levererats, och beställningen kräver ett organisationsnummer.
+              Företag och verksamheter betalar mot faktura från {WORKSHOP}, med {INVOICE_DAYS} dagars betalningstid.
+              Fakturan skickas när ordern har levererats, och beställningen kräver ett organisationsnummer.
             </p>
-            {cardPayments && (
+            {cardPayments && !shop && (
               <p>Privatpersoner betalar med kort när beställningen läggs. Ordern registreras när betalningen är klar.</p>
             )}
           </>
@@ -128,8 +158,8 @@ export function TermsPage({ seller, shopName, cardPayments = false }: TermsPageP
       <section className={styles.section}>
         <h2>Personuppgifter</h2>
         <p>
-          Vi använder uppgifterna du lämnar för att tillverka, leverera och fakturera ordern. Du kan be oss rätta eller ta
-          bort dem. Det som hör till bokföringen måste vi spara i sju år, men då utan namnen på skyltarna.{" "}
+          Vi använder uppgifterna du lämnar för att tillverka, leverera och fakturera ordern.
+          {direct && ` De lämnas till ${WORKSHOP}, som gör just det.`} Du kan be oss rätta eller ta bort dem. Det som hör till bokföringen måste vi spara i sju år, men då utan namnen på skyltarna.{" "}
           {!shop && (
             <>
               Mer står på sidan <Link href="/integritet">Så hanterar vi uppgifter</Link>.

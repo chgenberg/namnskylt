@@ -3,7 +3,7 @@ import { renderLogoPng } from "@/lib/ai/badge-image";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { requireDb } from "@/lib/db/client";
 import { withInlineLogoImages } from "@/lib/logo-images/repository";
-import type { StoredOrder } from "@/lib/orders/model";
+import { isDirectOrder, type StoredOrder } from "@/lib/orders/model";
 import {
   claimForDispatch,
   getCompanyProfile,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/orders/repository";
 import { accountEmail } from "@/lib/reseller-auth/accounts";
 import { createSupplierClient, supplierApiConfigured } from "./client";
-import { buildSupplierRequest, dispatchProblems, MAX_REQUEST_BYTES, requestBytes, supplierBuyer } from "./request";
+import { buildSupplierRequest, customerBuyer, dispatchProblems, MAX_REQUEST_BYTES, requestBytes, supplierBuyer } from "./request";
 import { isPermanentFailure, PermanentDispatchError } from "./retry-rules";
 import { recordDispatchFailure } from "./retry-store";
 import { isTrackableSupplierOrder } from "./status";
@@ -31,32 +31,68 @@ export interface DispatchStatus {
   problems: string[];
 }
 
-/** Beställaren hos verkstaden: återförsäljaren ordern tillhör. */
-export async function buyerFor(tenant: string): Promise<SupplierBuyer> {
+/** En återförsäljares uppgifter som beställare hos verkstaden. */
+async function resellerBuyer(tenant: string): Promise<SupplierBuyer> {
   return supplierBuyer(tenant, await getCompanyProfile(tenant), await accountEmail(tenant));
 }
 
-export function dispatchStatus(order: StoredOrder, buyer: SupplierBuyer | null): DispatchStatus {
+/**
+ * Vem verkstaden fakturerar för en order (beslut av ägaren 2026-11-17):
+ *
+ * - En återförsäljares order faktureras alltid återförsäljaren, till inköpspris.
+ * - En direktorder, lagd hos namnskylt.com utan återförsäljare, sköter verkstaden
+ *   helt mot kunden: kunden är beställaren och betalar sitt eget pris.
+ * - En order som kunden redan har betalat med kort till namnskylt.com faktureras
+ *   inte en gång till: där är namnskylt.com beställaren, till inköpspris, som
+ *   före direktordrarna. Kortbetalningen är avstängd och går inte ihop med att
+ *   verkstaden sköter allt mot kunden.
+ */
+interface DispatchParty {
+  buyer: SupplierBuyer;
+  /** Satt på en direktorder. Bär namnskylt.coms egen adress, dit aviseringen går när skyltarna skickas till oss. */
+  direct: { sellerEmail: string } | null;
+}
+
+/**
+ * Parten för en order. `sellers` sparar återförsäljarnas uppgifter mellan
+ * anropen, så att en lista med många ordrar läser varje företag en gång.
+ */
+export async function partyFor(
+  order: Pick<StoredOrder, "resellerId" | "customer" | "delivery" | "payment">,
+  sellers: Map<string, SupplierBuyer> = new Map(),
+): Promise<DispatchParty> {
+  let seller = sellers.get(order.resellerId);
+  if (!seller) {
+    seller = await resellerBuyer(order.resellerId);
+    sellers.set(order.resellerId, seller);
+  }
+  if (!isDirectOrder(order)) return { buyer: seller, direct: null };
+  return { buyer: customerBuyer(order.customer, order.delivery), direct: { sellerEmail: seller.contactEmail || seller.email } };
+}
+
+export function dispatchStatus(order: StoredOrder, party: DispatchParty | null): DispatchStatus {
   if (order.demo) return { state: "demo", problems: [] };
   if (order.supplierSentAt || isTrackableSupplierOrder(order.supplierOrderNo)) return { state: "sent", problems: [] };
   if (order.status === "cancelled") return { state: "cancelled", problems: [] };
-  const problems = dispatchProblems(order, buyer);
+  const problems = dispatchProblems(order, party?.buyer ?? null, Boolean(party?.direct));
   if (problems.length > 0) return { state: "blocked", problems };
   return { state: order.supplierError ? "failed" : "waiting", problems: [] };
 }
 
 /** Anropet till verkstaden för en order, som det skulle skickas nu. `null` när något saknas. */
-export async function supplierRequestFor(order: StoredOrder, buyer: SupplierBuyer): Promise<SupplierOrderRequest | null> {
-  if (!order.delivery || !order.purchaseList || dispatchProblems(order, buyer).length > 0) return null;
+export async function supplierRequestFor(order: StoredOrder, party: DispatchParty): Promise<SupplierOrderRequest | null> {
+  if (!order.delivery || !order.purchaseList || dispatchProblems(order, party.buyer, Boolean(party.direct)).length > 0) return null;
   return buildSupplierRequest({
     orderNo: order.orderNo,
     project: order.project,
     customer: order.customer,
-    buyer,
+    buyer: party.buyer,
     delivery: order.delivery,
     // Verkstaden får bilden själv, inte adressen till den hos oss.
     badges: await withInlineLogoImages(order.badges),
     purchaseList: order.purchaseList,
+    // På en direktorder betalar kunden sitt eget pris: prislistan och priserna ordern sparades med.
+    ...(party.direct && { direct: { priceList: order.priceList, pricing: order.pricing, sellerEmail: party.direct.sellerEmail } }),
     fonts: await loadNodeFontEngine(),
     logoPng: renderLogoPng,
   });
@@ -78,14 +114,14 @@ export async function dispatchOrder(orderNo: string): Promise<DispatchOutcome> {
   const order = await getOrderForDispatch(orderNo);
   if (!order) return { ok: false, reason: "failed", error: "Ordern finns inte" };
   if (order.supplierSentAt && order.supplierOrderNo) return { ok: true, supplierOrderNo: order.supplierOrderNo };
-  const buyer = await buyerFor(order.resellerId);
-  const status = dispatchStatus(order, buyer);
+  const party = await partyFor(order);
+  const status = dispatchStatus(order, party);
   if (status.state === "demo") return { ok: false, reason: "blocked", error: "Demoordrar skickas inte till verkstaden" };
   if (status.state === "cancelled") return { ok: false, reason: "blocked", error: "Ordern är avbruten" };
   if (status.state === "blocked") return { ok: false, reason: "blocked", error: status.problems.join(". ") };
   if (!(await claimForDispatch(order.id))) return { ok: false, reason: "busy", error: "Ordern skickas redan" };
   try {
-    const request = await supplierRequestFor(order, buyer);
+    const request = await supplierRequestFor(order, party);
     if (!request) throw new PermanentDispatchError("Ordern går inte att skicka");
     const bytes = requestBytes(request);
     if (bytes > MAX_REQUEST_BYTES) {

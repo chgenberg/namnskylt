@@ -533,25 +533,6 @@
   .order .purchase {
     padding: var(--space-2) var(--space-3);
   }
-
-  /* Här scrollar hela panelen: med formuläret öppet följer delen med innehållet i stället för att stå fast. */
-  .order[data-open] {
-    position: static;
-    max-height: none;
-    overflow: visible;
-  }
-}
-
-/* Sidan rullar till formuläret när det öppnas. Lite luft ovanför, så att det inte ligger kant i kant. */
-.order [data-order-form] {
-  scroll-margin-top: var(--space-4);
-}
-
-/* På mobil står skylten fast överst (se designer.module.css): formuläret ska hamna under den, inte bakom. */
-@media (max-width: 900px) {
-  .order [data-order-form] {
-    scroll-margin-top: calc(var(--header-height) + 48dvh + var(--space-3));
-  }
 }
 
 /*
@@ -759,6 +740,22 @@
 .purchase > p {
   grid-column: 1 / -1;
   margin: 0;
+}
+
+/* Kassan i varukorgen: samma delar som vid priset, men i panelens flöde i stället för fast över skyltmotorn. */
+.checkout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.checkout:empty {
+  display: none;
+}
+
+/* Återförsäljarens leveranssteg rullas fram i varukorgen. Lite luft ovanför, så att det inte ligger kant i kant. */
+.checkout [data-order-form] {
+  scroll-margin-top: var(--space-4);
 }
 
 .orderForm {
@@ -1109,12 +1106,6 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-1);
-}
-
-.cartButtons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 
 /* Återförsäljarens väg vidare från varukorgen: offert eller order, sida vid sida. */

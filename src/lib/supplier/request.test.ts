@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { approxFonts, createBadgeDocument, logoImageRef, NO_SHIPPING, type BadgeDocument, type BadgeLogo } from "@/engine";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
-import { resellerPriceTable } from "@/engine/price-model";
+import { endPriceTable, resellerPriceTable } from "@/engine/price-model";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
 import type { Delivery } from "@/lib/orders/delivery";
-import { buildSupplierRequest, dispatchProblems, requestBytes, supplierBuyer, type SupplierRequestInput } from "./request";
+import { priceWithPricing } from "@/lib/orders/pricing";
+import { buildSupplierRequest, customerBuyer, dispatchProblems, requestBytes, supplierBuyer, type SupplierRequestInput } from "./request";
 
 const PURCHASE = resellerPriceTable(DEFAULT_PRICE_MODEL);
+/** Slutkundens prislista: det kunden betalar på en direktorder. */
+const SALE = endPriceTable(DEFAULT_PRICE_MODEL);
 const DELIVERY: Delivery = {
   to: "customer",
   address: {
@@ -41,6 +44,15 @@ function input(badges: BadgeDocument[], patch: Partial<SupplierRequestInput> = {
 }
 
 const named = (name: string, quantity = 1): BadgeDocument => ({ ...createBadgeDocument([name]), quantity });
+
+/** Kunden på en direktorder hos namnskylt.com: företaget med sitt organisationsnummer. */
+const CUSTOMER = { name: "Anna Lind", company: "Hotell Exempel AB", orgNumber: "556111-2222", email: "anna@example.se", phone: "070-123 45 67", address: null };
+/** En direktorder: kunden är beställaren, och namnskylt.coms egen adress följer med för aviseringar. */
+const direct = (patch: Partial<SupplierRequestInput> = {}): Partial<SupplierRequestInput> => ({
+  buyer: customerBuyer(CUSTOMER, patch.delivery ?? DELIVERY),
+  direct: { priceList: SALE, pricing: null, sellerEmail: "hej@example.se" },
+  ...patch,
+});
 
 describe("ordern till verkstaden", () => {
   it("bär vårt ordernummer, projektet, beställaren som faktureras och slutkunden som referens", () => {
@@ -228,15 +240,95 @@ describe("det som stoppar en order", () => {
   });
 
   it("namnskylt.coms egna kunder aviseras direkt av transportören", () => {
-    const owner = supplierBuyer("namnskylt", { ...DEFAULT_COMPANY, orgNumber: "556000-0000", email: "hej@example.se" }, null);
-    const own = buildSupplierRequest(input([named("Anna Lind")], { buyer: owner }));
+    const own = buildSupplierRequest(input([named("Anna Lind")], direct()));
     assert.equal(own.shipping.address.email, "anna@example.se");
     // Utan adress till kunden aviseras vi själva.
-    const unknown = buildSupplierRequest(input([named("Anna Lind")], { buyer: owner, customer: { name: "Anna Lind", email: " ", company: null } }));
+    const unknown = buildSupplierRequest(input([named("Anna Lind")], direct({ customer: { name: "Anna Lind", email: " ", company: null } })));
     assert.equal(unknown.shipping.address.email, "hej@example.se");
     // En borttagen kund har en platshållare till adress: den går inte att avisera på.
     const erased = { name: "Borttagen kund", email: "borttagen-3f2b8c1e-5d4a-4c6b-9e7f-0a1b2c3d4e5f@borttagen.invalid", company: null };
-    assert.equal(buildSupplierRequest(input([named("Anna Lind")], { buyer: owner, customer: erased })).shipping.address.email, "hej@example.se");
+    assert.equal(buildSupplierRequest(input([named("Anna Lind")], direct({ customer: erased }))).shipping.address.email, "hej@example.se");
+    // Skickas skyltarna till oss själva aviseras vi, inte kunden.
+    const toUs = buildSupplierRequest(input([named("Anna Lind")], direct({ delivery: { ...DELIVERY, to: "reseller" } })));
+    assert.equal(toUs.shipping.address.email, "hej@example.se");
+  });
+
+  it("en kortbetald order hos namnskylt.com faktureras namnskylt.com, men kunden aviseras ändå", () => {
+    // Kunden har redan betalat: namnskylt.com är beställaren, till inköpspris. Aviseringen följer säljaren.
+    const owner = supplierBuyer("namnskylt", { ...DEFAULT_COMPANY, orgNumber: "556000-0000", email: "hej@example.se" }, null);
+    const paid = buildSupplierRequest(input([named("Anna Lind", 10)], { buyer: owner }));
+    assert.equal(paid.buyer.orgNumber, "556000-0000");
+    assert.equal(paid.lines[0]?.unitPriceSek, 98);
+    assert.equal(paid.shipping.address.email, "anna@example.se");
+  });
+
+  it("en direktorder har kunden som beställare, med företagets organisationsnummer", () => {
+    const request = buildSupplierRequest(input([named("Anna Lind", 10)], direct()));
+    assert.deepEqual(request.buyer, {
+      id: "namnskylt",
+      name: "Hotell Exempel AB",
+      orgNumber: "556111-2222",
+      email: "anna@example.se",
+      phone: "070-123 45 67",
+      // Kunden har ingen egen adress sparad: skyltarna går till kunden, så leveransadressen är fakturaadressen.
+      billingAddress: { line1: "Storgatan 1", zip: "111 22", city: "Stockholm", country: "SE" },
+    });
+    // Kundens egen adress går före leveransadressen, och utan företag står personen som beställare.
+    const own = customerBuyer({ ...CUSTOMER, company: null, address: "Hamngatan 2\n222 33 Lund" }, DELIVERY);
+    assert.equal(own.name, "Anna Lind");
+    assert.deepEqual(own.billingAddress, { line1: "Hamngatan 2", zip: "222 33", city: "Lund", country: "SE" });
+    // Går skyltarna till oss själva är leveransadressen inte kundens.
+    assert.equal(customerBuyer(CUSTOMER, { ...DELIVERY, to: "reseller" }).billingAddress, undefined);
+    assert.equal(customerBuyer({ ...CUSTOMER, orgNumber: null }, DELIVERY).orgNumber, "");
+  });
+
+  it("en direktorder bär kundens pris per skylt, inte inköpspriset, och samma frakt som i övriga led", () => {
+    const badges = [named("Anna Lind", 6), named("Bo Ek", 4)];
+    const purchase = buildSupplierRequest(input(badges));
+    const request = buildSupplierRequest(input(badges, direct()));
+    const sale = priceWithPricing(badges, null, SALE, purchase.shipping.costSek);
+    assert.deepEqual(
+      request.lines.map((line) => line.unitPriceSek),
+      sale.lines.map((line) => line.unitSek),
+    );
+    assert.ok((request.lines[0]?.unitPriceSek ?? 0) > (purchase.lines[0]?.unitPriceSek ?? 0));
+    assert.equal(request.goodsSek, sale.goodsSek);
+    assert.equal(request.lines.reduce((sum, line) => sum + line.unitPriceSek * line.quantity, 0) + request.minimumTopUpSek, request.goodsSek);
+    // Frakten och fraktsättet följer inköpslistan, så att de är desamma hur ordern än faktureras.
+    assert.deepEqual([request.shipping.method, request.shipping.costSek], [purchase.shipping.method, purchase.shipping.costSek]);
+    // Dokumenten är desamma: bara priset och beställaren skiljer.
+    assert.deepEqual(request.lines.map((line) => line.document), purchase.lines.map((line) => line.document));
+  });
+
+  it("en direktorder med egna à-priser fakturerar dem, och en ensam skylt får kundens påslag till minsta ordervärde", () => {
+    const badges = [named("Anna Lind", 6), named("Bo Ek", 4)];
+    const priced = buildSupplierRequest(input(badges, direct({ direct: { priceList: SALE, pricing: { unitOverrides: [100, null], discountPercent: 0, extras: [] }, sellerEmail: "hej@example.se" } })));
+    assert.equal(priced.lines[0]?.unitPriceSek, 100);
+    assert.equal(priced.lines.reduce((sum, line) => sum + line.unitPriceSek * line.quantity, 0) + priced.minimumTopUpSek, priced.goodsSek);
+    const single = buildSupplierRequest(input([named("Anna Lind")], direct()));
+    const sale = priceWithPricing([named("Anna Lind")], null, SALE, 0);
+    assert.equal(single.minimumTopUpSek, sale.minimumTopUpSek);
+    assert.equal(single.goodsSek, sale.goodsSek);
+    assert.equal(single.goodsSek, Math.max(SALE.minOrderSek, sale.badgesSek));
+  });
+
+  it("en direktorder stoppas när den inte går att fakturera rätt, och felen pekar på kunden", () => {
+    const order = { badges: [named("Anna Lind")], delivery: DELIVERY, pricing: null };
+    const buyer = customerBuyer(CUSTOMER, DELIVERY);
+    assert.deepEqual(dispatchProblems(order, buyer, true), []);
+    assert.deepEqual(dispatchProblems(order, customerBuyer({ ...CUSTOMER, orgNumber: null }, DELIVERY), true), ["Kundens organisationsnummer saknas"]);
+    assert.deepEqual(dispatchProblems(order, customerBuyer({ ...CUSTOMER, orgNumber: "12345" }, DELIVERY), true), ["Kundens organisationsnummer ska ha tio siffror"]);
+    assert.deepEqual(dispatchProblems(order, customerBuyer({ ...CUSTOMER, email: "" }, DELIVERY), true), ["Kundens e-postadress saknas"]);
+    // En rabatt i procent och extrarader har ingen plats i anropet.
+    const blocked = "Ordern har rabatt i procent eller extrarader, som verkstaden inte kan fakturera. Lägg priset som à-pris per skylt";
+    assert.deepEqual(dispatchProblems({ ...order, pricing: { unitOverrides: [], discountPercent: 10, extras: [] } }, buyer, true), [blocked]);
+    assert.deepEqual(dispatchProblems({ ...order, pricing: { unitOverrides: [], discountPercent: 0, extras: [{ label: "Expressorder", amountSek: 300 }] } }, buyer, true), [blocked]);
+    assert.deepEqual(dispatchProblems({ ...order, pricing: { unitOverrides: [90], discountPercent: 0, extras: [] } }, buyer, true), []);
+    // En borttagen kund har en platshållare till adress och ska varken faktureras eller mejlas.
+    const erased = customerBuyer({ ...CUSTOMER, email: "borttagen-3f2b8c1e-5d4a-4c6b-9e7f-0a1b2c3d4e5f@borttagen.invalid" }, DELIVERY);
+    assert.deepEqual(dispatchProblems(order, erased, true), ["Kunden är borttagen"]);
+    // En återförsäljares egna priser mot kunden rör inte det verkstaden fakturerar återförsäljaren.
+    assert.deepEqual(dispatchProblems({ ...order, pricing: { unitOverrides: [], discountPercent: 10, extras: [{ label: "Expressorder", amountSek: 300 }] } }, BUYER), []);
   });
 
   it("en återförsäljares kund aviseras aldrig direkt: beskedet går till återförsäljaren", () => {
