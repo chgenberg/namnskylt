@@ -1,8 +1,9 @@
-import { useMemo, type ReactNode } from "react";
-import { Path, Shape } from "three";
+import { useEffect, useMemo } from "react";
+import { BufferGeometry, Float32BufferAttribute, Path, Shape } from "three";
 import {
-  availableHalfWidth,
+  CLIP_FIT,
   clipOrientationOf,
+  clipPlate,
   fitHardware,
   type BadgeDocument,
   type FontEngine,
@@ -18,8 +19,9 @@ import { glyphShapes, UNITS_PER_MM } from "./geometry";
  *   lås i den andra och en stålnål som står öppen,
  * - magneten: en tunn förnicklad platta på skylten och en svart hållare med
  *   rundade ändar och texten CAUTION MAGNETIC,
- * - klämman: en lång stålplatta med en fjäderarm vikt över ena änden, ett
- *   fönster med en tunga i armen och en uppvikt läpp längst ut.
+ * - klämman: en stålplatta på 80 × 25 mm med en fjäderarm vikt över ena änden,
+ *   ett fönster med en tunga i armen och en uppvikt läpp längst ut. Skylten
+ *   ligger kant i kant med plattan (`clipPlate` i motorn).
  *
  * Ikonerna i panelen (`mounting-section.tsx`) är förenklade och ritas för sig.
  * Måtten är i mm och har tak, så fästet växer inte med en stor skylt. Samma
@@ -35,9 +37,6 @@ const BLACK_PLASTIC = "#1b1c1f";
 const FOAM_TAPE = "#e8e8e4";
 /** Hur högt över skyltens mitt fästet sitter, som andel av höjden. */
 const HARDWARE_RISE: Record<MountingId, number> = { pin: 0.08, magnet: 0, clip: 0, "safety-pin": 0.12 };
-/** Luft mellan klämman och skyltens kant på en rundad skylt. */
-const CLIP_EDGE_MM = 1.5;
-
 const mm = UNITS_PER_MM;
 
 interface HardwareSize {
@@ -45,6 +44,8 @@ interface HardwareSize {
   longMm: number;
   /** Tvärs över skylten. */
   wideMm: number;
+  /** Hörnens rundning, för klämmans platta som följer skyltens hörn. */
+  cornerMm?: number;
 }
 
 function pinSize(widthMm: number): HardwareSize {
@@ -61,20 +62,12 @@ function clipIsVertical(doc: BadgeDocument): boolean {
 }
 
 /**
- * Klämman är nästan lika lång som skylten, längs den eller på höjden efter
- * kundens val. På en oval skylt är skylten smalare där klämmans hörn hamnar,
- * så där kortas klämman till det som ryms. En egen form passas in av
- * `fitHardware` i stället, och bara en egen form är hög nog för en stående klämma.
+ * Klämmans platta, längs skylten eller på höjden efter kundens val: 80 × 25 mm,
+ * kant i kant med en skylt i det måttet. Reglerna ligger i motorn (`clipPlate`).
  */
 function clipSize(doc: BadgeDocument): HardwareSize {
-  const vertical = clipIsVertical(doc);
-  const widthMm = vertical ? doc.size.heightMm : doc.size.widthMm;
-  const heightMm = vertical ? doc.size.widthMm : doc.size.heightMm;
-  const wideMm = Math.min(heightMm * 0.84, 21);
-  const longMm = Math.min(widthMm * 0.92, 72);
-  if (doc.shape === "custom" || vertical) return { longMm, wideMm };
-  const roomMm = availableHalfWidth(doc, CLIP_EDGE_MM, (heightMm - wideMm) / 2, (heightMm + wideMm) / 2) * 2;
-  return { longMm: Math.max(Math.min(longMm, roomMm), wideMm), wideMm };
+  const plate = clipPlate(doc);
+  return { longMm: plate.longMm, wideMm: plate.wideMm, cornerMm: plate.cornerRadiusMm };
 }
 
 function hardwareSize(doc: BadgeDocument): HardwareSize {
@@ -95,12 +88,15 @@ function hardwareSize(doc: BadgeDocument): HardwareSize {
 function footprint(doc: BadgeDocument, size: HardwareSize): HardwareFootprint {
   // Nålens skumtejp sticker ut en halv millimeter runt listen.
   const tape = doc.mounting === "pin" ? 1 : 0;
+  const clip = doc.mounting === "clip";
   // En stående klämma tar sin längd på höjden.
-  const upright = doc.mounting === "clip" && clipIsVertical(doc);
+  const upright = clip && clipIsVertical(doc);
   return {
     widthMm: (upright ? size.wideMm : size.longMm) + tape,
     heightMm: (upright ? size.longMm : size.wideMm) + tape,
     centerYMm: doc.size.heightMm * (0.5 - HARDWARE_RISE[doc.mounting]),
+    // Klämman ligger kant i kant med skylten; övriga fästen håller luft mot kanten.
+    ...(clip ? CLIP_FIT : {}),
   };
 }
 
@@ -121,7 +117,10 @@ export function Mounting({ doc, fonts, widthUnits, heightUnits, backZ }: Mountin
   const { mounting } = doc;
   const { size, fit } = useMemo(() => {
     const hardware = hardwareSize(doc);
-    return { size: hardware, fit: fitHardware(doc, footprint(doc, hardware)) };
+    const placed = fitHardware(doc, footprint(doc, hardware));
+    // På en egen form kan hörnen behöva rundas mer, för att plattan ska följa formens hörn.
+    const cornerMm = Math.max(hardware.cornerMm ?? 0, placed.cornerRadiusMm ?? 0);
+    return { size: cornerMm > 0 ? { ...hardware, cornerMm } : hardware, fit: placed };
   }, [doc]);
   const lift = (doc.size.heightMm / 2 - fit.centerYMm) * UNITS_PER_MM - HARDWARE_RISE[mounting] * heightUnits * fit.scale;
   return (
@@ -201,18 +200,84 @@ const slab = (depth: number, bevel = 0) => ({
   curveSegments: 24,
 });
 
+/** Skivorna vikningen delas i tvärs över klämman där plattans hörn är rundat. */
+const FOLD_SLICE_MM = 0.1;
+/** Segmenten i vikningens halva varv. */
+const FOLD_SEGMENTS = 40;
+
+interface FoldShape {
+  /** Linjen vikningen går runt: plåten är vikt ett halvt varv kring x = `foldX`, z = `bend`. */
+  foldX: number;
+  /** Vikningens ytterradie. */
+  bend: number;
+  /** Plåtens tjocklek. */
+  sheet: number;
+  /** Vikningens bredd tvärs över klämman. */
+  width: number;
+  /** Plattans kortsida på höjden `across` från mitten. Vikningen skärs av där. */
+  plateEdge: (across: number) => number;
+  /** Plattans kortsida är rak upp till den här höjden från mitten; utanför den är hörnet rundat. */
+  straightHalf: number;
+}
+
 /**
- * En plåtprofil ritad i sidovy, med x åt höger och formens y ut från skylten,
- * pressad över `width` och lagd mitt på fästet i höjdled. Så byggs bockad plåt:
- * klämmans vikning ser ut som den gör från kanten.
+ * Klämmans vikning: plåten vikt ett halvt varv, från plattan och tillbaka som
+ * fjäderarm. Kroppen byggs skiva för skiva tvärs över klämman och skärs av
+ * mot plattans kortsida, så att den följer plattans rundade hörn och aldrig
+ * sticker ut utanför skylten. Skivorna ligger tätt bara där hörnet är rundat.
+ * Ändarna mot plattan och armen är öppna; de ligger dikt an och syns inte.
  */
-function SideProfile({ shape, width, children }: { shape: Shape; width: number; children: ReactNode }) {
-  return (
-    <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, width / 2, 0]}>
-      <extrudeGeometry args={[shape, slab(width)]} />
-      {children}
-    </mesh>
-  );
+function foldGeometry({ foldX, bend, sheet, width, plateEdge, straightHalf }: FoldShape): BufferGeometry {
+  const half = width / 2;
+  const straight = Math.min(Math.max(straightHalf, 0), half);
+  const dense = Math.ceil((half - straight) / FOLD_SLICE_MM);
+  const slices: number[] = [];
+  for (let i = 0; i < dense; i++) slices.push(-half + ((half - straight) * i) / dense);
+  slices.push(-straight);
+  if (straight > 0) slices.push(straight);
+  for (let i = 1; i <= dense; i++) slices.push(straight + ((half - straight) * i) / dense);
+
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const ring = FOLD_SEGMENTS + 1;
+  // En vägg: ett rutnät av punkter, en rad per skiva. Väggarna delar inga punkter, så kanten mellan dem blir skarp.
+  const wall = (radius: number, rows: readonly number[]): number => {
+    const first = positions.length / 3;
+    for (const across of rows) {
+      const edge = plateEdge(across);
+      for (let k = 0; k < ring; k++) {
+        const angle = Math.PI / 2 + (Math.PI * k) / FOLD_SEGMENTS;
+        positions.push(Math.max(foldX + radius * Math.cos(angle), edge), across, bend + radius * Math.sin(angle));
+      }
+    }
+    return first;
+  };
+  const quad = (a: number, b: number, c: number, d: number) => indices.push(a, b, c, b, d, c);
+
+  const outer = wall(bend, slices);
+  const inner = wall(bend - sheet, slices);
+  for (let s = 0; s + 1 < slices.length; s++) {
+    for (let k = 0; k < FOLD_SEGMENTS; k++) {
+      const at = s * ring + k;
+      quad(outer + at, outer + at + ring, outer + at + 1, outer + at + ring + 1);
+      quad(inner + at, inner + at + 1, inner + at + ring, inner + at + ring + 1);
+    }
+  }
+  // Gavlarna: plåtens tvärsnitt i vikningens båda ändar, med egna punkter så att de får en plan yta.
+  const ends = [-half, half];
+  const outerEnd = wall(bend, ends);
+  const innerEnd = wall(bend - sheet, ends);
+  const last = ring;
+  for (let k = 0; k < FOLD_SEGMENTS; k++) {
+    quad(outerEnd + k, outerEnd + k + 1, innerEnd + k, innerEnd + k + 1);
+    quad(outerEnd + last + k, innerEnd + last + k, outerEnd + last + k + 1, innerEnd + last + k + 1);
+  }
+
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 /** Hur mycket nålen står öppen, i radianer. På fotot står den ungefär så här. */
@@ -387,13 +452,21 @@ function Magnet({ size, fonts }: { size: HardwareSize; fonts: FontEngine }) {
  * Klämman. Plattan sitter längs skylten. I vänstra änden är plåten vikt runt
  * och går tillbaka som en fjäderarm, som trycker mot plattan. Armen har ett
  * fönster med en tunga som pekar ner mot plattan, och slutar i en uppvikt läpp.
+ *
+ * Plattans hörn har skyltens rundning när klämman ligger kant i kant med den,
+ * och vikningen och armen hålls innanför samma hörn.
  */
 function Clip({ size }: { size: HardwareSize }) {
   const { longMm, wideMm } = size;
+  const cornerMm = Math.min(size.cornerMm ?? 1.2, longMm / 2, wideMm / 2);
   const sheet = 0.5;
   const bend = 2;
   const armMm = longMm * 0.64;
-  const armWideMm = wideMm - 0.8;
+  // Plattans halva bredd `inMm` in från kortsidan: i det rundade hörnet är den smalare.
+  const halfWideAt = (inMm: number) =>
+    wideMm / 2 - cornerMm + Math.sqrt(Math.max(0, cornerMm ** 2 - Math.max(0, cornerMm - inMm) ** 2));
+  // Armen börjar där vikningen slutar, och får inte vara bredare än plattan är där.
+  const armWideMm = Math.min(wideMm - 0.8, 2 * halfWideAt(bend) - 0.3);
   const foldX = -longMm / 2 + bend;
   const armZ = bend * 2 - sheet;
   // Armen lutar från vikningens höjd ner mot plattan, som den nästan når längst ut.
@@ -407,12 +480,6 @@ function Clip({ size }: { size: HardwareSize }) {
   const tongueDrop = Math.asin(Math.min(0.5, Math.sin(tilt) + (armZ - tongueX * Math.tan(tilt) - sheet - 0.35) / tongueMm));
   const lipMm = Math.min(5.5, armMm * 0.14);
   const { base, fold, arm, lip, tongue } = useMemo(() => {
-    const foldShape = new Shape();
-    foldShape.moveTo(foldX, bend * 2);
-    foldShape.absarc(foldX, bend, bend, Math.PI / 2, Math.PI * 1.5, false);
-    foldShape.lineTo(foldX, sheet);
-    foldShape.absarc(foldX, bend, bend - sheet, Math.PI * 1.5, Math.PI / 2, true);
-    foldShape.lineTo(foldX, bend * 2);
     const half = armWideMm / 2;
     const armShape = polygon([
       [0, -half],
@@ -433,23 +500,29 @@ function Clip({ size }: { size: HardwareSize }) {
     lipShape.absarc(lipMm - corner, half - corner, corner, 0, Math.PI / 2, false);
     lipShape.lineTo(0, half);
     lipShape.lineTo(0, -half);
+    // Plattans kortsida på höjden `across` från mitten: rak, och indragen i det rundade hörnet.
+    const plateEdge = (across: number) => {
+      const intoCorner = Math.max(0, Math.abs(across) - (wideMm / 2 - cornerMm));
+      return -longMm / 2 + cornerMm - Math.sqrt(Math.max(0, cornerMm ** 2 - intoCorner ** 2));
+    };
     return {
-      base: roundedRectShape(longMm, wideMm, 1.2),
-      fold: foldShape,
+      base: roundedRectShape(longMm, wideMm, cornerMm),
+      fold: foldGeometry({ foldX, bend, sheet, width: armWideMm, plateEdge, straightHalf: wideMm / 2 - cornerMm }),
       arm: armShape,
       lip: lipShape,
       tongue: roundedRectShape(tongueMm, windowWideMm * 0.56, 0.7, -tongueMm / 2),
     };
-  }, [longMm, wideMm, armMm, armWideMm, foldX, windowMm, windowWideMm, windowX, tongueMm, lipMm]);
+  }, [longMm, wideMm, cornerMm, armMm, armWideMm, foldX, windowMm, windowWideMm, windowX, tongueMm, lipMm]);
+  useEffect(() => () => fold.dispose(), [fold]);
   return (
     <group position={[0, 0, 0.02]}>
       <mesh>
         <extrudeGeometry args={[base, slab(sheet)]} />
         <Steel tone="shade" />
       </mesh>
-      <SideProfile shape={fold} width={armWideMm}>
+      <mesh geometry={fold}>
         <Steel />
-      </SideProfile>
+      </mesh>
       <group position={[foldX, 0, armZ]} rotation={[0, tilt, 0]}>
         <mesh>
           <extrudeGeometry args={[arm, slab(sheet)]} />

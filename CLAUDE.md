@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1261 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1268 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -271,13 +271,29 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     - magneten är en tunn förnicklad platta på skylten och en svart hållare med rundade ändar,
       som vilar på två klackar och bär texten CAUTION MAGNETIC. Texten byggs ur typsnitten
       (`fonts` skickas till `Mounting`); innan de har laddats ritas hållaren utan text,
-    - klämman är en stålplatta nästan lika lång som skylten, med en fjäderarm vikt över ena
-      änden, ett fönster med en tunga i armen och en uppvikt läpp längst ut.
+    - klämman är en stålplatta på 80 × 25 mm, med en fjäderarm vikt över ena änden, ett
+      fönster med en tunga i armen och en uppvikt läpp längst ut.
+  - **Skylten ligger kant i kant med klämman, varken innanför eller utanför** (besked av
+    ägaren 2026-11-18, som såg klämman ritad med en kant av skylten runt om). Klämmans platta
+    är lika stor som den minsta skylt klämman får sitta på (`CLIP_MIN`), och reglerna ligger
+    i `clipPlate` i `src/engine/hardware-fit.ts`.
+    - På Lång rektangel täcker plattan hela baksidan och har skyltens hörnrundning.
+      Vikningen skärs av mot samma hörn (`foldGeometry` i `three/mounting.tsx`), så att
+      inget sticker ut utanför skylten.
+    - På en större skylt är klämman fortfarande 80 × 25 mm och sitter mitt på.
+    - På en egen form får klämman gå ända ut i kanten, och hörnen rundas så mycket som
+      formens hörn kräver, högst 6 mm (`CLIP_FIT`, `fitHardware`). En egen form på 80 × 25 mm
+      får alltså klämman kant i kant. Ryms den inte ens så förminskas den, som förut.
+    - Att klämman är just 80 × 25 mm, och att dess hörn är rundade som skyltens, är min
+      tolkning av beskedet. Ingen har gett klämmans mått.
+    - Förut ritades plattan 72 × 21 mm, alltså 4 mm innanför skyltens kortsidor och 2 mm
+      innanför långsidorna.
   - Fästena ritas i mm i en grupp som är vänd som de ses bakifrån (x åt höger, z ut från
     baksidan). Måtten har tak, så fästet växer inte med en stor skylt, och är uppskattade
     från fotona. `footprint` använder samma mått, och `fitHardware`
-    (`src/engine/hardware-fit.ts`) flyttar och förminskar fästet på en egen form. På en oval
-    skylt kortas klämman till det som ryms (`clipSize`).
+    (`src/engine/hardware-fit.ts`) flyttar och förminskar fästet på en egen form. Nål och
+    magnet håller 1,5 mm luft mot kanten. På en oval skylt kortas klämman till det som ryms
+    (`clipPlate`).
   - Skyltmotorn vänder själv skylten en stund när ett fäste väljs, så att fästet syns.
   - Känd brist: prismodellens kalkyl i `/admin/prismodell` låter fortfarande klämman väljas
     ihop med Premium, fast den kombinationen inte går att beställa.
@@ -286,7 +302,9 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   (`MARKING_METHODS` i `src/engine/marking.ts`): Endast gravyr, Endast print, Namn graveras ·
   logotyp printas och Namn printas · logotyp graveras. En metod ingår i skylten.
   - **På metall finns bara "Endast print"** (beslut av ägaren 2026-11-18: "det ska inte gå att
-    gravera i metall. Man ska bara kunna ha print på metall."). Materialet bär regeln
+    gravera i metall. Man ska bara kunna ha print på metall."). Ägaren höll fast vid det senare
+    samma dag, när frågan om verkstadens bekräftelse kom upp: "vi börjar med att det endast
+    är print på metall". Materialet bär regeln
     (`BadgeMaterial.printOnly`, `isPrintOnly`), och `markingFits` tar skyltens material.
     - I sektionen syns de tre valen med gravyr streckade på metall, med raden "Gravyr finns
       bara på plastskyltar.", och utan pris. På plast finns alla fyra, som förut.
@@ -1910,7 +1928,7 @@ och testdata går att städa bort. Reglerna ligger i `src/lib/orders/erase-model
   mejl, kortbetalning) som av eller på utan värden, jobbens senaste körning, misslyckade
   utskick och de senaste felen.
 - **CI:** `.github/workflows/ci.yml` kör kvalitetsgrinden mot en tom Postgres på push och pull
-  request. Kedjan är provad lokalt mot en tom databas, men filen har aldrig körts på GitHub.
+  request. Den körs på GitHub vid varje push, och de fem senaste körningarna var gröna 2026-11-18.
 - **Statistik över skyltmotorn** (`src/lib/designer-stats/`, migrering 028, tabellen
   `designer_events`): varje besök räknas till det steg det kom längst till: öppnad, text
   skriven, val gjort, kassan öppnad, order skickad och order mottagen, med varukorgen som
