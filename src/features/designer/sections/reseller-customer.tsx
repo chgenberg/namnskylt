@@ -68,6 +68,8 @@ interface ResellerCustomerProps {
   /** En ny kund behöver företag och organisationsnummer. */
   needsInvoiceDetails: boolean;
   disabled?: boolean;
+  /** Raden under organisationsnumret: att företagets uppgifter hämtas, är hämtade eller inte fanns. */
+  note?: string | null;
 }
 
 /**
@@ -75,7 +77,7 @@ interface ResellerCustomerProps {
  * gamla kunder ur listan, eller en ny som fylls i här (besked av ägaren
  * 2026-11-17). Från panelen är kunden redan vald, och då visas inte valet.
  */
-export function ResellerCustomer({ customers, value, onChange, needsInvoiceDetails, disabled }: ResellerCustomerProps) {
+export function ResellerCustomer({ customers, value, onChange, needsInvoiceDetails, disabled, note }: ResellerCustomerProps) {
   const [query, setQuery] = useState("");
   const selectedId = value.kind === "existing" ? value.id : "";
   const matches = useMemo(() => {
@@ -140,8 +142,14 @@ export function ResellerCustomer({ customers, value, onChange, needsInvoiceDetai
         </>
       ) : (
         <>
-          {field("company", "Företag", { required: needsInvoiceDetails, autoComplete: "off" })}
+          {/* Organisationsnumret står först: företagets namn och adress fylls i av det. */}
           {field("orgNumber", "Organisationsnummer", { required: needsInvoiceDetails, autoComplete: "off" })}
+          {note && (
+            <p className={styles.cartNote} role="status">
+              {note}
+            </p>
+          )}
+          {field("company", "Företag", { required: needsInvoiceDetails, autoComplete: "off" })}
           {field("name", "Kontaktperson", { required: true, autoComplete: "off" })}
           {field("email", "E-post", { required: true, type: "email", autoComplete: "off" })}
           {field("phone", "Telefon", { type: "tel", autoComplete: "off" })}

@@ -110,6 +110,10 @@ export function PrivacyPage({ agentLine, agentEmail }: PrivacyPageProps) {
           här, och lämnas till {workshop.name}.
         </p>
         <p>
+          När du skriver ett organisationsnummer hämtar vi företagets namn och adress ur EU:s momsregister (VIES), så
+          att du slipper fylla i dem. Numret för en enskild firma är ägarens personnummer och slås aldrig upp.
+        </p>
+        <p>
           Skapar du ett konto sparas din e-postadress, ditt lösenord som en envägskod som inte går att läsa, och
           uppgifterna du fyller i kassan, så att du slipper fylla i dem igen och ser dina ordrar. Inloggningen bärs av
           en kaka som behövs för att kontot ska fungera. Du tar själv bort kontot under Mitt konto.

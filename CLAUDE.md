@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1181 tester, grönt 2026-11-17).
+# Kvalitetsgrinden. Kör den innan något lämnas (1202 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -1233,6 +1233,45 @@ offert, och sidan är öppen förbi sajtspärren. Sidan läses åt kunden, aldri
   - Formuläret har en gräns per klient och per order.
 - Kända brister: en order med flera designer kan bara beställas om med den första. Kunden kan
   inte öppna sitt korrektur från ordersidan; det har en egen länk.
+
+## Uppslag på organisationsnummer — läge 2026-11-18
+
+När någon skriver ett organisationsnummer fylls företagets namn och adress i av sig själva
+(besked av ägaren 2026-11-18: "allt som vi kan hitta fyllas i automatiskt"). Koden ligger i
+`src/lib/company/lookup-model.ts` (regler), `lookup.ts` (anropet) och `src/hooks/use-company-lookup.ts`.
+
+- **Källan är EU:s momsregister VIES**, som svarar gratis och utan nyckel med namn och adress
+  för ett momsregistrerat företag. Ägaren bad om tjänsten från BillboardBee-projektet: det var
+  ABPI (`abpi.se`), som är **nedlagd** (svarar `api_sunset`). Det nyare BillboardBee-projektet
+  skrapar i stället Allabolags webbsida, vilket inte är kopierat hit: det är skört och
+  knappast tillåtet. Valet av VIES är mitt.
+  - Registret ger namn, gata, postnummer och ort. Telefon, e-post och kontaktperson finns inte
+    där. Bara momsregistrerade företag finns med, så myndigheter och många föreningar saknas.
+  - Bolagsverkets eget öppna API ger mer och täcker alla, men kräver att ägaren ansöker om
+    en nyckel. Det är inte gjort.
+- **En enskild firmas nummer slås aldrig upp** (`lookupNumber`): det är ägarens personnummer,
+  känns igen på att tredje siffran är 0 eller 1, och får inte lämna sajten.
+- **Var det fyller i:** kundens kassa, säljarens "Ny kund" i varukorgen, Skapa konto och Mitt
+  konto (`ProfileFields`) och ansökan om att bli återförsäljare. Organisationsnumret står
+  därför först i de formulären, före företagsnamnet. Företagets namn blir också mottagare på
+  leveransadressen.
+- **Det kunden har skrivit själv skrivs aldrig över** (`filled`, `withCompanyAddress`): ett
+  fält fylls i när det är tomt, eller bär det registret fyllde i förra gången. Byts numret
+  ersätts alltså bara registrets egna uppgifter.
+- Uppslaget görs på den som skriver (`lookup` anropas i fältets `onChange`), aldrig på ett
+  nummer som redan står ifyllt, till exempel ur ett kundkonto.
+- `GET /api/company/lookup?orgNumber=` svarar bara `found` sant eller falskt. Svaren sparas i
+  processens minne (ett dygn för ett företag, en timme för ett nummer som saknas), och
+  gränserna är 40 uppslag per klient och timme och 3 000 per dygn för hela sajten.
+- Går uppslaget inte att göra (registret svarar inte, gränsen är nådd, sajten är låst) sägs
+  ingenting och formuläret fungerar som förut. Bara ett riktigt svar får säga att numret inte
+  finns. Med sajtspärren på fungerar uppslaget därför inte i ansökan för den som saknar sajtkoden.
+- Integritetssidan säger att numret slås upp i VIES.
+- Provat lokalt och i produktion 2026-11-18 med kända börsbolags nummer.
+- Kända brister: panelens "Ny kund" under Ny order och Ny offert (`StartOrderForm`) och
+  företagsuppgifterna under Inställningar har inget uppslag. Registrets adress är företagets
+  säte, som inte alltid är dit skyltarna ska. Adresser skrivs om från versaler, så "F O
+  Petersons gata" blir "F O Petersons Gata".
 
 ## Offertmejlet — läge 2026-11-17
 

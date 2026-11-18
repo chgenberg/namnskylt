@@ -23,7 +23,9 @@ import {
   type ShippingMethod,
   type ShownPricePart,
 } from "@/engine";
+import { companyLookupNote, useCompanyLookup } from "@/hooks/use-company-lookup";
 import { useOrderShipping } from "@/hooks/use-order-shipping";
+import { filled, withCompanyAddress, type CompanyHit } from "@/lib/company/lookup-model";
 import { accountPaths, type CustomerAccountView } from "@/lib/customer-auth/model";
 import { formatSek } from "@/lib/format";
 import {
@@ -219,6 +221,18 @@ export function OrderSection({
   const picksCustomer = reseller?.customerId === null;
   const [target, setTarget] = useState<CustomerTarget>(() => firstTarget(reseller?.customers ?? []));
   const [customerError, setCustomerError] = useState<string | null>(null);
+  /** Det registret fyllde i senast. Byts numret ersätts det som registret fyllde i, aldrig det som är skrivet för hand. */
+  const autofilled = useRef<CompanyHit | null>(null);
+  // Företagets namn och adress fylls i ur registret när organisationsnumret är skrivet (besked av
+  // ägaren 2026-11-18): hos kunden som beställer själv, och när säljaren lägger upp en ny kund.
+  const company = useCompanyLookup((hit) => {
+    const before = autofilled.current;
+    autofilled.current = hit;
+    if (picksCustomer) setTarget((current) => (current.kind === "new" ? { ...current, company: filled(current.company, hit.name, before?.name) } : current));
+    else setContact((current) => ({ ...current, company: filled(current.company, hit.name, before?.name) }));
+    setAddresses((all) => ({ ...all, customer: withCompanyAddress(all.customer, hit, before) }));
+  });
+  const companyNote = companyLookupNote(company.status);
   /** Kunden som valdes senast. Ett långsamt svar om en tidigare vald kunds adress ska inte skriva över den. */
   const pickedId = useRef("");
   const pickCustomer = (next: CustomerTarget) => {
@@ -226,6 +240,8 @@ export function OrderSection({
     const switched = next.kind !== target.kind || id !== pickedId.current;
     setTarget(next);
     setCustomerError(null);
+    // En ny kunds organisationsnummer slås upp medan det skrivs. En vald kund har redan sina uppgifter.
+    company.lookup(next.kind === "new" ? next.orgNumber : "");
     if (!switched) return;
     pickedId.current = id;
     // En annan kund har en annan adress. Den gamla kundens får inte följa med.
@@ -586,6 +602,7 @@ export function OrderSection({
               onChange={pickCustomer}
               needsInvoiceDetails={reseller.needsInvoiceDetails ?? false}
               disabled={order.status === "sending"}
+              note={companyNote}
             />
           )}
           {customerError && (
@@ -681,19 +698,7 @@ export function OrderSection({
             )}
             {!privateCustomer && (
               <>
-                <label className="field">
-                  <span className="visually-hidden">Företagsnamn</span>
-                  <input
-                    name="company"
-                    placeholder="Företagsnamn"
-                    required
-                    minLength={2}
-                    maxLength={120}
-                    autoComplete="organization"
-                    value={contact.company}
-                    onChange={(event) => setContact({ ...contact, company: event.target.value })}
-                  />
-                </label>
+                {/* Organisationsnumret står först: företagets namn och adress fylls i av det. */}
                 <label className="field">
                   <span className="visually-hidden">Organisationsnummer</span>
                   <input
@@ -705,7 +710,28 @@ export function OrderSection({
                     pattern="\d{6}[\s\-]?\d{4}"
                     title="Tio siffror, till exempel 556123-4567"
                     value={contact.orgNumber}
-                    onChange={(event) => setContact({ ...contact, orgNumber: event.target.value })}
+                    onChange={(event) => {
+                      setContact({ ...contact, orgNumber: event.target.value });
+                      company.lookup(event.target.value);
+                    }}
+                  />
+                </label>
+                {companyNote && (
+                  <p className={styles.cartNote} role="status">
+                    {companyNote}
+                  </p>
+                )}
+                <label className="field">
+                  <span className="visually-hidden">Företagsnamn</span>
+                  <input
+                    name="company"
+                    placeholder="Företagsnamn"
+                    required
+                    minLength={2}
+                    maxLength={120}
+                    autoComplete="organization"
+                    value={contact.company}
+                    onChange={(event) => setContact({ ...contact, company: event.target.value })}
                   />
                 </label>
               </>

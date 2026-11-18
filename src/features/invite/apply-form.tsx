@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { companyLookupNote, useCompanyLookup } from "@/hooks/use-company-lookup";
+import { filled } from "@/lib/company/lookup-model";
 import { applyAction } from "./apply-actions";
 import styles from "./invite.module.css";
 
@@ -14,11 +16,30 @@ export function ApplyForm() {
   const [sent, setSent] = useState(false);
   const [sameDelivery, setSameDelivery] = useState(true);
   const [pending, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   // Formuläret är långt: felet ska synas även när fältet det gäller står högst upp.
   useEffect(() => {
     if (error) errorRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [error]);
+
+  /** Det registret fyllde i senast, per fält. Byts numret ersätts det, aldrig det som är skrivet för hand. */
+  const autofilled = useRef<Record<string, string>>({});
+  // Fälten är webbläsarens egna, så registrets uppgifter skrivs rakt in i dem.
+  const company = useCompanyLookup((hit) => {
+    const put = (name: string, next: string) => {
+      const input = formRef.current?.elements.namedItem(name);
+      if (!(input instanceof HTMLInputElement)) return;
+      input.value = filled(input.value, next, autofilled.current[name]);
+      if (next) autofilled.current[name] = next;
+    };
+    put("company", hit.name);
+    put("street", hit.line1);
+    put("street2", hit.line2);
+    put("zip", hit.zip);
+    put("city", hit.city);
+  });
+  const companyNote = companyLookupNote(company.status);
 
   if (sent) {
     return (
@@ -31,6 +52,7 @@ export function ApplyForm() {
 
   return (
     <form
+      ref={formRef}
       className={styles.form}
       onSubmit={(event) => {
         event.preventDefault();
@@ -74,13 +96,22 @@ export function ApplyForm() {
     >
       <fieldset className={styles.group}>
         <legend>Företagsinformation</legend>
+        {/* Organisationsnumret står först: företagets namn och adress fylls i av det. */}
+        <label className={styles.field}>
+          <span>Org.nr</span>
+          <input
+            name="orgNumber"
+            required
+            maxLength={20}
+            placeholder="556123-4567"
+            inputMode="numeric"
+            onChange={(event) => company.lookup(event.target.value)}
+          />
+          {companyNote && <small role="status">{companyNote}</small>}
+        </label>
         <label className={styles.field}>
           <span>Företagsnamn</span>
           <input name="company" required minLength={2} maxLength={120} autoComplete="organization" />
-        </label>
-        <label className={styles.field}>
-          <span>Org.nr</span>
-          <input name="orgNumber" required maxLength={20} placeholder="556123-4567" inputMode="numeric" />
         </label>
       </fieldset>
 
