@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1217 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1219 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -129,6 +129,12 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       skickas rakt av i ordern. `src/lib/supplier/catalog-sync.test.ts` jämför listan med deras
       katalog när deras projekt ligger bredvid på datorn, och hoppas över i CI. När deras API
       finns ska listan hämtas därifrån.
+    - **Guld och silver ritas som borstad metall** (besked från Pär via ägaren 2026-11-18, som
+      såg guldet som orange i ritningen): `gold-black` och `silver-black` har `metallic: true`.
+      Ritningen ger dem borstade stråk (`surfaceDefs` i `render-svg.ts`), 3D-vyn en borstad
+      metallyta med plastens kärna och gravyr (`three/materials.ts`), och personbilden beskrivs
+      så. Färgkoden är verkstadens och är oförändrad. Att just de två plastfärgerna har en
+      metallfilm överst är mitt antagande: verkstadens katalog säger bara färg.
     - **Färgen väljs i två steg** (`colorChoices` i `src/engine/color-choice.ts`, `ColorPicker`):
       först framsidan, en prick per färg, och sedan gravyrens färg på en egen rad, bara där
       framsidan finns med flera. Skylten bär fortfarande kombinationens id (`colorId`), så
@@ -1485,6 +1491,10 @@ och "Också i återförsäljarnas butiker"). Det är ett tredje inlogg, skilt fr
 - Provat lokalt i webbläsaren 2026-11-17, på dator och mobil och mot produktionsbygget:
   konto i kassan, Mitt konto, Beställ igen, inloggning i varukorgen, lösenordslänken, en
   butik utan ägare och en återförsäljares butik. Inte provat i drift, och inte i Safari.
+- **Ett demokonto för slutkund finns i drift** sedan 2026-11-18, skapat på ägarens begäran
+  för att kunna titta på Mitt konto: `demokund@namnskylt.com` på namnskylt.com. Lösenordet
+  fick ägaren i chatten och står ingenstans i repot. Kontot har inga ordrar: en order som
+  läggs inloggad i drift är en riktig order till verkstaden.
 - Granskat av en oberoende agent 2026-11-17. Den hittade ingen väg till någon annans konto
   eller ordrar. Sju fynd är rättade (de står som regler ovan), ett står under Kända brister.
 - Kända brister:

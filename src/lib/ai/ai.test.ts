@@ -141,6 +141,13 @@ describe("prompter", () => {
     assert.doesNotMatch(engraved, /printed flat/);
   });
 
+  it("beskriver plastens guld som borstad metall, inte som slät plast", () => {
+    const plastic = (colorId: string) => personaPrompt({ ...doc, materialId: "plastic" as const, colorId }, UNKNOWN_WEARER);
+    assert.match(plastic("gold-black"), /brushed metallic film that looks like brushed metal/);
+    assert.match(plastic("yellow-black"), /smooth satin surface/);
+    assert.doesNotMatch(plastic("yellow-black"), /brushed metallic/);
+  });
+
   it("en skylt utan text får ingen text i bilden", () => {
     const logo = { d: "M0 0L1 0L1 1Z", viewWidth: 1, viewHeight: 1, placement: "left" as const, heightMm: 10 };
     const prompt = personaPrompt({ ...createBadgeDocument([""]), logo }, UNKNOWN_WEARER);

@@ -74,6 +74,12 @@ const LACQUERED_DESCRIPTION: FinishDescription = {
   engraved: "the text is engraved and filled",
 };
 
+/** Gravyrplast i guld eller silver: en borstad metallfilm överst, som ser ut som metall. */
+const METALLIC_PLASTIC_DESCRIPTION: FinishDescription = {
+  surface: "two-layer engraving plastic whose top layer is a brushed metallic film that looks like brushed metal, with fine horizontal brush lines",
+  engraved: "the text is engraved through the top layer",
+};
+
 /** Ett namn som printas ligger plant på ytan, i kundens färg, och är ingen gravyr. */
 const PRINTED_TEXT = "the text is printed flat on the surface in colour, not engraved";
 
@@ -129,7 +135,11 @@ function badgeDescription(doc: BadgeDocument): string {
   const rows = engravedRows(doc);
   const lines = rows.map((row, i) => `line ${i + 1}: "${row.text}"${row.bold ? " (bold)" : ""}`).join("; ");
   const shape = SHAPE_DESCRIPTION[doc.shape];
-  const finish = color.lacquered ? LACQUERED_DESCRIPTION : FINISH_DESCRIPTION[material.finish];
+  const finish = color.lacquered
+    ? LACQUERED_DESCRIPTION
+    : material.finish === "plastic" && color.metallic
+      ? METALLIC_PLASTIC_DESCRIPTION
+      : FINISH_DESCRIPTION[material.finish];
   const marked = rows.length === 0 ? "" : `; ${nameMarking(doc) === "print" ? PRINTED_TEXT : finish.engraved}`;
   const colours = [`surface ${color.surface}`, textColours(doc, color.engraving)].filter(Boolean).join(", ");
 

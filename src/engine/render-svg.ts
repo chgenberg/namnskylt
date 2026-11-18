@@ -41,7 +41,25 @@ function num(value: number): string {
   return Number.isFinite(value) ? String(Number(value.toFixed(4))) : "0";
 }
 
-function surfaceDefs(finish: MaterialFinish, id: string): string {
+/** Hur ytan ritas: som materialets, eller som borstad metall när plasten har en metallfilm överst. */
+type SurfaceLook = MaterialFinish | "metallic-plastic";
+
+function surfaceDefs(finish: SurfaceLook, id: string): string {
+  if (finish === "metallic-plastic") {
+    // Guld- och silverplast: ljusa och mörka stråk som i borstad metall, så att guldet inte ser orange ut.
+    const stops = [
+      [0, "#fff", 0.42],
+      [0.16, "#fff", 0.08],
+      [0.34, "#fff", 0.5],
+      [0.52, "#000", 0.1],
+      [0.68, "#fff", 0.36],
+      [0.84, "#000", 0.06],
+      [1, "#fff", 0.3],
+    ]
+      .map(([offset, tone, opacity]) => `<stop offset="${offset}" stop-color="${tone}" stop-opacity="${opacity}"/>`)
+      .join("");
+    return `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2=".2">${stops}</linearGradient>`;
+  }
   if (finish === "plastic" || finish === "acrylic" || finish === "epoxy") {
     // Akryl och epoxykupol är blanka: starkare ljusreflex i överkanten.
     const shine = finish === "plastic" ? ".18" : ".42";
@@ -106,7 +124,8 @@ export function renderBadgeSvg(
 
   if (isPreview) {
     // Lackad metall är slät som plast: mjuk glans i stället för borstade stråk.
-    parts.push(`<defs>${surfaceDefs(color.lacquered ? "plastic" : material.finish, gradientId)}</defs>`);
+    const look: SurfaceLook = color.lacquered ? "plastic" : material.finish === "plastic" && color.metallic ? "metallic-plastic" : material.finish;
+    parts.push(`<defs>${surfaceDefs(look, gradientId)}</defs>`);
     parts.push(`<path d="${layout.outline}" fill="${color.surface}"/>`);
     parts.push(`<path d="${layout.outline}" fill="url(#${gradientId})"/>`);
   } else {

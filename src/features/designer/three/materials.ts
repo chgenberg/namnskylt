@@ -73,6 +73,23 @@ export function useBadgeMaterials(doc: BadgeDocument): MeshPhysicalMaterial[] {
         new MeshPhysicalMaterial({ color: color.engraving, roughness: 0.6, metalness: 0.1 }),
       ];
     }
+    if (finish === "plastic" && color.metallic) {
+      // Guld- och silverplast har en borstad metallfilm överst. Kärnan och den frästa fickan är plast, som i övrig plast.
+      const brush = brushedNormalMap();
+      brush.repeat.set(BRUSH_REPEAT, BRUSH_REPEAT);
+      return [
+        new MeshPhysicalMaterial({
+          color: metalBase(color.surface),
+          metalness: 0.9,
+          roughness: 0.34,
+          normalMap: brush,
+          normalScale: new Vector2(0.25, 0.25),
+          anisotropy: 0.5,
+        }),
+        new MeshPhysicalMaterial({ color: color.engraving, roughness: 0.5 }),
+        new MeshPhysicalMaterial({ color: color.engraving, roughness: 0.82 }),
+      ];
+    }
     if (finish === "plastic") {
       return [
         // Ingen clearcoat: three-gpu-pathtracer 0.0.27 spårar den som svart.

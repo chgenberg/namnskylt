@@ -126,6 +126,22 @@ describe("badgeDocumentSchema", () => {
     assert.equal(badgeDocumentSchema.safeParse(createBadgeDocument(["Anna"])).success, true);
   });
 
+  it("ritar plastens guld och silver som borstad metall, och övrig plast med mjuk glans", () => {
+    const drawn = (colorId: string) => {
+      const doc = { ...createBadgeDocument(["Anna"]), materialId: "plastic" as const, colorId };
+      return renderBadgeSvg(doc, layoutBadge(doc, approxFonts), { mode: "preview", fonts: approxFonts });
+    };
+    // Borstade stråk går snett över skylten; den mjuka glansen går uppifrån och ned.
+    const brushed = /<linearGradient id="[^"]*" x1="0" y1="0" x2="1" y2="\.2">/;
+    const soft = /<linearGradient id="[^"]*" x1="0" y1="0" x2="0" y2="1">/;
+    assert.match(drawn("gold-black"), brushed);
+    assert.match(drawn("silver-black"), brushed);
+    assert.match(drawn("yellow-black"), soft);
+    assert.match(drawn("white-black"), soft);
+    // Färgkoden är verkstadens och ändras inte av hur ytan ritas.
+    assert.match(drawn("gold-black"), /fill="#D4A017"/);
+  });
+
   it("godtar en skylt med bara logga, och loggan står då mitt på skylten", () => {
     const logo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 12 };
     const only = { ...createBadgeDocument([""]), logo };

@@ -30,7 +30,10 @@ export interface ColorCombo {
   surface: string;
   /** Kärnan som gravyren friläger, lasermärkets ton på metall — eller tryckfärgen. */
   engraving: string;
-  /** Metallicpigment i ytan (Epoxyline Metallic). */
+  /**
+   * Metallglans i ytan: Epoxyline Metallic, och gravyrplastens guld och silver, som har en
+   * borstad metallfilm överst. Ritas som borstad metall, inte som en platt färg.
+   */
   metallic?: boolean;
   /** Lackad yta på metall: slät och matt, utan borstning och metallglans. */
   lacquered?: boolean;
@@ -69,8 +72,10 @@ const PLASTIC_COLORS: readonly ColorCombo[] = [
   { id: "white-black", name: "Vit / Svart", surface: WHITE, engraving: BLACK },
   { id: "black-white", name: "Svart / Vit", surface: BLACK, engraving: WHITE },
   { id: "yellow-black", name: "Gul / Svart", surface: "#FFD200", engraving: BLACK },
-  { id: "gold-black", name: "Guld / Svart", surface: "#D4A017", engraving: BLACK },
-  { id: "silver-black", name: "Silver / Svart", surface: "#C5CDD4", engraving: BLACK },
+  // Guld och silver ser ut som metall (besked från Pär via ägaren 2026-11-18, som såg guldet som
+  // orange i ritningen). Färgkoden är verkstadens och är oförändrad.
+  { id: "gold-black", name: "Guld / Svart", surface: "#D4A017", engraving: BLACK, metallic: true },
+  { id: "silver-black", name: "Silver / Svart", surface: "#C5CDD4", engraving: BLACK, metallic: true },
   { id: "red-white", name: "Röd / Vit", surface: "#E31C23", engraving: WHITE },
   { id: "blue-white", name: "Blå / Vit", surface: "#0057B8", engraving: WHITE },
   { id: "darkblue-white", name: "Mörkblå / Vit", surface: "#003366", engraving: WHITE },
