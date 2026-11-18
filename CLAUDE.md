@@ -881,6 +881,12 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
 - En återförsäljare utan ordrar möts av "Gör din första offert" med knappar för ny offert, ny
   order och inställningarna; namnskylt.com ser demodatans välkomstyta. Översikten har knapparna
   Ny offert och Ny order.
+- **Logga ut är en knapp längst ner i panelens meny**, för både admin och återförsäljare
+  (besked av ägaren 2026-11-18, som inte hittade den). Förut var den en liten understruken
+  textrad under menyn, som hamnade under fönstrets kant när menyn var högre än fönstret, och
+  på en smal skärm var den dold. Menyn rullar nu för sig när fönstret är lågt (`.nav` i
+  `admin.module.css`), så att knappen alltid syns, och på en smal skärm står den sist i
+  menyraden.
 - Formuläret är `LoginForm` (`kind: "admin" | "reseller"`) i `src/features/admin/login-form.tsx`.
   Sajtens meny visar "Admin" eller "Mina sidor" för den som är inloggad i panelen. "Logga in"
   går sedan 2026-11-17 till kundens inloggning, som länkar vidare till `/aterforsaljare`.

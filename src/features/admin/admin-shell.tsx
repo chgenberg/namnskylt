@@ -144,6 +144,11 @@ export function AdminShell({ nav, unread = 0, demoCount = 0, companyName = "namn
         <div className={styles.sidebarFoot}>
           <span>{owner ? "Inloggad som admin" : "Inloggad som återförsäljare"}</span>
           <button type="button" className={styles.logout} onClick={() => void logout()}>
+            <span className={styles.navIcon} aria-hidden="true">
+              <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 3H5a1.5 1.5 0 0 0-1.5 1.5v11A1.5 1.5 0 0 0 5 17h3M12.5 13.5 16 10l-3.5-3.5M16 10H8" />
+              </svg>
+            </span>
             Logga ut
           </button>
         </div>
