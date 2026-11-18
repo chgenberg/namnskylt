@@ -5,10 +5,12 @@ import { currentCustomer } from "@/lib/customer-auth/session";
 import { currentTenant } from "@/lib/reseller-auth/session";
 import { isOwner } from "@/lib/tenants/model";
 import styles from "./site-header.module.css";
+import { SiteMenu } from "./site-menu";
 
 const NAV = [
-  { href: "/#sa-funkar-det", label: "Så funkar det" },
   { href: "/inspiration", label: "Inspirationsbank" },
+  { href: "/om-oss", label: "Om oss" },
+  { href: "/kontakt", label: "Kontakta oss" },
 ] as const;
 
 export async function SiteHeader() {
@@ -33,11 +35,7 @@ export async function SiteHeader() {
           />
         </Link>
         <nav aria-label="Huvudmeny" className={styles.nav}>
-          {NAV.map((item) => (
-            <Link key={item.href} href={item.href} className={styles.link}>
-              {item.label}
-            </Link>
-          ))}
+          <SiteMenu items={NAV} />
           {tenant ? (
             <Link href="/admin" className={`${styles.link} ${styles.admin}`}>
               <span className={styles.avatar} aria-hidden>

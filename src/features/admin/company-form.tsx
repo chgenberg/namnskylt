@@ -34,7 +34,13 @@ async function fileToLogo(file: File): Promise<string> {
 
 type Field = Exclude<keyof CompanyProfile, "logo">;
 
-export function CompanyForm({ profile }: { profile: CompanyProfile }) {
+interface CompanyFormProps {
+  profile: CompanyProfile;
+  /** Uppgifterna är dem kunden ser på offerten. Falskt för namnskylt.com, där Skylt & Gravyrteknik står som avsändare. */
+  preview?: boolean;
+}
+
+export function CompanyForm({ profile, preview = true }: CompanyFormProps) {
   const [draft, setDraft] = useState<CompanyProfile>(profile);
   const [url, setUrl] = useState(profile.website);
   const [logoOptions, setLogoOptions] = useState<string[]>([]);
@@ -110,12 +116,13 @@ export function CompanyForm({ profile }: { profile: CompanyProfile }) {
     setMessage(null);
     startSave(async () => {
       const result = await saveCompanyProfileAction(draft);
-      setMessage(result.ok ? { ok: true, text: "Sparat — nya offerter får de här uppgifterna" } : { ok: false, text: result.error });
+      const saved = preview ? "Sparat — nya offerter får de här uppgifterna" : "Sparat";
+      setMessage(result.ok ? { ok: true, text: saved } : { ok: false, text: result.error });
     });
   };
 
   return (
-    <div className={styles.companyLayout}>
+    <div className={styles.companyLayout} data-single={preview ? undefined : ""}>
       <form
         className={styles.form}
         onSubmit={(event) => {
@@ -300,7 +307,7 @@ export function CompanyForm({ profile }: { profile: CompanyProfile }) {
         </div>
       </form>
 
-      <QuotePreview profile={draft} />
+      {preview && <QuotePreview profile={draft} />}
     </div>
   );
 }

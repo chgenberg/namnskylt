@@ -6,7 +6,7 @@ import { getShop } from "@/lib/shops/repository";
 import { composeOrderConfirmation } from "./confirmation-email";
 import { badgeCount } from "./model";
 import { priceWithPricing } from "./pricing";
-import { databaseConfigured, getCompanyProfile, getOrderForDispatch } from "./repository";
+import { databaseConfigured, getOrderForDispatch, getSellerProfile } from "./repository";
 
 /**
  * Mejlar orderbekräftelsen till en kund som har beställt själv. Gör ingenting
@@ -20,7 +20,7 @@ export async function sendOrderConfirmation(orderNo: string): Promise<void> {
     if (!settings || !databaseConfigured()) return;
     const order = await getOrderForDispatch(orderNo);
     if (!order || order.demo) return;
-    const [company, shop] = await Promise.all([getCompanyProfile(order.resellerId), order.shopSlug ? getShop(order.shopSlug) : null]);
+    const [company, shop] = await Promise.all([getSellerProfile(order.resellerId), order.shopSlug ? getShop(order.shopSlug) : null]);
     const price = priceWithPricing(order.badges, order.pricing, order.priceList, order.shippingSek);
     const sent = await sendTransactional(
       composeOrderConfirmation(

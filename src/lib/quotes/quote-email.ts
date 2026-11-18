@@ -5,8 +5,8 @@ import { formatDay, formatSek } from "@/lib/format";
 /**
  * Offertmejlet (beslut av ägaren 2026-11-17). Det skickas via Skylt &
  * Gravyrtekniks Resend-konto, med en egen nyckel som bara gäller offerter.
- * Avsändarens namn är säljaren, alltså återförsäljaren eller namnskylt.com,
- * och svar går till säljaren. Mejlet har knapparna Godkänn och Neka, som
+ * Avsändarens namn är säljaren, alltså återförsäljaren eller, hos namnskylt.com,
+ * Skylt & Gravyrteknik (`getSellerProfile`), och svar går till säljaren. Mejlet har knapparna Godkänn och Neka, som
  * öppnar offerten med valet förvalt: ett klick där bekräftar. En länk som
  * godkände direkt kunde läggas som order av mejlprogrammens länkskannrar.
  */
@@ -77,7 +77,7 @@ export interface QuoteMail {
 }
 
 export interface QuoteMailSender {
-  /** Säljaren kunden får offerten av: återförsäljaren eller namnskylt.com. */
+  /** Säljaren kunden får offerten av: återförsäljaren, eller Skylt & Gravyrteknik hos namnskylt.com. */
   sellerName: string;
   /** Dit kundens svar går. */
   replyTo: string;

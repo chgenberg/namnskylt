@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1233 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1237 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -917,8 +917,9 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
     till kundens pris, med bekräftelsen till kundens adress. Inte provat i drift.
   - Kända följder: verkstaden räknar momsen med ören, så fakturan kan skilja upp till 50 öre
     från summan kunden såg (633 kr mot 632,50). En offert som admin gör åt en direktkund bär
-    fortfarande namnskylt.coms namn och villkor. Fakturaunderlaget i panelen behövs inte längre
-    för direktordrar. Kundens telefon följer bara med på leveransadressen, inte på kundkortet.
+    sedan 2026-11-18 Skylt & Gravyrtekniks uppgifter (se avsnittet namnskylt.com är Skylt &
+    Gravyrtekniks sajt), men villkoren i sidfoten är fortfarande adminens egen text ur panelen.
+    Fakturaunderlaget i panelen behövs inte längre för direktordrar. Kundens telefon följer bara med på leveransadressen, inte på kundkortet.
   - Känd brist: beställaren läses ur kundens rad när ordern skickas, inte ur en kopia på
     ordern. Om ett utskick misslyckas och samma e-postadress hinner beställa åt ett annat
     företag innan omförsöket, skickas den första ordern med det nya företagets namn och
@@ -1239,8 +1240,11 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   `/verkstad`) är också kvar.
   - Adminens företagsnamn är nu namnskylt.com. Övriga företagsuppgifter under Inställningar
     (logga, undertitel, organisationsnummer, e-post, telefon, hemsida, adress och färger) är
-    inte ändrade och tillhör fortfarande företaget som stod där förut. De syns på offerter och
-    köpvillkor, och ägaren behöver byta dem.
+    inte ändrade och tillhör fortfarande företaget som stod där förut. Sedan 2026-11-18 visas
+    de inte för kunden: offerter, ordersidor, korrektur och köpvillkor bär Skylt & Gravyrtekniks
+    uppgifter. De syns i panelen, i utskickets signatur och i anropet till verkstaden när
+    namnskylt.com själv står som beställare (en kortbetald order, eller aviseringen när skyltar
+    skickas till oss själva). Offertens villkor under Inställningar står däremot på offerten.
 - Skyltmotorn på mobil och låga skärmar: beställningsformuläret öppnas sist i panelen, och
   sidan rullar dit först när formuläret har vecklat ut sig (`FORM_OPEN_MS`, `[data-order-form]`
   med `scroll-margin-top`). Rullas det direkt avbryts rullningen av att sidan ändrar höjd.
@@ -1301,7 +1305,8 @@ strömbrytare: `RESEND_API_KEY` och `NOTICE_FROM_EMAIL` (`noticeEmailSettings`,
 - **Orderbekräftelse** till en kund som har beställt själv, i webbshoppen eller en butik
   (`sendOrderConfirmation`, `composeOrderConfirmation` i `src/lib/orders/`): skyltar, frakt,
   moms, summa, betalning, leveransadress och länken till kundens ordersida. Avsändarens namn
-  är säljaren (butiken eller namnskylt.com) och svar går till säljarens adress.
+  är säljaren (butiken, återförsäljaren eller, hos namnskylt.com, Skylt & Gravyrteknik) och svar
+  går till säljarens adress (`getSellerProfile`).
   `orders.confirmation_emailed_at` sätts när Resend har tagit emot mejlet. En order som
   återförsäljaren lägger åt kunden, eller en godkänd offert, ger ingen bekräftelse.
 - **Fraktbesked** till kunden när verkstaden har skickat (`announceShipped`,
@@ -1432,8 +1437,41 @@ kontaktar"). Deras uppgifter ligger i `WORKSHOP_COMPANY` (`src/lib/company/works
   - Inte med: deras formulär för förfrågan, kartan och raden om att hämta samma dag, som
     gäller märkskyltar. Här står i stället att man väljer Hämta i Högsbo i kassan.
 - Sidorna ligger bakom sajtspärren, som startsidan, och finns i sitemapen när spärren är borta.
-- **Inte ändrat:** en offert som admin gör bär fortfarande ägarens företagsuppgifter ur
-  panelen som avsändare, och offertmejlet har dem som svarsadress.
+- **Säljaren som kunden möter hos namnskylt.com är Skylt & Gravyrteknik** (besked av ägaren
+  2026-11-18, om offerten som admin gör: "det ska vara Skylt och Gravyrs uppgifter"). Regeln
+  ligger på ett ställe: `getSellerProfile(tenant)` i `src/lib/orders/repository.ts`, som ger
+  `workshopSeller` (`src/lib/company/seller.ts`) för namnskylt.com och återförsäljarens egna
+  företagsuppgifter annars. **Allt som visar eller mejlar en säljare för kunden läser den**,
+  aldrig `getCompanyProfile`: offertsidan, offertens PDF, offertmejlet, kundens ordersida och
+  sajtens avstängda mejl (orderbekräftelse och fraktbesked). Korrekturet följer samma regel
+  (`resolveSender`).
+  - Hos namnskylt.com ser kunden **sajtens logga och färger** (`SellerProfile.site`,
+    `SellerLogo` i `src/features/quote-public/`; i PDF:en läggs loggan in som data med
+    `siteLogoDataUrl`) och i sidfoten "Skylt & Gravyrteknik i Sverige AB · Org.nr 556464-2261",
+    deras adress, telefon och `order@skyltochgravyr.com` (`SellerProfile.legalName`,
+    `companyFooter`). Att loggan och färgerna är namnskylt.coms och inte verkstadens valde jag:
+    ägaren sa uppgifterna.
+  - **Offertmejlet från admin** har avsändarnamnet "Skylt & Gravyrteknik", och **svar går till
+    `order@skyltochgravyr.com`** (ägarens val 2026-11-18, på frågan om svarsadressen), alltså
+    verkstadens orderbrevlåda, inte till ägarens adress i panelen. Verkstaden ser inte offerten
+    i sitt eget system; den finns i panelen här.
+  - **Ur panelens uppgifter följer bara offertens villkor med** (`quoteTerms`): de är adminens
+    egen text om offerten och ingen företagsuppgift. Panelens logga, färger, namn och
+    kontaktuppgifter visas aldrig för kunden. Inställningarna säger det för admin, och visar
+    där ingen förhandsvisning av offerten (`CompanyForm` med `preview`).
+  - `getCompanyProfile` läses fortfarande av panelen, utskicket, beskedens mejl, "Till oss"
+    som leveransadress och anropet till verkstaden (`supplierBuyer`). Ändra inte dem till
+    säljarregeln: verkstaden ska inte stå som sin egen beställare.
+  - En återförsäljares offert, mejl, ordersida och korrektur är orörda och nämner aldrig
+    verkstaden.
+  - Provat lokalt 2026-11-18 i webbläsaren, på dator och mobil: offertsidan, PDF:en, mejlet
+    (till en låtsasmottagare), ordersidan och korrekturet hos namnskylt.com, och samma sidor
+    hos en återförsäljare. Inget riktigt mejl har skickats.
+- **Sidhuvudets meny** (besked av ägaren 2026-11-18): Inspirationsbank, Om oss och Kontakta
+  oss. "Så funkar det" är borta ur menyn; länken under skrivrutan på startsidan finns kvar,
+  och butikernas egen meny är orörd. Under 900 px ligger länkarna bakom knappen Meny
+  (`SiteMenu` i `src/components/site-menu.tsx`), eftersom de inte ryms bredvid loggan,
+  inloggningen och varukorgen. Provat ner till 320 px, med och utan varukorgens symbol.
 
 ## Kundens ordersida — läge 2026-11-15
 
@@ -1522,9 +1560,11 @@ mejl sajten skickar. Koden ligger i `src/lib/quotes/quote-email.ts` (regler och 
     så att ett prov med felskriven adress aldrig blir ett riktigt mejl. Nyckeln går aldrig någon
     annanstans än till Resend.
 - **Avsändarens namn är säljaren** (ägarens val: "Återförsäljarens namn"): återförsäljarens
-  företagsnamn, eller namnskylt.coms för egna offerter. Svar går till säljarens e-post i
-  företagsuppgifterna, annars kontots. Själva adressen ligger på verkstadens domän, eftersom
-  mejlet går via deras Resend. Mejlet nämner aldrig verkstaden vid namn.
+  företagsnamn, och för namnskylt.coms egna offerter Skylt & Gravyrteknik (sedan 2026-11-18,
+  `getSellerProfile`). Svar går till säljarens e-post i företagsuppgifterna, annars kontots;
+  för namnskylt.coms offerter till `order@skyltochgravyr.com`. Själva adressen ligger på
+  verkstadens domän, eftersom mejlet går via deras Resend. En återförsäljares mejl nämner
+  aldrig verkstaden vid namn.
 - **Mejlet går direkt när offerten skapas i varukorgen** (ägarens val: "Direkt"), med
   listpris. Knappen heter då "Skicka offert". Priset och villkoren går att ändra i panelen
   efteråt, och "Mejla igen" skickar ett nytt mejl. En demooffert mejlas aldrig.
@@ -1548,9 +1588,10 @@ mejl sajten skickar. Koden ligger i `src/lib/quotes/quote-email.ts` (regler och 
 - Granskat av en oberoende agent 2026-11-17: bara en inloggad säljare kan skicka, bara om
   sin egen offert och bara till offertens kund, och ingenting bestäms av en länk. Fynden är
   rättade och står som regler ovan.
-- **Avsändaren på namnskylt.coms egna offerter är ägarens företagsuppgifter** under
-  Inställningar: namnet, svarsadressen och raderna under mejlet. De ska stämma innan admin
-  skickar sin första offert (se Ordern till verkstaden om att uppgifterna behövde bytas).
+- **Avsändaren på namnskylt.coms egna offerter är Skylt & Gravyrteknik** sedan 2026-11-18:
+  namnet, svarsadressen och raderna under mejlet är deras, inte panelens (se avsnittet
+  namnskylt.com är Skylt & Gravyrtekniks sajt). Bara offertens villkor kommer ur
+  Inställningar.
 - Kända brister:
   - Mejlet går inte att förhandsgranska innan det skickas. Studsar och klagomål syns bara i
     verkstadens Resend, inte i panelen.

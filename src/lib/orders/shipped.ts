@@ -6,7 +6,7 @@ import { customerLabel } from "@/lib/notices/model";
 import { notify } from "@/lib/notices/notify";
 import { getShop } from "@/lib/shops/repository";
 import { composeShippedEmail } from "./confirmation-email";
-import { databaseConfigured, getCompanyProfile, getOrderForDispatch } from "./repository";
+import { databaseConfigured, getOrderForDispatch, getSellerProfile } from "./repository";
 
 /**
  * Verkstaden har skickat ordern. Den som äger ordern får ett besked i panelen,
@@ -28,7 +28,7 @@ export async function announceShipped(orderNo: string): Promise<void> {
     const settings = noticeEmailSettings();
     // Går skyltarna till återförsäljaren är det den som tar emot paketet, och den har fått beskedet ovan.
     if (!settings || order.delivery?.to === "reseller") return;
-    const [company, shop] = await Promise.all([getCompanyProfile(order.resellerId), order.shopSlug ? getShop(order.shopSlug) : null]);
+    const [company, shop] = await Promise.all([getSellerProfile(order.resellerId), order.shopSlug ? getShop(order.shopSlug) : null]);
     const sent = await sendTransactional(
       composeShippedEmail(
         {

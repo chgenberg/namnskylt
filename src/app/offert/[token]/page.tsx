@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
 import { engravedRows, getColor, getMaterial, mountingLabel, printColorLabel, shapeLabel } from "@/engine";
 import { formatDay, formatSek } from "@/lib/format";
 import { QuoteDecision, type QuoteShippingOption } from "@/features/quote-public/quote-decision";
+import { SellerLogo } from "@/features/quote-public/seller-logo";
 import styles from "@/features/quote-public/quote-public.module.css";
 import { companyFooter, readableOn } from "@/lib/company/profile";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { deliveryLines, draftForRecipient, draftFromAddress, shippingMethodOf, shippingNote } from "@/lib/orders/delivery";
-import { customerOrderPath, databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
+import { customerOrderPath, databaseConfigured, getSellerProfile } from "@/lib/orders/repository";
 import { shippingFor } from "@/lib/orders/price-lists";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import { displayStatus } from "@/lib/quotes/model";
@@ -37,7 +37,8 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
   const answer = quoteAnswerOf((await searchParams)[QUOTE_ANSWER_PARAM]);
   const quote = await getQuoteByToken(token);
   if (!quote || quote.status === "cancelled") notFound();
-  const company = await getCompanyProfile(quote.resellerId);
+  // Säljaren som kunden möter: Skylt & Gravyrteknik hos namnskylt.com, annars återförsäljaren.
+  const company = await getSellerProfile(quote.resellerId);
   const plate = (await isLightLogo(company.logo)) ? darkPlate(company.primaryColor) : null;
   const brand = {
     "--brand": company.primaryColor,
@@ -77,19 +78,7 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
   return (
     <main className={styles.page} style={brand}>
       <div className={styles.inner}>
-        {company.logo ? (
-          // eslint-disable-next-line @next/next/no-img-element -- data-URL ur inställningarna
-          <img
-            src={company.logo}
-            alt={company.name}
-            className={styles.logo}
-            style={plate ? { background: plate, padding: "6px 12px", borderRadius: 10 } : undefined}
-          />
-        ) : company.name === "namnskylt.com" ? (
-          <Image src="/logo-namnskylt.svg" alt="namnskylt.com" width={504} height={97} unoptimized className={styles.logo} priority />
-        ) : (
-          <p className={styles.brandName}>{company.name}</p>
-        )}
+        <SellerLogo company={company} plate={plate} />
         <header className={styles.head}>
           <p className={styles.eyebrow}>
             Offert · <span className="mono">{quote.quoteNo}</span>

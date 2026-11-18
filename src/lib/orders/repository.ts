@@ -20,6 +20,7 @@ import {
 import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "./price-lists";
 import { isCustomPricing, isLineInvoiceable, parsePricing, priceWithPricing, type Pricing } from "./pricing";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
+import { workshopSeller, type SellerProfile } from "@/lib/company/seller";
 import { isOwner, OWNER_TENANT, settingsKey } from "@/lib/tenants/model";
 import {
   isOrderSource,
@@ -442,6 +443,16 @@ export async function getCompanyProfile(tenant: string): Promise<CompanyProfile>
   // En ny återförsäljare börjar med sitt namn och tomma uppgifter — aldrig med namnskylt.coms.
   const [account] = await sql<{ name: string }[]>`select name from reseller_accounts where id = ${tenant}`;
   return { ...DEFAULT_COMPANY, name: account?.name ?? tenant, tagline: "", website: "" };
+}
+
+/**
+ * Säljaren som kunden möter: Skylt & Gravyrteknik hos namnskylt.com, annars
+ * återförsäljarens egna uppgifter. Används överallt där kunden ser eller får
+ * mejl från en säljare. Panelen och anropet till verkstaden läser `getCompanyProfile`.
+ */
+export async function getSellerProfile(tenant: string): Promise<SellerProfile> {
+  const company = await getCompanyProfile(tenant);
+  return isOwner(tenant) ? workshopSeller(company) : company;
 }
 
 export async function saveCompanyProfile(tenant: string, profile: CompanyProfile): Promise<void> {

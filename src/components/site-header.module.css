@@ -58,6 +58,28 @@
   background: var(--color-paper);
 }
 
+.link[aria-current="page"] {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+/* Menyns länkar står på rad på en bred skärm. Knappen Meny finns bara på en smal, se nedan. */
+.menu,
+.menuLinks {
+  display: contents;
+}
+
+.menuButton {
+  display: none;
+}
+
+.menuIcon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
 .adminSlot {
   display: inline-flex;
   align-items: center;
@@ -127,11 +149,6 @@
     width: calc(100% - 24px);
   }
 
-  /* "Så funkar det" ryms inte bredvid loggan på en mobil. På startsidan finns den som knapp under rutan. */
-  .link:first-child {
-    display: none;
-  }
-
   .link {
     padding-inline: var(--space-2);
   }
@@ -157,9 +174,63 @@
   display: contents;
 }
 
-@media (max-width: 640px) {
-  /* Med varukorgens symbol i menyn ryms inte fler länkar bredvid loggan på en mobil. */
-  .nav:has(.cartSlot > *) .link:nth-child(2) {
+/* På en smal skärm ryms länkarna inte bredvid loggan, inloggningen och varukorgen: de ligger bakom knappen Meny. */
+@media (max-width: 900px) {
+  .menu {
+    display: flex;
+  }
+
+  .menuButton {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 36px;
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-pill);
+    font-size: var(--text-sm);
+    color: var(--color-ink-2);
+    transition: background-color var(--duration-fast) var(--ease-out);
+  }
+
+  .menuButton:hover,
+  .menu[data-open] .menuButton {
+    background: var(--color-paper);
+  }
+
+  /* Rutan hänger under sidhuvudet, vid dess högra kant, så att den ryms hur smal skärmen än är. */
+  .menuLinks {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    right: var(--space-4);
+    display: none;
+    min-width: 200px;
+    padding: var(--space-2);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    background: var(--color-white);
+    box-shadow: var(--shadow-md);
+  }
+
+  .menu[data-open] .menuLinks {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .menuLinks .link {
+    height: 44px;
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-sm);
+  }
+}
+
+@media (max-width: 560px) {
+  .menuButton {
+    width: 36px;
+    padding-inline: 0;
+    justify-content: center;
+  }
+
+  .menuLabel {
     display: none;
   }
 }

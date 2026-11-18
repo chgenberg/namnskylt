@@ -1,4 +1,5 @@
 import "server-only";
+import { WORKSHOP_COMPANY } from "@/lib/company/workshop";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { getCompanyProfile } from "@/lib/orders/repository";
 import { isOwner } from "@/lib/tenants/model";
@@ -6,9 +7,9 @@ import { shopThemeVars, shopWebFamilies } from "./model";
 import { getShop } from "./repository";
 
 /**
- * Den kunden ser som avsändare på korrektur och offert: butiken ordern kom
- * från, annars återförsäljarens företagsprofil. Vi syns bara när det är vår
- * egen webbshop.
+ * Den kunden ser som avsändare på korrekturet: butiken ordern kom från, annars
+ * återförsäljarens företagsprofil. Hos namnskylt.com är det alltid sajten själv,
+ * som Skylt & Gravyrteknik driver.
  */
 export interface Sender {
   name: string;
@@ -35,8 +36,11 @@ export async function resolveSender(input: { resellerId: string; shopSlug?: stri
       webFamilies: shopWebFamilies(shop.font),
     };
   }
+  // namnskylt.com är Skylt & Gravyrtekniks sajt: kunden möter sajtens logga och färger, aldrig panelens företagsuppgifter.
+  if (isOwner(input.resellerId)) {
+    return { name: WORKSHOP_COMPANY.name, logo: null, logoPlate: null, shopPath: null, ours: true, themeVars: {}, webFamilies: [] };
+  }
   const company = await getCompanyProfile(input.resellerId);
-  const ours = isOwner(input.resellerId) && !company.logo;
   // Företagsprofilen har inget typsnitt — då behålls sajtens, bara färgerna byts.
   const colors = Object.fromEntries(
     Object.entries(shopThemeVars({ profile: company, font: { family: null, google: false } })).filter(
@@ -48,8 +52,8 @@ export async function resolveSender(input: { resellerId: string; shopSlug?: stri
     logo: company.logo,
     logoPlate: (await isLightLogo(company.logo)) ? darkPlate(company.primaryColor) : null,
     shopPath: null,
-    ours,
-    themeVars: ours ? {} : colors,
+    ours: false,
+    themeVars: colors,
     webFamilies: [],
   };
 }

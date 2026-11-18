@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { extractContacts, mergeContacts } from "./contacts";
 import { companyFooter, companyProfileSchema, DEFAULT_COMPANY, readableOn } from "./profile";
+import { workshopSeller } from "./seller";
+import { WORKSHOP_COMPANY } from "./workshop";
 
 describe("extractContacts", () => {
   it("läser länkar och löptext", () => {
@@ -92,5 +94,45 @@ describe("profilens hjälpare", () => {
       "Storgatan 1, 111 22 Stockholm",
       "namnskylt.com",
     ]);
+  });
+});
+
+describe("workshopSeller", () => {
+  const panel = {
+    ...DEFAULT_COMPANY,
+    name: "Panelens Företag AB",
+    orgNumber: "556000-0000",
+    address: "Panelgatan 1\n111 11 Panelstad",
+    email: "panel@exempel.se",
+    phone: "08-000 00 00",
+    website: "panelen.exempel.se",
+    bankgiro: "111-1111",
+    logo: "data:image/png;base64,iVBORw0KGgo=",
+    primaryColor: "#7a1f2b",
+    accentColor: "#c08a2e",
+    quoteTerms: "Betalning 30 dagar netto",
+  };
+  const seller = workshopSeller(panel);
+
+  it("ger Skylt & Gravyrtekniks uppgifter, med sajtens logga och färger", () => {
+    assert.equal(seller.name, WORKSHOP_COMPANY.name);
+    assert.equal(seller.email, WORKSHOP_COMPANY.email);
+    assert.equal(seller.site, true);
+    assert.equal(seller.logo, null);
+    assert.equal(seller.primaryColor, DEFAULT_COMPANY.primaryColor);
+    assert.equal(seller.accentColor, DEFAULT_COMPANY.accentColor);
+    assert.deepEqual(companyFooter(seller), [
+      "Skylt & Gravyrteknik i Sverige AB · Org.nr 556464-2261",
+      "F O Petersons gata 28, 421 31 Västra Frölunda",
+      "031-709 02 92 · order@skyltochgravyr.com · namnskylt.com",
+    ]);
+  });
+
+  it("tar bara offertens villkor ur panelens uppgifter", () => {
+    assert.equal(seller.quoteTerms, "Betalning 30 dagar netto");
+    const shown = JSON.stringify(seller);
+    for (const own of [panel.name, panel.orgNumber, "Panelgatan", panel.email, panel.phone, panel.website, panel.bankgiro, panel.logo, panel.primaryColor]) {
+      assert.ok(!shown.includes(own), `${own} ska inte visas för kunden`);
+    }
   });
 });

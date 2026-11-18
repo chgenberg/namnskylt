@@ -206,6 +206,11 @@
   margin-top: var(--space-2);
 }
 
+/* En lång e-postadress bryts hellre än att sticka ut ur sin kolumn, som mellan mobil och dator. */
+.contacts a {
+  overflow-wrap: anywhere;
+}
+
 /* ── Kontaktvägarna överst på Kontakta oss ── */
 
 .ways {

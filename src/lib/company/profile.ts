@@ -74,10 +74,10 @@ export function readableOn(hex: string): "#ffffff" | "#0a0a0b" {
   return luminance > 0.4 ? "#0a0a0b" : "#ffffff";
 }
 
-/** Raderna i offertens sidfot, tomma uppgifter utelämnade. */
-export function companyFooter(company: CompanyProfile): string[] {
+/** Raderna i offertens sidfot, tomma uppgifter utelämnade. Har säljaren ett fullständigt bolagsnamn står det först. */
+export function companyFooter(company: CompanyProfile & { legalName?: string }): string[] {
   return [
-    [company.name, company.orgNumber && `Org.nr ${company.orgNumber}`].filter(Boolean).join(" · "),
+    [company.legalName || company.name, company.orgNumber && `Org.nr ${company.orgNumber}`].filter(Boolean).join(" · "),
     company.address.replace(/\s*\n\s*/g, ", "),
     [company.phone, company.email, company.website].filter(Boolean).join(" · "),
     company.bankgiro && `Bankgiro ${company.bankgiro}`,

@@ -9,7 +9,8 @@ import {
   shapeLabel,
   type FontEngine,
 } from "@/engine";
-import { companyFooter, DEFAULT_COMPANY, readableOn, type CompanyProfile } from "@/lib/company/profile";
+import { companyFooter, DEFAULT_COMPANY, readableOn } from "@/lib/company/profile";
+import type { SellerProfile } from "@/lib/company/seller";
 import { deliveryLines, shippingMethodOf, shippingNote } from "@/lib/orders/delivery";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import type { StoredQuote } from "./model";
@@ -43,7 +44,7 @@ function badgeSpec(quote: StoredQuote, index: number): string {
 export function quoteHtml(
   quote: StoredQuote,
   fonts: FontEngine,
-  company: CompanyProfile = DEFAULT_COMPANY,
+  company: SellerProfile = DEFAULT_COMPANY,
   /** Färgen bakom en vit logga, så att den syns på det vita papperet. */
   logoPlate: string | null = null,
 ): string {
@@ -51,7 +52,7 @@ export function quoteHtml(
   const accent = company.accentColor;
   const onPrimary = readableOn(primary);
   const brand = company.logo
-    ? `<img class="logo${logoPlate ? " plate" : ""}" src="${esc(company.logo)}" alt="${esc(company.name)}"${logoPlate ? ` style="background:${logoPlate}"` : ""}>`
+    ? `<img class="logo${logoPlate ? " plate" : ""}" src="${esc(company.logo)}" alt="${esc(company.site ? "namnskylt.com" : company.name)}"${logoPlate ? ` style="background:${logoPlate}"` : ""}>`
     : `<div class="brand">${esc(company.name)}${company.tagline ? `<small>${esc(company.tagline)}</small>` : ""}</div>`;
   const footer = companyFooter(company);
   const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceList, quote.shippingSek);

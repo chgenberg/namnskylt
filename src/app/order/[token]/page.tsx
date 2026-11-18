@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
 import { engravedRows, getColor, getMaterial, mountingLabel, printColorLabel, shapeLabel } from "@/engine";
 import { ReorderForm } from "@/features/quote-public/reorder-form";
+import { SellerLogo } from "@/features/quote-public/seller-logo";
 import styles from "@/features/quote-public/quote-public.module.css";
 import { companyFooter, readableOn } from "@/lib/company/profile";
 import { formatDay, formatSek } from "@/lib/format";
@@ -13,7 +13,7 @@ import { customerHead, customerTimeline } from "@/lib/orders/customer-view";
 import { deliveryLines, SHIPPING_METHOD_LABEL, shippingMethodOf } from "@/lib/orders/delivery";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { priceWithPricing } from "@/lib/orders/pricing";
-import { databaseConfigured, getCompanyProfile, getOrderByCustomerToken } from "@/lib/orders/repository";
+import { databaseConfigured, getOrderByCustomerToken, getSellerProfile } from "@/lib/orders/repository";
 import { paymentLabel } from "@/lib/payments/model";
 import { reorderMode } from "@/lib/quotes/reorder-model";
 import { encodeShareCode } from "@/lib/share/share-link";
@@ -35,7 +35,7 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
   const order = await getOrderByCustomerToken((await params).token);
   // En borttagen kunds order står bara kvar för bokföringen, och länken ska inte visa något.
   if (!order || isErasedCustomer(order.customer)) notFound();
-  const company = await getCompanyProfile(order.resellerId);
+  const company = await getSellerProfile(order.resellerId);
   const plate = (await isLightLogo(company.logo)) ? darkPlate(company.primaryColor) : null;
   const brand = {
     "--brand": company.primaryColor,
@@ -56,19 +56,7 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
   return (
     <main className={styles.page} style={brand}>
       <div className={styles.inner}>
-        {company.logo ? (
-          // eslint-disable-next-line @next/next/no-img-element -- data-URL ur inställningarna
-          <img
-            src={company.logo}
-            alt={company.name}
-            className={styles.logo}
-            style={plate ? { background: plate, padding: "6px 12px", borderRadius: 10 } : undefined}
-          />
-        ) : company.name === "namnskylt.com" ? (
-          <Image src="/logo-namnskylt.svg" alt="namnskylt.com" width={504} height={97} unoptimized className={styles.logo} priority />
-        ) : (
-          <p className={styles.brandName}>{company.name}</p>
-        )}
+        <SellerLogo company={company} plate={plate} />
         <header className={styles.head}>
           <p className={styles.eyebrow}>
             Order · <span className="mono">{order.orderNo}</span>

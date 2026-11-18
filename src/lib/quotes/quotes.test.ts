@@ -6,6 +6,7 @@ import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
 import type { DeliveryAddress } from "@/lib/orders/delivery";
 import { MISSING_DELIVERY_ERROR, MISSING_PHONE_ERROR, acceptanceIssue, acceptedDelivery } from "./accept";
+import { workshopSeller } from "@/lib/company/seller";
 import { quoteHtml } from "./document";
 import { addDays, canCustomerAnswer, canEditQuote, displayStatus, type StoredQuote } from "./model";
 
@@ -83,6 +84,17 @@ describe("offertdokumentet", () => {
   it("bäddar in skyltarna så att PDF:en inte hämtar något", () => {
     assert.match(html, /<svg/);
     assert.doesNotMatch(html, /src="http/);
+  });
+
+  it("bär Skylt & Gravyrtekniks uppgifter och sajtens logga när säljaren är namnskylt.com", () => {
+    const seller = workshopSeller({ quoteTerms: "Betalning 30 dagar netto" });
+    const html = quoteHtml(quote(), approxFonts, { ...seller, logo: "data:image/svg+xml;base64,PHN2Zy8+" });
+    assert.match(html, /<img class="logo" src="data:image\/svg\+xml;base64,PHN2Zy8\+" alt="namnskylt\.com">/);
+    assert.match(html, /Skylt &amp; Gravyrteknik i Sverige AB · Org\.nr 556464-2261/);
+    assert.match(html, /order@skyltochgravyr\.com/);
+    assert.match(html, /Betalning 30 dagar netto/);
+    // Utan loggans fil står namnet i stället.
+    assert.match(quoteHtml(quote(), approxFonts, seller), /<div class="brand">Skylt &amp; Gravyrteknik<\/div>/);
   });
 
   it("använder återförsäljarens logga, färger, uppgifter och villkor", () => {

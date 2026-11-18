@@ -6,7 +6,7 @@ import { ResendEmailSender, type FetchLike } from "@/lib/email/resend-sender";
 import { publicOrigin } from "@/lib/http/public-url";
 import { shippingMethodOf } from "@/lib/orders/delivery";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
-import { getCompanyProfile } from "@/lib/orders/repository";
+import { getSellerProfile } from "@/lib/orders/repository";
 import { accountEmail } from "@/lib/reseller-auth/accounts";
 import { displayStatus, type StoredQuote } from "./model";
 import { composeQuoteEmail, quoteEmailSettings, type QuoteEmailSettings } from "./quote-email";
@@ -59,7 +59,8 @@ export async function sendQuote(tenant: string, quoteNo: string, fetchImpl?: Fet
   const allowed = perSeller.take(tenant) && perRecipient.take(quote.customer.email) && perDay.take("alla");
   if (!allowed) return off("För många offertmejl den senaste timmen. Skicka länken själv, eller vänta en stund.");
   try {
-    const company = await getCompanyProfile(tenant);
+    // Säljaren som kunden möter: hos namnskylt.com är det Skylt & Gravyrteknik, dit också svaren går.
+    const company = await getSellerProfile(tenant);
     const replyTo = company.email.trim() || (await accountEmail(tenant)) || settings.fromAddress;
     const message = composeQuoteEmail(
       {

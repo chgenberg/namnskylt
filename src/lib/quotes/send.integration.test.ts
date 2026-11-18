@@ -5,7 +5,9 @@ import { createBadgeDocument, toOfferedDocument } from "@/engine";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
 import { requireDb } from "@/lib/db/client";
 import type { FetchLike } from "@/lib/email/resend-sender";
-import { saveCompanyProfile, upsertCustomer } from "@/lib/orders/repository";
+import { WORKSHOP_COMPANY } from "@/lib/company/workshop";
+import { getCompanyProfile, saveCompanyProfile, upsertCustomer } from "@/lib/orders/repository";
+import { OWNER_TENANT } from "@/lib/tenants/model";
 import { createQuote, getQuote } from "./repository";
 import { quoteEmailOn, sendQuote } from "./send";
 
@@ -92,6 +94,32 @@ describe("offerten skickas och mejlas", { skip: !url }, () => {
     assert.ok(stored?.emailedAt);
     assert.equal(stored.status, "sent");
     assert.ok(stored.events.some((event) => event.note === "Offerten mejlad till kunden"));
+  });
+
+  test("namnskylt.coms egna offerter mejlas i Skylt & Gravyrtekniks namn, och svar går dit", async () => {
+    mailOn();
+    const sql = requireDb();
+    const customer = await upsertCustomer(OWNER_TENANT, { name: "Anna Lind", email: `anna-${randomUUID().slice(0, 6)}@kund.exempel.se`, company: "Kund AB" });
+    const { quoteNo } = await createQuote({ tenant: OWNER_TENANT, customerId: customer.id, badges: [badge], demo: false, project: "Skyltar till receptionen" });
+    try {
+      const before = sent.length;
+      const result = await sendQuote(OWNER_TENANT, quoteNo, resend);
+      assert.ok(result?.emailed);
+      const mail = sent[before];
+      assert.ok(mail);
+      assert.equal(mail.body.from, '"Skylt & Gravyrteknik" <offert@verkstaden.exempel.se>');
+      assert.equal(mail.body.reply_to, WORKSHOP_COMPANY.email);
+      assert.equal(mail.body.subject, `Offert ${quoteNo} från Skylt & Gravyrteknik`);
+      assert.ok(mail.body.text.includes("Skylt & Gravyrteknik i Sverige AB · Org.nr 556464-2261"));
+      // Panelens egna företagsuppgifter står aldrig i mejlet.
+      const panel = await getCompanyProfile(OWNER_TENANT);
+      for (const own of [panel.orgNumber, panel.email, panel.phone].filter((value) => value.length > 3)) {
+        assert.ok(!mail.body.text.includes(own));
+      }
+    } finally {
+      await sql`delete from quotes where quote_no = ${quoteNo}`;
+      await sql`delete from customers where id = ${customer.id}`;
+    }
   });
 
   test("skickas offerten igen går ett nytt mejl", async () => {

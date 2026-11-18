@@ -2,7 +2,8 @@ import { clientKey, createRateLimiter } from "@/lib/ai/rate-limit";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { withInlineLogoImages } from "@/lib/logo-images/repository";
-import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
+import { siteLogoDataUrl } from "@/lib/company/site-logo";
+import { databaseConfigured, getSellerProfile } from "@/lib/orders/repository";
 import { htmlToPdf } from "@/lib/pdf/html-to-pdf";
 import { quoteHtml } from "@/lib/quotes/document";
 import { getQuoteByToken } from "@/lib/quotes/repository";
@@ -20,8 +21,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
   if (!perClient.take(clientKey(request))) return new Response("För många nedladdningar. Försök igen om en stund.", { status: 429 });
 
   try {
-    const [fonts, company] = await Promise.all([loadNodeFontEngine(), getCompanyProfile(quote.resellerId)]);
-    const plate = (await isLightLogo(company.logo)) ? darkPlate(company.primaryColor) : null;
+    const [fonts, seller] = await Promise.all([loadNodeFontEngine(), getSellerProfile(quote.resellerId)]);
+    // Sajtens egen logga läggs in som data, eftersom PDF:en ritas ur en fristående sida.
+    const company = seller.site ? { ...seller, logo: await siteLogoDataUrl() } : seller;
+    const plate = !seller.site && (await isLightLogo(company.logo)) ? darkPlate(company.primaryColor) : null;
     // PDF:en ritas ur en fristående sida, som inte når adresser på sajten: bilden läggs in i skyltarna.
     const badges = await withInlineLogoImages(quote.badges);
     const pdf = await htmlToPdf(quoteHtml({ ...quote, badges }, fonts, company, plate));
