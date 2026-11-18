@@ -14,7 +14,8 @@ import {
 } from "./index";
 import { endPriceTable } from "./price-model";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
-import { engravedBadge } from "./testing";
+import { engravedBadge, plasticBadge } from "./testing";
+import type { BadgeDocument } from "./types";
 
 describe("parseSmartInput", () => {
   it("delar på komma, pipe och streck med mellanslag", () => {
@@ -189,6 +190,63 @@ describe("badgeDocumentSchema", () => {
     for (const [x, y] of [[inOval.x, inOval.y], [inOval.x, inOval.y + inOval.height]] as const) {
       assert.ok(((x - oval.size.widthMm / 2) / a) ** 2 + ((y - oval.size.heightMm / 2) / b) ** 2 <= 1 + 1e-6);
     }
+  });
+
+  it("håller luft mellan loggan och texten också när någon av dem har flyttats", () => {
+    const wide = { d: "M0 0L230 0L230 100L0 100Z", viewWidth: 230, viewHeight: 100, placement: "left" as const, heightMm: 14 };
+    const doc = { ...plasticBadge(["Peter Ström", "Eventansvarig"]), logo: wide };
+    const air = (badge: BadgeDocument) => {
+      const layout = layoutBadge(badge, approxFonts);
+      assert.ok(layout.logo);
+      const left = Math.min(...layout.rows.map((row) => row.leftMm));
+      const right = Math.max(...layout.rows.map((row) => row.leftMm + row.widthMm));
+      return { layout, toRight: left - (layout.logo.x + layout.logo.width), toLeft: layout.logo.x - right };
+    };
+    // Automatiskt: 2 mm mellan loggan och texten.
+    assert.ok(Math.abs(air(doc).toRight - 2) < 1e-6);
+    // Loggan flyttad in mot texten: textytan följer med, och texten krymps hellre än att hamna under loggan.
+    const nudged = air({ ...doc, logo: { ...wide, offsetMm: { xMm: 4, yMm: 0 } } });
+    assert.ok(Math.abs(nudged.toRight - 2) < 1e-6, String(nudged.toRight));
+    assert.equal(nudged.layout.logoOverlapsText, false);
+    assert.ok(nudged.layout.rows[0]!.capHeightMm < air(doc).layout.rows[0]!.capHeightMm);
+    // Texten flyttad in mot loggan: den stannar vid marginalen.
+    const pulled = air({ ...doc, textOffsetMm: { xMm: -4, yMm: 0 } });
+    assert.ok(pulled.toRight >= 2 - 1e-6, String(pulled.toRight));
+    assert.equal(pulled.layout.logoOverlapsText, false);
+    // En flytt bort från loggan står kvar som kunden gjorde den.
+    const short = { ...plasticBadge(["Eva"]), logo: wide };
+    const away = layoutBadge({ ...short, textOffsetMm: { xMm: 3, yMm: 0 } }, approxFonts);
+    assert.ok(Math.abs(away.textOffsetMm.xMm - 3) < 1e-6);
+    // Loggan dragen till andra sidan av skylten: texten får ytan till vänster om den, med samma luft.
+    const swapped = air({ ...doc, logo: { ...wide, offsetMm: { xMm: 40, yMm: 0 } } });
+    assert.ok(swapped.toLeft >= 2 - 1e-6, String(swapped.toLeft));
+    assert.equal(swapped.layout.logoOverlapsText, false);
+    // En logga som står där placeringen lade den ändrar ingenting: samma rader som utan flytt på noll.
+    const untouched = layoutBadge(doc, approxFonts).rows;
+    assert.deepEqual(layoutBadge({ ...doc, logo: { ...wide, offsetMm: { xMm: 0, yMm: 0 } } }, approxFonts).rows, untouched);
+  });
+
+  it("en logga ovanför texten som flyttas: texten håller sig under den, eller över den när det finns mer plats där", () => {
+    const logo = { d: "M0 0L100 0L100 100L0 100Z", viewWidth: 100, viewHeight: 100, placement: "top" as const, heightMm: 12 };
+    // Plastens stora rektangel, 75 × 45 mm, där det finns höjd att flytta på.
+    const doc: BadgeDocument = { ...withBlank(plasticBadge(["Anna Lind", "Säljare"]), "rectangle-large"), logo };
+    const at = (yMm: number) => {
+      const layout = layoutBadge({ ...doc, logo: { ...logo, offsetMm: { xMm: 0, yMm } } }, approxFonts);
+      assert.ok(layout.logo);
+      const top = Math.min(...layout.rows.map((row) => row.baselineMm - row.capHeightMm));
+      const bottom = Math.max(...layout.rows.map((row) => row.baselineMm));
+      return { layout, below: top - (layout.logo.y + layout.logo.height), above: layout.logo.y - bottom, bottom, top };
+    };
+    // Flyttad lite ned: texten följer med och står 2 mm under loggan.
+    const down = at(6);
+    assert.ok(Math.abs(down.below - 2) < 1e-6, String(down.below));
+    assert.equal(down.layout.logoOverlapsText, false);
+    assert.ok(down.bottom <= doc.size.heightMm - down.layout.contentInsetMm + 1e-6);
+    // Flyttad långt ned: det finns mer plats ovanför, och texten står 2 mm över loggan.
+    const far = at(20);
+    assert.ok(Math.abs(far.above - 2) < 1e-6, String(far.above));
+    assert.equal(far.layout.logoOverlapsText, false);
+    assert.ok(far.top >= far.layout.contentInsetMm - 1e-6);
   });
 
   it("godtar en skylt med bara logga, och loggan står då mitt på skylten", () => {

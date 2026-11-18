@@ -4,7 +4,7 @@ import { availableHalfWidth, isEllipseShape, outlinePath } from "./shape";
 import { logoEngravingPath, placeLogoPath } from "./logo";
 import { logoMarking, logoPrintInkOf, nameMarking, printInkOf, rowPrintInkOf } from "./marking";
 import { ZERO_OFFSET, clampOffset, moveRect, rectsOverlap, unionRect } from "./placement";
-import type { BadgeDocument, BadgeLogo, FontId, Mm, Offset, Rect, TextAlign } from "./types";
+import type { BadgeDocument, BadgeLogo, FontId, LogoPlacement, Mm, Offset, Rect, TextAlign } from "./types";
 
 export interface FontFace {
   fontId: FontId;
@@ -119,6 +119,8 @@ const ROW_GAP_RATIO = 0.5;
 /** Hur mycket mindre än önskat en rad får bli innan kunden behöver veta. */
 const SHRINK_NOTICE_RATIO = 0.97;
 const FIT_PASSES = 3;
+/** Steg för att krympa texten under en flyttad logga: felet halveras för varje steg. */
+const HEIGHT_FIT_STEPS = 40;
 /** Luft mellan loggan och texten. */
 const LOGO_TEXT_GAP_MM = 2;
 /** Loggan bredvid texten får ta högst så stor del av innehållets bredd. */
@@ -132,6 +134,8 @@ const LOGO_TOP_MAX_HEIGHT_RATIO = 0.5;
  */
 const LOGO_FREE_SIDE_MAX_WIDTH_RATIO = 0.72;
 const LOGO_FREE_TOP_MAX_HEIGHT_RATIO = 0.7;
+/** Så stor del av innehållets bredd eller höjd behöver texten för att få plats bredvid en flyttad logga. */
+const MIN_TEXT_SHARE = 0.25;
 
 const ANCHOR_BY_ALIGN: Record<TextAlign, TextAnchor> = {
   left: "start",
@@ -195,6 +199,58 @@ interface TextRegion {
   right: Mm;
   top: Mm;
   bottom: Mm;
+}
+
+/**
+ * Textytan bredvid loggan där loggan faktiskt står (besked via ägaren 2026-11-18, som såg texten
+ * ligga över en logga som hade flyttats: "behöver lägga någon minsta marginal mellan logo och
+ * text, så att det ligger automatiskt"). Förut räknades textytan alltid från loggans ursprungliga
+ * plats, så en flyttad logga hamnade under texten.
+ *
+ * Texten får den större av de två ytorna på var sin sida om loggan, med `LOGO_TEXT_GAP_MM` luft:
+ * till höger eller vänster om en logga som står bredvid texten, under eller över en som står
+ * ovanför. Ryms texten inte på någon sida gäller placeringens egen yta, och då varnar
+ * skyltmotorn för att loggan ligger över texten.
+ */
+function clearOfLogo(planned: TextRegion, logo: Rect, placement: LogoPlacement, bounds: TextRegion, block: Mm): TextRegion {
+  if (placement === "top") {
+    const above = logo.y - LOGO_TEXT_GAP_MM - bounds.top;
+    const below = bounds.bottom - (logo.y + logo.height + LOGO_TEXT_GAP_MM);
+    if (Math.max(above, below) < (bounds.bottom - bounds.top) * MIN_TEXT_SHARE) return planned;
+    if (below >= above) {
+      const top = logo.y + logo.height + LOGO_TEXT_GAP_MM;
+      return { left: bounds.left, right: bounds.right, top, bottom: Math.min(top + block, bounds.bottom) };
+    }
+    const bottom = logo.y - LOGO_TEXT_GAP_MM;
+    return { left: bounds.left, right: bounds.right, top: Math.max(bottom - block, bounds.top), bottom };
+  }
+  const left = logo.x - LOGO_TEXT_GAP_MM - bounds.left;
+  const right = bounds.right - (logo.x + logo.width + LOGO_TEXT_GAP_MM);
+  if (Math.max(left, right) < (bounds.right - bounds.left) * MIN_TEXT_SHARE) return planned;
+  return right >= left
+    ? { ...planned, left: logo.x + logo.width + LOGO_TEXT_GAP_MM, right: bounds.right }
+    : { ...planned, left: bounds.left, right: logo.x - LOGO_TEXT_GAP_MM };
+}
+
+/**
+ * Textens flytt med luft mot loggan. Hamnar texten över loggan eller närmare den än
+ * `LOGO_TEXT_GAP_MM`, dras den tillbaka bort från loggan så långt som behövs och ryms inom
+ * säkerhetszonen. En flytt som passade ett kort namn drar annars ett långt namn i samma
+ * design in över loggan.
+ */
+function awayFromLogo(doc: BadgeDocument, inset: Mm, boxes: readonly Rect[], offset: Offset, logo: Rect, placement: LogoPlacement): Offset {
+  const text = unionRect(boxes.map((box) => moveRect(box, offset)));
+  if (!text) return offset;
+  const near = { x: logo.x - LOGO_TEXT_GAP_MM, y: logo.y - LOGO_TEXT_GAP_MM, width: logo.width + LOGO_TEXT_GAP_MM * 2, height: logo.height + LOGO_TEXT_GAP_MM * 2 };
+  if (!rectsOverlap(text, near)) return offset;
+  if (placement === "top") {
+    const below = text.y + text.height / 2 >= logo.y + logo.height / 2;
+    const dy = below ? near.y + near.height - text.y : near.y - (text.y + text.height);
+    return clampOffset(doc, inset, boxes, { xMm: offset.xMm, yMm: offset.yMm + dy });
+  }
+  const rightOf = text.x + text.width / 2 >= logo.x + logo.width / 2;
+  const dx = rightOf ? near.x + near.width - text.x : near.x - (text.x + text.width);
+  return clampOffset(doc, inset, boxes, { xMm: offset.xMm + dx, yMm: offset.yMm });
 }
 
 /** Loggan ovanför centreras ihop med texten, så båda beror av textblockets höjd. */
@@ -315,13 +371,22 @@ export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout 
   const { frames } = frameRings(doc);
   const inset = safeInsetMm(doc);
   const logoPlan = planLogo(doc, inset);
-  const regionFor = (caps: readonly Mm[]): TextRegion =>
-    logoPlan?.regionFor(blockHeight(caps)) ?? {
-      left: inset,
-      right: widthMm - inset,
-      top: inset,
-      bottom: heightMm - inset,
-    };
+  const bounds: TextRegion = { left: inset, right: widthMm - inset, top: inset, bottom: heightMm - inset };
+  /** Loggans ruta som den ritas: där placeringen lägger den, flyttad dit kunden har dragit den. */
+  const logoAt = (block: Mm) => {
+    if (!logoPlan || !doc.logo) return null;
+    const auto = logoPlan.boxFor(block);
+    const offset = doc.logo.offsetMm ? clampOffset(doc, inset, [auto], doc.logo.offsetMm) : ZERO_OFFSET;
+    return { offset, box: moveRect(auto, offset), moved: offset.xMm !== 0 || offset.yMm !== 0 };
+  };
+  const regionFor = (caps: readonly Mm[]): TextRegion => {
+    const block = blockHeight(caps);
+    const planned = logoPlan?.regionFor(block) ?? bounds;
+    const placed = logoAt(block);
+    // Står loggan där placeringen lade den gäller placeringens egen textyta, som alltid. Har kunden
+    // flyttat loggan följer textytan med, så att texten inte hamnar under den.
+    return placed?.moved && doc.logo ? clearOfLogo(planned, placed.box, doc.logo.placement, bounds, block) : planned;
+  };
   /** Radens vänster- och högerkant: textytan, och på en oval även konturen. */
   const rowSpan = (region: TextRegion, top: Mm, bottom: Mm) => {
     const half = availableHalfWidth(doc, inset, top, bottom);
@@ -352,6 +417,22 @@ export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout 
     return { region, tops: rowTops(current, region.top, region.bottom) };
   };
 
+  /**
+   * En flyttad logga ovanför texten kan ta höjd från den: raderna krymps tills de ryms under
+   * (eller över) loggan. Loggans egen plats beror på textens höjd, så höjden söks fram stegvis.
+   * Görs före bredden, eftersom en rad som hamnar utanför säkerhetszonen annars får bredden noll.
+   */
+  const fitHeight = () => {
+    for (let step = 0; step < HEIGHT_FIT_STEPS && logoAt(blockHeight(caps))?.moved; step++) {
+      const fitted = regionFor(caps);
+      const room = fitted.bottom - fitted.top;
+      const block = blockHeight(caps);
+      if (!(room > 0) || block <= room + 1e-9) break;
+      caps = caps.map((cap) => cap * (room / block));
+    }
+  };
+
+  fitHeight();
   for (let pass = 0; pass < FIT_PASSES; pass++) {
     const { region, tops } = topsFor(caps);
     caps = caps.map((cap, i) => {
@@ -361,6 +442,8 @@ export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout 
       return width > available && width > 0 ? cap * (available / width) : cap;
     });
   }
+  // Raderna kan ha krympts på bredden: då står loggan ovanför lite lägre, och höjden prövas igen.
+  fitHeight();
 
   const issues: LayoutIssue[] = [];
   const { region, tops } = topsFor(caps);
@@ -398,12 +481,16 @@ export function layoutBadge(doc: BadgeDocument, fonts: FontEngine): BadgeLayout 
     };
   });
 
-  const textOffsetMm = doc.textOffsetMm ? clampOffset(doc, inset, laidOut.map(rowBox), doc.textOffsetMm) : ZERO_OFFSET;
+  const placedLogo = logoAt(blockHeight(caps));
+  const logoOffsetMm = placedLogo?.offset ?? ZERO_OFFSET;
+  const logoBox = placedLogo?.box ?? null;
+  // Texten får flyttas fritt inom säkerhetszonen, men aldrig närmare loggan än marginalen.
+  const wantedTextOffset = doc.textOffsetMm ? clampOffset(doc, inset, laidOut.map(rowBox), doc.textOffsetMm) : ZERO_OFFSET;
+  const textOffsetMm =
+    doc.textOffsetMm && logoBox && doc.logo
+      ? awayFromLogo(doc, inset, laidOut.map(rowBox), wantedTextOffset, logoBox, doc.logo.placement)
+      : wantedTextOffset;
   const placedRows = laidOut.map((row) => moveRow(row, textOffsetMm));
-  const autoLogo = logoPlan && doc.logo ? logoPlan.boxFor(blockHeight(caps)) : null;
-  const logoOffsetMm =
-    autoLogo && doc.logo?.offsetMm ? clampOffset(doc, inset, [autoLogo], doc.logo.offsetMm) : ZERO_OFFSET;
-  const logoBox = autoLogo ? moveRect(autoLogo, logoOffsetMm) : null;
   const rowBoxes = placedRows.map(rowBox);
 
   return {

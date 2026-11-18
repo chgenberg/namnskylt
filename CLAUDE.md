@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1231 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1233 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -517,6 +517,26 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       handtag på den andra rutan tog annars greppet.
     - Handtagen har ingen tangentbordsväg. Reglagen i panelen gör samma sak.
   - Blir loggan mycket stor krymps texten, och raden "Texten krymps" visas som vanligt.
+- **Texten håller minst 2 mm luft mot loggan, också när någon av dem har flyttats** (besked via
+  ägaren 2026-11-18, som fick texten över en flyttad logga: "behöver lägga någon minsta
+  marginal mellan logo och text, så att det ligger automatiskt"). Förut räknades textytan
+  alltid från loggans ursprungliga plats, så en logga som dragits några millimeter hamnade
+  under texten. Den automatiska placeringen hade redan 2 mm (`LOGO_TEXT_GAP_MM`).
+  - **En flyttad logga flyttar textytan** (`clearOfLogo` i `layout.ts`): texten får den större
+    av ytorna på var sin sida om loggan, till höger eller vänster om en logga bredvid texten,
+    under eller över en som står ovanför. Texten krymps hellre än att hamna under loggan.
+    Dras loggan till andra sidan av skylten byter texten alltså sida.
+  - **Texten går inte att dra närmare loggan än marginalen** (`awayFromLogo`): flytten dras
+    tillbaka så långt som behövs. En flytt som passade ett kort namn drog annars ett långt
+    namn i samma design in över loggan.
+  - Ryms texten inte på någon sida om loggan (under `MIN_TEXT_SHARE`, en fjärdedel av
+    innehållets bredd eller höjd) gäller placeringens egen yta, och då varnar skyltmotorn
+    som förut för att loggan ligger över texten.
+  - En logga som står där placeringen lade den ändrar ingenting i layouten. En sparad skylt
+    med flyttad logga eller text ritas däremot med luften, alltså inte exakt som förut.
+  - Kötestet `src/lib/outreach/claim.integration.test.ts` föll en gång samma dag och gick
+    sedan igenom fyra gånger i rad. Det läser utskickets kö i den lokala databasen och
+    störs av att något annat rör den samtidigt.
 - **Ritningens yta** (samma besked: ritningen var "väldigt statisk" jämfört med 3D-vyn):
   förhandsvisningen ritar skyltens färg med ljus, reflexer och en fasad kant ovanpå
   (`surfaceMarkup` i `render-svg.ts`). Borstad metall, och plastens guld och silver, får

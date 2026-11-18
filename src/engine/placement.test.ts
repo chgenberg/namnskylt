@@ -102,8 +102,13 @@ describe("layoutBadge med förflyttning", () => {
     const pushed = { ...base, logo: { ...SQUARE_LOGO, offsetMm: { xMm: -50, yMm: 50 } } };
     assertInsideZone(pushed, layoutBadge(pushed, approxFonts), layoutBadge(pushed, approxFonts).logo);
 
-    const onText = { ...base, logo: { ...SQUARE_LOGO, offsetMm: { xMm: 20, yMm: 0 } } };
-    assert.equal(layoutBadge(onText, approxFonts).logoOverlapsText, true);
+    // En logga som dras in mot texten hamnar inte över den: texten får ytan bredvid loggan.
+    const nearText = { ...base, logo: { ...SQUARE_LOGO, offsetMm: { xMm: 20, yMm: 0 } } };
+    assert.equal(layoutBadge(nearText, approxFonts).logoOverlapsText, false);
+    // Först när texten inte ryms på någon sida om loggan ligger loggan över den, och det märks.
+    const huge = { ...SQUARE_LOGO, viewWidth: 400, viewHeight: 100, heightMm: 40, sizing: "free" as const };
+    const noRoom = { ...base, logo: { ...huge, offsetMm: { xMm: 12, yMm: 0 } } };
+    assert.equal(layoutBadge(noRoom, approxFonts).logoOverlapsText, true);
   });
 });
 
