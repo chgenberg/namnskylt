@@ -10,7 +10,7 @@ import { updateQuotePricingAction } from "@/features/admin/quote-actions";
 import { QuoteDecisionButtons, QuoteSendPanel, QuoteTermsForm } from "@/features/admin/quote-controls";
 import { QuoteFlow, QuoteStatusPill } from "@/features/admin/quote-parts";
 import styles from "@/features/admin/admin.module.css";
-import { formatDate, formatDay, formatSek } from "@/lib/format";
+import { formatDate, formatDay, formatSek, plural } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { countUnreadNotices } from "@/lib/notices/repository";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
@@ -54,7 +54,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
           </p>
           <h1 className={styles.pageTitle}>{quote.project ?? name}</h1>
           <p className={styles.pageLead}>
-            <QuoteStatusPill status={status} /> &nbsp;{badgeCount(quote)} skyltar · {formatSek(quote.totalSek)} exkl. moms · skapad{" "}
+            <QuoteStatusPill status={status} /> &nbsp;{plural(badgeCount(quote), "skylt", "skyltar")} · {formatSek(quote.totalSek)} exkl. moms · skapad{" "}
             {formatDate(quote.createdAt)}
           </p>
         </div>

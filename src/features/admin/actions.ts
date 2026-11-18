@@ -7,6 +7,7 @@ import { priceModelSchema, type PriceModel } from "@/engine/price-model";
 import { requireDb } from "@/lib/db/client";
 import { insertDemoData, removeDemoData } from "@/lib/orders/demo-data";
 import { DIRECT_PRICE_LOCKED_ERROR, DIRECT_PRICING_ERROR, pricingSchema, type Pricing } from "@/lib/orders/pricing";
+import { formattedOrgNumber } from "@/lib/company/org-number";
 import { companyProfileSchema, type CompanyProfile } from "@/lib/company/profile";
 import { deliveryPhoneIssue, deliverySchema, type Delivery } from "@/lib/orders/delivery";
 import { ERASED_CUSTOMER_ERROR, isBookkeepingOrder, isErasedCustomer } from "@/lib/orders/erase-model";
@@ -266,7 +267,7 @@ export async function startOrderAction(input: z.input<typeof startOrderSchema>):
             email: parsed.email,
             company: parsed.company || null,
             phone: parsed.phone || null,
-            orgNumber: parsed.orgNumber || null,
+            orgNumber: formattedOrgNumber(parsed.orgNumber),
             address: parsed.address || null,
           });
     if (!customer) return { ok: false, error: "Kunden finns inte" };

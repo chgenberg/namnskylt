@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CustomerAccounts } from "@/features/admin/customer-accounts";
 import { adminTenant } from "@/features/admin/guard";
 import styles from "@/features/admin/admin.module.css";
-import { formatRelative, formatSek } from "@/lib/format";
+import { formatRelative, formatSek, plural } from "@/lib/format";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { listCustomers } from "@/lib/orders/repository";
 
@@ -26,7 +26,7 @@ export default async function CustomersPage() {
       <header className={styles.pageHead}>
         <div>
           <p className={styles.eyebrow}>Kunder</p>
-          <h1 className={styles.pageTitle}>{customers.length} kunder</h1>
+          <h1 className={styles.pageTitle}>{plural(customers.length, "kund", "kunder")}</h1>
           <p className={styles.pageLead}>Varje kund har sin orderhistorik och sina sparade skyltmallar.</p>
         </div>
       </header>
@@ -49,11 +49,11 @@ export default async function CustomersPage() {
             <div className={styles.customerStats}>
               <div>
                 <strong>{c.orders}</strong>
-                <span>ordrar</span>
+                <span>{c.orders === 1 ? "order" : "ordrar"}</span>
               </div>
               <div>
                 <strong>{c.badges}</strong>
-                <span>skyltar</span>
+                <span>{c.badges === 1 ? "skylt" : "skyltar"}</span>
               </div>
               <div>
                 <strong>{formatSek(c.revenueSek)}</strong>

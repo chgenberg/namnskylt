@@ -6,7 +6,7 @@ import { OrderCard } from "@/features/admin/order-card";
 import { RepeatButton } from "@/features/admin/repeat-button";
 import { Sparkline } from "@/features/admin/sparkline";
 import styles from "@/features/admin/admin.module.css";
-import { formatRelative, formatSek } from "@/lib/format";
+import { formatRelative, formatSek, plural } from "@/lib/format";
 import { listUnreadNotices } from "@/lib/notices/repository";
 import { badgeCount, type StoredOrder } from "@/lib/orders/model";
 import { listOrders } from "@/lib/orders/repository";
@@ -51,8 +51,9 @@ export default async function AdminOverviewPage() {
         <p className={styles.eyebrow}>Välkommen</p>
         <h1 className={styles.welcomeTitle}>Gör din första offert</h1>
         <p className={styles.muted}>
-          Designa skyltarna åt kunden i skyltmotorn, sätt ditt pris och skicka en länk som kunden godkänner. Lägg först in
-          er logga under Inställningar, så står den på offerten tillsammans med företagets uppgifter.
+          Designa skyltarna åt kunden i skyltmotorn och skicka offerten från varukorgen. Kunden får den som mejl och
+          godkänner eller nekar med ett klick, och en godkänd offert blir en order som går rakt till tillverkningen. Lägg
+          först in er logga under Inställningar, så står den på offerten och i mejlet tillsammans med företagets uppgifter.
         </p>
         <div className={styles.welcomeActions}>
           <Link href="/admin/ny-offert" className={`btn btn--lg ${styles.onDarkButton}`}>
@@ -82,7 +83,12 @@ export default async function AdminOverviewPage() {
   const recent = orders.filter((o) => now.getTime() - Date.parse(o.placedAt) < 30 * DAY_MS && o.status !== "cancelled");
   const recentRevenue = recent.reduce((sum, o) => sum + o.totalSek, 0);
 
-  const toHandle = orders.filter((o) => o.status === "received" && !changesRequested(o));
+  const fresh = orders.filter((o) => o.status === "received" && !changesRequested(o));
+  // En ny order går till tillverkningen av sig själv. Den som inte har gjort det är den som behöver en hand:
+  // en uppgift saknas, eller så har utskicket inte gått igenom än. Demoordrar skickas aldrig.
+  const unsent = fresh.filter((o) => !o.demo && !o.supplierSentAt);
+  const atWorkshop = fresh.filter((o) => !o.demo && o.supplierSentAt);
+  const demoNew = fresh.filter((o) => o.demo);
   const changes = orders.filter(changesRequested);
   const waitingProof = orders.filter((o) => o.status === "proof-sent");
   const shippedNoTracking = orders.filter((o) => o.status === "shipped" && !o.trackingUrl);
@@ -95,7 +101,8 @@ export default async function AdminOverviewPage() {
 
   const attention = [
     ...changes.map((o) => ({ order: o, tone: "warn", text: "Kunden vill ändra korrekturen" })),
-    ...toHandle.slice(0, 5).map((o) => ({ order: o, tone: "info", text: `Ny order · ${badgeCount(o)} skyltar` })),
+    ...unsent.slice(0, 5).map((o) => ({ order: o, tone: "warn", text: "Har inte gått till tillverkningen än" })),
+    ...demoNew.slice(0, 5).map((o) => ({ order: o, tone: "info", text: `Ny order · ${plural(badgeCount(o), "skylt", "skyltar")}` })),
     ...waitingProof.map((o) => ({ order: o, tone: "info", text: "Väntar på kundens godkännande" })),
     ...shippedNoTracking.map((o) => ({ order: o, tone: "warn", text: "Skickad men saknar spårningslänk" })),
   ];
@@ -109,9 +116,13 @@ export default async function AdminOverviewPage() {
           </p>
           <h1 className={styles.pageTitle}>{greeting(now)}</h1>
           <p className={styles.pageLead}>
-            {toHandle.length > 0
-              ? `${toHandle.length} ${toHandle.length === 1 ? "ny order väntar" : "nya ordrar väntar"} på dig.`
-              : "Inga nya ordrar som väntar just nu."}
+            {unsent.length > 0
+              ? `${unsent.length === 1 ? "1 order har" : `${unsent.length} ordrar har`} inte gått till tillverkningen än.`
+              : atWorkshop.length > 0
+                ? `${atWorkshop.length === 1 ? "1 ny order är mottagen" : `${atWorkshop.length} nya ordrar är mottagna`} hos tillverkningen. Du behöver inte göra något.`
+                : demoNew.length > 0
+                  ? `${demoNew.length} ${demoNew.length === 1 ? "ny order väntar" : "nya ordrar väntar"} på dig.`
+                  : "Inga nya ordrar just nu."}
           </p>
         </div>
         <div className={styles.actionBar}>
@@ -133,7 +144,7 @@ export default async function AdminOverviewPage() {
         <div className={styles.kpi} data-tone="navy">
           <span className={styles.kpiLabel}>Ordrar senaste 30 dagarna</span>
           <span className={styles.kpiValue}>{recent.length}</span>
-          <span className={styles.kpiHint}>{recent.reduce((sum, o) => sum + badgeCount(o), 0)} skyltar</span>
+          <span className={styles.kpiHint}>{plural(recent.reduce((sum, o) => sum + badgeCount(o), 0), "skylt", "skyltar")}</span>
           <Sparkline className={styles.spark} values={stats.weeks.map((w) => w.orders)} stroke="#d9b866" />
         </div>
         <div className={styles.kpi} data-tone="gold">
@@ -145,12 +156,12 @@ export default async function AdminOverviewPage() {
         <div className={styles.kpi}>
           <span className={styles.kpiLabel}>Snittorder</span>
           <span className={styles.kpiValue}>{formatSek(stats.averageOrderSek)}</span>
-          <span className={styles.kpiHint}>{stats.orderCount} ordrar totalt</span>
+          <span className={styles.kpiHint}>{plural(stats.orderCount, "order", "ordrar")} totalt</span>
         </div>
         <div className={styles.kpi}>
           <span className={styles.kpiLabel}>Återkommande kunder</span>
           <span className={styles.kpiValue}>{Math.round(stats.repeatCustomerShare * 100)} %</span>
-          <span className={styles.kpiHint}>av {stats.customers} kunder</span>
+          <span className={styles.kpiHint}>av {plural(stats.customers, "kund", "kunder")}</span>
         </div>
       </div>
 

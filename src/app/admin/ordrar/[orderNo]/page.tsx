@@ -17,7 +17,7 @@ import { RepeatButton } from "@/features/admin/repeat-button";
 import { SaveDesignButton } from "@/features/admin/save-design-button";
 import { StatusPill } from "@/features/admin/status-pill";
 import styles from "@/features/admin/admin.module.css";
-import { formatDate, formatSek } from "@/lib/format";
+import { formatDate, formatSek, plural } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { countUnreadNotices } from "@/lib/notices/repository";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
@@ -25,13 +25,15 @@ import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { badgeCount, ORDER_SOURCE_LABEL } from "@/lib/orders/model";
 import { getOrder, latestProof } from "@/lib/orders/repository";
 import { paymentLabel } from "@/lib/payments/model";
+import { dispatchStatus, partyFor } from "@/lib/supplier/dispatch";
 import { atPrinter, refreshFromSupplier, supplierLink, type SupplierLink } from "@/lib/supplier/sync";
+import { isOwner } from "@/lib/tenants/model";
 
 const SYNC_NOTE: Record<SupplierLink, string> = {
-  connected: "Följer tryckeriet automatiskt",
-  "not-configured": "Tryckeriet är inte anslutet ännu — statusen uppdateras när kopplingen är på plats",
-  "not-sent": "Ordern har inte gått till tryckeriets system",
-  demo: "Demoorder — följer inte tryckeriet",
+  connected: "Följer verkstaden automatiskt",
+  "not-configured": "Verkstaden är inte ansluten ännu — statusen uppdateras när kopplingen är på plats",
+  "not-sent": "Ordern har inte gått till verkstaden än",
+  demo: "Demoorder — följer inte verkstaden",
 };
 
 interface OrderPageProps {
@@ -53,6 +55,17 @@ export default async function OrderPage({ params }: OrderPageProps) {
     deliveryOptions(tenant, order.customer),
     countUnreadNotices(tenant, { orderNo: order.orderNo }),
   ]);
+  // Har ordern inte gått till verkstaden står skälet under tidslinjens rubrik, så att den som äger ordern vet vad som saknas.
+  const dispatch = link === "not-sent" && order.status !== "cancelled" ? dispatchStatus(order, await partyFor(order)) : null;
+  const waitReasons =
+    dispatch?.state === "blocked"
+      ? dispatch.problems.map((problem) => (isOwner(tenant) ? problem : problem.replace(/^Återförsäljarens /, "Ert företags ")))
+      : dispatch?.state === "failed"
+        ? ["Senaste försöket att skicka ordern gick inte igenom. Det provas igen av sig självt."]
+        : dispatch?.state === "waiting"
+          ? ["Ordern väntar på att skickas."]
+          : [];
+  const fixHint = dispatch?.state === "blocked" && !isOwner(tenant) && dispatch.problems.some((problem) => problem.startsWith("Återförsäljarens "));
   const deliveryLocked = order.supplierSentAt
     ? "Ordern har gått till verkstaden. Hör av dig till namnskylt.com om adressen ska ändras."
     : order.status === "cancelled"
@@ -78,7 +91,7 @@ export default async function OrderPage({ params }: OrderPageProps) {
           </p>
           <h1 className={styles.pageTitle}>{order.project ?? customerName}</h1>
           <p className={styles.pageLead}>
-            <StatusPill status={order.status} /> &nbsp;{badgeCount(order)} skyltar · {formatSek(order.totalSek)} exkl. moms ·
+            <StatusPill status={order.status} /> &nbsp;{plural(badgeCount(order), "skylt", "skyltar")} · {formatSek(order.totalSek)} exkl. moms ·
             lagd {formatDate(order.placedAt)}
           </p>
         </div>
@@ -267,6 +280,22 @@ export default async function OrderPage({ params }: OrderPageProps) {
               {SYNC_NOTE[link]}
               {link === "connected" && order.supplierSyncedAt && <> · senast {formatDate(order.supplierSyncedAt)}</>}
             </p>
+            {waitReasons.length > 0 && (
+              <ul className={styles.syncReasons} role="list">
+                {waitReasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+                {fixHint && (
+                  <li>
+                    Fyll i uppgifterna under{" "}
+                    <Link href="/admin/installningar" className={styles.link}>
+                      Inställningar
+                    </Link>
+                    , så skickas ordern.
+                  </li>
+                )}
+              </ul>
+            )}
             <OrderTimeline order={order} />
           </section>
           <section className={styles.panel}>

@@ -89,12 +89,12 @@ export function DeleteOrderButton({
           {atPrinter && (
             <div className={styles.dangerBox} role="note">
               <p>
-                <strong>Ordern ligger redan hos tryckeriet</strong> (nr <span className="mono">{atPrinter}</span>). Att ta
+                <strong>Ordern ligger redan hos verkstaden</strong> (nr <span className="mono">{atPrinter}</span>). Att ta
                 bort den här stoppar inte tillverkningen — kontakta Skylt &amp; Gravyrteknik om skyltarna inte ska göras.
               </p>
               <label className={styles.dangerCheck}>
                 <input type="checkbox" checked={understood} onChange={(event) => setUnderstood(event.target.checked)} />
-                Jag förstår och har kontaktat tryckeriet
+                Jag förstår och har kontaktat verkstaden
               </label>
             </div>
           )}

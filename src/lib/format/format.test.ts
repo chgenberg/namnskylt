@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { formatDate, formatDay, formatPercent, formatRelative, formatSek } from "./index";
+import { formatDate, formatDay, formatPercent, formatRelative, formatSek, plural } from "./index";
+
+describe("plural", () => {
+  test("ett är ental, allt annat flertal", () => {
+    assert.equal(plural(1, "skylt", "skyltar"), "1 skylt");
+    assert.equal(plural(0, "order", "ordrar"), "0 ordrar");
+    assert.equal(plural(12, "kund", "kunder"), "12 kunder");
+    assert.match(plural(1200, "skylt", "skyltar"), /^1\s200 skyltar$/);
+  });
+});
 
 describe("formatSek", () => {
   test("tusental grupperas och enheten står sist", () => {

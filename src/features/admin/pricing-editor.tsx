@@ -86,7 +86,8 @@ export function PricingEditor({ badges, pricing, priceList, purchaseList, shippi
       extras: pricing?.extras ?? [],
     });
   const cost = useMemo(() => (purchaseList ? resellerOrder(badges, purchaseList) : null), [badges, purchaseList]);
-  const margin = cost ? marginOf(priced.totalSek, cost.totalSek) : null;
+  // På varorna, utan frakt, som i skyltmotorn: frakten är samma i alla led och ger ingen marginal.
+  const margin = cost ? marginOf(priced.totalSek - priced.shippingSek, cost.totalSek - cost.shippingSek) : null;
 
   const changeUnit = (index: number, text: string) => {
     const next = units.map((u, j) => (j === index ? text : u));

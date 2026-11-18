@@ -1749,6 +1749,19 @@
   background: #c8cbd2;
 }
 
+/* Varför ordern inte har gått till verkstaden än. */
+.syncReasons {
+  display: grid;
+  gap: var(--space-1);
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  font-size: var(--text-sm);
+  color: var(--color-ink-2);
+  list-style: none;
+}
+
 .syncNote[data-link="connected"]::before {
   background: #2f9e62;
   box-shadow: 0 0 0 3px rgb(47 158 98 / 0.15);

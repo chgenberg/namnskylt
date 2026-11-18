@@ -2,7 +2,7 @@ import { DesignerFunnel } from "@/features/admin/designer-funnel";
 import { adminTenant } from "@/features/admin/guard";
 import { WeeklyChart } from "@/features/admin/weekly-chart";
 import styles from "@/features/admin/admin.module.css";
-import { formatSek } from "@/lib/format";
+import { formatSek, plural } from "@/lib/format";
 import { ORDER_SOURCE_LABEL, ORDER_SOURCES } from "@/lib/orders/model";
 import { listOrders } from "@/lib/orders/repository";
 import { orderStats } from "@/lib/orders/stats";
@@ -50,7 +50,7 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
         <div className={styles.kpi}>
           <span className={styles.kpiLabel}>Totalt</span>
           <span className={styles.kpiValue}>{formatSek(stats.revenueSek)}</span>
-          <span className={styles.kpiHint}>{stats.orderCount} ordrar</span>
+          <span className={styles.kpiHint}>{plural(stats.orderCount, "order", "ordrar")}</span>
         </div>
         <div className={styles.kpi}>
           <span className={styles.kpiLabel}>Snittorder</span>
@@ -115,7 +115,7 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
                 {Math.round(stats.repeatCustomerShare * 100)}%
               </text>
             </svg>
-            <span className={styles.muted}>av {stats.customers} kunder har beställt mer än en gång</span>
+            <span className={styles.muted}>av {plural(stats.customers, "kund", "kunder")} har beställt mer än en gång</span>
           </div>
           {bySource.length > 0 && (
             <dl className={styles.facts} style={{ marginTop: "var(--space-4)" }}>

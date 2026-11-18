@@ -1,5 +1,5 @@
 import "server-only";
-import { formatDay, formatPercent, formatSek } from "@/lib/format";
+import { formatDay, formatPercent, formatSek, plural } from "@/lib/format";
 import { sumShares, totalsByReseller, type ResellerOrderRow } from "@/lib/orders/provision";
 import { StatusPill } from "./status-pill";
 import admin from "./admin.module.css";
@@ -20,7 +20,7 @@ export function ResellerOrders({ rows }: { rows: ResellerOrderRow[] }) {
         <div className={admin.kpi}>
           <span className={admin.kpiLabel}>Ordrar</span>
           <span className={admin.kpiValue}>{total.orders}</span>
-          <span className={admin.kpiHint}>{total.quantity} skyltar</span>
+          <span className={admin.kpiHint}>{plural(total.quantity, "skylt", "skyltar")}</span>
         </div>
         <div className={admin.kpi}>
           <span className={admin.kpiLabel}>Verkstaden fakturerar</span>

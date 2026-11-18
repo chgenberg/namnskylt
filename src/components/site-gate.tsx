@@ -129,6 +129,16 @@ export function SiteGate({ unlocked, children }: SiteGateProps) {
               </svg>
             )}
           </button>
+          {/*
+            Återförsäljarnas inlogg är öppet utan sajtkoden, men härifrån fanns ingen väg dit. Vanliga länkar,
+            inte Link: spärren sitter i rotlayouten, som inte ritas om vid en navigering i webbläsaren, så rutan
+            skulle ligga kvar över inloggningen.
+          */}
+          <p className={styles.reseller}>
+            {/* eslint-disable @next/next/no-html-link-for-pages -- sidan ska laddas om, se ovan */}
+            Återförsäljare? <a href="/aterforsaljare">Logga in</a> eller <a href="/aterforsaljare/ansok">skapa konto</a>.
+            {/* eslint-enable @next/next/no-html-link-for-pages */}
+          </p>
           <p className={styles.footnote}>Tillverkat i Sverige · Skylt &amp; Gravyrteknik</p>
         </form>
       </dialog>

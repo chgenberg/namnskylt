@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { extractContacts, mergeContacts } from "./contacts";
+import { formattedOrgNumber } from "./org-number";
 import { companyFooter, companyProfileSchema, DEFAULT_COMPANY, readableOn } from "./profile";
 import { workshopSeller } from "./seller";
 import { WORKSHOP_COMPANY } from "./workshop";
@@ -134,5 +135,20 @@ describe("workshopSeller", () => {
     for (const own of [panel.name, panel.orgNumber, "Panelgatan", panel.email, panel.phone, panel.website, panel.bankgiro, panel.logo, panel.primaryColor]) {
       assert.ok(!shown.includes(own), `${own} ska inte visas för kunden`);
     }
+  });
+});
+
+describe("formattedOrgNumber", () => {
+  it("skriver ett organisationsnummer som det sparas överallt annars", () => {
+    assert.equal(formattedOrgNumber("5512340993"), "551234-0993");
+    assert.equal(formattedOrgNumber(" 551234-0993 "), "551234-0993");
+    assert.equal(formattedOrgNumber("SE551234099301"), "551234-0993");
+  });
+
+  it("behåller en text som inte är ett nummer, och ger null för en tom", () => {
+    assert.equal(formattedOrgNumber("okänt"), "okänt");
+    assert.equal(formattedOrgNumber("12345"), "12345");
+    assert.equal(formattedOrgNumber("  "), null);
+    assert.equal(formattedOrgNumber(null), null);
   });
 });

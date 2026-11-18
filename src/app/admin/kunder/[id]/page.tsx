@@ -9,7 +9,7 @@ import { NewNamesButton } from "@/features/admin/new-names-button";
 import { OrderCard } from "@/features/admin/order-card";
 import { RepeatButton } from "@/features/admin/repeat-button";
 import styles from "@/features/admin/admin.module.css";
-import { formatDay, formatSek } from "@/lib/format";
+import { formatDay, formatSek, plural } from "@/lib/format";
 import { customerErasurePlan } from "@/lib/orders/erase";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { badgeCount } from "@/lib/orders/model";
@@ -127,7 +127,7 @@ export default async function CustomerPage({ params }: CustomerPageProps) {
       <section className={styles.section}>
         <div className={styles.sectionHead}>
           <h2 className={styles.sectionTitle}>Orderhistorik</h2>
-          <span className={styles.muted}>{orders.length} ordrar</span>
+          <span className={styles.muted}>{plural(orders.length, "order", "ordrar")}</span>
         </div>
         <div className={styles.cards}>
           {orders.map((order) => (

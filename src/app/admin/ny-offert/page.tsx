@@ -28,7 +28,8 @@ export default async function NewQuotePage({ searchParams }: NewQuotePageProps) 
           <h1 className={styles.pageTitle}>Ny offert</h1>
           <p className={styles.pageLead}>
             Fyll i kundens uppgifter och designa skyltarna i skyltmotorn. Lägg dem i varukorgen, en eller flera designer, och
-            skapa offerten därifrån. Du prissätter och skickar den, och kunden godkänner med ett klick.
+            skicka offerten därifrån. Kunden får den som mejl till listpris och godkänner eller nekar med ett klick. Priset
+            och villkoren kan du ändra på offerten efteråt och mejla den igen.
           </p>
         </div>
       </header>

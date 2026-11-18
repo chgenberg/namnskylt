@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1258 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1261 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -868,6 +868,53 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
   bara ordrar under hyresgästen `namnskylt`; alla återförsäljares ordrar syns under Tillverkning.
 - `next dev` skickar med serverns mellanresultat som felsökningsdata i sidan (React), så där syns
   hela prismodellen i sidkällan. Kontrollera läckor mot `next build` + `next start`.
+
+## Återförsäljarens väg, genomgången 2026-11-18
+
+Hela återförsäljarflödet gicks igenom lokalt 2026-11-18 på ägarens begäran, som en riktig
+användare och med sajtspärren på som i drift, utan att någon skrev sajtkoden: ansökan,
+adminens godkännande, lösenord, panelen, skyltmotorn, offert från varukorgen, kundens ja från
+mejlet, ordern till en låtsasverkstad, statusbytena tillbaka och panelens vyer, samt en andra
+offert som kunden nekade. Allt gick igenom (39 kontroller). **Inte kört i drift**: där har
+ingen riktig order lagts än.
+
+- **Vägen:** `/aterforsaljare/ansok` → admin godkänner under Återförsäljare och skickar länken
+  för hand → den sökande väljer lösenord och kommer rakt in i panelen → Ny offert (kundens
+  uppgifter och projektnamn) eller rakt till `/skapa` → skyltar i varukorgen → "Skicka
+  offert" mejlar kunden → kunden godkänner eller nekar via mejlets knappar → en godkänd
+  offert blir en order som går till verkstaden av sig själv, med återförsäljaren som
+  beställare till inköpspris.
+- **Det enda manuella steget** är adminens godkännande och att länken skickas för hand,
+  eftersom sajten inte mejlar ansökningar (se Inlogg).
+- **En återförsäljares inloggning öppnar också sajtspärren** (`sign-in.ts` sätter spärrens
+  kaka), så skyltmotorn och API:erna fungerar utan sajtkoden. Kunden behöver aldrig koden:
+  offerten, ordersidan och mejlets bilder är öppna för den som har länken.
+- **Den låsta startsidan har en väg in för återförsäljare** (`SiteGate`): "Återförsäljare?
+  Logga in eller skapa konto." Förut fanns ingen länk dit från rutan. Länkarna är vanliga
+  `<a>`, inte `Link`: spärren sitter i rotlayouten, som inte ritas om vid en navigering i
+  webbläsaren, och rutan skulle annars ligga kvar över inloggningen.
+- **Översikten säger inte längre att en order "väntar på dig" när den redan är hos
+  verkstaden** (`src/app/admin/page.tsx`). En ny order går dit av sig själv, så raden säger
+  "1 ny order är mottagen hos tillverkningen. Du behöver inte göra något." Under "Kräver
+  åtgärd" står bara en riktig order som inte har gått till verkstaden ("Har inte gått till
+  tillverkningen än"), och ordersidan säger då varför under Tidslinje (`dispatchStatus`,
+  till exempel att leveransadress eller organisationsnummer saknas). Demoordrar visas som
+  förut, som "Ny order".
+- **Marginalen räknas på varorna, utan frakt, både i skyltmotorn och i panelen**
+  (`PricingEditor`). Förut räknade panelen procenten på summan med frakt, så samma offert
+  visade 35 % i skyltmotorn och 30 % i panelen. Beloppet i kronor var redan detsamma.
+- **Antal böjs rätt** (`plural` i `src/lib/format/`): "1 skylt", "1 order", "1 kund" i
+  översikten, på order- och offertsidan, under Kunder och i statistiken.
+- **Kundens organisationsnummer sparas som `556123-4567`** också när det skrivs utan
+  bindestreck under Ny offert och Ny order (`formattedOrgNumber`). En text som inte är ett
+  nummer sparas som den skrevs, eftersom fältet är fritt hos en återförsäljare.
+- Panelens texter säger "verkstaden", inte "tryckeriet", och välkomsttexten och Ny offert
+  säger att offerten mejlas från varukorgen till listpris och att priset kan ändras efteråt.
+- Efter godkännandet får kunden tacket i kortet direkt ("Tack! Offerten är godkänd"), medan
+  sidans rubrik byts till "Tack för ordern!" först när sidan laddas om.
+- Kända brister: på inloggningen och ansökan visar sidhuvudet länkar till sidor som är
+  låsta för den som saknar sajtkoden, och ansökans länk "designa och beställ direkt" leder
+  också till spärren.
 
 ## Ordern till verkstaden — läge 2026-11-14
 

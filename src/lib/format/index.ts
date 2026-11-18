@@ -6,6 +6,11 @@ export function formatSek(value: number): string {
   return `${new Intl.NumberFormat("sv-SE", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value)} kr`;
 }
 
+/** Ett antal med rätt böjning: `1 skylt`, `12 skyltar`. Talet skrivs med svensk tusentalsavgränsning. */
+export function plural(count: number, one: string, many: string): string {
+  return `${new Intl.NumberFormat("sv-SE").format(count)} ${count === 1 ? one : many}`;
+}
+
 /** Procent med högst två decimaler: `12 %`, `14,97 %`. */
 export function formatPercent(value: number): string {
   return `${new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 2 }).format(value)} %`;
