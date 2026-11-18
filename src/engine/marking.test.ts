@@ -7,6 +7,8 @@ import {
   badgePriceParts,
   createBadgeDocument,
   engravingPaths,
+  frameFits,
+  hasFittingFrame,
   isOfferedDocument,
   isPrintOnly,
   layoutBadge,
@@ -21,6 +23,7 @@ import {
   renderBadgeSvg,
   sameDesign,
   toOfferedDocument,
+  withFittingFrame,
   withLogoMarking,
   withMarking,
   withMaterialMarking,
@@ -315,3 +318,50 @@ describe("metallen går bara att printa på", () => {
   });
 });
 
+describe("ramen finns bara på plastskyltar", () => {
+  const metal = createBadgeDocument(["Anna Lind", "Säljare"]);
+  const metalFramed: BadgeDocument = { ...metal, frame: { ...metal.frame, style: "double" } };
+
+  it("går att välja på plast men inte på metall", () => {
+    assert.equal(frameFits("plastic"), true);
+    assert.equal(frameFits("metal"), false);
+    // En ny skylt börjar på metall, utan ram.
+    assert.equal(metal.frame.style, "none");
+    assert.equal(hasFittingFrame(metal), true);
+    assert.equal(hasFittingFrame(framed), true);
+    assert.equal(hasFittingFrame(metalFramed), false);
+  });
+
+  it("en metallskylt med ram säljs inte, och ramen tas bort när skylten öppnas", () => {
+    assert.equal(isOfferedDocument(metalFramed), false);
+    const opened = toOfferedDocument(metalFramed);
+    assert.equal(opened.frame.style, "none");
+    assert.equal(isOfferedDocument(opened), true);
+    // Allt annat är orört, också ramens mått.
+    assert.deepEqual({ ...opened, frame: metalFramed.frame }, metalFramed);
+    // En äldre metallskylt som graverades, med ram, blir en som printas utan ram.
+    const old = toOfferedDocument({ ...engravedBadge(["Anna Lind"]), frame: metalFramed.frame });
+    assert.equal(markingOf(old), "print");
+    assert.equal(old.frame.style, "none");
+    assert.equal(isOfferedDocument(old), true);
+  });
+
+  it("en plastskylt behåller sin ram, graverad eller tryckt", () => {
+    assert.equal(isOfferedDocument(framed), true);
+    assert.equal(toOfferedDocument(framed), framed);
+    assert.equal(isOfferedDocument({ ...framed, marking: "print" }), true);
+    assert.equal(withFittingFrame(framed), framed);
+  });
+
+  it("ramen följer inte med när materialet blir metall", () => {
+    const moved = withFittingFrame({ ...framed, materialId: "metal" });
+    assert.equal(moved.frame.style, "none");
+    // Ramens mått står kvar, så att den ser likadan ut om skylten blir plast igen och ramen väljs.
+    assert.deepEqual({ ...moved.frame, style: "solid" }, framed.frame);
+  });
+
+  it("en äldre metallskylt ritas fortfarande med sin ram", () => {
+    const layout = layoutBadge(metalFramed, fonts);
+    assert.ok(kinds(printedPaths(layout, fonts)).includes("frame"));
+  });
+});

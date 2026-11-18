@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1268 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1273 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -321,7 +321,23 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       de öppnas i skyltmotorn (`toOfferedDocument`), till exempel med Kopiera order. Ett
       sparat arbete i webbläsaren med en sådan skylt kastas.
     - Knappen Gravera och gravyranimationen i 3D visas bara när något på skylten graveras
-      (`engraves` i `designer.tsx`). Ramen heter "Tryckt ram" när namnet printas.
+      (`engraves` i `designer.tsx`). På en plastskylt heter ramen "Tryckt ram" när namnet
+      printas.
+    - **Ramen finns bara på plastskyltar** (beslut av ägaren 2026-11-18: "Graverad ram ska
+      endast gälla för plastskyltar. Inget valbart alternativ vid metall"). Regeln följer
+      materialet: ett material som bara printas har ingen ram (`frameFits`, `hasFittingFrame`,
+      `withFittingFrame` i `src/engine/marking.ts`).
+      - På metall syns raden "Graverad ram" i sektionen Form med Ingen vald, Linje och Dubbel
+        går inte att välja, och under står "Ram finns bara på plastskyltar." Att valet syns
+        men inte går att välja, i stället för att döljas, valde jag: så visas också Egen form,
+        klämman och gravyrmetoderna på metall.
+      - Byts materialet till metall tas ramen bort (åtgärden `material`). Ramens mått står
+        kvar i skylten, så att den ser likadan ut om den väljs igen på plast.
+      - **En metallskylt med ram säljs inte** (`isOfferedDocument`): den ritas som förut, men
+        går inte att beställa igen som den är, och ramen tas bort när skylten öppnas i
+        skyltmotorn (`toOfferedDocument`). Ett sparat arbete i webbläsaren med en sådan
+        skylt kastas.
+      - På plast är ramen orörd: graverad, eller tryckt när namnet printas.
     - Verkstaden får då ett enda trycklager med namnet (och en svartvit logga) som banor, en
       logga i färg som bild, och i `productionNote` ämnets benämning följd av "Märkningsmetod:
       Endast print. Namn: Print." och raderna i klartext. Prövat 2026-11-18 mot verkstadens

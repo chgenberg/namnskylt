@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Segmented } from "@/components/ui/segmented";
-import { FRAME_STYLES, blankOf, nameMarking, type BadgeDocument } from "@/engine";
+import { FRAME_STYLES, blankOf, frameFits, nameMarking, type BadgeDocument } from "@/engine";
 import { useCustomShapeChoice } from "../custom-shape-choice";
 import { CustomShapeEditor } from "../custom-shape/custom-shape-editor";
 import { BlankPicker } from "../pickers";
@@ -26,6 +26,8 @@ export function FormatSection({ doc, dispatch }: FormatSectionProps) {
   // Samma val som i startrutan, så att de två alltid visar samma former.
   const customChoice = useCustomShapeChoice(doc, dispatch);
   const custom = doc.shape === "custom";
+  // Ramen finns bara på plast. På metall syns valet ändå, men går inte att välja.
+  const framed = frameFits(doc.materialId);
 
   return (
     <PanelSection step={5} title="Form" aside={`${widthMm} × ${heightMm} mm`}>
@@ -52,14 +54,15 @@ export function FormatSection({ doc, dispatch }: FormatSectionProps) {
       </AnimatePresence>
 
       <div className={styles.labelled}>
-        {/* Ramen märks som namnet: graverad, eller tryckt när namnet printas, som på metall. */}
-        <span className={styles.sliderLabel}>{nameMarking(doc) === "print" ? "Tryckt ram" : "Graverad ram"}</span>
+        {/* Ramen märks som namnet: graverad, eller tryckt när namnet printas på en plastskylt. */}
+        <span className={styles.sliderLabel}>{framed && nameMarking(doc) === "print" ? "Tryckt ram" : "Graverad ram"}</span>
         <Segmented
           label="Ram"
-          value={doc.frame.style}
-          options={FRAME_STYLES.map((f) => ({ id: f.id, label: f.name }))}
+          value={framed ? doc.frame.style : "none"}
+          options={FRAME_STYLES.map((f) => ({ id: f.id, label: f.name, disabled: !framed && f.id !== "none" }))}
           onChange={(style) => dispatch({ type: "frame", style })}
         />
+        {!framed && <p className={styles.hint}>Ram finns bara på plastskyltar.</p>}
       </div>
     </PanelSection>
   );

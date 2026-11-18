@@ -139,6 +139,27 @@ export function withMaterialMarking<T extends MarkedBadge>(doc: T): T {
   return isPrintOnly(doc.materialId) ? withMarking(rest, "print") : withLogoMarking(rest);
 }
 
+/**
+ * Ramen finns bara på plastskyltar (beslut av ägaren 2026-11-18: "Graverad ram ska endast
+ * gälla för plastskyltar. Inget valbart alternativ vid metall"). Regeln följer materialet:
+ * ett material som bara printas har ingen ram.
+ */
+export function frameFits(materialId: MaterialId): boolean {
+  return !isPrintOnly(materialId);
+}
+
+type FramedBadge = Pick<BadgeDocument, "frame" | "materialId">;
+
+/** Skyltens ram går att få på dess material: en metallskylt med ram säljs inte. */
+export function hasFittingFrame(doc: FramedBadge): boolean {
+  return doc.frame.style === "none" || frameFits(doc.materialId);
+}
+
+/** Skylten utan ram, när dess material inte har någon. En äldre skylt ritas ändå med sin ram tills den görs om. */
+export function withFittingFrame<T extends FramedBadge>(doc: T): T {
+  return hasFittingFrame(doc) ? doc : { ...doc, frame: { ...doc.frame, style: "none" } };
+}
+
 /** Längsta färgkod kunden får ange för trycket, och för en rad. */
 export const PRINT_COLOR_MAX = 40;
 /** Loggans fält är längre: en logga kan ha flera färger, som skrivs efter varandra. */

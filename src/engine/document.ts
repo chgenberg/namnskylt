@@ -19,7 +19,7 @@ import {
   offeredColors,
 } from "./catalog";
 import { customOutlineIssue, scaleOutline } from "./custom-outline";
-import { hasFittingMarking, markingOf, withMarking } from "./marking";
+import { hasFittingFrame, hasFittingMarking, markingOf, withFittingFrame, withMarking } from "./marking";
 import { getShapePreset, presetOutline } from "./shape-presets";
 import type { BadgeDocument, BadgeTextRow, BlankId, ClipOrientation, MaterialFinish, Mm, MountingId } from "./types";
 
@@ -266,6 +266,8 @@ export function isOfferedDocument(doc: BadgeDocument): boolean {
     offeredColors(material).some((c) => c.id === doc.colorId) &&
     // Metallen graveras inte: en metallskylt ska ha metoden print.
     hasFittingMarking(doc) &&
+    // Ramen finns bara på plast.
+    hasFittingFrame(doc) &&
     (hasOfferedBlank(doc) || isValidCustomShape(doc)) &&
     getMounting(doc.mounting).offered &&
     mountingFitsDocument(doc)
@@ -294,7 +296,8 @@ function nearestOfferedMaterial(doc: BadgeDocument) {
 /**
  * En skylt i dagens sortiment. Delade länkar och äldre skyltar kan bära ett
  * material, ett mått eller ett fäste som inte säljs längre; de flyttas till
- * närmaste material, yta, ämne och fäste. Text, logga och ram rörs inte.
+ * närmaste material, yta, ämne och fäste. Text och logga rörs inte. Ramen tas
+ * bort på ett material som inte har någon, alltså på metall.
  */
 export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
   const offeredMaterial = getMaterial(doc.materialId).offered;
@@ -315,8 +318,9 @@ export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
   const mounted = offeredMounting ? shaped : withMounting(shaped, "pin");
   // Metoden ska finnas på materialet: en metallskylt som graverades blir en som printas.
   const offeredMarking = hasFittingMarking(mounted);
-  if (offeredColor && offeredShape && offeredMounting && offeredMarking) return doc;
-  return offeredMarking ? mounted : withMarking(mounted, markingOf(mounted));
+  const offeredFrame = hasFittingFrame(mounted);
+  if (offeredColor && offeredShape && offeredMounting && offeredMarking && offeredFrame) return doc;
+  return withFittingFrame(offeredMarking ? mounted : withMarking(mounted, markingOf(mounted)));
 }
 
 /** Text som faktiskt graveras — tomma rader kostar inget och ritas inte. */

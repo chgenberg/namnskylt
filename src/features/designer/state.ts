@@ -14,6 +14,7 @@ import {
   resizeCustomShape,
   withBlank,
   withFittingBlank,
+  withFittingFrame,
   withFittingMounting,
   withLogoMarking,
   withMarking,
@@ -33,6 +34,7 @@ import {
   type TextAlign,
   withTexts,
   offeredColors,
+  frameFits,
   isPrintOnly,
   withMaterialMarking,
 } from "@/engine";
@@ -188,8 +190,9 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       const next = isPrintOnly(action.materialId) || isPrintOnly(doc.materialId) ? withMaterialMarking(moved) : moved;
       // Metallens och plastens ämnen har olika mått, och bara material som skärs ur ark kan ha en
       // egen form: skylten flyttas till närmaste ämne på det nya materialet (`withFittingBlank`).
-      // Ett fäste som inte går att få på den nya skylten (klämman på metall) byts mot nålen.
-      return withFittingMounting(withFittingBlank(next));
+      // Ett fäste som inte går att få på den nya skylten (klämman på metall) byts mot nålen,
+      // och ramen, som bara finns på plast, tas bort på metall.
+      return withFittingFrame(withFittingMounting(withFittingBlank(next)));
     }
     case "color":
       return { ...doc, colorId: action.colorId };
@@ -215,7 +218,8 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     case "corner":
       return { ...doc, cornerRadiusMm: clamp(action.cornerRadiusMm, 0, CUSTOM_SHAPE_LIMITS.maxCornerRadiusMm) };
     case "frame":
-      return { ...doc, frame: { ...doc.frame, style: action.style } };
+      // Ramen finns bara på plast: på metall går den inte att välja.
+      return frameFits(doc.materialId) ? { ...doc, frame: { ...doc.frame, style: action.style } } : doc;
     case "logo": {
       // En ny logga får ett förslag på metod: i färg printas den, svartvit följer den namnet. Kunden kan byta sedan.
       // Samma logga i en ny form behåller också färgkoderna kunden har skrivit; en ny logga ärver dem aldrig.

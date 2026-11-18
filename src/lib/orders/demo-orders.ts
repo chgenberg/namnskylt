@@ -75,7 +75,6 @@ export const DEMO_ORDERS: readonly AdminOrder[] = [
         ...withBlank(base, "metal-tv"),
         colorId: "metal-gold",
         mounting: "magnet",
-        frame: { style: "solid", insetMm: 1.5, thicknessMm: 0.4 },
       },
       [
         ["Anders Wik", "Hotellchef"],
