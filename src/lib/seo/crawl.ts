@@ -5,7 +5,7 @@
  */
 
 /** Sidorna som får hittas via sökmotorer. Butiker, hemliga länkar och panelen står aldrig här. */
-export const PUBLIC_PATHS = ["/", "/skapa", "/foretag", "/inspiration", "/villkor", "/integritet"] as const;
+export const PUBLIC_PATHS = ["/", "/skapa", "/foretag", "/inspiration", "/om-oss", "/kontakt", "/villkor", "/integritet"] as const;
 
 /** Personliga länkar och butiksförhandsvisningar ska aldrig hamna i sökmotorer. */
 const PRIVATE_PATHS = ["/for/", "/avregistrera/", "/utskick/", "/aterforsaljare/", "/admin", "/api/"];

@@ -4,7 +4,6 @@ import { TermsPage } from "@/features/terms/terms-page";
 import { getCompanyProfile } from "@/lib/orders/repository";
 import { getShopOwner } from "@/lib/shops/editor-repository";
 import { getShop } from "@/lib/shops/repository";
-import { OWNER_TENANT } from "@/lib/tenants/model";
 
 export const metadata: Metadata = { title: "Köpvillkor" };
 
@@ -16,10 +15,15 @@ export default async function ShopTermsPage({ params }: { params: Promise<{ slug
   const shop = await getShop((await params).slug);
   if (!shop) notFound();
   const owner = await getShopOwner(shop.slug);
-  const seller = await getCompanyProfile(owner ?? OWNER_TENANT);
+  // En butik utan ägare säljer som namnskylt.com: där är Skylt & Gravyrteknik säljare, och inget annat företag visas.
+  const seller = owner ? await getCompanyProfile(owner) : null;
   return (
     <main>
-      <TermsPage seller={{ ...seller, name: seller.name || shop.profile.name }} shopName={shop.profile.name} direct={owner === null} />
+      <TermsPage
+        seller={seller ? { ...seller, name: seller.name || shop.profile.name } : undefined}
+        shopName={shop.profile.name}
+        direct={owner === null}
+      />
     </main>
   );
 }

@@ -25,6 +25,8 @@ describe("sökmotorerna och sajtspärren", () => {
       "https://www.namnskylt.com/skapa",
       "https://www.namnskylt.com/foretag",
       "https://www.namnskylt.com/inspiration",
+      "https://www.namnskylt.com/om-oss",
+      "https://www.namnskylt.com/kontakt",
       "https://www.namnskylt.com/villkor",
       "https://www.namnskylt.com/integritet",
     ]);

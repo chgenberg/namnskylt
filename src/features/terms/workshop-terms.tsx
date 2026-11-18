@@ -30,12 +30,8 @@ const SECTIONS = [
 ] as const;
 
 interface WorkshopTermsProps {
-  /** Var kunden beställer: `på namnskylt.com` eller `hos <butiken>`. */
-  place: string;
-  /** namnskylt.coms egna uppgifter på en rad: namn, organisationsnummer och adress. */
-  agentLine: string;
-  /** namnskylt.coms e-post, när den finns. */
-  agentEmail: string;
+  /** Butiken kunden beställer i, när det inte är på namnskylt.com. */
+  shopName?: string;
   /** Länken till sidan om personuppgifter visas bara på namnskylt.com, inte i en butik. */
   privacyLink: boolean;
   /** Privatpersoner kan betala med kort. Bara på namnskylt.com, och bara när kortbetalningen är påslagen. */
@@ -44,17 +40,21 @@ interface WorkshopTermsProps {
 
 /**
  * Köpvillkoren där Skylt & Gravyrteknik är säljare. Först deras villkor som de
- * är, sedan det som är namnskylt.coms eget: vem som förmedlar beställningen
- * och vad som händer med uppgifterna kunden lämnar.
+ * är, sedan det som gäller just här: att namnskylt.com är deras sajt, och vad
+ * som händer med uppgifterna kunden lämnar.
+ *
+ * namnskylt.com står inte som ett eget bolag (besked av ägaren 2026-11-18): det
+ * är Skylt & Gravyrteknik som säljer, tillverkar, fakturerar och tar emot frågor.
  */
-export function WorkshopTerms({ place, agentLine, agentEmail, privacyLink, cardPayments }: WorkshopTermsProps) {
+export function WorkshopTerms({ shopName, privacyLink, cardPayments }: WorkshopTermsProps) {
   return (
     <article className={styles.page}>
       <p className={styles.eyebrow}>Villkor</p>
       <h1 className={styles.title}>Köpvillkor</h1>
       <p className={styles.lead}>
-        Namnskyltarna säljs, tillverkas och faktureras av Skylt &amp; Gravyrteknik. Därför gäller deras köpvillkor när du
-        beställer {place}.
+        {shopName
+          ? `Namnskyltarna säljs, tillverkas och faktureras av Skylt & Gravyrteknik. Därför gäller deras köpvillkor när du beställer hos ${shopName}.`
+          : "namnskylt.com drivs av Skylt & Gravyrteknik, som säljer, tillverkar och fakturerar namnskyltarna. Det här är köpvillkoren."}
       </p>
 
       <section className={styles.section}>
@@ -80,15 +80,19 @@ export function WorkshopTerms({ place, agentLine, agentEmail, privacyLink, cardP
       </section>
 
       <section className={styles.section}>
-        <h2>Om namnskylt.com</h2>
+        <h2>{shopName ? `Om ${shopName}` : "Om namnskylt.com"}</h2>
         <p>
-          Beställningen görs {place}. namnskylt.com förmedlar den till Skylt &amp; Gravyrteknik: {agentLine}.{" "}
-          {agentEmail && (
+          {shopName
+            ? `Beställningen görs hos ${shopName} och går till Skylt & Gravyrteknik, som tillverkar, levererar och fakturerar.`
+            : "namnskylt.com är Skylt & Gravyrtekniks sajt för namnskyltar. Det är Skylt & Gravyrteknik du beställer av och vänder dig till."}{" "}
+          Orderbekräftelsen och fakturan kommer därifrån. Du når oss på{" "}
+          <a href={`mailto:${WORKSHOP.email}`}>{WORKSHOP.email}</a> eller <a href={`tel:${WORKSHOP.phoneHref}`}>{WORKSHOP.phone}</a>
+          {!shopName && (
             <>
-              Du når oss på <a href={`mailto:${agentEmail}`}>{agentEmail}</a>.{" "}
+              , och fler vägar står under <Link href="/kontakt">Kontakta oss</Link>
             </>
           )}
-          Orderbekräftelsen och fakturan kommer från Skylt &amp; Gravyrteknik.
+          .
         </p>
         {cardPayments && (
           <p>
@@ -102,8 +106,8 @@ export function WorkshopTerms({ place, agentLine, agentEmail, privacyLink, cardP
       <section className={styles.section}>
         <h2>Personuppgifter</h2>
         <p>
-          Uppgifterna du lämnar används för att tillverka, leverera och fakturera ordern, och lämnas därför till Skylt
-          &amp; Gravyrteknik. Du kan be oss rätta eller ta bort dem. Det som hör till bokföringen måste sparas i sju
+          Uppgifterna du lämnar används av Skylt &amp; Gravyrteknik för att tillverka, leverera och fakturera ordern.
+          Du kan be oss rätta eller ta bort dem. Det som hör till bokföringen måste sparas i sju
           år, men då utan namnen på skyltarna.{" "}
           {privacyLink && (
             <>

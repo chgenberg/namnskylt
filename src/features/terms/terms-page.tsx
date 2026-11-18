@@ -2,10 +2,10 @@ import styles from "./terms.module.css";
 import { WorkshopTerms } from "./workshop-terms";
 
 /**
- * Företaget villkoren visas för. I en butik är det återförsäljaren, som är
- * säljare. På namnskylt.com är det namnskylt.com, som förmedlar beställningen:
- * där är Skylt & Gravyrteknik säljare och sköter order, leverans och faktura
- * (beslut av ägaren 2026-11-17).
+ * Återförsäljaren som är säljare i sin butik. På namnskylt.com, och i en butik
+ * utan ägare, är Skylt & Gravyrteknik säljare och sköter order, leverans och
+ * faktura (beslut av ägaren 2026-11-17). Där visas inget annat företag:
+ * namnskylt.com är deras sajt och inget eget bolag (besked 2026-11-18).
  */
 export interface TermsSeller {
   name: string;
@@ -15,7 +15,8 @@ export interface TermsSeller {
 }
 
 interface TermsPageProps {
-  seller: TermsSeller;
+  /** Säljaren i en återförsäljares butik. Behövs inte där Skylt & Gravyrteknik är säljare. */
+  seller?: TermsSeller;
   /** Butikens namn när villkoren visas i en butik. Där säljs bara till företag, på faktura. */
   shopName?: string;
   /**
@@ -38,19 +39,11 @@ const UPDATED = "2026-11-17";
  * företagsuppgifterna i panelen.
  */
 export function TermsPage({ seller, shopName, direct = !shopName, cardPayments = false }: TermsPageProps) {
+  if (direct || !seller) {
+    return <WorkshopTerms shopName={shopName} privacyLink={!shopName} cardPayments={cardPayments && !shopName} />;
+  }
   const address = seller.address.split("\n").map((line) => line.trim()).filter(Boolean).join(", ");
   const sellerLine = [seller.name, seller.orgNumber && `org.nr ${seller.orgNumber}`, address].filter(Boolean).join(", ");
-  if (direct) {
-    return (
-      <WorkshopTerms
-        place={shopName ? `hos ${shopName}` : "på namnskylt.com"}
-        agentLine={sellerLine}
-        agentEmail={seller.email}
-        privacyLink={!shopName}
-        cardPayments={cardPayments && !shopName}
-      />
-    );
-  }
   return (
     <article className={styles.page}>
       <p className={styles.eyebrow}>Villkor</p>

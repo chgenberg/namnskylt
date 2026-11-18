@@ -25,27 +25,21 @@ const PURPOSE =
 const RETENTION =
   "Kontouppgifter sparas så länge du har ett konto. Orderunderlag sparas i sju år enligt bokföringslagen, men anonymiseras vid kontoradering så att de inte längre kan kopplas till dig som person.";
 
-interface PrivacyPageProps {
-  /** namnskylt.coms egna uppgifter på en rad: namn, organisationsnummer och adress. */
-  agentLine: string;
-  /** namnskylt.coms e-post, när den finns. */
-  agentEmail: string;
-}
-
 /**
- * Integritetspolicyn. Skylt & Gravyrteknik är personuppgiftsansvarig för
- * beställningarna, så först står deras policy som den är. Sist står det som
- * är namnskylt.coms eget: vad som sparas här och vad som inte används här.
+ * Integritetspolicyn. Skylt & Gravyrteknik driver namnskylt.com och är
+ * personuppgiftsansvarig, så först står deras policy som den är. Sist står det
+ * som gäller just den här sajten: vad som sparas här och vad som inte används här.
+ * namnskylt.com står inte som ett eget bolag (besked av ägaren 2026-11-18).
  */
-export function PrivacyPage({ agentLine, agentEmail }: PrivacyPageProps) {
+export function PrivacyPage() {
   const workshop = WORKSHOP_COMPANY;
   return (
     <article className={styles.page}>
       <p className={styles.eyebrow}>Dataskydd</p>
       <h1 className={styles.title}>Integritetspolicy</h1>
       <p className={styles.lead}>
-        {workshop.name} säljer, tillverkar och fakturerar namnskyltarna och ansvarar för personuppgifterna. Därför gäller
-        deras integritetspolicy när du beställer på namnskylt.com.
+        namnskylt.com drivs av {workshop.name}, som säljer, tillverkar och fakturerar namnskyltarna och ansvarar för
+        personuppgifterna. Det här är integritetspolicyn.
       </p>
 
       <section className={styles.section}>
@@ -100,14 +94,10 @@ export function PrivacyPage({ agentLine, agentEmail }: PrivacyPageProps) {
       <section className={styles.section}>
         <h2>På namnskylt.com</h2>
         <p>
-          Beställningen görs på namnskylt.com, som förmedlar den till {workshop.name}: {agentLine}.{" "}
-          {agentEmail && (
-            <>
-              Du når oss på <a href={`mailto:${agentEmail}`}>{agentEmail}</a>.{" "}
-            </>
-          )}
-          När du beställer sparas namn, e-post, företag, organisationsnummer, leveransadress och texten på skyltarna
-          här, och lämnas till {workshop.name}.
+          namnskylt.com är {workshop.name}s sajt för namnskyltar. När du beställer här sparas namn, e-post, företag,
+          organisationsnummer, leveransadress och texten på skyltarna, så att ordern kan tillverkas, levereras och
+          faktureras. Du når oss på <a href={`mailto:${workshop.email}`}>{workshop.email}</a> eller{" "}
+          <a href={`tel:${workshop.phoneHref}`}>{workshop.phone}</a>.
         </p>
         <p>
           När du skriver ett organisationsnummer hämtar vi företagets namn och adress ur EU:s momsregister (VIES), så

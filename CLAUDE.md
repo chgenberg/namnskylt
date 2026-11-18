@@ -1374,8 +1374,11 @@ på faktura, privatpersoner betalar med kort.**
     och i en butik utan ägare. Texten, företagsnamnet, organisationsnumret och adressen är
     hämtade från skyltochgravyr.com/villkor 2026-11-17, och sidan länkar dit. Ändrar
     verkstaden sina villkor ska samma ändring göras här: ingenting hämtas automatiskt.
-  - Under deras villkor står två egna stycken: "Om namnskylt.com" (att namnskylt.com
-    förmedlar beställningen, med företagsuppgifterna ur panelen) och "Personuppgifter".
+  - Under deras villkor står två egna stycken: "Om namnskylt.com" och "Personuppgifter".
+    Sedan 2026-11-18 säger det första att namnskylt.com är Skylt & Gravyrtekniks sajt för
+    namnskyltar och att det är dem kunden beställer av och vänder sig till, med deras e-post
+    och telefon. Förut stod namnskylt.com där som ett eget företag som förmedlade
+    beställningen, med företagsuppgifterna ur panelen.
   - Deras villkor säger "Leveranstid meddelas per order" och att produktionen börjar när
     betalningen har bekräftats. Sajten lovar på andra ställen leverans inom fem arbetsdagar,
     och företag betalar mot faktura i efterhand. Ägarens besked 2026-11-17: samma villkor
@@ -1389,8 +1392,8 @@ på faktura, privatpersoner betalar med kort.**
     dit och till deras konto och cookiepolicy. Ingenting hämtas automatiskt: ändrar de sin
     policy ska samma ändring göras här. Verkstadens företagsuppgifter ligger i
     `src/lib/company/workshop.ts` (`WORKSHOP_COMPANY`) och delas med köpvillkoren.
-  - Sist står ett eget stycke, "På namnskylt.com": att namnskylt.com förmedlar beställningen
-    (med företagsuppgifterna ur panelen), vad som sparas här, att bara nödvändiga kakor
+  - Sist står ett eget stycke, "På namnskylt.com": att namnskylt.com är Skylt &
+    Gravyrtekniks sajt för namnskyltar (inget eget företag, se nedan), vad som sparas här, att bara nödvändiga kakor
     används och att Google Analytics, Google Ads och Meta Pixel inte används här, att
     varukorgen sparas i webbläsaren, statistiken utan kakor, och sedan 2026-11-17 vad ett
     kundkonto sparar och att inloggningen bärs av en nödvändig kaka. Lägg till något där om
@@ -1402,6 +1405,35 @@ på faktura, privatpersoner betalar med kort.**
     `src/features/privacy/privacy-page.tsx` före 2026-11-17.
   - Meningen om att kortbetalning sköts av Stripe är också borttagen. Den ska tillbaka om
     kortbetalningen slås på.
+
+## namnskylt.com är Skylt & Gravyrtekniks sajt — läge 2026-11-18
+
+**namnskylt.com visas aldrig som ett eget bolag mot kunden** (besked av ägaren 2026-11-18: "ska
+ju inte namnskylt.com vara ett separat bolag, utan allt det här sköts ju av Skylt &
+Gravyrteknik AB", "vår sida är ju deras sida. Det är de som står för allt och de man
+kontaktar"). Deras uppgifter ligger i `WORKSHOP_COMPANY` (`src/lib/company/workshop.ts`).
+
+- **Köpvillkoren och integritetspolicyn** (`/villkor`, `/integritet`) säger att namnskylt.com
+  drivs av Skylt & Gravyrteknik. Ägarens företagsuppgifter ur panelen visas inte längre där,
+  och sidorna läser dem inte. En butik utan ägare säger samma sak om verkstaden. I en
+  återförsäljares butik är återförsäljaren säljare, som förut.
+- **Sidfoten** säger "namnskylt.com drivs av Skylt & Gravyrteknik" och länkar till Om oss,
+  Kontakta oss, Köpvillkor och Integritet.
+- **Om oss** (`/om-oss`, `AboutPage` i `src/features/about/`): teambilden från deras egen
+  sida (`public/team/`, kopierad ur deras projekt på ägarens begäran, i en liggande och en
+  stående beskärning), deras beskrivning, korta fakta om företaget, de tre värdena och
+  personalen med roll och presentation.
+- **Kontakta oss** (`/kontakt`, `ContactPage`): telefon, e-post, adress, öppettider i Högsbo
+  och de direkta vägarna för beställningar, ekonomi och vd, som de står på deras sida.
+- **Texterna är deras egna**, hämtade från skyltochgravyr.com/om-oss och /kontakt 2026-11-18
+  (`about-copy.ts`). Det som där gäller märkskyltar har jag skrivit om för namnskyltar:
+  rubriken, ingressen och två av tre stycken. Resten står som hos dem. Ingenting hämtas
+  automatiskt: ändrar de sin sida, sin personal eller sina nummer ska samma ändring göras här.
+  - Inte med: deras formulär för förfrågan, kartan och raden om att hämta samma dag, som
+    gäller märkskyltar. Här står i stället att man väljer Hämta i Högsbo i kassan.
+- Sidorna ligger bakom sajtspärren, som startsidan, och finns i sitemapen när spärren är borta.
+- **Inte ändrat:** en offert som admin gör bär fortfarande ägarens företagsuppgifter ur
+  panelen som avsändare, och offertmejlet har dem som svarsadress.
 
 ## Kundens ordersida — läge 2026-11-15
 
