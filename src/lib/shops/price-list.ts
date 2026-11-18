@@ -55,6 +55,37 @@ export function shopUnitPrices(
   return badges.map((badge, i) => Math.round((units[i] ?? 0) * (1 + percentFor(list, badge.materialId) / 100)));
 }
 
+/** En designs del av ordern: så många skyltar, och vad de kostar tillsammans. */
+export interface DesignSum {
+  quantity: number;
+  sek: number;
+}
+
+/**
+ * Vad varje design kostar i ordern (beslut av ägaren 2026-11-18: varje skylt ska stå som sin
+ * egen rad i ordern, med sitt antal och sin summa). Priset per skylt är orderns: trappsteget
+ * och startkostnaden räknas på alla designer tillsammans, så summorna blir orderns varuvärde
+ * utan ett eventuellt påslag upp till minsta ordervärde.
+ */
+export function designSums(
+  designs: readonly (readonly BadgeDocument[])[],
+  list: ShopPriceList | null | undefined,
+  priceList: PriceTable,
+): DesignSum[] {
+  const units = shopUnitPrices(designs.flat(), list, priceList);
+  let at = 0;
+  return designs.map((badges) => {
+    let quantity = 0;
+    let sek = 0;
+    for (const badge of badges) {
+      const count = Math.max(1, Math.floor(badge.quantity));
+      quantity += count;
+      sek += (units[at++] ?? 0) * count;
+    }
+    return { quantity, sek };
+  });
+}
+
 /**
  * Vad som ingår i skyltens à-pris i butiken, i en order med `orderQuantity`
  * skyltar. Varje del får butikens påslag. Avrundningen läggs på själva skylten,

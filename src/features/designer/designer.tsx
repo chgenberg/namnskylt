@@ -32,6 +32,7 @@ import { useFontEngine } from "@/hooks/use-font-engine";
 import type { CustomerAccountView } from "@/lib/customer-auth/model";
 import { WEB_SCOPE } from "@/lib/designer-stats/model";
 import { COPY_MARK_PARAM, openedWith, openedWithCopy, savedWorkKey, type RestoredWork } from "@/lib/designer-work/model";
+import { designSums } from "@/lib/shops/price-list";
 import { useVisualize } from "@/features/visualize/use-visualize";
 import { VisualizeView } from "@/features/visualize/visualize-view";
 import { BadgeEditor } from "./badge-editor";
@@ -272,6 +273,11 @@ export function Designer({
   );
   const orderBadges = useMemo(() => (pending ? cartBadges : [...cartBadges, doc, ...batch]), [pending, cartBadges, doc, batch]);
   const priceList = usePriceList();
+  /** Varukorgens designer som egna rader: antal och summa för var och en, med orderns pris per skylt. */
+  const cartSums = useMemo(
+    () => designSums(cart.map((group) => groupBadges(group)), shop?.priceList, priceList),
+    [cart, shop?.priceList, priceList],
+  );
   /** Trappsteget för hela ordern: ett tillval kan kosta olika på olika trappsteg. */
   const tierIndex = tierIndexFor(
     orderBadges.reduce((total, badge) => total + Math.max(1, Math.floor(badge.quantity)), 0),
@@ -773,6 +779,8 @@ export function Designer({
           reseller={reseller}
           shop={shop}
           designs={cart.length + (pending ? 0 : 1)}
+          // Skylten i editorn och dess namn: de visas för sig vid priset, skilda från varukorgen.
+          own={pending ? 0 : 1 + batch.length}
           cart={designerCart}
         />
       </aside>
@@ -816,6 +824,7 @@ export function Designer({
         {cart.length > 0 && (
           <CartList
             groups={cart}
+            sums={cartSums}
             onEdit={(index) => {
               editDesign(index);
               setCartOpen(false);

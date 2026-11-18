@@ -43,7 +43,7 @@ import {
 import { marginOf } from "@/lib/orders/purchase";
 import type { CheckoutStep } from "@/lib/designer-stats/model";
 import type { CustomerType } from "@/lib/payments/model";
-import { shopPrice, shopPriceParts } from "@/lib/shops/price-list";
+import { designSums, shopPrice, shopPriceParts } from "@/lib/shops/price-list";
 import type { ResellerOrderContext, ShopContext } from "../reseller";
 import type { DesignerAction } from "../state";
 import { contactFor, NewAccountField, type NewAccountChoice } from "./checkout-account";
@@ -132,6 +132,11 @@ interface OrderSectionProps {
   badges: readonly BadgeDocument[];
   /** Antal olika designer i ordern. Med fler än en gäller antalet och specifikationen skylten i editorn. */
   designs?: number;
+  /**
+   * Så många av `badges`, räknat från slutet, som hör till skylten i editorn (den och dess namn
+   * under "Fler namn"). Resten ligger i varukorgen. Vid priset visas bara skylten i editorn.
+   */
+  own?: number;
   dispatch: Dispatch<DesignerAction>;
   reseller?: ResellerOrderContext;
   shop?: ShopContext;
@@ -185,6 +190,7 @@ export function OrderSection({
   doc,
   badges,
   designs = 1,
+  own = 0,
   dispatch,
   reseller,
   shop,
@@ -337,6 +343,17 @@ export function OrderSection({
   const discountPercent = aloneSek > 0 ? Math.round((discountSek / aloneSek) * 100) : 0;
   const mixed = designs > 1;
   const names = badges.length;
+  /**
+   * Skylten i editorn för sig (beslut av ägaren 2026-11-18, som valde 10 skyltar och såg
+   * "2 designer · 117 st · 15 261 kr" för att varukorgen räknades med): ligger andra designer
+   * i varukorgen visas bara den här skyltens antal och summa. Priset per skylt är fortfarande
+   * orderns, så mängdrabatten och startkostnaden räknas på allt tillsammans.
+   */
+  const alone =
+    !checkout && !inCart && cart.designs > 0 && own > 0 && own < badges.length
+      ? (designSums([badges.slice(0, -own), badges.slice(-own)], shop?.priceList, priceList)[1] ?? null)
+      : null;
+  const inCartQuantity = alone ? price.quantity - alone.quantity : 0;
   const nextTier = priceList.tiers[price.tierIndex + 1];
   const quickQuantities = [...QUICK_QUANTITIES, (priceList.tiers[1] ?? 100) + 1];
   // Med en startkostnad i priset blir varje skylt billigare för varje skylt som läggs till, inte bara vid nästa trappsteg.
@@ -508,29 +525,34 @@ export function OrderSection({
         )}
         <div className={styles.priceBlock}>
           <p className={styles.priceLabel}>
-            {inCart
-              ? `${price.quantity} st · ${mixed ? "i snitt " : ""}`
-              : mixed
-                ? `${designs} designer · ${price.quantity} st · i snitt `
-                : names > 1 && `${names} namn × ${doc.quantity} = ${price.quantity} st · `}
-            {sek.format(price.unitSek)} / st
+            {alone
+              ? `${own > 1 ? `${own} namn × ${doc.quantity} = ` : ""}${alone.quantity} st · ${sek.format(Math.round(alone.sek / alone.quantity))} / st`
+              : `${
+                  inCart
+                    ? `${price.quantity} st · ${mixed ? "i snitt " : ""}`
+                    : mixed
+                      ? `${designs} designer · ${price.quantity} st · i snitt `
+                      : names > 1
+                        ? `${names} namn × ${doc.quantity} = ${price.quantity} st · `
+                        : ""
+                }${sek.format(price.unitSek)} / st`}
           </p>
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.p
-              key={price.totalSek}
+              key={alone ? alone.sek : price.totalSek}
               className={styles.priceTotal}
               initial={{ y: 12, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -12, opacity: 0 }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             >
-              {sek.format(price.totalSek)}
+              {sek.format(alone ? alone.sek : price.totalSek)}
             </motion.p>
           </AnimatePresence>
         </div>
         {!inCart && (
           <div className={styles.spec}>
-            <p className={styles.specTitle}>{mixed ? "Pris för skylten ovan" : "Pris per skylt"}</p>
+            <p className={styles.specTitle}>Pris per skylt</p>
             <dl>
               {parts.map(({ part, sek: partSek }) => (
                 <div key={part}>
@@ -563,7 +585,9 @@ export function OrderSection({
         </p>
       </div>
 
-      {reseller?.purchaseList && <PurchaseSummary badges={badges} mode={reseller.mode} purchaseList={reseller.purchaseList} saleSek={price.totalSek} />}
+      {reseller?.purchaseList && (
+        <PurchaseSummary badges={badges} mode={reseller.mode} purchaseList={reseller.purchaseList} saleSek={price.totalSek} whole={Boolean(alone)} />
+      )}
 
       {inCart ? (
         <>
@@ -591,7 +615,8 @@ export function OrderSection({
           )}
           {cart.designs > 0 && (
             <p className={styles.cartNote}>
-              {designCount(cart.designs)} ligger redan i varukorgen.{" "}
+              {designCount(cart.designs)}
+              {alone ? ` (${inCartQuantity} st) ligger redan i varukorgen och räknas med i mängdrabatten.` : " ligger redan i varukorgen."}{" "}
               <button type="button" className={styles.textButton} onClick={cart.onDiscard}>
                 Fortsätt utan den här skylten
               </button>
@@ -931,6 +956,8 @@ interface PurchaseSummaryProps {
   purchaseList: PriceTable;
   mode: ResellerOrderContext["mode"];
   saleSek: number;
+  /** Siffrorna gäller hela ordern, medan priset ovanför gäller skylten i editorn. */
+  whole?: boolean;
 }
 
 /**
@@ -938,21 +965,21 @@ interface PurchaseSummaryProps {
  * listpris. Alla andra, också admin, ser bara slutkundens pris (besked av ägaren 2026-11-18).
  * Alla tre beloppen är utan frakt. Frakten är samma för återförsäljaren och kunden och ändrar inte marginalen.
  */
-function PurchaseSummary({ badges, purchaseList, mode, saleSek }: PurchaseSummaryProps) {
+function PurchaseSummary({ badges, purchaseList, mode, saleSek, whole = false }: PurchaseSummaryProps) {
   const purchase = resellerOrder(badges, purchaseList);
   const margin = marginOf(saleSek, purchase.goodsSek);
   const quantity = badges.reduce((sum, badge) => sum + badge.quantity, 0);
   return (
     <dl className={styles.purchase} aria-label="Ditt inköp och marginal">
       <div>
-        <dt>Ditt inköp</dt>
+        <dt>{whole ? "Ditt inköp, hela ordern" : "Ditt inköp"}</dt>
         <dd>
           {formatSek(purchase.goodsSek)}
           {quantity > 1 && <span> · {formatSek(toOre(purchase.goodsSek / quantity))}/st</span>}
         </dd>
       </div>
       <div>
-        <dt>Kundpris</dt>
+        <dt>{whole ? "Kundpris, hela ordern" : "Kundpris"}</dt>
         <dd>{sek.format(saleSek)}</dd>
       </div>
       <div data-tone={margin.sek < 0 ? "bad" : "good"}>

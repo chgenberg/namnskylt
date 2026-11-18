@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1224 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1228 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -1054,6 +1054,21 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom
   bilden bara visar en av dem, och panelen fyller inte heller i en bild i efterhand
   (`sameDesign` i motorn, `missingBadgeShots`).
+  - **Varje design visas som sin egen rad, med sitt antal och sin summa** (beslut av ägaren
+    2026-11-18: "varje skylt måste vara en egen order i ordern", och på frågan valdes "Visa
+    bara skylten jag gör"). Ägaren hade 107 skyltar i varukorgen, valde 10 på en ny skylt och
+    såg "2 designer · 117 st · 15 261 kr" vid priset.
+    - Vid priset i skyltmotorn står bara skylten i editorn när andra designer ligger i
+      varukorgen: "10 st · 124 kr / st" och summan för just den (`alone` i `OrderSection`,
+      `own` är antalet skyltar som hör till editorn). Raden under knappen säger hur många
+      som redan ligger i varukorgen och att de räknas med i mängdrabatten.
+    - I varukorgen har varje design antal och summa (`CartList` med `sums`).
+    - **Prisregeln är oförändrad:** priset per skylt är orderns, så trappsteget och
+      startkostnaden räknas på alla designer tillsammans (`designSums` i
+      `src/lib/shops/price-list.ts`). Summorna per design blir orderns varuvärde. Att
+      prissätta varje design helt för sig valde ägaren bort.
+    - En inloggad återförsäljares ruta visar då "Ditt inköp, hela ordern" och "Kundpris, hela
+      ordern", eftersom inköpet inte går att dela per design på samma sätt.
 - **Den som är inloggad i panelen kan gå rakt till skyltmotorn** (besked av ägaren
   2026-11-17): `/skapa` öppnas då i säljarläge, också utan `?kund=`, och kunden väljs i
   varukorgen. Där finns "Befintlig kund", med säljarens kunder i en sökbar lista, och "Ny

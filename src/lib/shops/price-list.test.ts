@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { createBadgeDocument, lineUnitPrices, NO_SHIPPING, priceOrder } from "@/engine";
 import { endPriceTable } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
-import { shopOrderPricing, shopPrice, shopPriceListSchema, shopPriceParts, shopUnitPrices } from "./price-list";
+import { designSums, shopOrderPricing, shopPrice, shopPriceListSchema, shopPriceParts, shopUnitPrices } from "./price-list";
 
 /**
  * Kalkylen med ett eget pris på loggan, som den var före 2026-11-16. Sedan dess ingår loggan
@@ -74,5 +74,43 @@ describe("butikens prislista", () => {
     assert.equal(shopPriceListSchema.safeParse({ percent: 400, perMaterial: {} }).success, false);
     assert.equal(shopPriceListSchema.safeParse({ percent: 10, perMaterial: { guld: 5 } }).success, false);
     assert.equal(shopPriceListSchema.safeParse({ percent: 10, perMaterial: { brass: 5 } }).success, true);
+  });
+});
+
+describe("varje design som en egen rad i ordern", () => {
+  /** Kalkylen med startkostnad, som kunden möter den. */
+  const LIST = endPriceTable({ ...DEFAULT_PRICE_MODEL, shipping: NO_SHIPPING });
+  const anna = { ...createBadgeDocument(["Anna Berg", "Receptionist"]), quantity: 1 };
+  const erik = { ...createBadgeDocument(["Erik Holm"]), quantity: 1 };
+  const big = { ...createBadgeDocument(["Maja Lind"]), materialId: "plastic" as const, colorId: "white-black", quantity: 107 };
+  const small = { ...createBadgeDocument(["Omar Said"]), quantity: 10 };
+
+  it("ger varje design sitt antal och sin summa, och summorna är orderns varuvärde", () => {
+    const sums = designSums([[big], [small]], null, LIST);
+    assert.deepEqual(sums.map((sum) => sum.quantity), [107, 10]);
+    const order = priceOrder([big, small], LIST, 0);
+    assert.equal(sums[0]!.sek + sums[1]!.sek, order.badgesSek);
+    assert.equal(order.minimumTopUpSek, 0);
+  });
+
+  it("priset per skylt är orderns: en design blir billigare av att en annan ligger i samma order", () => {
+    const [together] = designSums([[small], [big]], null, LIST);
+    const [alone] = designSums([[small]], null, LIST);
+    assert.ok(together && alone && together.sek < alone.sek);
+    assert.equal(together.quantity, 10);
+  });
+
+  it("en design med flera namn räknas ihop, och butikens påslag följer med", () => {
+    const [team, single] = designSums([[anna, { ...erik, quantity: 3 }], [small]], null, LIST);
+    assert.equal(team?.quantity, 4);
+    const units = shopUnitPrices([anna, { ...erik, quantity: 3 }, small], null, LIST);
+    assert.equal(team?.sek, units[0]! + units[1]! * 3);
+    assert.equal(single?.sek, units[2]! * 10);
+    const marked = designSums([[small]], { percent: 20, perMaterial: {} }, LIST)[0];
+    assert.ok(marked && marked.sek > designSums([[small]], null, LIST)[0]!.sek);
+  });
+
+  it("en tom varukorg ger inga rader", () => {
+    assert.deepEqual(designSums([], null, LIST), []);
   });
 });
