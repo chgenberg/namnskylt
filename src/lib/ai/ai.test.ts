@@ -113,6 +113,42 @@ describe("prompter", () => {
     assert.match(personaPrompt(doc, UNKNOWN_WEARER), /No other text, logos or symbols/);
   });
 
+  it("beskriver skylten i de färger den har: printad text och en logga i färg är inte svart gravyr", () => {
+    const image = { src: "data:image/png;base64,AAAA", width: 4, height: 4 };
+    const logo = { d: "M0 0L1 0L1 1Z", viewWidth: 1, viewHeight: 1, placement: "left" as const, heightMm: 10 };
+    // Namnet printas i kundens färg och loggan i sina egna färger.
+    const printed = {
+      ...doc,
+      marking: "print" as const,
+      rows: doc.rows.map((row, i) => (i === 0 ? { ...row, printColor: "#FF40FF" } : row)),
+      logo: { ...logo, image },
+    };
+    const prompt = personaPrompt(printed, UNKNOWN_WEARER);
+    assert.match(prompt, /printed flat on the surface in colour, not engraved/);
+    assert.match(prompt, /text line 1 #FF40FF, text line 2 #/);
+    assert.match(prompt, /logo printed in full colour .* never turn it black, white, grey or single-colour, to the left of the text/);
+    assert.doesNotMatch(prompt, /engraved single-colour|engraved and filled|engraved through/);
+
+    // En kod för hela trycket gäller alla rader, och en svartvit logga som printas får samma färg.
+    const oneColour = personaPrompt({ ...doc, marking: "print" as const, printColor: "100/0/0/0", logo }, UNKNOWN_WEARER);
+    assert.match(oneColour, /\(surface #[0-9A-Fa-f]{6}, text #00[0-9A-Fa-f]{4}\)/);
+    assert.match(oneColour, /logo printed flat in a single colour \(#00[0-9A-Fa-f]{4}\)/);
+
+    // Gravyr beskrivs som förut, i materialets färg.
+    const engraved = personaPrompt({ ...doc, logo }, UNKNOWN_WEARER);
+    assert.match(engraved, /the text is engraved/);
+    assert.match(engraved, /the engraved single-colour logo exactly as in the reference image/);
+    assert.doesNotMatch(engraved, /printed flat/);
+  });
+
+  it("en skylt utan text får ingen text i bilden", () => {
+    const logo = { d: "M0 0L1 0L1 1Z", viewWidth: 1, viewHeight: 1, placement: "left" as const, heightMm: 10 };
+    const prompt = personaPrompt({ ...createBadgeDocument([""]), logo }, UNKNOWN_WEARER);
+    assert.match(prompt, /The badge has no text at all/);
+    assert.doesNotMatch(prompt, /Text in Arial|to the left of the text|the text is/);
+    assert.match(prompt, /The badge also carries the engraved single-colour logo/);
+  });
+
   it("ber om att bevara kundens foto vid provning", () => {
     assert.match(tryOnPrompt(doc), /Keep the person's face, identity/);
   });

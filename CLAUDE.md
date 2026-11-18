@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1202 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1213 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -939,6 +939,45 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   - Ägarens egen fil fanns inte på datorn. Felet är återskapat med egna filer från
     LibreOffice, openpyxl och xlsxwriter, där filen med tomt första blad gav just det
     meddelandet. Att det var orsaken i ägarens fil är alltså inte bekräftat.
+  - **Samma fil gav samma fel igen 2026-11-18.** Orsaken som då hittades: filverktyg byggda
+    på Open XML SDK, som AI-tjänsternas, skriver prefix på varje element (`<x:row>`,
+    `<x:c>`, `<x:v>`), texten direkt i cellen (`t="str"`) och en tom tabell för delade
+    strängar. Läsaren letade efter `<row>` och fick ett helt tomt blad. Den läser nu
+    taggarna med en egen genomgång (`xmlTags`), som bortser från prefix och klarar tomma
+    taggar (`<si/>`, `<row/>`), apostrofer kring attribut och bakstreck i zip-filens sökvägar.
+    Bara `<sheetData>` läses, eftersom ett blad med ett inbäddat objekt har andra element som
+    heter `row`.
+    - Hittat genom att jämföra läsaren med en referensläsare på de 541 .xlsx-filer som låg
+      på datorn (Excel för Mac och Windows, openpyxl, SheetJS): 537 lästes lika, och de
+      fyra som blev tomma var alla av den sorten. Efter rättningen läses alla 541 lika.
+    - Ägarens fil är fortfarande inte sedd, men den är gjord av en AI-tjänst, öppnas i Excel
+      och gav just det felet, så orsaken är trolig men inte bekräftad.
+    - En .xlsx som inte är en zip-fil (lösenordsskyddad) och en tom fil säger nu vad som är
+      fel, och felet skiljer "ingen text" från "inga namn".
+- **Antalet blir 1 när namnlistan får sina första namn** (besked via ägaren 2026-11-18, som
+  valde 10 skyltar, laddade upp 10 namn och fick 100): `quantityForNames` i
+  `src/engine/batch.ts`, anropad i `changeNames` i `designer.tsx`. Det gäller en fil, namn
+  som klistras in och namn som skrivs för hand. Därefter är antalet kundens eget val per
+  namn (3 ger 3 × antalet namn) och ändras inte av fler namn, inte heller av att hela listan
+  byts. En varukorg som läses tillbaka, "Ändra" och "Beställ igen" rör inte antalet.
+  - Under listan står "En skylt per namn. Antalet per namn ändrar du vid priset."
+  - **En uppladdad fil fyller en tom skylt i editorn** (`importNames`): filens första namn
+    tar dess plats, så att tio namn blir tio skyltar. Förut låg en skylt utan text först i
+    listan, och då gick inget att lägga i varukorgen. Det gäller bara filer, inte text som
+    skrivs eller klistras in, eftersom första tecknet annars skulle hoppa upp i editorn.
+- **Platshållaren "Ditt namn" ritas bara på en helt tom skylt som håller på att skapas**
+  (besked via ägaren 2026-11-18, som såg texten stå kvar på en skylt utan namn):
+  `isBlankBadge` i motorn, `withPlaceholders` och `BadgePreview` med `placeholders`.
+  - I skyltmotorns ritning visas den bara när skylten varken har text eller logga. Med en
+    logga, eller text på en annan rad, ritas en tom rad inte alls.
+  - En sparad skylt ritas alltid som den är: korrektur, offert, order, varukorg och panelens
+    listor ritar aldrig platshållare. `placeholders` sätts bara på startsidans och
+    startrutans reservbild, på skylten i editorn överst i namnlistan och i "Ny personal".
+  - **En skylt utan text går fortfarande inte att beställa** (`badgeDocumentSchema`:
+    "Skylten saknar text"). Knappen "Lägg i varukorgen" är då avstängd, och skälet står
+    under den. Ägaren har bestämt 2026-11-18 att en skylt med bara logga ska gå att
+    beställa. Det är inte byggt än. Verkstadens mottagare kräver en referens per rad, som i
+    dag är skyltens text.
 - **Flera designer i samma order**: varje design är en rad i varukorgen (`BadgeGroup` i
   motorn). Priset räknas på hela ordern, så trappsteg,
   startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom
@@ -1531,6 +1570,13 @@ Alla anrop går via `openai()` i `src/lib/ai/openai.ts`. Den returnerar `null` u
   - `drawShapeImage` ritar en egen form ur kundens beskrivning (`gpt-image-2`, låg kvalitet,
     ungefär 7 öre per försök enligt andrahandsuppgifter), se Egen form.
   - Persona-bilden i utskicket görs av `companyWorkplace` och `generatePersona` i `src/lib/outreach/persona.ts`.
+- **Personbilden beskrivs i skyltens färger** (besked via ägaren 2026-11-18, som fick en
+  svartvit skylt på personen fast den var i färg): referensbilden var rätt, men uppdraget till
+  bildmodellen sa alltid "graverad enfärgad logga" och gravyrens textfärg. `badgeDescription`
+  i `src/lib/ai/prompts.ts` följer nu märkningsmetoden: ett namn som printas beskrivs som
+  tryckt i sin färg, också per rad, en logga i färg som tryckt i sina egna färger, och en
+  skylt utan text får ingen text. Provat med en (1) riktig bild 2026-11-18. Utskickets
+  persona-bilder har sitt eget uppdrag och är inte ändrade.
 - **Persona-flödet:** hemsidan läses, en lämplig arbetsmiljö väljs, och den renderade skylten
   med kundens logga och **bara förnamnet** skickas som referens till `editImage`. Bilden
   beskärs till 600×750 JPEG på högst 120 kB.

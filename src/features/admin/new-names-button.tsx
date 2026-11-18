@@ -80,7 +80,7 @@ export function NewNamesButton({ template, title, label, variant = "ghost", subm
           <p className={styles.eyebrow}>Samma design, nya namn</p>
           <h2 className={styles.dialogTitle}>{title}</h2>
           <div className={styles.dialogPreview}>
-            <BadgePreview doc={preview} />
+            <BadgePreview doc={preview} placeholders />
           </div>
           <label className={styles.formRow}>
             <span className={styles.formLabel}>En person per rad — namn, titel</span>

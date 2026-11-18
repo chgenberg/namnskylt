@@ -21,6 +21,18 @@ function parseBatchLine(line: string): string[] {
   return parseSmartInput(line.replace(/\t/g, "|"));
 }
 
+/**
+ * Antalet per namn när namnlistan under "Fler namn" ändras från `before` till `after`.
+ * När listan får sina första namn blir antalet 1 (besked via ägaren 2026-11-18): antalet
+ * kunden hade valt gällde en ensam skylt, och med en lista gäller det varje namn, så att
+ * 10 skyltar och 10 uppladdade namn blev 100 skyltar. Därefter är antalet kundens eget
+ * val per namn och ändras inte av att fler namn läggs till.
+ */
+export function quantityForNames(quantity: number, before: string, after: string): number {
+  const starts = parseBatchInput(before, 1).length === 0 && parseBatchInput(after, 1).length > 0;
+  return starts ? 1 : quantity;
+}
+
 /** Tar bort skylt nummer `index` (som `parseBatchInput` räknar) ur texten. */
 export function removeBatchEntry(raw: string, index: number): string {
   let entry = -1;

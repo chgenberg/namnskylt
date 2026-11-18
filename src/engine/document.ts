@@ -309,3 +309,12 @@ export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
 export function engravedRows(doc: BadgeDocument): BadgeTextRow[] {
   return doc.rows.filter((row) => row.text.trim().length > 0);
 }
+
+/**
+ * Skylten har inget på sig än: ingen text och ingen logga. Bara då ritar editorn grå
+ * platshållare ("Ditt namn") för att visa var texten hamnar. En skylt med logga men utan
+ * text är en färdig skylt utan namn, och en tom rad bredvid en ifylld är en rad utan text.
+ */
+export function isBlankBadge(doc: Pick<BadgeDocument, "rows" | "logo">): boolean {
+  return !doc.logo && doc.rows.every((row) => row.text.trim().length === 0);
+}

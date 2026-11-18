@@ -7,10 +7,12 @@ import {
   createBadgeDocument,
   groupBadges,
   groupQuantity,
+  isBlankBadge,
   MAX_ORDER_BADGES,
   parseBatchInput,
   priceBadge,
   priceOrder,
+  quantityForNames,
   removeBatchEntry,
   replaceBatchEntry,
   sameDesign,
@@ -44,6 +46,34 @@ describe("parseBatchInput", () => {
   it("byter text på rätt skylt och lämnar resten orört", () => {
     assert.equal(replaceBatchEntry("Anna\n\nErik, VD\nWilma", 1, "Pär, Lager"), "Anna\n\nPär, Lager\nWilma");
     assert.deepEqual(parseBatchInput(replaceBatchEntry("Anna\nErik", 0, "Bo, VD")), [["Bo", "VD"], ["Erik"]]);
+  });
+});
+
+describe("antalet per namn när namnlistan ändras", () => {
+  it("blir 1 när listan får sina första namn: 10 skyltar och 10 namn ska inte bli 100", () => {
+    assert.equal(quantityForNames(10, "", "Anna Lind, Säljare\nErik Holm, VD"), 1);
+    // Tomma rader är ingen lista än.
+    assert.equal(quantityForNames(10, " \n", "Anna Lind"), 1);
+    assert.equal(quantityForNames(10, "", " \n\t"), 10);
+  });
+
+  it("står kvar när kunden sedan lägger till, ändrar eller tar bort namn", () => {
+    // Kunden har valt 3 per namn. Fler namn, från tangentbordet eller en fil till, ändrar inte det.
+    assert.equal(quantityForNames(3, "Anna Lind", "Anna Lind\nErik Holm"), 3);
+    assert.equal(quantityForNames(3, "Anna Lind\nErik Holm", "Anna Lind"), 3);
+    assert.equal(quantityForNames(3, "Anna Lind", ""), 3);
+    assert.equal(quantityForNames(1, "", "Anna Lind"), 1);
+  });
+});
+
+describe("en helt tom skylt", () => {
+  it("är bara den som varken har text eller logga: bara den får platshållare i ritningen", () => {
+    const logo = { d: "M0 0L1 0L1 1Z", viewWidth: 1, viewHeight: 1, placement: "left" as const, heightMm: 10 };
+    assert.equal(isBlankBadge(createBadgeDocument([""])), true);
+    assert.equal(isBlankBadge(createBadgeDocument(["", " "])), true);
+    // En skylt med bara logga är en skylt utan namn, och en tom rad bredvid ett namn är en rad utan text.
+    assert.equal(isBlankBadge({ ...createBadgeDocument([""]), logo }), false);
+    assert.equal(isBlankBadge(createBadgeDocument(["Anna Lind", ""])), false);
   });
 });
 

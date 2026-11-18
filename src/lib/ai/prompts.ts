@@ -3,6 +3,10 @@ import {
   getColor,
   getMaterial,
   getMounting,
+  logoMarking,
+  logoPrintInkOf,
+  nameMarking,
+  rowPrintInkOf,
   type BadgeDocument,
   type LogoPlacement,
   type BadgeShape,
@@ -46,18 +50,32 @@ export function badgeName(doc: BadgeDocument): string | null {
   return engravedRows(doc)[0]?.text.trim() || null;
 }
 
-const FINISH_DESCRIPTION: Record<MaterialFinish, string> = {
-  plastic: "two-layer engraving plastic with a smooth satin surface; the text is engraved through the top layer",
-  aluminium: "brushed anodised aluminium with fine horizontal brush lines; the text is engraved and filled",
-  steel: "brushed stainless steel; the text is laser-marked",
-  brass: "polished solid brass with a fine metallic sheen; the text is engraved and filled black",
-  acrylic: "matt transparent acrylic, about 3 mm thick, over a coloured backing that gives a soft shadow depth; the text is printed",
-  epoxy: "printed badge under a clear, glossy domed epoxy enamel that catches the light; the text is printed",
+/** Ytan, och hur en graverad text ser ut i den. Printad text beskrivs för sig, se `PRINTED_TEXT`. */
+interface FinishDescription {
+  surface: string;
+  engraved: string;
+}
+
+const FINISH_DESCRIPTION: Record<MaterialFinish, FinishDescription> = {
+  plastic: { surface: "two-layer engraving plastic with a smooth satin surface", engraved: "the text is engraved through the top layer" },
+  aluminium: { surface: "brushed anodised aluminium with fine horizontal brush lines", engraved: "the text is engraved and filled" },
+  steel: { surface: "brushed stainless steel", engraved: "the text is laser-marked" },
+  brass: { surface: "polished solid brass with a fine metallic sheen", engraved: "the text is engraved and filled black" },
+  acrylic: {
+    surface: "matt transparent acrylic, about 3 mm thick, over a coloured backing that gives a soft shadow depth",
+    engraved: "the text is printed",
+  },
+  epoxy: { surface: "printed badge under a clear, glossy domed epoxy enamel that catches the light", engraved: "the text is printed" },
 };
 
 /** Lackad metall har ingen borstning — beskrivs för sig oavsett materialets yta. */
-const LACQUERED_DESCRIPTION =
-  "thin metal with a smooth, matt lacquered surface and no brush lines; the text is engraved and filled";
+const LACQUERED_DESCRIPTION: FinishDescription = {
+  surface: "thin metal with a smooth, matt lacquered surface and no brush lines",
+  engraved: "the text is engraved and filled",
+};
+
+/** Ett namn som printas ligger plant på ytan, i kundens färg, och är ingen gravyr. */
+const PRINTED_TEXT = "the text is printed flat on the surface in colour, not engraved";
 
 const SHAPE_DESCRIPTION: Record<BadgeShape, string> = {
   rectangle: "rectangle",
@@ -77,22 +95,51 @@ const LOGO_POSITION: Record<LogoPlacement, string> = {
   top: "above the text",
 };
 
-/** Det modellen måste återge exakt — text, logga, mått, material och fäste. */
+/**
+ * Textens färger, som de står på skylten. Ett namn som printas har kundens egen färg, också
+ * en per rad; gravyr har materialets. Förut stod alltid gravyrens färg här, så att bildmodellen
+ * ritade en svartvit skylt fast den var i färg (besked via ägaren 2026-11-18).
+ */
+function textColours(doc: BadgeDocument, engraving: string): string | null {
+  const inks = engravedRows(doc).map((row) => rowPrintInkOf(doc, row) ?? engraving);
+  const [first] = inks;
+  if (first === undefined) return null;
+  if (inks.every((ink) => ink === first)) return `text ${first}`;
+  return inks.map((ink, i) => `text line ${i + 1} ${ink}`).join(", ");
+}
+
+/** Loggan som den sitter på skylten: tryckt i sina egna färger, tryckt i en färg eller graverad. */
+function logoDescription(doc: BadgeDocument, engraving: string): string {
+  if (!doc.logo) return "No other text, logos or symbols on the badge.";
+  const position = engravedRows(doc).length > 0 ? `, ${LOGO_POSITION[doc.logo.placement]}` : "";
+  const printed = logoMarking(doc) === "print";
+  const logo =
+    printed && doc.logo.image
+      ? "the logo printed in full colour exactly as in the reference image. Keep its shape and every one of its colours exactly; never turn it black, white, grey or single-colour"
+      : printed
+        ? `the logo printed flat in a single colour (${logoPrintInkOf(doc) ?? engraving}) exactly as in the reference image. Keep its shape and colour exactly`
+        : "the engraved single-colour logo exactly as in the reference image. Keep its shape exactly";
+  return `The badge also carries ${logo}${position}; no other text, logos or symbols on the badge.`;
+}
+
+/** Det modellen måste återge exakt — text, logga, färger, mått, material och fäste. */
 function badgeDescription(doc: BadgeDocument): string {
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
-  const lines = engravedRows(doc)
-    .map((row, i) => `line ${i + 1}: "${row.text}"${row.bold ? " (bold)" : ""}`)
-    .join("; ");
+  const rows = engravedRows(doc);
+  const lines = rows.map((row, i) => `line ${i + 1}: "${row.text}"${row.bold ? " (bold)" : ""}`).join("; ");
   const shape = SHAPE_DESCRIPTION[doc.shape];
+  const finish = color.lacquered ? LACQUERED_DESCRIPTION : FINISH_DESCRIPTION[material.finish];
+  const marked = rows.length === 0 ? "" : `; ${nameMarking(doc) === "print" ? PRINTED_TEXT : finish.engraved}`;
+  const colours = [`surface ${color.surface}`, textColours(doc, color.engraving)].filter(Boolean).join(", ");
 
   return [
     `The name badge is shown in the reference image. It is a small ${shape}, exactly ${doc.size.widthMm} × ${doc.size.heightMm} mm in real life (about the width of a credit card or smaller) — keep it that small relative to the body.`,
-    `Material: ${color.lacquered ? LACQUERED_DESCRIPTION : FINISH_DESCRIPTION[material.finish]}. Colours: ${color.name.toLowerCase()} (surface ${color.surface}, text ${color.engraving}).`,
-    `Text in Arial, reproduced letter for letter including Swedish characters å, ä, ö: ${lines}.`,
-    doc.logo
-      ? `The badge also carries the engraved single-colour logo exactly as in the reference image, ${LOGO_POSITION[doc.logo.placement]}. Keep its shape exactly; no other text, logos or symbols on the badge.`
-      : "No other text, logos or symbols on the badge.",
+    `Material: ${finish.surface}${marked}. Colours, exactly as in the reference image: ${color.name.toLowerCase()} (${colours}).`,
+    rows.length > 0
+      ? `Text in Arial, reproduced letter for letter including Swedish characters å, ä, ö: ${lines}.`
+      : "The badge has no text at all: do not add a name or any other text to it.",
+    logoDescription(doc, color.engraving),
     `Fastened with a ${getMounting(doc.mounting).name.toLowerCase()} on the back, not visible from the front.`,
   ].join(" ");
 }

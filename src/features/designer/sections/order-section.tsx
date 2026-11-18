@@ -9,6 +9,7 @@ import { ProgressBanner } from "@/components/ui/progress-banner";
 import { Segmented } from "@/components/ui/segmented";
 import {
   badgeDocumentSchema,
+  engravedRows,
   getMarkingMethod,
   getMaterial,
   mountingLabel,
@@ -347,6 +348,8 @@ export function OrderSection({
         : nextTier !== undefined
           ? `Lägre pris från ${nextTier + 1} st`
           : "Lägsta styckpris";
+  /** Skylten i editorn har text på någon rad. Utan text går den inte att beställa. */
+  const hasText = engravedRows(doc).length > 0;
   // Varukorgens skyltar ändras sällan, men kassan ritas om för varje tangenttryckning i editorn.
   const valid = useMemo(() => badges.every((badge) => badgeDocumentSchema.safeParse(badge).success), [badges]);
   // I kassan gäller det varukorgens skyltar, vid priset skylten i editorn.
@@ -580,6 +583,12 @@ export function OrderSection({
             Lägg i varukorgen
           </button>
           {!cart.canAdd && <p className={styles.cartNote}>Varukorgen är full. Lägg resten i en ny order.</p>}
+          {/* Knappen är avstängd utan text. Ritningen visar ingen platshållare på en skylt med logga, så skälet sägs här. */}
+          {!hasText && (
+            <p className={styles.cartNote} data-missing-text>
+              Skylten saknar text. Skriv ett namn, så går den att lägga i varukorgen.
+            </p>
+          )}
           {cart.designs > 0 && (
             <p className={styles.cartNote}>
               {designCount(cart.designs)} ligger redan i varukorgen.{" "}

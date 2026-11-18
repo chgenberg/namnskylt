@@ -4,7 +4,6 @@ import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { withPlaceholders } from "@/components/badge-preview";
 import { usePriceList } from "@/components/price-list-provider";
 import { ProgressBanner } from "@/components/ui/progress-banner";
 import { Segmented } from "@/components/ui/segmented";
@@ -17,6 +16,7 @@ import {
   groupBadges,
   layoutBadge,
   parseBatchInput,
+  quantityForNames,
   removeBatchEntry,
   replaceBatchEntry,
   parseSmartInput,
@@ -369,6 +369,28 @@ export function Designer({
     setBatchText((text) => removeBatchEntry(text, 0));
     update({ type: "texts", texts: next });
   };
+  /** Namnlistan under "Fler namn" ändras, för hand eller av en fil. */
+  const changeNames = (text: string) => {
+    // När listan får sina första namn gäller antalet varje namn, och börjar därför om på 1.
+    const quantity = quantityForNames(doc.quantity, batchText, text);
+    if (quantity !== doc.quantity) dispatch({ type: "quantity", quantity });
+    setBatchText(text);
+    setPending(false);
+  };
+
+  /**
+   * Namn ur en uppladdad fil läggs sist i listan. Är skylten i editorn tom tar filens första namn
+   * dess plats: annars följde en skylt utan text med i ordern, så att tio namn blev elva skyltar.
+   */
+  const importNames = (lines: string) => {
+    const [first] = parseBatchInput(lines, 1);
+    const fills = !hasText && first !== undefined;
+    const added = fills ? removeBatchEntry(lines, 0) : lines;
+    if (fills) update({ type: "texts", texts: first });
+    const before = batchText.trimEnd();
+    changeNames(before.trim() && added ? `${before}\n${added}` : before.trim() ? batchText : added);
+  };
+
   /** Lägger skylten i editorn i ordern och börjar på nästa: samma design, utan text. */
   const addDesign = () => {
     // Stillbilden tas medan skylten ännu syns i editorn. Den gäller bara så länge varukorgen har just den designen.
@@ -445,11 +467,8 @@ export function Designer({
 
   const layout = useMemo(() => layoutBadge(doc, fonts), [doc, fonts]);
   const moved = Boolean(doc.textOffsetMm || doc.logo?.offsetMm);
-  /** Ritningen visar platshållare för tomma rader — loggan ska inte heller hamna över dem. */
-  const logoOverlapsText = useMemo(
-    () => Boolean(doc.logo) && layoutBadge(withPlaceholders(doc).doc, fonts).logoOverlapsText,
-    [doc, fonts],
-  );
+  /** Ritningen visar platshållare på en helt tom skylt. Då finns ingen logga, så här gäller skylten som den är. */
+  const logoOverlapsText = Boolean(doc.logo) && layout.logoOverlapsText;
 
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
@@ -707,10 +726,8 @@ export function Designer({
             current={doc}
             badges={batch}
             text={batchText}
-            onTextChange={(text) => {
-              setBatchText(text);
-              setPending(false);
-            }}
+            onTextChange={changeNames}
+            onImport={importNames}
             onSelect={openColleague}
             onRemoveCurrent={removeCurrent}
             overflow={batchEntries.length - batch.length}

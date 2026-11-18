@@ -120,7 +120,7 @@ export function HomeHero({
     >
       <figure className={styles.figure}>
         <div className={styles.stage} aria-hidden="true">
-          {!canvasReady && <BadgePreview doc={doc} className={styles.flat} />}
+          {!canvasReady && <BadgePreview doc={doc} className={styles.flat} placeholders />}
           <div className={styles.canvas}>
             {narrow !== null && (
               <Badge3D

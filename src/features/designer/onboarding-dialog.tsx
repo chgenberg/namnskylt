@@ -80,7 +80,7 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
 
         <div className={styles.preview}>
           <div className={styles.preview3d}>
-            {!canvasReady && <BadgePreview doc={doc} label="Din skylt" className={styles.previewBadge} />}
+            {!canvasReady && <BadgePreview doc={doc} label="Din skylt" className={styles.previewBadge} placeholders />}
             <div className={styles.previewCanvas} aria-hidden="true">
               <Badge3D
                 doc={doc}

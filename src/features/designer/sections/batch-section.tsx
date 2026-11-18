@@ -29,7 +29,7 @@ function describeImport(roster: Roster, fileName: string): string {
   return `${people} från ${fileName} — namn ur ”${roster.columns.name}”${title}.`;
 }
 
-function useRosterImport(text: string, onTextChange: (text: string) => void) {
+function useRosterImport(onImport: (lines: string) => void) {
   const [status, setStatus] = useState<ImportStatus>(null);
   const [busy, setBusy] = useState(false);
 
@@ -39,11 +39,15 @@ function useRosterImport(text: string, onTextChange: (text: string) => void) {
       const table = await readTable(file.name, new Uint8Array(await file.arrayBuffer()));
       const roster = rosterFromTable(table);
       if (roster.entries.length === 0) {
-        setStatus({ kind: "error", text: `Hittade inga namn i ${file.name}. Kopiera namnen ur filen och klistra in dem i rutan ovan, så går det också bra.` });
+        // Skiljer en fil utan text från en där vi inte kände igen namnen, så att felet går att förstå.
+        const blank = !table.some((row) => row.some((cell) => cell.trim() !== ""));
+        setStatus({
+          kind: "error",
+          text: `Hittade ${blank ? "ingen text" : "inga namn"} i ${file.name}. Kopiera namnen ur filen och klistra in dem i rutan ovan, så går det också bra.`,
+        });
         return;
       }
-      const lines = rosterText(roster.entries);
-      onTextChange(text.trim() ? `${text.trimEnd()}\n${lines}` : lines);
+      onImport(rosterText(roster.entries));
       setStatus({ kind: "ok", text: describeImport(roster, file.name) });
     } catch (error) {
       setStatus({
@@ -70,6 +74,8 @@ interface BatchSectionProps {
   badges: readonly BadgeDocument[];
   text: string;
   onTextChange: (text: string) => void;
+  /** Rader ur en uppladdad fil, en skylt per rad. De läggs sist i listan. */
+  onImport: (lines: string) => void;
   /** Öppnar kollegans skylt i editorn; den som redigerades tar hennes plats i listan. */
   onSelect: (index: number) => void;
   /** Tar bort skylten i editorn — nästa i listan tar över. */
@@ -96,6 +102,7 @@ export function BatchSection({
   badges,
   text,
   onTextChange,
+  onImport,
   onSelect,
   onRemoveCurrent,
   overflow,
@@ -115,7 +122,7 @@ export function BatchSection({
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
-  const { status, busy, importFile, clearStatus } = useRosterImport(text, onTextChange);
+  const { status, busy, importFile, clearStatus } = useRosterImport(onImport);
 
   function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -195,6 +202,14 @@ export function BatchSection({
       )}
 
       {badges.length > 0 && (
+        // Med flera namn gäller antalet varje namn. Det börjar på 1 när listan får sina första namn.
+        <p className={styles.hint} data-per-name>
+          {current.quantity === 1 ? "En skylt per namn." : `${current.quantity} skyltar per namn.`} Antalet per namn ändrar du vid
+          priset.
+        </p>
+      )}
+
+      {badges.length > 0 && (
         <ul className={styles.batchList} aria-label="Alla skyltar i ordern">
           <AnimatePresence initial={false}>
             {all.map((doc, position) => {
@@ -219,7 +234,7 @@ export function BatchSection({
                     aria-label={editing ? `${line} — redigeras nu` : `Redigera ${line}`}
                     onClick={() => !editing && onSelect(position - 1)}
                   >
-                    <BadgePreview doc={doc} className={styles.batchPreview} />
+                    <BadgePreview doc={doc} className={styles.batchPreview} placeholders={editing} />
                     <span className={styles.batchMeta}>
                       <span className={styles.batchName}>{line}</span>
                       {editing ? (
