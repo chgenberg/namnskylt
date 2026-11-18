@@ -16,6 +16,7 @@ import {
   removeBatchEntry,
   replaceBatchEntry,
   sameDesign,
+  withLeadName,
   withTexts,
   type BadgeDocument,
 } from "./index";
@@ -74,6 +75,25 @@ describe("en helt tom skylt", () => {
     // En skylt med bara logga är en skylt utan namn, och en tom rad bredvid ett namn är en rad utan text.
     assert.equal(isBlankBadge({ ...createBadgeDocument([""]), logo }), false);
     assert.equal(isBlankBadge(createBadgeDocument(["Anna Lind", ""])), false);
+  });
+});
+
+describe("en skylt utan text med namn i listan", () => {
+  const logo = { d: "M0 0L1 0L1 1Z", viewWidth: 1, viewHeight: 1, placement: "left" as const, heightMm: 10 };
+
+  it("listans första namn tar skyltens plats, så att ingen skylt utan text följer med namnen", () => {
+    const group = withLeadName({ doc: { ...createBadgeDocument([""]), logo }, batchText: "\nAnna Lind, Säljare\nErik Holm, VD" });
+    assert.equal(batchLine(group.doc), "Anna Lind, Säljare");
+    assert.deepEqual(group.doc.logo, logo);
+    assert.deepEqual(parseBatchInput(group.batchText), [["Erik Holm", "VD"]]);
+    assert.equal(groupBadges(group).length, 2);
+  });
+
+  it("en skylt med text, eller en skylt med bara logga utan lista, står som den är", () => {
+    const named = { doc: createBadgeDocument(["Anna Lind"]), batchText: "Erik Holm" };
+    assert.equal(withLeadName(named), named);
+    const only = { doc: { ...createBadgeDocument([""]), logo }, batchText: " \n" };
+    assert.equal(withLeadName(only), only);
   });
 });
 

@@ -217,6 +217,21 @@ function planLogo(doc: BadgeDocument, inset: Mm): LogoPlan | null {
     return { w, h };
   };
 
+  // En skylt utan text bär bara loggan (beslut av ägaren 2026-11-18): den står mitt på skylten
+  // och får ta hela ytan, i stället för att stå vid sidan av en text som inte finns.
+  if (engravedRows(doc).length === 0) {
+    let { w, h } = fit(contentW, contentH);
+    const top = (heightMm - h) / 2;
+    const widest = availableHalfWidth(doc, inset, top, top + h) * 2;
+    if (w > widest) {
+      w = widest;
+      h = w / aspect;
+    }
+    const box: Rect = { x: (widthMm - w) / 2, y: (heightMm - h) / 2, width: w, height: h };
+    const region: TextRegion = { left: inset, right: widthMm - inset, top: inset, bottom: heightMm - inset };
+    return { textHeightMm: contentH, boxFor: () => box, regionFor: () => region };
+  }
+
   if (logo.placement === "top") {
     const { w, h } = fit(contentW, contentH * LOGO_TOP_MAX_HEIGHT_RATIO);
     const placeFor = (block: Mm) => {

@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1213 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1217 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -963,8 +963,9 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   - Under listan står "En skylt per namn. Antalet per namn ändrar du vid priset."
   - **En uppladdad fil fyller en tom skylt i editorn** (`importNames`): filens första namn
     tar dess plats, så att tio namn blir tio skyltar. Förut låg en skylt utan text först i
-    listan, och då gick inget att lägga i varukorgen. Det gäller bara filer, inte text som
-    skrivs eller klistras in, eftersom första tecknet annars skulle hoppa upp i editorn.
+    listan, och då gick inget att lägga i varukorgen. Namn som skrivs eller klistras in
+    flyttas upp först när kunden lämnar rutan, eftersom första tecknet annars skulle hoppa
+    upp i editorn (se En skylt med bara logga).
 - **Platshållaren "Ditt namn" ritas bara på en helt tom skylt som håller på att skapas**
   (besked via ägaren 2026-11-18, som såg texten stå kvar på en skylt utan namn):
   `isBlankBadge` i motorn, `withPlaceholders` och `BadgePreview` med `placeholders`.
@@ -973,11 +974,33 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   - En sparad skylt ritas alltid som den är: korrektur, offert, order, varukorg och panelens
     listor ritar aldrig platshållare. `placeholders` sätts bara på startsidans och
     startrutans reservbild, på skylten i editorn överst i namnlistan och i "Ny personal".
-  - **En skylt utan text går fortfarande inte att beställa** (`badgeDocumentSchema`:
-    "Skylten saknar text"). Knappen "Lägg i varukorgen" är då avstängd, och skälet står
-    under den. Ägaren har bestämt 2026-11-18 att en skylt med bara logga ska gå att
-    beställa. Det är inte byggt än. Verkstadens mottagare kräver en referens per rad, som i
-    dag är skyltens text.
+- **En skylt med bara logga går att beställa** (beslut av ägaren 2026-11-18, på frågan om en
+  skylt helt utan text ska gå att beställa: "Ja, bara logga ska gå"). En skylt ska ha text
+  eller logga (`badgeDocumentSchema`, `isBlankBadge`). En helt tom skylt går inte att lägga i
+  varukorgen, och skälet står under knappen.
+  - **Loggan står då mitt på skylten** och får ta hela ytan (`planLogo` i `layout.ts`), i
+    stället för vid sidan av en text som inte finns. Skrivs ett namn flyttar den till sin
+    plats bredvid texten. Loggans storlek och "Flytta text och logga" gäller som vanligt.
+  - Skylten heter "Utan text" i varukorgen, på ordersidor och offerter och "Utan namn" i
+    panelen. Priset är detsamma som för en skylt med text.
+  - Verkstaden får ett dokument med loggans bildlager och inget textlager. Raden har vårt
+    ordernummer som referens, så ingen text behövs där. Prövat 2026-11-18 mot verkstadens
+    egna regler genom att läsa deras kod (`partnerDocument`, `partnerRulesDocument` och
+    märkskyltens `validate`), utan att starta eller ändra något hos dem: metall och plast,
+    graverad logga, logga i färg och svartvit logga som printas godkänns alla. **Ingen
+    sådan order har gått till verkstaden på riktigt.**
+  - **Namn i listan under en skylt utan text:** när kunden lämnar textrutan tar listans
+    första namn skyltens plats i editorn (`withLeadName` i motorn, `settleNames`), och
+    samma sak görs när skylten läggs i varukorgen. Annars följde en skylt utan text med
+    namnen. Det görs inte medan kunden skriver. Följden är att en skylt utan namn och en
+    lista med namn inte ryms i samma design: skylten utan namn läggs i varukorgen för sig.
+  - "Ändra" på en design i varukorgen kastar fortfarande en skylt i editorn som saknar namn
+    (`editDesign`), också en med logga: en skylt med bara logga hamnar i ordern först när
+    kunden själv lägger den i varukorgen.
+  - Kända brister: märkningsmetoden kan heta "Namn graveras · logotyp printas" på en skylt
+    utan namn, och den prissätts då som den kombinerade metoden (alla metoder kostar 0 kr i
+    dag). Skrivs ett enda namn i listan under en tom skylt blir antalet 1, fast kunden kan
+    ha valt fler av den enda skylten.
 - **Flera designer i samma order**: varje design är en rad i varukorgen (`BadgeGroup` i
   motorn). Priset räknas på hela ordern, så trappsteg,
   startkostnad och frakt delas. En order med flera designer sparas utan 3D-stillbild, eftersom

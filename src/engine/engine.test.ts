@@ -126,6 +126,21 @@ describe("badgeDocumentSchema", () => {
     assert.equal(badgeDocumentSchema.safeParse(createBadgeDocument(["Anna"])).success, true);
   });
 
+  it("godtar en skylt med bara logga, och loggan står då mitt på skylten", () => {
+    const logo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 12 };
+    const only = { ...createBadgeDocument([""]), logo };
+    assert.equal(badgeDocumentSchema.safeParse(only).success, true);
+    const { logo: box, rows } = layoutBadge(only, approxFonts);
+    assert.ok(box);
+    assert.equal(rows.length, 0);
+    // Mitt på skylten, inte vid sidan av en text som inte finns.
+    assert.ok(Math.abs(box.x + box.width / 2 - only.size.widthMm / 2) < 1e-9);
+    assert.ok(Math.abs(box.y + box.height / 2 - only.size.heightMm / 2) < 1e-9);
+    // Med ett namn står loggan till vänster om texten, som förut.
+    const named = layoutBadge({ ...createBadgeDocument(["Anna Lind"]), logo }, approxFonts);
+    assert.ok(named.logo && named.logo.x + named.logo.width / 2 < only.size.widthMm / 2);
+  });
+
   it("nekar en skylt utan text och en färg som inte hör till materialet", () => {
     assert.equal(badgeDocumentSchema.safeParse(createBadgeDocument([""])).success, false);
     const doc = { ...createBadgeDocument(["Anna"]), materialId: "stainless" as const };

@@ -83,6 +83,21 @@ describe("toSupplierSignDocument", () => {
     assert.match(layer.data.vector.markup, /^<path d="M0 0L10 0L10 10L0 10Z" fill="#000000" fill-rule="evenodd"\/>$/);
   });
 
+  it("skickar en skylt med bara logga: loggans lager mitt på skylten och inget textlager", () => {
+    const doc = {
+      ...createBadgeDocument([""]),
+      logo: { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 12 },
+    };
+    const supplier = toSupplierSignDocument(doc, approxFonts, { logoPng: "data:image/png;base64,AA" });
+    assert.deepEqual(supplier.layers.map((layer) => layer.data.kind), ["image"]);
+    const [layer] = supplier.layers;
+    assert.ok(layer?.data.kind === "image");
+    assert.equal(layer.data.renderMode, "engrave");
+    // Lagrets mittpunkt är skyltens mitt.
+    assert.equal(layer.transform.position.x, doc.size.widthMm / 2);
+    assert.equal(layer.transform.position.y, doc.size.heightMm / 2);
+  });
+
   it("skickar gravyrformen när en logga i färg graveras, och siluetten rörs inte när den printas", () => {
     const logo = {
       d: "M0 0L10 0L10 10L0 10Z",

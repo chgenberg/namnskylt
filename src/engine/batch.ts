@@ -87,6 +87,18 @@ export function groupBadges(group: BadgeGroup, max = MAX_ORDER_BADGES): BadgeDoc
   return [group.doc, ...parseBatchInput(group.batchText, max - 1).map((texts) => withTexts(group.doc, texts))];
 }
 
+/**
+ * Gruppen som den ska beställas. Saknar skylten text och listan har namn tar listans första
+ * namn skyltens plats: listan är namnen kunden vill ha, och en skylt utan text först i den
+ * är ingen beställning. En skylt med bara logga går att beställa för sig (beslut av ägaren
+ * 2026-11-18), men då utan namn i listan.
+ */
+export function withLeadName(group: BadgeGroup): BadgeGroup {
+  if (group.doc.rows.some((row) => row.text.trim().length > 0)) return group;
+  const [first] = parseBatchInput(group.batchText, 1);
+  return first ? { doc: withTexts(group.doc, first), batchText: removeBatchEntry(group.batchText, 0) } : group;
+}
+
 /** Antal skyltar i gruppen, alla namn gånger antalet per namn. */
 export function groupQuantity(group: BadgeGroup): number {
   return groupBadges(group).reduce((total, badge) => total + Math.max(1, Math.floor(badge.quantity)), 0);

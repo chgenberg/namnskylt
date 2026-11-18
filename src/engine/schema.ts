@@ -118,7 +118,8 @@ export const badgeDocumentSchema = z
     if (doc.shape === "round" && doc.size.widthMm !== doc.size.heightMm) {
       ctx.addIssue({ code: "custom", path: ["size"], message: "En rund skylt är lika bred som hög" });
     }
-    if (doc.rows.every((r) => r.text.trim().length === 0)) {
-      ctx.addIssue({ code: "custom", path: ["rows"], message: "Skylten saknar text" });
+    // En skylt med bara logga går att beställa (beslut av ägaren 2026-11-18). Helt tom får den inte vara.
+    if (!doc.logo && doc.rows.every((r) => r.text.trim().length === 0)) {
+      ctx.addIssue({ code: "custom", path: ["rows"], message: "Skylten har varken text eller logga" });
     }
   }) satisfies z.ZodType<BadgeDocument>;

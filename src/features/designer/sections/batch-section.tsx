@@ -76,6 +76,8 @@ interface BatchSectionProps {
   onTextChange: (text: string) => void;
   /** Rader ur en uppladdad fil, en skylt per rad. De läggs sist i listan. */
   onImport: (lines: string) => void;
+  /** Kunden lämnar textrutan: nu får listans första namn ta en tom skylts plats i editorn. */
+  onSettle: () => void;
   /** Öppnar kollegans skylt i editorn; den som redigerades tar hennes plats i listan. */
   onSelect: (index: number) => void;
   /** Tar bort skylten i editorn — nästa i listan tar över. */
@@ -103,6 +105,7 @@ export function BatchSection({
   text,
   onTextChange,
   onImport,
+  onSettle,
   onSelect,
   onRemoveCurrent,
   overflow,
@@ -167,6 +170,7 @@ export function BatchSection({
             clearStatus();
             onTextChange(event.target.value);
           }}
+          onBlur={onSettle}
           placeholder={PLACEHOLDER}
           rows={4}
           spellCheck={false}

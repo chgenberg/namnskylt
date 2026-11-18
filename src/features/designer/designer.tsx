@@ -22,6 +22,7 @@ import {
   parseSmartInput,
   tierIndexFor,
   toOfferedDocument,
+  withLeadName,
   withTexts,
   type BadgeDocument,
   type BadgeGroup,
@@ -391,11 +392,26 @@ export function Designer({
     changeNames(before.trim() && added ? `${before}\n${added}` : before.trim() ? batchText : added);
   };
 
+  /**
+   * Kunden lämnar namnlistan. Saknar skylten i editorn text tar listans första namn dess plats
+   * (`withLeadName`), så att namn som skrivs eller klistras in under en tom skylt inte ger en
+   * skylt utan text först i ordern. Det görs inte medan kunden skriver: då hoppade första
+   * tecknet upp i editorn.
+   */
+  const settleNames = () => {
+    const lead = withLeadName({ doc, batchText });
+    if (lead.batchText === batchText) return;
+    update({ type: "texts", texts: lead.doc.rows.map((row) => row.text) });
+    setBatchText(lead.batchText);
+  };
+
   /** Lägger skylten i editorn i ordern och börjar på nästa: samma design, utan text. */
   const addDesign = () => {
     // Stillbilden tas medan skylten ännu syns i editorn. Den gäller bara så länge varukorgen har just den designen.
     cartShot.current = cart.length === 0 ? (recorderRef.current?.still() ?? null) : null;
-    setCart((groups) => [...groups, { doc, batchText }]);
+    // En skylt utan text med namn i listan: listans första namn är den första skylten.
+    const group = withLeadName({ doc, batchText });
+    setCart((groups) => [...groups, group]);
     setBatchText("");
     dispatch({ type: "load", doc: { ...withTexts(doc, [""]), quantity: 1 } });
     setPending(true);
@@ -728,6 +744,7 @@ export function Designer({
             text={batchText}
             onTextChange={changeNames}
             onImport={importNames}
+            onSettle={settleNames}
             onSelect={openColleague}
             onRemoveCurrent={removeCurrent}
             overflow={batchEntries.length - batch.length}
