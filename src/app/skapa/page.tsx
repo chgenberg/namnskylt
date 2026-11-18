@@ -66,7 +66,9 @@ async function resellerContext(customerId: string | undefined, quote: boolean, p
   const tenant = databaseConfigured() ? await currentTenant() : null;
   if (!tenant) return undefined;
   const mode = quote ? ("quote" as const) : ("order" as const);
-  const shared = { mode, purchaseList: resellerPriceTable(await getPriceModel()), quoteEmail: quoteEmailOn() };
+  // Inköpspriserna går bara till en inloggad återförsäljare. Admin ser slutkundens pris, som alla andra.
+  const purchaseList = isOwner(tenant) ? undefined : resellerPriceTable(await getPriceModel());
+  const shared = { mode, ...(purchaseList && { purchaseList }), quoteEmail: quoteEmailOn() };
   const customer = customerId ? await getCustomer(tenant, customerId) : null;
   // Utan kund i adressen, eller med en som inte går att beställa åt, väljs kunden i varukorgen.
   if (!customer || isErasedCustomer(customer)) {

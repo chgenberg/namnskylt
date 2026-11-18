@@ -20,6 +20,7 @@ import {
   VAT_RATE,
   withStartInSign,
   type BadgeDocument,
+  type PriceTable,
   type ShippingMethod,
   type ShownPricePart,
 } from "@/engine";
@@ -302,7 +303,8 @@ export function OrderSection({
   const price = shop?.priceList ? { ...listPrice, ...shopPrice(badges, shop.priceList, priceList, 0) } : listPrice;
   // Frakten är samma för kunden och återförsäljaren. Återförsäljaren räknar den ur sin inköpslista,
   // en kund får den av servern när kassan öppnas.
-  const standardShipping = useOrderShipping(badges, reseller?.purchaseList, Boolean(reseller) || (formOpen && active));
+  // Admin har ingen inköpslista och frågar servern som en kund, när leveransen ska fyllas i.
+  const standardShipping = useOrderShipping(badges, reseller?.purchaseList, Boolean(reseller?.purchaseList) || (formOpen && active));
   // Det kunden har fyllt i om sig själv. Det ligger här och inte i fälten, så att det står kvar
   // när formuläret försvinner en stund, till exempel när varukorgens enda skylt öppnas för ändring.
   // En inloggad kund får sina uppgifter ifyllda.
@@ -558,7 +560,7 @@ export function OrderSection({
         </p>
       </div>
 
-      {reseller && <PurchaseSummary badges={badges} reseller={reseller} saleSek={price.totalSek} />}
+      {reseller?.purchaseList && <PurchaseSummary badges={badges} mode={reseller.mode} purchaseList={reseller.purchaseList} saleSek={price.totalSek} />}
 
       {inCart ? (
         <>
@@ -591,7 +593,9 @@ export function OrderSection({
       </>
       )}
 
-      {checkout && reseller && badges.length > 0 && <PurchaseSummary badges={badges} reseller={reseller} saleSek={price.totalSek} />}
+      {checkout && reseller?.purchaseList && badges.length > 0 && (
+        <PurchaseSummary badges={badges} mode={reseller.mode} purchaseList={reseller.purchaseList} saleSek={price.totalSek} />
+      )}
 
       {reseller && checkout && badges.length > 0 && (
         <>
@@ -914,16 +918,19 @@ function OrderTotals({ label, quantity, goodsSek, shippingSek, method, vat }: Or
 
 interface PurchaseSummaryProps {
   badges: readonly BadgeDocument[];
-  reseller: ResellerOrderContext;
+  /** Återförsäljarens inköpspriser. Finns bara för en inloggad återförsäljare. */
+  purchaseList: PriceTable;
+  mode: ResellerOrderContext["mode"];
   saleSek: number;
 }
 
 /**
- * Bara för återförsäljaren: vad skyltarna kostar i inköp enligt prismodellen och vad som blir kvar vid listpris.
+ * Bara för en inloggad återförsäljare: vad skyltarna kostar i inköp enligt prismodellen och vad som blir kvar vid
+ * listpris. Alla andra, också admin, ser bara slutkundens pris (besked av ägaren 2026-11-18).
  * Alla tre beloppen är utan frakt. Frakten är samma för återförsäljaren och kunden och ändrar inte marginalen.
  */
-function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
-  const purchase = resellerOrder(badges, reseller.purchaseList);
+function PurchaseSummary({ badges, purchaseList, mode, saleSek }: PurchaseSummaryProps) {
+  const purchase = resellerOrder(badges, purchaseList);
   const margin = marginOf(saleSek, purchase.goodsSek);
   const quantity = badges.reduce((sum, badge) => sum + badge.quantity, 0);
   return (
@@ -946,11 +953,11 @@ function PurchaseSummary({ badges, reseller, saleSek }: PurchaseSummaryProps) {
           {margin.percent !== null && <span> · {margin.percent} %</span>}
         </dd>
       </div>
-      {(purchase.shippingSek > 0 || reseller.mode === "quote") && (
+      {(purchase.shippingSek > 0 || mode === "quote") && (
         // Kort hållet för att rymmas på en rad. Frakten är samma för återförsäljaren och kunden.
         <p title={purchase.shippingSek > 0 ? "Frakten är samma för dig och kunden." : undefined}>
           {purchase.shippingSek > 0 && `Frakt ${formatSek(purchase.shippingSek)} tillkommer. `}
-          {reseller.mode === "quote" && "Kundpriset kan ändras på offerten."}
+          {mode === "quote" && "Kundpriset kan ändras på offerten."}
         </p>
       )}
     </dl>

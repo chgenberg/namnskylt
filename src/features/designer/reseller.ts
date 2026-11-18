@@ -45,8 +45,12 @@ export interface ResellerOrderContext {
   mode: "order" | "quote";
   /** Offertens rubrik, satt innan skyltmotorn öppnades. */
   project?: string;
-  /** Återförsäljarens inköpspriser, för inköp och marginal. Skickas bara till en inloggad återförsäljare. */
-  purchaseList: PriceTable;
+  /**
+   * Återförsäljarens inköpspriser, för inköp och marginal. Skickas bara till en inloggad
+   * återförsäljare (besked av ägaren 2026-11-18). Admin är ingen återförsäljare och får dem inte:
+   * hos namnskylt.com fakturerar verkstaden kunden slutkundens pris, så bara det priset visas.
+   */
+  purchaseList?: PriceTable;
   /** Förifyllda leveransadresser: kundens och återförsäljarens egen. */
   delivery: DeliveryOptions;
   /**

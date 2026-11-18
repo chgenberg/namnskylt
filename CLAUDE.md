@@ -961,6 +961,15 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
     aldrig mejlas till en kund som säljaren inte ser.
   - Följden är att en inloggad admin eller återförsäljare aldrig ser kundens egen kassa på
     `/skapa`. Den som vill se den använder ett privat fönster. Butikernas skyltmotor är orörd.
+  - **Återförsäljarens priser visas bara för en inloggad återförsäljare** (besked av ägaren
+    2026-11-18: "enbart slutkundspriset ska visas om man inte är inloggad som återförsäljare").
+    Raderna Ditt inköp, Kundpris och Marginal (`PurchaseSummary`) och inköpslistan
+    (`ResellerOrderContext.purchaseList`) går därför inte till admin: `/skapa` skickar listan
+    bara när den inloggade inte är ägaren. Admin ser slutkundens pris som alla andra, och frågar
+    servern om frakten som en kund. Hos namnskylt.com fakturerar verkstaden ändå kunden
+    slutkundens pris, så återförsäljarens inköp gäller inte där.
+    - I panelen står inköpspriserna kvar för admin (prisredigeraren på order och offert,
+      `/admin/inkopspriser`, Prismodell och Provision). Det är adminens egna sidor.
   - Från panelen (`?kund=<id>`) är kunden vald i förväg, som förut, och valet visas inte.
 - **Återförsäljaren utgår från varukorgen** (besked av ägaren 2026-11-16). Från panelen
   (`/admin/ny-order`, `/admin/ny-offert`) öppnas skyltmotorn rakt i editorn, utan startsida
