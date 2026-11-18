@@ -189,6 +189,34 @@ const badgeTotal = (groups: readonly BadgeGroup[]) => groups.reduce((sum, group)
  * Det skyltmotorn öppnades med, som ett värde att jämföra: skylten i en delad
  * länk, texten från startsidan, eller tomt när adressen inte bär något.
  */
+/** Adressens parameter med kopians märke. Ett nytt märke per klick på "Kopiera order". */
+export const COPY_MARK_PARAM = "ny";
+const COPY_MARK_PATTERN = /^[0-9a-z]{1,16}$/;
+
+/** Märket ur adressen, eller `undefined` när det saknas eller inte är ett märke. */
+export function copyMarkOf(value: string | undefined): string | undefined {
+  return value && COPY_MARK_PATTERN.test(value) ? value : undefined;
+}
+
+/**
+ * Adressen till skyltmotorn för en ny kopia av en order: samma adress med ett nytt märke.
+ * Märket gör varje klick till en egen öppning (`openedWithCopy`).
+ */
+export function freshCopyHref(href: string, now: number = Date.now()): string {
+  return `${href}${href.includes("?") ? "&" : "?"}${COPY_MARK_PARAM}=${now.toString(36)}`;
+}
+
+/**
+ * Öppningen för en tidigare order som kopieras till en ny (besked via ägaren 2026-11-18, som
+ * klickade "Beställ igen" två gånger och andra gången fick sina ändringar från första gången,
+ * så att det såg ut som om den gamla ordern hade ändrats). Med ett märke i adressen är varje
+ * klick en egen öppning: det som är sparat från en tidigare kopia läses inte tillbaka, men en
+ * omladdning av samma sida behåller ändringarna.
+ */
+export function openedWithCopy(orderNo: string, mark: string | undefined): string {
+  return mark ? `kopia:${orderNo}:${mark}` : `kopia:${orderNo}`;
+}
+
 export function openedWith(text: string, doc: BadgeDocument | null | undefined): string {
   if (doc) return `d:${badgeSignature(doc)}`.slice(0, MAX_OPENED_CHARS);
   const trimmed = text.trim();

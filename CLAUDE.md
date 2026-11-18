@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1221 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1223 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -1000,6 +1000,12 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
     listan, och då gick inget att lägga i varukorgen. Namn som skrivs eller klistras in
     flyttas upp först när kunden lämnar rutan, eftersom första tecknet annars skulle hoppa
     upp i editorn (se En skylt med bara logga).
+- **Listan under "Fler namn" står kvar när bara en skylt är kvar** (besked av ägaren
+  2026-11-18: "tar jag bort 3 av 4 så försvinner även den 4e"). Listan visades bara med flera
+  skyltar, så när den näst sista togs bort försvann hela listan, fast skylten i editorn fanns
+  kvar. Den står nu kvar med den sista skylten, som inte har någon knapp för att tas bort.
+  En skylt som aldrig har haft fler namn visar ingen lista, som förut, och inte heller en
+  ensam skylt efter en omladdning (`listed` i `BatchSection`).
 - **Platshållaren "Ditt namn" ritas bara på en helt tom skylt som håller på att skapas**
   (besked via ägaren 2026-11-18, som såg texten stå kvar på en skylt utan namn):
   `isBlankBadge` i motorn, `withPlaceholders` och `BadgePreview` med `placeholders`.
@@ -1497,14 +1503,26 @@ och "Också i återförsäljarnas butiker"). Det är ett tredje inlogg, skilt fr
     (`expectsAccount` i anropet, `signedOut` i svaret). Så hamnar en order aldrig utanför
     kontot utan att kunden märker det.
 - **Mitt konto** (`/konto` och `/butik/<slug>/konto`, `AccountPage`): ordrarna nyast först med
-  status, antal och summa, knapparna Beställ igen, Visa order (kundens ordersida) och Följ
+  status, antal och summa, knapparna Kopiera order, Visa order (kundens ordersida) och Följ
   försändelsen, och formulär för uppgifterna, lösenordet och "Ta bort mitt konto". Ordrarna
   läses åt kunden, aldrig med inköpspriser (`listAccountOrders`).
-- **Beställ igen** öppnar skyltmotorn med orderns skyltar i varukorgen
-  (`/skapa?igen=<ordernummer>`, `customerDesignerContext`), precis som återförsäljarens
-  "Ändra först". Bara en order som hör till det inloggade kontot öppnas. Den nya ordern pekar
-  tillbaka på den gamla (`repeatOf`) och får dagens pris. När ordern är lagd tas `igen` ur
-  adressen, så att en omladdning inte öppnar samma order i varukorgen en gång till.
+- **Kopiera order** (hette "Beställ igen" till 2026-11-18) öppnar skyltmotorn med orderns
+  skyltar i varukorgen (`/skapa?igen=<ordernummer>`, `customerDesignerContext`), precis som
+  återförsäljarens "Ändra först". Bara en order som hör till det inloggade kontot öppnas. Den
+  nya ordern pekar tillbaka på den gamla (`repeatOf`) och får dagens pris. När ordern är lagd
+  tas `igen` ur adressen, så att en omladdning inte öppnar samma order i varukorgen en gång till.
+  - **Den gamla ordern ändras aldrig, och varje klick ger en ny kopia** (besked av ägaren
+    2026-11-18: "ändra till kopiera order, så skapas en ny där man kan redigera utefter
+    föregående order"). Ägaren klickade två gånger på samma order och fick andra gången sina
+    ändringar från första gången, eftersom det sparade arbetet lästes tillbaka. Det såg ut
+    som om den gamla ordern hade ändrats.
+  - Länken (`CopyOrderLink` i `src/components/`) lägger ett märke i adressen vid varje klick
+    (`ny=<märke>`, `freshCopyHref`, `copyMarkOf`). Märket ingår i öppningen
+    (`openedWithCopy`), så en ny kopia läser aldrig tillbaka en tidigare kopias ändringar,
+    medan en omladdning av samma sida behåller dem. Samma länk används för panelens
+    "Ändra först".
+  - Skyltmotorn säger "Kopia av NS-…. Du skapar en ny order, och den gamla ändras inte."
+    tills ordern är lagd.
 - **Glömt lösenord** löses i panelen: under Kunder finns listan "Kundkonton" med knappen
   Lösenordslänk (`CustomerAccounts`, `customerPasswordLinkAction`). Länken gäller i tre dagar
   och en gång, visas en gång och skickas för hand. Sidan `/konto/losenord/<kod>` är öppen förbi

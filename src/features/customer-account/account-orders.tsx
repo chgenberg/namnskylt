@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BadgePreview } from "@/components/badge-preview";
+import { CopyOrderLink } from "@/components/copy-order-link";
 import { engravedRows, type BadgeDocument } from "@/engine";
 import { accountPaths } from "@/lib/customer-auth/model";
 import { formatDay, formatSek } from "@/lib/format";
@@ -27,14 +28,14 @@ function contents(order: StoredOrder): string {
   return more > 0 ? `${name} och ${more} till` : name;
 }
 
-/** Kontots ordrar, nyast först. Varje order går att följa och att beställa igen. */
+/** Kontots ordrar, nyast först. Varje order går att följa och att kopiera till en ny order. */
 export function AccountOrders({ orders, shop }: AccountOrdersProps) {
   const paths = accountPaths(shop);
   if (orders.length === 0) {
     return (
       <div className={styles.empty}>
         <strong>Inga ordrar på kontot än</strong>
-        <span>Ordrar du lägger när du är inloggad visas här, och går att beställa igen med ett par klick.</span>
+        <span>Ordrar du lägger när du är inloggad visas här, och går att kopiera till en ny order med ett par klick.</span>
         <Link href={paths.designer} className="btn btn--primary">
           Skapa skylt
         </Link>
@@ -63,9 +64,10 @@ export function AccountOrders({ orders, shop }: AccountOrdersProps) {
               </p>
               <div className={styles.orderActions}>
                 {order.badges.length > 0 && (
-                  <Link href={paths.reorder(order.orderNo)} className="btn btn--primary">
-                    Beställ igen
-                  </Link>
+                  // Den gamla ordern ändras aldrig: skyltarna öppnas i skyltmotorn som en ny order.
+                  <CopyOrderLink href={paths.reorder(order.orderNo)} className="btn btn--primary">
+                    Kopiera order
+                  </CopyOrderLink>
                 )}
                 <Link href={`/order/${order.customerToken}`} className="btn">
                   Visa order

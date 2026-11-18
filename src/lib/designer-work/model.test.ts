@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createBadgeDocument, toOfferedDocument, withTexts, type BadgeDocument, type BadgeLogo } from "@/engine";
 import {
+  COPY_MARK_PARAM,
   SAVED_WORK_MAX_AGE_MS,
+  copyMarkOf,
+  freshCopyHref,
   isSaveable,
   isWorthSaving,
   openedWith,
+  openedWithCopy,
   packSavedWork,
   readSavedWork,
   restoredWork,
@@ -159,5 +163,30 @@ describe("vad som läses tillbaka när skyltmotorn öppnas", () => {
   it("räknar en skylt med annat antal eller material som en annan skylt", () => {
     const more = { ...anna, quantity: anna.quantity + 1 };
     assert.equal(restoredWork(work(), more, openedWith("", more)), null);
+  });
+});
+
+describe("en kopia av en tidigare order", () => {
+  it("varje klick på Kopiera order är en egen öppning, så att en tidigare kopias ändringar inte kommer tillbaka", () => {
+    const first = freshCopyHref("/skapa?igen=NS-1095", 1_000_000);
+    const second = freshCopyHref("/skapa?igen=NS-1095", 1_060_000);
+    assert.notEqual(first, second);
+    assert.match(first, /^\/skapa\?igen=NS-1095&ny=[0-9a-z]+$/);
+    assert.equal(freshCopyHref("/butik/demo/skapa", 36), "/butik/demo/skapa?ny=10");
+    const mark = (href: string) => copyMarkOf(new URL(href, "https://exempel.se").searchParams.get(COPY_MARK_PARAM) ?? undefined);
+    // Två klick ger två öppningar; samma adress (en omladdning) ger samma.
+    assert.notEqual(openedWithCopy("NS-1095", mark(first)), openedWithCopy("NS-1095", mark(second)));
+    assert.equal(openedWithCopy("NS-1095", mark(first)), openedWithCopy("NS-1095", mark(first)));
+    // En annan order är alltid en annan öppning, också med samma märke.
+    assert.notEqual(openedWithCopy("NS-1095", "abc"), openedWithCopy("NS-1096", "abc"));
+  });
+
+  it("ett märke som inte är ett märke räknas inte, och utan märke gäller ordernumret", () => {
+    assert.equal(copyMarkOf("abc123"), "abc123");
+    assert.equal(copyMarkOf("../../x"), undefined);
+    assert.equal(copyMarkOf("a".repeat(40)), undefined);
+    assert.equal(copyMarkOf(undefined), undefined);
+    assert.equal(openedWithCopy("NS-1095", undefined), "kopia:NS-1095");
+    assert.equal(openedWithCopy("NS-1095", "abc"), "kopia:NS-1095:abc");
   });
 });

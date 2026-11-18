@@ -31,7 +31,7 @@ import {
 import { useFontEngine } from "@/hooks/use-font-engine";
 import type { CustomerAccountView } from "@/lib/customer-auth/model";
 import { WEB_SCOPE } from "@/lib/designer-stats/model";
-import { openedWith, savedWorkKey, type RestoredWork } from "@/lib/designer-work/model";
+import { COPY_MARK_PARAM, openedWith, openedWithCopy, savedWorkKey, type RestoredWork } from "@/lib/designer-work/model";
 import { useVisualize } from "@/features/visualize/use-visualize";
 import { VisualizeView } from "@/features/visualize/visualize-view";
 import { BadgeEditor } from "./badge-editor";
@@ -89,6 +89,7 @@ function forgetReorderInAddress(): void {
   const url = new URL(window.location.href);
   if (!url.searchParams.has("igen")) return;
   url.searchParams.delete("igen");
+  url.searchParams.delete(COPY_MARK_PARAM);
   window.history.replaceState(window.history.state, "", url);
 }
 /** Ett varv runt skylten i 3D-filmen. */
@@ -145,8 +146,10 @@ interface DesignerProps {
   accounts?: boolean;
   /** Kunden som är inloggad när sidan öppnas. Kassan fylls i med kontots uppgifter. */
   customer?: CustomerAccountView | null;
-  /** En av den inloggade kundens tidigare ordrar, öppnad med "Beställ igen": dess skyltar ligger i varukorgen. */
+  /** En av den inloggade kundens tidigare ordrar, öppnad med "Kopiera order": dess skyltar ligger i varukorgen. */
   reorder?: OrderCopy;
+  /** Kopians märke ur adressen (`copyMarkOf`): varje klick på "Kopiera order" är en egen öppning. */
+  copyMark?: string;
 }
 
 export function Designer({
@@ -160,10 +163,11 @@ export function Designer({
   accounts = false,
   customer = null,
   reorder,
+  copyMark,
 }: DesignerProps) {
   /**
-   * En tidigare order som öppnas för ändring, av återförsäljaren åt en kund eller av kunden själv
-   * med "Beställ igen": dess designer ligger i varukorgen från början.
+   * En tidigare order som kopieras till en ny, av återförsäljaren åt en kund eller av kunden själv
+   * med "Kopiera order": dess designer ligger i varukorgen från början. Den gamla ordern ändras aldrig.
    */
   const opened = reseller?.copy ?? reorder;
   const copy = opened && opened.groups.length > 0 ? opened : null;
@@ -219,8 +223,9 @@ export function Designer({
   const [opening] = useState(() => ({
     doc,
     fromAddress: Boolean(initialDoc) || initialText.trim() !== "",
-    // En öppnad order är sin egen öppning: laddas sidan om kommer ändringarna tillbaka, annars ersätter den det sparade.
-    opened: copy ? `kopia:${copy.orderNo}` : openedWith(initialText, initialDoc),
+    // En kopierad order är sin egen öppning: laddas sidan om kommer ändringarna tillbaka, annars ersätter
+    // den det sparade. Varje klick på "Kopiera order" har sitt eget märke och börjar från ordern som den lades.
+    opened: copy ? openedWithCopy(copy.orderNo, copyMark) : openedWith(initialText, initialDoc),
     storageKey: savedWorkKey(
       reseller
         ? // Utan förvald kund har säljaren en egen varukorg, som blir en order eller offert när kunden är vald.
@@ -707,6 +712,14 @@ export function Designer({
                 </>
               )}
             </div>
+          )}
+          {copy && (reseller || repeatOf) && (
+            // Kunden ska se att det är en ny order: den gamla står kvar som den lades.
+            <p className={styles.restored} role="status" data-copy-of={copy.orderNo}>
+              <span>
+                Kopia av {copy.orderNo}. Du skapar en ny {reseller ? "order eller offert" : "order"}, och den gamla ändras inte.
+              </span>
+            </p>
           )}
           {saved.notice && (
             <p className={styles.restored} role="status">

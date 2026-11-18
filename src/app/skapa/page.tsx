@@ -4,6 +4,7 @@ import { resellerPriceTable } from "@/engine/price-model";
 import { preloadDesignerAssets } from "@/features/designer/assets";
 import { Designer } from "@/features/designer/designer";
 import { customerDesignerContext } from "@/lib/customer-auth/designer-context";
+import { copyMarkOf } from "@/lib/designer-work/model";
 import { siteOrigin } from "@/lib/http/origin";
 import { EMPTY_DELIVERY_DRAFT } from "@/lib/orders/delivery";
 import { deliveryOptions, resellerDeliveryDraft } from "@/lib/orders/delivery-options";
@@ -27,6 +28,8 @@ interface SkapaPageProps {
     projekt?: string | string[];
     /** En av den inloggade kundens ordrar som ska beställas igen. */
     igen?: string | string[];
+    /** Kopians märke: varje klick på "Kopiera order" eller "Ändra först" är en egen kopia. */
+    ny?: string | string[];
   }>;
 }
 
@@ -122,6 +125,7 @@ export default async function SkapaPage({ searchParams }: SkapaPageProps) {
         reseller={reseller}
         cardPayments={paymentsConfigured() && databaseConfigured()}
         {...customer}
+        copyMark={copyMarkOf(first(params.ny))}
         // Startsidans ruta skickar alltid med `t`, även tomt: då visas startrutan utan namn också.
         fromStart={first(params.t) !== undefined}
       />

@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { BadgePreview } from "@/components/badge-preview";
+import { CopyOrderLink } from "@/components/copy-order-link";
 import { usePriceList } from "@/components/price-list-provider";
 import { priceOrder } from "@/engine";
 import { shippingMethodOf } from "@/lib/orders/delivery";
@@ -114,9 +114,9 @@ export function RepeatButton({ order, compact = false }: RepeatButtonProps) {
             <button type="button" className="btn btn--ghost" onClick={() => dialog.current?.close()}>
               Avbryt
             </button>
-            <Link href={`/skapa?kund=${order.customer.id}&kopia=${encodeURIComponent(order.orderNo)}`} className="btn">
+            <CopyOrderLink href={`/skapa?kund=${order.customer.id}&kopia=${encodeURIComponent(order.orderNo)}`} className="btn">
               Ändra först
-            </Link>
+            </CopyOrderLink>
             <button type="button" className="btn btn--primary" disabled={pending} onClick={confirm}>
               {pending ? "Lägger ordern…" : shipping === null ? "Beställ" : `Beställ · ${formatSek(price.totalInclVatSek)} inkl. moms`}
             </button>

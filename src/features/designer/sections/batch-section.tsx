@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { BadgePreview } from "@/components/badge-preview";
 import { PanelSection } from "@/components/ui/panel-section";
 import {
@@ -123,6 +123,21 @@ export function BatchSection({
     });
   }, [all]);
 
+  /**
+   * Listan står kvar när kunden har tagit bort namn tills bara skylten i editorn är kvar
+   * (besked via ägaren 2026-11-18: "tar jag bort 3 av 4 så försvinner även den 4e"). Förut
+   * visades listan bara med flera skyltar, så den sista såg ut att försvinna med de andra.
+   * En skylt som aldrig har haft fler namn visar ingen lista, som förut.
+   */
+  const currentHasText = batchLine(current) !== "";
+  const [listed, setListed] = useState(badges.length > 0);
+  useEffect(() => {
+    if (badges.length > 0) setListed(true);
+    // En ny, tom skylt i editorn börjar om utan lista.
+    else if (!currentHasText) setListed(false);
+  }, [badges.length, currentHasText]);
+  const showList = badges.length > 0 || (listed && currentHasText);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const { status, busy, importFile, clearStatus } = useRosterImport(onImport);
@@ -213,7 +228,7 @@ export function BatchSection({
         </p>
       )}
 
-      {badges.length > 0 && (
+      {showList && (
         <ul className={styles.batchList} aria-label="Alla skyltar i ordern">
           <AnimatePresence initial={false}>
             {all.map((doc, position) => {
@@ -257,14 +272,17 @@ export function BatchSection({
                       )}
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    className={styles.iconButton}
-                    aria-label={`Ta bort ${line}`}
-                    onClick={() => (editing ? onRemoveCurrent() : onTextChange(removeBatchEntry(text, position - 1)))}
-                  >
-                    ×
-                  </button>
+                  {/* Den sista skylten går inte att ta bort: den är designen. Namnet ändras under Text. */}
+                  {all.length > 1 && (
+                    <button
+                      type="button"
+                      className={styles.iconButton}
+                      aria-label={`Ta bort ${line}`}
+                      onClick={() => (editing ? onRemoveCurrent() : onTextChange(removeBatchEntry(text, position - 1)))}
+                    >
+                      ×
+                    </button>
+                  )}
                 </motion.li>
               );
             })}
