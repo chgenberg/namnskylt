@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1273 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1280 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -371,8 +371,8 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       (`toCubicPath` i `cubic-path.ts`): bokstävernas kvadratiska kurvor blir kubiska, och
       ramens relativa kommandon och bågar blir absoluta linjer och kurvor. Färgen står som
       hex i gemener.
-    - Färgen är kundens CMYK- eller hexkod när den går att rita, annars färgen skylten
-      visades i (gravyrens färg).
+    - Färgen är den kunden har valt för trycket eller raden, annars färgen skylten visades
+      i (gravyrens färg).
     - Då finns inget text- eller ramlager för namnet hos verkstaden. Raderna står i
       kommentaren ("Text som printas: Anna Lind / Säljare"), och personalen kan inte ändra
       texten hos sig.
@@ -385,67 +385,65 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     avgör hur loggan sedan märks (besked via ägaren 2026-11-16). Därefter Material 04, Form 05,
     Fäste 06 och Fler namn 07. Varukorgen är ingen sektion i panelen längre, se Ordern till
     verkstaden.
-  - **Kunden kan ange en egen färgkod för trycket** (besked via ägaren 2026-11-16): fältet
-    "Färgkod för trycket: CMYK, PMS eller hex" visas i sektionen när namnet eller loggan printas
-    (`BadgeDocument.printColor`, åtgärden `print/color`, högst `PRINT_COLOR_MAX` tecken fritext).
-    Läs alltid med `printColorOf`, som bara ger koden när något faktiskt printas, så att en kod
-    som står kvar efter ett byte till gravyr inte följer med. `printColorLabel` ("Tryckfärg CMYK
-    100/60/0/20") står bredvid fästet på ordersidor, offert, korrektur och i Tillverkning, och i
-    verkstadens `productionNote`.
-  - **Koderna är CMYK i första hand, och PMS och hex går också att skriva** (beslut av ägaren
-    2026-11-17: "det är CMYK-koder som ska in", och på frågan valdes CMYK, PMS och hex). Fälten
-    är fritext, och reglerna för vad som känns igen ligger i `src/engine/color-code.ts`.
-    - CMYK är fyra tal mellan 0 och 100 (`cmykOf`): "100/60/0/20", "100, 60, 0, 20",
-      "C100 M60 Y0 K20", "cmyk(100, 60, 0, 20)", med eller utan ordet CMYK och procenttecken.
-      Ett PMS-nummer är ett enda tal och läses aldrig som CMYK. Skiljetecknet ska vara
-      detsamma mellan alla fyra värden, så att "0,5/10/20" inte läses som fyra tal.
-      Decimalkomma går bra där kommat inte skiljer värdena åt ("12,5/0/0/7,5").
-    - **CMYK och hex ritas på skylten** (`printColorHex`). CMYK räknas om till skärmens färg
-      med den enkla formeln, utan tryckeriets profil (`cmykHex`), så färgen är ungefärlig och
-      mättade färger ser klarare ut på skärmen än i trycket. Hjälptexterna säger "ungefärligt
-      på skärmen". PMS och RAL går inte att rita och följer bara med ordern.
-    - I listor och underlag står koden likadant hur kunden än skrev den (`printColorText`):
-      CMYK som "CMYK 100/60/0/20" och hex som "#RRGGBB". Annat står som det skrevs.
-  - **Loggan har ett eget fält för sina färger** (samma beslut): "Loggans färger i CMYK" i
-    sektionen Logga & varumärke, bara när loggan printas (`BadgeLogo.printColor`, åtgärden
-    `logo/color`, högst `LOGO_PRINT_COLOR_MAX` tecken fritext, eftersom en logga kan ha flera
-    färger). Läs alltid med `logoPrintColorOf` och `logoPrintInkOf`.
-    - En svartvit logga som printas ritas i sin egen kod när den är en enda CMYK- eller
-      hexkod (`LaidOutLogo.ink`), annars i koden för hela trycket. En egen kod som inte går
-      att rita ger gravyrens färg, som för en rad. En logga i färg är en bild: där är koderna
-      bara besked till tillverkningen och ändrar inte bilden.
-    - Koderna står sist i etiketten: "Tryckfärg PMS 286 C, rad 2 #C8102E, logga blå
-      100/60/0/20, röd 0/100/80/0".
-    - "Invertera" behåller koderna, eftersom det är samma logga. En ny logga ärver dem aldrig.
-    - Verkstadens bildlager har inget fält för färg, så loggans koder går bara som klartext i
-      `productionNote`.
-  - **Varje textrad kan få en egen färgkod** (besked via ägaren 2026-11-17): när namnet printas
-    har varje rad i sektionen Text raden "Färgkod", med en färgväljare och ett fält för CMYK,
-    PMS eller hex (`BadgeTextRow.printColor`, åtgärden `row/color`, samma längd och rensning som
-    koden för hela trycket). Regeln är verkstadens egen (deras `TextRow.color`): färg per rad
-    finns bara i tryck, och gravyr struntar i den, eftersom gravyren får materialets färg på
-    alla rader. Läs alltid med `rowPrintColorOf` och `rowPrintInkOf`.
-    - När namnet graveras visas inga fält, bara raden "Egen färg per rad går att ange när
-      namnet printas, se Märkningsmetod.", så att ingen letar förgäves.
-    - **En CMYK- eller hexkod ritas på skylten**, i ritningen, 3D-vyn och fotoläget
-      (`printColorHex`, `LaidOutRow.ink`, `EngravedPath.ink`; i 3D en yta per färg, olyst som
-      en logga i färg). Det gäller också koden för hela trycket (`printInkOf`,
-      `BadgeLayout.printInk`): den färgar ramen, en svartvit logga som printas utan egen kod
-      och rader utan egen kod. PMS och andra koder går inte att rita, eftersom vi inte har
-      deras färger, och följer bara med ordern. En rad med egen PMS-kod visas i gravyrens
-      färg, inte i tryckets. Tre siffror läses bara som hex med brädgård, så att PMS-numret
-      286 inte blir en färg. Färgväljaren ger fortfarande hex.
-    - Koderna står i samma etikett som koden för hela trycket: "Tryckfärg PMS 286 C, rad 2
-      #C8102E" (`printColorLabel`). Raderna räknas som de står på skylten, utan tomma rader.
-    - Verkstaden får radens färg som fyllnad på radens banor i trycklagret (se
-      Märkningsmetod) och alla koder i klartext i `productionNote`. Fyllnaden är hex, så en
-      CMYK-kod skickas som skärmens ungefärliga färg; den exakta koden står i klartexten.
-      `SupplierTextRow.color` används bara när namnet skickas som text, alltså utan
-      glyfkonturer.
+  - **Färgen på trycket är en skärmfärg, som hos Skylt & Gravyrteknik** (beslut av ägaren
+    2026-11-18: "bygg om så att det fungerar som hos skylt och gravyr"). Kunden väljer en av sju
+    standardfärger eller en egen färg, och den sparas som `#RRGGBB`. Det finns inga fält för
+    CMYK, PMS eller andra koder, och ingen färg lovas exakt.
+    - **Varför:** Pär förklarade samma dag att samma CMYK ger olika färg i olika printrar,
+      medan Pantone är ett mål som får blandas till per material. Koderna följde bara med
+      ordern som text, så någon fick läsa dem och ställa in färgen för hand. I verkstadens
+      eget projekt (läst 2026-11-18) väljer kunden en skärmfärg, tryckfilen ritas i RGB med
+      sRGB som profil, och RIP:en (Caldera eller RasterLink) räknar om den. Där finns inget
+      manuellt steg. Beslutet upphäver det från 2026-11-17 om att CMYK-koder skulle anges.
+    - **Fältet "Färg på trycket"** står i sektionen Märkningsmetod när namnet eller loggan
+      printas (`PrintColorField` i `sections/print-color-field.tsx`): standardfärgerna som
+      rutor, en färgväljare, ett fält för hexkoden och Återställ. Under står "Trycket kan
+      skilja något från skärmen." (`BadgeDocument.printColor`, åtgärden `print/color`).
+    - **Standardfärgerna är verkstadens egna** (`PRINT_STANDARD_COLORS` i
+      `src/engine/color-code.ts`, deras `PRINT_STANDARD_RGB`): Vit, Svart, Varningsgul, Röd,
+      Blå, Grön och Orange, med samma id, namn och hex. `catalog-sync.test.ts` jämför listan
+      med deras katalog när deras projekt ligger bredvid på datorn. En ruta är markerad bara
+      när färgen är exakt dess.
+    - **Varje textrad kan få en egen färg** (`BadgeTextRow.printColor`, åtgärden
+      `row/color`): raden "Färg" i sektionen Text, med färgväljare och hexfält (`OwnColor`).
+      Regeln är verkstadens egen (deras `TextRow.color`): färg per rad finns bara i tryck.
+      När namnet graveras visas bara raden "Egen färg per rad går att välja när namnet
+      printas, se Märkningsmetod."
+    - **Hexfältet sparar bara sex siffror**, med eller utan brädgård (`printHex`,
+      verkstadens egen regel). Medan kunden skriver står texten som den är; en halvskriven
+      kod, eller en CMYK- eller PMS-kod, sparas aldrig och släpps när fältet lämnas. Ett tömt
+      fält tar bort färgen.
+    - **Loggan har ingen egen färg.** En svartvit logga som printas får tryckets färg, och en
+      logga i färg trycks ur sin bild. Fältet "Loggans färger i CMYK" och åtgärden
+      `logo/color` är borttagna. Ska loggan och texten ha olika färg sätts tryckets färg
+      för loggan och en egen färg på raderna.
+    - Läs alltid med `printColorOf`, `printInkOf`, `rowPrintColorOf` och `rowPrintInkOf`: de
+      ger bara färgen när något faktiskt printas, så att en färg som står kvar efter ett byte
+      till gravyr inte följer med. Färgen ritas i ritningen, 3D-vyn och fotoläget
+      (`LaidOutRow.ink`, `EngravedPath.ink`, `BadgeLayout.printInk`; i 3D en yta per färg).
+      Tryckets färg färgar också ramen och rader utan egen färg.
+    - `printColorLabel` ("Tryckfärg #0057B8, rad 2 #E31C23") står bredvid fästet på
+      ordersidor, offert, korrektur och i Tillverkning, och i verkstadens `productionNote`.
+      Raderna räknas som de står på skylten, utan tomma rader.
+    - Verkstaden får färgen som fyllnad på banorna i trycklagret, alltså samma hex som
+      kunden såg. `SupplierTextRow.color` används bara när namnet skickas som text, utan
+      glyfkonturer. Produktionsfilen och maskinfilerna bär aldrig färgen.
     - "Fler namn" och "Ny personal" ger varje nytt namn samma färg per rad som mallen.
-    - Produktionsfilen och maskinfilerna bär aldrig färgen: de har bara gravyren.
-  - Preliminärt: att verkstaden printar text, och i vilken färg. Utan egen CMYK- eller hexkod
-    visas ett printat namn i gravyrens färg.
+    - **En äldre skylt kan bära en kod i fritext** (från 2026-11-16 till 2026-11-18: CMYK, PMS
+      eller hex, också på loggan). Den läses och ritas som förut (`cmykOf`, `cmykHex`,
+      `printColorHex`, `printColorText`, `logoPrintColorOf`), och koden står kvar i etiketten
+      på en sparad order. Men **en skylt med en sådan kod säljs inte som den är**
+      (`hasScreenPrintColors` i `isOfferedDocument`). När den öppnas i skyltmotorn blir en
+      CMYK-kod färgen den visades i, en kod som inte gick att rita tas bort, och loggans
+      koder tas bort (`withScreenPrintColors` i `toOfferedDocument`). Ett sparat arbete i
+      webbläsaren med en sådan skylt kastas.
+    - Provat lokalt 2026-11-18 i webbläsaren, på dator och på 390 och 320 px. Ingen order
+      med en färg på trycket har gått till verkstaden på riktigt.
+    - Pantone som väg till exakt färg är inte byggt. Verkstadens tryckfil har redan
+      namngivna specialfärger för skärlinjerna (`CutContour`), så tekniken finns där, men
+      det vore nytt i båda projekten och kräver Pärs svar om RIP:en har ett Pantone-bibliotek.
+  - Preliminärt: att verkstaden printar text, och i vilken färg. Utan vald färg visas ett
+    printat namn i gravyrens färg.
   - Kända brister: produktionsfilen saknar det som printas och ingen tryckfil för namnet skapas.
     Gravyranimationen sveper inte över det som printas. Fotoläget, korrekturet, offertens PDF
     och delningsbilden är inte öppnade i webbläsaren med ett printat namn.
@@ -2189,11 +2187,11 @@ Luckor i kontraktet:
 - Deras text- och ramlager har inget läge för print. Vi går runt det med ett trycklager av
   banor, så personalen kan inte ändra ett printat namn hos sig. Med ett tryckläge på deras
   textlager kunde namnet skickas som text igen.
-- CMYK går inte att uttrycka (läst 2026-11-17): deras designer och format har bara hex
-  (`hexColor` i `layer-schema.ts`, färgväljare i `text-rows-editor.tsx` och `PrintColorField`),
-  tryckfilen ritas i RGB och görs om till CMYK i RIP:en. Kundens CMYK-koder, också loggans,
-  skickas därför som klartext i `productionNote`, och radens färgfält får skärmens ungefärliga
-  hex. Ska trycket träffa exakta CMYK-värden behöver deras format ett fält för det.
+- Färg är bara hex hos dem (läst 2026-11-17 och 2026-11-18): deras designer och format har
+  `hexColor` i `layer-schema.ts`, sju standardfärger och en färgväljare (`PrintColorField`,
+  `PRINT_STANDARD_RGB`), tryckfilen ritas i RGB och görs om till tryckfärger i RIP:en. Sedan
+  2026-11-18 väljer kunden färg på samma sätt hos oss, så inget går förlorat på vägen. CMYK
+  och Pantone går inte att uttrycka i deras format.
 - Vi skickar deras fyra fraktsätt: varubrev, paket, `postnord-express` och `pickup-hogsbo`.
   Expressfraktens pris läses ur statusen de skickar (`SupplierOrderState.shippingCost`, hela
   kronor exklusive moms); de behöver skicka fältet.

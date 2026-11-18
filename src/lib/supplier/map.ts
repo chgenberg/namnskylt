@@ -75,7 +75,7 @@ function markingNote(doc: BadgeDocument, printedText: readonly string[] = []): s
  * hamnar i deras tryckfil och hålls utanför gravyrfilen. Därför skickas det
  * som printas som färdiga banor, i skyltens egna mm.
  *
- * Färgen är kundens CMYK- eller hexkod när den går att rita, annars färgen
+ * Färgen är den kunden har valt för trycket eller raden, annars färgen
  * skylten visades i. `null` när inget printas i en färg, eller när typsnittet
  * saknar konturer.
  */
@@ -165,8 +165,8 @@ export function toSupplierSignDocument(
           bold: row.bold,
           italic: false,
           locked: false,
-          // Fältet tar bara hex. En CMYK-kod skickas därför som skärmens ungefärliga färg, och koden själv
-          // står i klartext i `productionNote`. En kod som inte går att rita (PMS) står bara där.
+          // Fältet tar bara hex, som är det kunden väljer. En äldre skylt med en CMYK-kod skickas som skärmens
+          // ungefärliga färg, med koden i klartext i `productionNote`; en kod som inte går att rita (PMS) står bara där.
           ...(row.ink && { color: row.ink }),
         },
       ],

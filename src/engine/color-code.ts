@@ -1,9 +1,46 @@
 /**
- * Färgkoderna kunden skriver för trycket (besked via ägaren 2026-11-17: det är
- * CMYK som trycket görs i). Fältet är fritext och tar CMYK, PMS och hex. Två
- * slags koder går att rita på skylten: CMYK och hex. PMS, RAL och annat följer
- * bara med ordern, eftersom vi inte har deras färger.
+ * Färgen på trycket är en skärmfärg, som hos Skylt & Gravyrteknik (beslut av
+ * ägaren 2026-11-18): kunden väljer en av standardfärgerna eller en egen färg,
+ * och den sparas som `#RRGGBB`. Verkstadens tryckfil ritas i den färgen, och
+ * printerns programvara räknar om den till tryckfärger. Ingen läser en kod och
+ * ställer in färgen för hand.
+ *
+ * Från 2026-11-17 till 2026-11-18 var fältet fritext och tog CMYK, PMS och hex.
+ * Samma CMYK ger olika färg i olika printrar, och koderna följde bara med
+ * ordern som text som någon fick läsa. Reglerna för de koderna står kvar här,
+ * eftersom en äldre skylt kan bära dem: de läses och ritas som förut, och blir
+ * en skärmfärg när skylten öppnas i skyltmotorn (`withScreenPrintColors`).
  */
+
+/**
+ * Standardfärgerna för tryck, verkstadens egna (deras `PRINT_STANDARD_RGB`):
+ * samma id, namn och färg. `src/lib/supplier/catalog-sync.test.ts` jämför
+ * listan med deras katalog när deras projekt ligger bredvid på datorn.
+ */
+export const PRINT_STANDARD_COLORS = [
+  { id: "white", name: "Vit", hex: "#FFFFFF" },
+  { id: "black", name: "Svart", hex: "#111111" },
+  { id: "yellow", name: "Varningsgul", hex: "#FFD200" },
+  { id: "red", name: "Röd", hex: "#E31C23" },
+  { id: "blue", name: "Blå", hex: "#0057B8" },
+  { id: "green", name: "Grön", hex: "#00A33A" },
+  { id: "orange", name: "Orange", hex: "#FF6A00" },
+] as const;
+
+/**
+ * En färg för trycket som den sparas, `#RRGGBB` i versaler, ur det kunden
+ * väljer eller skriver: sex siffror, med eller utan brädgård. `null` för allt
+ * annat. Det är verkstadens egen regel för färger i deras format.
+ */
+export function printHex(input: string | null | undefined): string | null {
+  const match = /^#?([0-9a-f]{6})$/i.exec(input?.trim() ?? "");
+  return match ? `#${match[1]!.toUpperCase()}` : null;
+}
+
+/** Sant när värdet redan är en sparad skärmfärg: `#RRGGBB`. */
+export function isPrintHex(value: string): boolean {
+  return /^#[0-9a-f]{6}$/i.test(value);
+}
 
 /** En CMYK-kod: andelen av varje tryckfärg i procent, 0–100. */
 export interface Cmyk {

@@ -1,5 +1,5 @@
 import { getMaterial } from "./catalog";
-import { printColorHex, printColorText } from "./color-code";
+import { isPrintHex, printColorHex, printColorText } from "./color-code";
 import type { BadgeDocument, MarkingMethod, MarkingMode, MaterialId } from "./types";
 
 /**
@@ -160,14 +160,42 @@ export function withFittingFrame<T extends FramedBadge>(doc: T): T {
   return hasFittingFrame(doc) ? doc : { ...doc, frame: { ...doc.frame, style: "none" } };
 }
 
-/** Längsta färgkod kunden får ange för trycket, och för en rad. */
+/** Längsta färgkod en äldre skylt får bära för trycket, och för en rad. I dag sparas bara `#RRGGBB`. */
 export const PRINT_COLOR_MAX = 40;
-/** Loggans fält är längre: en logga kan ha flera färger, som skrivs efter varandra. */
+/** En äldre logga kan bära flera koder efter varandra. I dag har loggan ingen egen färg. */
 export const LOGO_PRINT_COLOR_MAX = 120;
 
-/** Det kunden skriver som färgkod, utan styrtecken och inom längden. Blanktecken i kanterna får stå kvar medan man skriver. */
-export function cleanPrintColor(raw: string, maxLength: number = PRINT_COLOR_MAX): string {
-  return raw.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, maxLength);
+/**
+ * Tryckets färger är skärmfärger (beslut av ägaren 2026-11-18, som hos Skylt & Gravyrteknik):
+ * färgen för hela trycket och för en rad är `#RRGGBB`, och loggan har ingen egen. En skylt
+ * med en äldre kod, som CMYK eller PMS, säljs inte som den är.
+ */
+export function hasScreenPrintColors(doc: Pick<BadgeDocument, "printColor" | "rows" | "logo">): boolean {
+  const screen = (code: string | undefined) => code === undefined || isPrintHex(code);
+  return screen(doc.printColor) && doc.rows.every((row) => screen(row.printColor)) && doc.logo?.printColor === undefined;
+}
+
+/** Fältet utan värde är borta, inte `undefined`, så att skylten ser ut som en som aldrig haft det. */
+function withColor<T extends { printColor?: string }>(item: T, color: string | null): T {
+  const rest = { ...item };
+  delete rest.printColor;
+  return color ? { ...rest, printColor: color } : rest;
+}
+
+/**
+ * Skylten med tryckets färger som skärmfärger: en äldre CMYK-kod blir färgen den visades i,
+ * och en kod som inte går att rita, som PMS, tas bort. Trycket visades aldrig i en sådan kod.
+ * En rad som bar en får tryckets färg, om trycket har någon. Loggans egna koder tas bort: en
+ * svartvit logga som printas får tryckets färg.
+ */
+export function withScreenPrintColors<T extends Pick<BadgeDocument, "printColor" | "rows" | "logo">>(doc: T): T {
+  if (hasScreenPrintColors(doc)) return doc;
+  const moved = doc.printColor === undefined ? doc : withColor(doc, printColorHex(doc.printColor));
+  return {
+    ...moved,
+    rows: doc.rows.map((row) => (row.printColor === undefined ? row : withColor(row, printColorHex(row.printColor)))),
+    ...(doc.logo && { logo: withColor(doc.logo, null) }),
+  };
 }
 
 type Printed = Marked & Pick<BadgeDocument, "printColor">;

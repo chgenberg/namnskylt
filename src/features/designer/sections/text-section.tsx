@@ -6,11 +6,11 @@ import { PanelSection } from "@/components/ui/panel-section";
 import { Segmented } from "@/components/ui/segmented";
 import {
   FONTS,
-  PRINT_COLOR_MAX,
   TEXT_LIMITS,
   getColor,
   nameMarking,
   engravingHex,
+  printHex,
   rowPrintInkOf,
   type BadgeDocument,
   type BadgeLayout,
@@ -18,6 +18,7 @@ import {
 } from "@/engine";
 import { formatMm } from "@/lib/format";
 import type { DesignerAction } from "../state";
+import { OwnColor } from "./print-color-field";
 import styles from "./sections.module.css";
 
 const ROW_PLACEHOLDERS = ["Namn", "Titel", "Avdelning"];
@@ -53,7 +54,7 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
   const canAdd = doc.rows.length < TEXT_LIMITS.maxRows;
   // Färg per rad finns bara i tryck: gravyren får materialets färg, lika på alla rader.
   const namePrinted = nameMarking(doc) === "print";
-  /** Färgen en rad utan egen kod som går att rita visas i, som väljaren utgår från. */
+  /** Färgen en rad utan egen färg visas i när trycket inte heller har någon, som väljaren utgår från. */
   const defaultInk = engravingHex(getColor(doc.materialId, doc.colorId));
 
   return (
@@ -124,27 +125,14 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
                   </label>
                   {namePrinted && (
                     <div className={styles.rowColor}>
-                      <span className={styles.sliderLabel}>Färgkod</span>
-                      <input
-                        type="color"
-                        className={styles.rowSwatch}
-                        aria-label={`Välj färg för rad ${i + 1}`}
-                        title="Välj färg"
-                        // Väljaren kräver sex siffror i gemener.
-                        value={(rowPrintInkOf(doc, row) ?? defaultInk).toLowerCase()}
-                        onChange={(e) => dispatch({ type: "row/color", id: row.id, code: e.target.value.toUpperCase() })}
+                      <span className={styles.sliderLabel}>Färg</span>
+                      <OwnColor
+                        target={`rad ${i + 1}`}
+                        value={printHex(row.printColor)}
+                        shown={rowPrintInkOf(doc, row) ?? defaultInk}
+                        placeholder="Tryckets färg"
+                        onChange={(color) => dispatch({ type: "row/color", id: row.id, color })}
                       />
-                      <span className="field">
-                        <input
-                          type="text"
-                          aria-label={`Färgkod för rad ${i + 1}`}
-                          value={row.printColor ?? ""}
-                          maxLength={PRINT_COLOR_MAX}
-                          placeholder="CMYK, PMS, hex"
-                          autoComplete="off"
-                          onChange={(e) => dispatch({ type: "row/color", id: row.id, code: e.target.value })}
-                        />
-                      </span>
                     </div>
                   )}
                   {issue && drawn && (
@@ -162,8 +150,8 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
       </ul>
       <p className={styles.hint}>
         {namePrinted
-          ? "En CMYK-kod, till exempel 100/60/0/20, eller en hexkod visas på skylten, ungefärligt på skärmen. PMS och andra koder följer med ordern utan att bilden ändras."
-          : "Egen färg per rad går att ange när namnet printas, se Märkningsmetod."}
+          ? "En rad kan få en egen färg: välj med färgväljaren eller skriv en hexkod. Utan egen färg får raden tryckets färg, se Märkningsmetod."
+          : "Egen färg per rad går att välja när namnet printas, se Märkningsmetod."}
       </p>
 
       {canAdd && (

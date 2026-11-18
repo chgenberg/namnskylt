@@ -52,8 +52,8 @@ export interface BadgeTextRow {
   capHeightMm: Mm;
   bold: boolean;
   /**
-   * Kundens egen färgkod för radens tryck (CMYK, PMS, hex eller liknande), som
-   * fritext. CMYK och hex ritas på skylten, övriga koder följer bara med ordern.
+   * Radens egen färg i trycket: en skärmfärg, `#RRGGBB`. En äldre skylt kan bära
+   * en kod i fritext (CMYK, PMS), som läses och ritas som förut.
    * Gäller bara när namnet printas, som hos verkstaden: läs med
    * `rowPrintColorOf` och `rowPrintInkOf`.
    */
@@ -123,7 +123,8 @@ export interface BadgeLogo {
    */
   originalId?: string;
   /**
-   * Kundens färgkoder för loggans tryck, fritext: CMYK i första hand, även PMS
+   * Bara på äldre skyltar: kundens färgkoder för loggans tryck, i fritext. I dag
+   * har loggan ingen egen färg (`hasScreenPrintColors`). Förut CMYK, även PMS
    * eller hex. Gäller bara när loggan printas: läs med `logoPrintColorOf` och
    * `logoPrintInkOf`.
    */
@@ -157,8 +158,8 @@ export interface BadgeDocument {
    */
   marking?: MarkingMethod;
   /**
-   * Kundens egen färgkod för det som printas (PMS, hex eller liknande), som
-   * fritext till tillverkningen. Gäller bara när något printas: läs med `printColorOf`.
+   * Färgen på det som printas: en skärmfärg, `#RRGGBB`. En äldre skylt kan bära en
+   * kod i fritext (CMYK, PMS). Gäller bara när något printas: läs med `printColorOf`.
    */
   printColor?: string;
   mounting: MountingId;

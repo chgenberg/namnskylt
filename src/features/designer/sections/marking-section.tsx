@@ -5,16 +5,20 @@ import { PanelSection } from "@/components/ui/panel-section";
 import {
   MARKING_METHODS,
   MARKING_MODE_NAME,
-  PRINT_COLOR_MAX,
+  engravingHex,
+  getColor,
   getMarkingMethod,
   isPrintOnly,
   markingFits,
   markingOf,
+  printHex,
+  printInkOf,
   type BadgeDocument,
 } from "@/engine";
 import { formatSek } from "@/lib/format";
 import { fromPriceLabel, useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
+import { PrintColorField } from "./print-color-field";
 import styles from "./sections.module.css";
 
 interface MarkingSectionProps {
@@ -43,7 +47,7 @@ function priceLabel(sek: number): string {
 export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps) {
   const { markingPrice, markingFrom } = useShopPrices(tierIndex);
   const selected = getMarkingMethod(markingOf(doc));
-  // Färgkoden gäller trycket: fältet visas bara när namnet eller loggan printas.
+  // Färgen gäller trycket: fältet visas bara när namnet eller loggan printas.
   const printsSomething = selected.nameMode === "print" || (Boolean(doc.logo) && selected.logoMode === "print");
   const printOnly = isPrintOnly(doc.materialId);
   return (
@@ -94,23 +98,19 @@ export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps
         </div>
       </dl>
       {printsSomething && (
-        <label className={styles.labelled}>
-          <span className={styles.sliderLabel}>Färgkod för trycket: CMYK, PMS eller hex</span>
-          <span className="field">
-            <input
-              type="text"
-              value={doc.printColor ?? ""}
-              maxLength={PRINT_COLOR_MAX}
-              placeholder="Till exempel CMYK 100/60/0/20"
-              autoComplete="off"
-              onChange={(event) => dispatch({ type: "print/color", code: event.target.value })}
-            />
-          </span>
+        <div className={styles.labelled}>
+          <span className={styles.sliderLabel}>Färg på trycket</span>
+          <PrintColorField
+            target="trycket"
+            value={printHex(doc.printColor)}
+            // Utan vald färg visas trycket i materialets förvalda färg.
+            shown={printInkOf(doc) ?? engravingHex(getColor(doc.materialId, doc.colorId))}
+            onChange={(color) => dispatch({ type: "print/color", color })}
+          />
           <span className={styles.hint}>
-            Valfritt. Gäller allt som printas; en rad och loggan kan få egna koder under Text och Logga. CMYK och hex visas
-            på skylten, ungefärligt på skärmen. PMS och andra koder följer med ordern.
+            Valfritt. Gäller allt som printas; en rad kan få en egen färg under Text. Trycket kan skilja något från skärmen.
           </span>
-        </label>
+        </div>
       )}
     </PanelSection>
   );

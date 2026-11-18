@@ -8,7 +8,6 @@ import {
   LOGO_LIMITS,
   logoHeightLimits,
   LOGO_PLACEMENTS,
-  LOGO_PRINT_COLOR_MAX,
   getColor,
   getFont,
   logoEngravingPath,
@@ -63,18 +62,10 @@ const LOGO_HINT: Record<LogoLook, string> = {
   engrave: "Loggan graveras i en färg, samma som texten.",
   "engrave-color":
     "Loggan är i färg och graveras i en färg, samma som texten: färgerna blir gravyr, och vitt och detaljer inuti loggan sparas ur. Stämmer formen inte, prova Invertera.",
-  // Färgen är tryckets, om inte loggan har en egen kod i fältet under.
-  print: "Loggan printas i en färg.",
+  // Färgen är tryckets, som väljs under Märkningsmetod.
+  print: "Loggan printas i en färg, tryckets.",
   "print-color": "Loggan är i färg och printas som den är i filen.",
 };
-
-/** Under fältet för loggans färgkoder, som bara visas när loggan printas: en logga i en färg ritas i koden, en i färg är en bild. */
-const LOGO_COLOR_HINT = {
-  oneColor:
-    "Valfritt. En CMYK- eller hexkod visas på skylten, ungefärligt på skärmen. PMS går också att skriva och följer med ordern. Utan kod gäller färgkoden för hela trycket.",
-  image:
-    "Valfritt. Skriv loggans färger i CMYK, flera efter varandra om loggan har flera, så stäms trycket av mot dem. PMS och hex går också att skriva. Koderna följer med ordern.",
-} as const;
 
 /** Filen som loggan på skylten lästes från, och dess id på servern när den har sparats. */
 interface LogoOrigin {
@@ -425,23 +416,6 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
             {LOGO_HINT[logoLook]} Storleken är loggans höjd, och den går också att ändra genom att dra i loggans hörn under
             Ritning. Metoden väljer du under Märkningsmetod.
           </p>
-          {/* Färg finns bara i tryck: en logga som graveras får materialets färg. */}
-          {!engraved && (
-            <label className={styles.labelled}>
-              <span className={styles.sliderLabel}>Loggans färger i CMYK</span>
-              <span className="field">
-                <input
-                  type="text"
-                  value={doc.logo.printColor ?? ""}
-                  maxLength={LOGO_PRINT_COLOR_MAX}
-                  placeholder="Till exempel 100/60/0/20"
-                  autoComplete="off"
-                  onChange={(event) => dispatch({ type: "logo/color", code: event.target.value })}
-                />
-              </span>
-              <span className={styles.hint}>{doc.logo.image ? LOGO_COLOR_HINT.image : LOGO_COLOR_HINT.oneColor}</span>
-            </label>
-          )}
         </>
       )}
     </PanelSection>

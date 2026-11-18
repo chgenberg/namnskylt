@@ -1,15 +1,14 @@
 import {
   CUSTOM_SHAPE_LIMITS,
   LOGO_LIMITS,
-  LOGO_PRINT_COLOR_MAX,
   TEXT_LIMITS,
   blankFits,
-  cleanPrintColor,
   clipOrientations,
   createRow,
   getBlank,
   getMaterial,
   markingFits,
+  printHex,
   mountingFitsDocument,
   resizeCustomShape,
   withBlank,
@@ -47,8 +46,8 @@ export type DesignerAction =
   /** Hela textens storlek, dragen i ritningen: versalhöjden för varje rad som har text. */
   | { type: "rows/caps"; caps: readonly { id: string; capHeightMm: number }[] }
   | { type: "row/bold"; id: string }
-  /** Kundens egen färgkod för radens tryck, som fritext. Tom text tar bort den. */
-  | { type: "row/color"; id: string; code: string }
+  /** Radens egen färg i trycket, som `#RRGGBB`. `null` tar bort den, och raden får tryckets färg. */
+  | { type: "row/color"; id: string; color: string | null }
   | { type: "row/add"; id: string }
   | { type: "row/remove"; id: string }
   | { type: "font"; font: FontId }
@@ -74,12 +73,10 @@ export type DesignerAction =
   | { type: "logo/original"; d: string; originalId: string }
   | { type: "logo/placement"; placement: LogoPlacement }
   | { type: "logo/height"; heightMm: number }
-  /** Kundens färgkoder för loggans tryck, fritext. Tom text tar bort dem. */
-  | { type: "logo/color"; code: string }
   /** Kunden väljer hur namn och logotyp märks. Ett kombinerat val kräver en logga. */
   | { type: "marking"; method: MarkingMethod }
-  /** Kundens egen färgkod för det som printas, som fritext. Tom text tar bort den. */
-  | { type: "print/color"; code: string }
+  /** Färgen på det som printas, som `#RRGGBB`. `null` tar bort den, och trycket får materialets förvalda färg. */
+  | { type: "print/color"; color: string | null }
   | { type: "move"; target: "text" | "logo"; offset: Offset }
   | { type: "move/reset" }
   | { type: "mounting"; mounting: MountingId }
@@ -115,6 +112,23 @@ function mapRow(
   return { ...doc, rows: doc.rows.map((row) => (row.id === id ? update(row) : row)) };
 }
 
+/**
+ * Färgen som sparas: en skärmfärg, `#RRGGBB`, eller `null` för ingen. `undefined` när värdet
+ * inte är en färg, och då ändras ingenting. Tryckets färger är skärmfärger, som hos
+ * Skylt & Gravyrteknik (beslut av ägaren 2026-11-18).
+ */
+function screenColor(color: string | null): string | null | undefined {
+  if (color === null) return null;
+  return printHex(color) ?? undefined;
+}
+
+/** Skylten eller raden med sin färg för trycket. Utan färg är fältet borta, inte tomt. */
+function withPrintColor<T extends { printColor?: string }>(item: T, color: string | null): T {
+  const rest = { ...item };
+  delete rest.printColor;
+  return color ? { ...rest, printColor: color } : rest;
+}
+
 export function designerReducer(doc: BadgeDocument, action: DesignerAction): BadgeDocument {
   switch (action.type) {
     case "texts":
@@ -148,13 +162,8 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     case "row/bold":
       return mapRow(doc, action.id, (row) => ({ ...row, bold: !row.bold }));
     case "row/color": {
-      const code = cleanPrintColor(action.code);
-      return mapRow(doc, action.id, (row) => {
-        if (code.trim() !== "") return { ...row, printColor: code };
-        const rest = { ...row };
-        delete rest.printColor;
-        return rest;
-      });
+      const color = screenColor(action.color);
+      return color === undefined ? doc : mapRow(doc, action.id, (row) => withPrintColor(row, color));
     }
     case "row/add":
       if (doc.rows.length >= TEXT_LIMITS.maxRows) return doc;
@@ -222,10 +231,8 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       return frameFits(doc.materialId) ? { ...doc, frame: { ...doc.frame, style: action.style } } : doc;
     case "logo": {
       // En ny logga får ett förslag på metod: i färg printas den, svartvit följer den namnet. Kunden kan byta sedan.
-      // Samma logga i en ny form behåller också färgkoderna kunden har skrivit; en ny logga ärver dem aldrig.
-      if (action.logo && action.keepMarking && doc.logo) {
-        return { ...doc, logo: { ...action.logo, ...(doc.logo.printColor && { printColor: doc.logo.printColor }) } };
-      }
+      // Samma logga i en ny form ("Invertera") behåller metoden kunden har valt.
+      if (action.logo && action.keepMarking && doc.logo) return { ...doc, logo: action.logo };
       if (action.logo) return withLogoMarking({ ...doc, logo: action.logo });
       const rest = { ...doc };
       delete rest.logo;
@@ -235,19 +242,8 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     case "marking":
       return markingFits(action.method, doc) ? withMarking(doc, action.method) : doc;
     case "print/color": {
-      const code = cleanPrintColor(action.code);
-      if (code.trim() !== "") return { ...doc, printColor: code };
-      const rest = { ...doc };
-      delete rest.printColor;
-      return rest;
-    }
-    case "logo/color": {
-      if (!doc.logo) return doc;
-      const code = cleanPrintColor(action.code, LOGO_PRINT_COLOR_MAX);
-      if (code.trim() !== "") return { ...doc, logo: { ...doc.logo, printColor: code } };
-      const logo = { ...doc.logo };
-      delete logo.printColor;
-      return { ...doc, logo };
+      const color = screenColor(action.color);
+      return color === undefined ? doc : withPrintColor(doc, color);
     }
     case "logo/engraving":
       // Svaret kommer i efterhand: gäller bara om samma logga ligger kvar och fortfarande saknar gravyrform.

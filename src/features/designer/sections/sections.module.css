@@ -64,7 +64,7 @@
   color: var(--color-ink-2);
 }
 
-/* Radens färgkod för trycket: en färgväljare och ett fält för koden, i linje med reglaget ovanför. */
+/* Radens färg i trycket: en färgväljare och ett fält för hexkoden, i linje med reglaget ovanför. */
 .rowColor {
   display: grid;
   /* Fältet får krympa under sin egen bredd, annars sticker det ut ur kortet på mobil. */
@@ -102,6 +102,61 @@
 .rowSwatch::-moz-color-swatch {
   border: 0;
   border-radius: calc(var(--radius-sm) - 3px);
+}
+
+/* Färgen på hela trycket: standardfärgerna som rutor, och en egen färg under dem. */
+.printColor {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* Sju rutor på en rad. På en smal skärm krymper de hellre än att en ruta hamnar ensam på nästa rad. */
+.printSwatches {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 36px));
+  gap: var(--space-2);
+}
+
+.printSwatch {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: box-shadow var(--duration-fast);
+}
+
+.printSwatch:hover {
+  box-shadow: 0 0 0 2px var(--color-line-strong);
+}
+
+/* Den valda rutan har en ring med luft emellan, så att den syns också kring en ljus färg. */
+.printSwatch[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px var(--color-white),
+    0 0 0 4px var(--color-ink);
+}
+
+.printOwn {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.printOwn :global(.field) {
+  min-width: 0;
+  height: 36px;
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.printReset {
+  padding: 0 var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .issue {

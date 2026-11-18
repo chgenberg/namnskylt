@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getMaterial } from "./catalog";
 import { pigmentCodeText, pigmentCodes } from "./color-choice";
-import { cmykHex, cmykOf, cmykText, printColorHex, printColorText } from "./color-code";
-import { createBadgeDocument } from "./document";
-import { engravedBadge } from "./testing";
+import { PRINT_STANDARD_COLORS, cmykHex, cmykOf, cmykText, isPrintHex, printColorHex, printColorText, printHex } from "./color-code";
+import { createBadgeDocument, isOfferedDocument, toOfferedDocument } from "./document";
+import { engravedBadge, plasticBadge } from "./testing";
 import { engravingPaths, printedPaths } from "./engraving";
 import { layoutBadge, type FontEngine } from "./layout";
 import {
   LOGO_PRINT_COLOR_MAX,
   PRINT_COLOR_MAX,
-  cleanPrintColor,
+  hasScreenPrintColors,
   logoPrintColorOf,
   logoPrintInkOf,
   printColorLabel,
@@ -18,6 +18,7 @@ import {
   printInkOf,
   rowPrintColorOf,
   rowPrintInkOf,
+  withScreenPrintColors,
 } from "./marking";
 import { approxFonts } from "./measure";
 import { renderBadgeSvg } from "./render-svg";
@@ -25,7 +26,13 @@ import { badgeDocumentSchema } from "./schema";
 import type { BadgeDocument, BadgeLogo } from "./types";
 
 const logo: BadgeLogo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left", heightMm: 8 };
-/** Utan vald metod, alltså graverad: färgkoden för trycket gäller först när något printas. */
+/**
+ * Från 2026-11-17 till 2026-11-18 skrev kunden färgkoder som fritext: CMYK, PMS eller hex. I dag
+ * väljs en skärmfärg (se sist i filen), men en äldre skylt kan bära koderna, och de ska läsas
+ * och ritas som förut. Det är vad de första grupperna här prövar.
+ *
+ * Utan vald metod, alltså graverad: färgkoden för trycket gäller först när något printas.
+ */
 const base: BadgeDocument = engravedBadge(["Anna Lind"]);
 
 describe("färgkoder vid plastens färger", () => {
@@ -66,12 +73,6 @@ describe("kundens färgkod för trycket", () => {
   it("är ingenting när fältet är tomt eller bara blanktecken", () => {
     assert.equal(printColorOf({ ...base, marking: "print" }), null);
     assert.equal(printColorOf({ ...base, marking: "print", printColor: "   " }), null);
-  });
-
-  it("rensas från styrtecken och kortas till längsta tillåtna", () => {
-    assert.equal(cleanPrintColor("PMS\n286\tC"), "PMS286C");
-    assert.equal(cleanPrintColor("x".repeat(PRINT_COLOR_MAX + 10)).length, PRINT_COLOR_MAX);
-    assert.equal(cleanPrintColor("PMS 286 "), "PMS 286 ");
   });
 
   it("godtas av schemat inom gränserna", () => {
@@ -253,8 +254,7 @@ describe("loggans egna färgkoder", () => {
     assert.equal(printColorLabel({ ...base, logo: coded, marking: "engrave" }), null);
   });
 
-  it("rensas och godtas av schemat inom sin egen längd", () => {
-    assert.equal(cleanPrintColor("x".repeat(LOGO_PRINT_COLOR_MAX + 10), LOGO_PRINT_COLOR_MAX).length, LOGO_PRINT_COLOR_MAX);
+  it("godtas av schemat inom sin egen längd", () => {
     const withCode = (printColor: string) => ({ ...base, logo: { ...logo, printColor } });
     assert.equal(badgeDocumentSchema.safeParse(withCode("blå 100/60/0/20, röd 0/100/80/0")).success, true);
     assert.equal(badgeDocumentSchema.safeParse(withCode("x".repeat(LOGO_PRINT_COLOR_MAX))).success, true);
@@ -349,5 +349,92 @@ describe("färgkod per textrad", () => {
     const withCode = (printColor: string) => ({ ...doc, rows: doc.rows.map((row) => ({ ...row, printColor })) });
     assert.equal(badgeDocumentSchema.safeParse(withCode("x".repeat(PRINT_COLOR_MAX + 1))).success, false);
     assert.equal(badgeDocumentSchema.safeParse(withCode("PMS\n286")).success, false);
+  });
+});
+
+describe("tryckets färger är skärmfärger", () => {
+  /** En ny skylt: metall, som printas. */
+  const printed: BadgeDocument = createBadgeDocument(["Anna Lind", "Säljare"]);
+  const [first, second] = printed.rows;
+  const withRow = (printColor: string): BadgeDocument => ({ ...printed, rows: [first!, { ...second!, printColor }] });
+
+  it("sparas som sex siffror i versaler, med eller utan brädgård", () => {
+    assert.equal(printHex("#0057b8"), "#0057B8");
+    assert.equal(printHex("0057B8"), "#0057B8");
+    assert.equal(printHex("  #c8102e "), "#C8102E");
+    for (const other of ["", "#fff", "286", "PMS 286 C", "100/60/0/20", "#0057B", "#0057B8FF", "blå", null, undefined]) {
+      assert.equal(printHex(other), null, String(other));
+    }
+    assert.equal(isPrintHex("#0057B8"), true);
+    assert.equal(isPrintHex("#0057b8"), true);
+    assert.equal(isPrintHex("0057B8"), false);
+    assert.equal(isPrintHex("CMYK 100/60/0/20"), false);
+  });
+
+  it("har verkstadens sju standardfärger", () => {
+    assert.deepEqual(
+      PRINT_STANDARD_COLORS.map((color) => color.name),
+      ["Vit", "Svart", "Varningsgul", "Röd", "Blå", "Grön", "Orange"],
+    );
+    for (const color of PRINT_STANDARD_COLORS) assert.equal(printHex(color.hex), color.hex, color.id);
+  });
+
+  it("en skylt med skärmfärger säljs, för hela trycket och för en rad", () => {
+    const colored: BadgeDocument = { ...withRow("#E31C23"), printColor: "#0057B8" };
+    assert.equal(hasScreenPrintColors(printed), true);
+    assert.equal(hasScreenPrintColors(colored), true);
+    assert.equal(isOfferedDocument(colored), true);
+    assert.equal(toOfferedDocument(colored), colored);
+    assert.equal(withScreenPrintColors(colored), colored);
+    assert.equal(printColorLabel(colored), "Tryckfärg #0057B8, rad 2 #E31C23");
+    assert.equal(printInkOf(colored), "#0057B8");
+    assert.equal(rowPrintInkOf(colored, colored.rows[1]!), "#E31C23");
+  });
+
+  it("en skylt med en äldre kod säljs inte som den är", () => {
+    for (const code of ["CMYK 100/60/0/20", "100/60/0/20", "PMS 286 C", "0057B8", "#fff"]) {
+      assert.equal(isOfferedDocument({ ...printed, printColor: code }), false, code);
+      assert.equal(isOfferedDocument(withRow(code)), false, code);
+    }
+    assert.equal(isOfferedDocument({ ...printed, logo: { ...logo, printColor: "#0057B8" } }), false);
+    // Också en kod som står kvar på en skylt som graveras: den skulle gälla igen om metoden byttes till print.
+    const engraved = plasticBadge(["Anna Lind"]);
+    assert.equal(isOfferedDocument(engraved), true);
+    assert.equal(isOfferedDocument({ ...engraved, printColor: "PMS 286 C" }), false);
+  });
+
+  it("en äldre CMYK-kod blir färgen den visades i när skylten öppnas", () => {
+    const old: BadgeDocument = { ...withRow("C0 M100 Y80 K0"), printColor: "100/60/0/20" };
+    const opened = toOfferedDocument(old);
+    assert.equal(opened.printColor, "#0052CC");
+    assert.equal(opened.rows[1]!.printColor, "#FF0033");
+    assert.equal(printInkOf(opened), printInkOf(old));
+    assert.equal(rowPrintInkOf(opened, opened.rows[1]!), rowPrintInkOf(old, old.rows[1]!));
+    assert.equal(isOfferedDocument(opened), true);
+    assert.equal(printColorLabel(opened), "Tryckfärg #0052CC, rad 2 #FF0033");
+    // Texten och allt annat är orört.
+    assert.deepEqual({ ...opened, printColor: old.printColor, rows: old.rows }, old);
+  });
+
+  it("en kod som inte går att rita tas bort", () => {
+    const opened = toOfferedDocument({ ...withRow("PMS 300 C"), printColor: "PMS 286 C" });
+    assert.equal("printColor" in opened, false);
+    assert.equal("printColor" in opened.rows[1]!, false);
+    assert.equal(printColorLabel(opened), null);
+    assert.equal(isOfferedDocument(opened), true);
+    // En hexkod med tre siffror ritades förut och blir sex siffror.
+    assert.equal(toOfferedDocument({ ...printed, printColor: "#f00" }).printColor, "#FF0000");
+  });
+
+  it("loggan har ingen egen färg: en svartvit logga som printas får tryckets", () => {
+    const old: BadgeDocument = { ...printed, printColor: "#0057B8", logo: { ...logo, printColor: "#C8102E" } };
+    assert.equal(logoPrintInkOf(old), "#C8102E");
+    const opened = toOfferedDocument(old);
+    assert.equal("printColor" in opened.logo!, false);
+    assert.equal(logoPrintInkOf(opened), "#0057B8");
+    assert.equal(printColorLabel(opened), "Tryckfärg #0057B8");
+    assert.equal(isOfferedDocument(opened), true);
+    // Loggan i övrigt är orörd.
+    assert.deepEqual({ ...opened.logo, printColor: "#C8102E" }, old.logo);
   });
 });

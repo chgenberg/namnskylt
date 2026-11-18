@@ -19,7 +19,15 @@ import {
   offeredColors,
 } from "./catalog";
 import { customOutlineIssue, scaleOutline } from "./custom-outline";
-import { hasFittingFrame, hasFittingMarking, markingOf, withFittingFrame, withMarking } from "./marking";
+import {
+  hasFittingFrame,
+  hasFittingMarking,
+  hasScreenPrintColors,
+  markingOf,
+  withFittingFrame,
+  withMarking,
+  withScreenPrintColors,
+} from "./marking";
 import { getShapePreset, presetOutline } from "./shape-presets";
 import type { BadgeDocument, BadgeTextRow, BlankId, ClipOrientation, MaterialFinish, Mm, MountingId } from "./types";
 
@@ -268,6 +276,8 @@ export function isOfferedDocument(doc: BadgeDocument): boolean {
     hasFittingMarking(doc) &&
     // Ramen finns bara på plast.
     hasFittingFrame(doc) &&
+    // Tryckets färger är skärmfärger: en äldre kod, som CMYK eller PMS, säljs inte.
+    hasScreenPrintColors(doc) &&
     (hasOfferedBlank(doc) || isValidCustomShape(doc)) &&
     getMounting(doc.mounting).offered &&
     mountingFitsDocument(doc)
@@ -297,7 +307,8 @@ function nearestOfferedMaterial(doc: BadgeDocument) {
  * En skylt i dagens sortiment. Delade länkar och äldre skyltar kan bära ett
  * material, ett mått eller ett fäste som inte säljs längre; de flyttas till
  * närmaste material, yta, ämne och fäste. Text och logga rörs inte. Ramen tas
- * bort på ett material som inte har någon, alltså på metall.
+ * bort på ett material som inte har någon, alltså på metall, och en äldre
+ * färgkod för trycket blir en skärmfärg.
  */
 export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
   const offeredMaterial = getMaterial(doc.materialId).offered;
@@ -319,8 +330,9 @@ export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
   // Metoden ska finnas på materialet: en metallskylt som graverades blir en som printas.
   const offeredMarking = hasFittingMarking(mounted);
   const offeredFrame = hasFittingFrame(mounted);
-  if (offeredColor && offeredShape && offeredMounting && offeredMarking && offeredFrame) return doc;
-  return withFittingFrame(offeredMarking ? mounted : withMarking(mounted, markingOf(mounted)));
+  const screenColors = hasScreenPrintColors(mounted);
+  if (offeredColor && offeredShape && offeredMounting && offeredMarking && offeredFrame && screenColors) return doc;
+  return withScreenPrintColors(withFittingFrame(offeredMarking ? mounted : withMarking(mounted, markingOf(mounted))));
 }
 
 /** Text som faktiskt graveras — tomma rader kostar inget och ritas inte. */

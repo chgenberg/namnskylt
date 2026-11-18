@@ -11,7 +11,7 @@ export interface EngravedPath {
   rowId?: string;
   d: string;
   fillRule: FillRule;
-  /** Färgen för det här trycket, ur kundens CMYK- eller hexkod. Utan den, och för allt som graveras, gäller gravyrens färg. */
+  /** Färgen kunden har valt för det här trycket. Utan den, och för allt som graveras, gäller gravyrens färg. */
   ink?: string;
 }
 
@@ -73,8 +73,8 @@ export function engravingPaths(layout: BadgeLayout, fonts: FontEngine): Engraved
 
 /**
  * Det som printas i en färg, plant på ytan: namnet när det printas, och en
- * svartvit logga som printas. Färgen är gravyrens, om inte kunden har angett
- * en CMYK- eller hexkod (`EngravedPath.ink`). En logga i färg trycks som bild
+ * svartvit logga som printas. Färgen är gravyrens, om inte kunden har valt
+ * en färg för trycket (`EngravedPath.ink`). En logga i färg trycks som bild
  * (`LaidOutLogo.imageSrc`) och finns inte här. Konturerna hör aldrig till
  * fräsningen eller maskinfilerna.
  */
