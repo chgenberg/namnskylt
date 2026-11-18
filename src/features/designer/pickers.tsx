@@ -6,7 +6,7 @@ import {
   BLANKS,
   OFFERED_MATERIALS,
   blankFits,
-  colorChoices,
+  byFront,
   colorNames,
   getColor,
   pigmentCodeText,
@@ -234,29 +234,28 @@ interface ColorPickerProps {
 }
 
 /**
- * Färgväljaren i två steg. Först framsidans färg, en prick per färg. Finns den
- * framsidan med flera färger i kärnan (vit med svart, blå eller röd) visas en
- * rad till, där gravyrens färg väljs. Ett material där varje yta har en enda
- * kombination, som metallen, ser ut som förut.
+ * Färgväljaren: en prick per kombination, som visar framsidans och kärnans färg. Det man ser
+ * är det man kan välja (beslut av ägaren 2026-11-18). En framsida som finns med flera kärnor,
+ * som vit med svart, blå eller röd, har alltså flera prickar bredvid varandra.
  */
 export function ColorPicker({ materialId, value, onChange }: ColorPickerProps) {
   const material = getMaterial(materialId);
   const isMetal = material.finish === "aluminium" || material.finish === "steel" || material.finish === "brass";
   // Bara kombinationer som säljs går att välja. En som har utgått ritas fortfarande på sparade skyltar.
-  const { fronts, cores } = colorChoices(offeredColors(material), value);
+  const combos = byFront(offeredColors(material));
   // Koderna visas för plasten, där färgen är ett pigment. Metallens ytor har ingen färgkod.
   const chosen = getColor(materialId, value);
   const names = colorNames(chosen);
   return (
     <div className={styles.colorPicker}>
       <div className={styles.swatches} role="radiogroup" aria-label="Färg">
-        {fronts.map(({ name, combo, selected }) => (
+        {combos.map((combo) => (
           <button
-            key={combo.surface}
+            key={combo.id}
             type="button"
             role="radio"
-            aria-checked={selected}
-            aria-label={name}
+            aria-checked={combo.id === value}
+            aria-label={combo.name}
             title={combo.name}
             className={styles.swatch}
             onClick={() => onChange(combo.id)}
@@ -270,19 +269,6 @@ export function ColorPicker({ materialId, value, onChange }: ColorPickerProps) {
           </button>
         ))}
       </div>
-      {cores.length > 0 && (
-        <div className={styles.coreRow}>
-          <span className={styles.coreLabel}>Gravyrens färg</span>
-          <div className={styles.cores} role="radiogroup" aria-label="Gravyrens färg">
-            {cores.map(({ name, combo, selected }) => (
-              <button key={combo.id} type="button" role="radio" aria-checked={selected} className={styles.core} onClick={() => onChange(combo.id)}>
-                <span className={styles.coreDot} style={{ "--engraving": combo.engraving } as CSSProperties} aria-hidden="true" />
-                {name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       {!isMetal && (
         <div className={styles.colorCodes}>
           <dl aria-label="Färgkoder">

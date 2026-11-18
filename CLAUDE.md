@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1228 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1224 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -127,7 +127,7 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       klassiska namnskyltsfärgerna först.
       - **Gul med röd gravyr säljs inte** (beslut av ägaren 2026-11-18, som ringade in valet
         "Röd" under gul och bad att det skulle bort): `yellow-red` har `discontinued: true`.
-        Gul finns alltså bara med svart gravyr och har inget andra steg i färgvalet. Vit med
+        Gul finns alltså bara med svart gravyr, som en enda prick i färgvalet. Vit med
         röd gravyr säljs fortfarande.
       - En kombination som har utgått ligger kvar i materialets `colors`, så att en sparad
         skylt ritas i sin färg. Det som går att välja och beställa läses med `offeredColors`
@@ -143,11 +143,17 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       metallyta med plastens kärna och gravyr (`three/materials.ts`), och personbilden beskrivs
       så. Färgkoden är verkstadens och är oförändrad. Att just de två plastfärgerna har en
       metallfilm överst är mitt antagande: verkstadens katalog säger bara färg.
-    - **Färgen väljs i två steg** (`colorChoices` i `src/engine/color-choice.ts`, `ColorPicker`):
-      först framsidan, en prick per färg, och sedan gravyrens färg på en egen rad, bara där
-      framsidan finns med flera. Skylten bär fortfarande kombinationens id (`colorId`), så
-      ritning, 3D, pris och underlaget till verkstaden är orörda. Metallen har en kombination
-      per yta och ser ut som förut.
+    - **Färgen väljs i ett steg: en prick per kombination** (beslut av ägaren 2026-11-18,
+      `ColorPicker`, `byFront` i `src/engine/color-choice.ts`). Pricken visar framsidans och
+      kärnans färg, och det man ser är det man kan välja: 17 prickar för plasten, där vit
+      finns som tre (svart, blå eller röd kärna) och grön som två, med samma framsida intill
+      varandra. Metallen har en prick per yta.
+      - Från 2026-11-16 till 2026-11-18 valdes färgen i två steg: en prick per framsida, och
+        sedan raden "Gravyrens färg" där framsidan fanns med flera kärnor. Ägaren tog raden
+        för produktionens stödlinjer och frågade om inte prickarna var det man kunde välja
+        på. Raden och `colorChoices` är borttagna.
+      - Skylten bär kombinationens id (`colorId`) som förut, så ritning, 3D, pris och
+        underlaget till verkstaden är orörda.
     - **Färgkoderna står under färgerna** (besked via ägaren 2026-11-16): för den valda
       plastfärgen visas framsidans och gravyrens kod (`pigmentCodes`, `pigmentCodeText` i
       `color-choice.ts`). I dag finns bara hex, som är skärmens färg ur verkstadens katalog.

@@ -2,11 +2,11 @@ import type { ColorCombo } from "./catalog";
 import { printColorHex } from "./color-code";
 
 /**
- * Färgvalet i två steg. En tvålagersplast har en färg på framsidan och en i
- * kärnan, som gravyren frilägger. Kunden väljer framsidans färg, och kärnans
- * färg bara där samma framsida finns med flera kärnor (vit med svart, blå
- * eller röd). Skylten bär fortfarande kombinationens id, så inget annat i
- * motorn behöver känna till stegen.
+ * Färgvalet. En tvålagersplast har en färg på framsidan och en i kärnan, som gravyren
+ * frilägger, och varje kombination är ett eget val: en prick som visar båda färgerna
+ * (beslut av ägaren 2026-11-18: det man ser är det man kan välja). Förut valdes framsidan
+ * först och kärnans färg på en egen rad, "Gravyrens färg", som togs för något som gällde
+ * produktionen.
  */
 
 /** Framsidans och kärnans namn ur kombinationens namn, `Vit / Svart`. Ett material med en enda färg har ingen kärna. */
@@ -15,50 +15,15 @@ export function colorNames(combo: Pick<ColorCombo, "name">): { front: string; co
   return { front: front || combo.name, core: core || null };
 }
 
-export interface FrontChoice {
-  /** Framsidans namn, `Vit`. */
-  name: string;
-  /** Kombinationen som väljs med den här framsidan. */
-  combo: ColorCombo;
-  selected: boolean;
-}
-
-export interface CoreChoice {
-  /** Kärnans namn, `Svart`. */
-  name: string;
-  combo: ColorCombo;
-  selected: boolean;
-}
-
-export interface ColorChoices {
-  /** En per framsida, i listans ordning. */
-  fronts: FrontChoice[];
-  /** Kärnorna som den valda framsidan finns med. Tom när det bara finns en. */
-  cores: CoreChoice[];
-}
-
 /**
- * Valen för en lista av kombinationer och den som är vald. Byter kunden
- * framsida behålls kärnans färg om den nya framsidan finns med den, annars
- * gäller framsidans första kombination.
+ * Kombinationerna i den ordning de visas: listans ordning, med samma framsida intill varandra,
+ * så att vit med svart, blå och röd kärna står bredvid varandra.
  */
-export function colorChoices(colors: readonly ColorCombo[], selectedId: string): ColorChoices {
-  const selected = colors.find((combo) => combo.id === selectedId) ?? null;
-  const bySurface = new Map<string, ColorCombo[]>();
-  for (const combo of colors) {
-    const group = bySurface.get(combo.surface);
-    if (group) group.push(combo);
-    else bySurface.set(combo.surface, [combo]);
-  }
-  const fronts = [...bySurface.values()].map((group): FrontChoice => {
-    const first = group[0] as ColorCombo;
-    const isSelected = selected !== null && group.includes(selected);
-    const combo = isSelected ? selected : (group.find((c) => c.engraving === selected?.engraving) ?? first);
-    return { name: colorNames(combo).front, combo, selected: isSelected };
-  });
-  const group = selected ? (bySurface.get(selected.surface) ?? []) : [];
-  const cores = group.length > 1 ? group.map((combo): CoreChoice => ({ name: colorNames(combo).core ?? combo.name, combo, selected: combo === selected })) : [];
-  return { fronts, cores };
+export function byFront<T extends Pick<ColorCombo, "surface">>(colors: readonly T[]): T[] {
+  const order = new Map<string, number>();
+  for (const combo of colors) if (!order.has(combo.surface)) order.set(combo.surface, order.size);
+  // Stabil sortering: inom en framsida gäller listans ordning.
+  return [...colors].sort((a, b) => (order.get(a.surface) ?? 0) - (order.get(b.surface) ?? 0));
 }
 
 /**

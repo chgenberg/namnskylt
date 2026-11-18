@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getColor, getMaterial, offeredColors } from "./catalog";
-import { colorChoices, colorNames } from "./color-choice";
+import { byFront, colorNames } from "./color-choice";
 import { createBadgeDocument, isOfferedDocument, toOfferedDocument } from "./document";
 
 const plastic = getMaterial("plastic");
@@ -50,61 +50,25 @@ describe("plastens färger", () => {
   });
 });
 
-describe("färgvalet i två steg", () => {
+describe("färgvalet", () => {
   it("delar kombinationens namn i framsida och kärna", () => {
     assert.deepEqual(colorNames({ name: "Vit / Svart" }), { front: "Vit", core: "Svart" });
     assert.deepEqual(colorNames({ name: "Borstat guld" }), { front: "Borstat guld", core: null });
   });
 
-  it("visar en framsida per färg: fjorton för plasten", () => {
-    const { fronts } = colorChoices(sold, "white-black");
-    assert.equal(fronts.length, 14);
-    assert.deepEqual(fronts.slice(0, 5).map((f) => f.name), ["Vit", "Svart", "Guld", "Silver", "Gul"]);
-    assert.deepEqual(fronts.filter((f) => f.selected).map((f) => f.name), ["Vit"]);
+  it("visar varje kombination som ett eget val: sjutton för plasten, med samma framsida intill varandra", () => {
+    const shown = byFront(sold);
+    assert.equal(shown.length, 17);
+    assert.deepEqual([...shown].map((c) => c.id).sort(), [...sold].map((c) => c.id).sort());
+    // Vit med svart, blå och röd kärna står bredvid varandra, och de klassiska färgerna kommer först.
+    assert.deepEqual(shown.slice(0, 6).map((c) => c.id), ["white-black", "white-blue", "white-red", "black-white", "gold-black", "silver-black"]);
+    const green = shown.findIndex((c) => c.id === "green-white");
+    assert.equal(shown[green + 1]?.id, "green-black");
+    // Gul finns bara med svart sedan gul med röd utgick.
+    assert.deepEqual(shown.filter((c) => c.surface === "#FFD200").map((c) => c.id), ["yellow-black"]);
   });
 
-  it("frågar om gravyrens färg bara där framsidan finns med flera", () => {
-    assert.deepEqual(colorChoices(sold, "white-black").cores.map((c) => c.name), ["Svart", "Blå", "Röd"]);
-    assert.deepEqual(colorChoices(sold, "white-red").cores.map((c) => [c.name, c.selected]), [
-      ["Svart", false],
-      ["Blå", false],
-      ["Röd", true],
-    ]);
-    assert.deepEqual(colorChoices(sold, "green-white").cores.map((c) => c.name), ["Vit", "Svart"]);
-    assert.deepEqual(colorChoices(sold, "gold-black").cores, []);
-    assert.deepEqual(colorChoices(sold, "blue-white").cores, []);
-    // Gul finns bara med svart gravyr sedan gul med röd utgick: inget andra steg.
-    assert.deepEqual(colorChoices(sold, "yellow-black").cores, []);
-  });
-
-  it("behåller gravyrens färg när framsidan byts, om den nya framsidan finns med den", () => {
-    // Vit med röd gravyr vald: varken gul eller grön finns med röd, så de får sin första kombination.
-    const { fronts } = colorChoices(sold, "white-red");
-    assert.equal(fronts.find((f) => f.name === "Gul")?.combo.id, "yellow-black");
-    assert.equal(fronts.find((f) => f.name === "Grön")?.combo.id, "green-white");
-    assert.equal(fronts.find((f) => f.name === "Vit")?.combo.id, "white-red");
-    // Svart gravyr vald: grön finns med svart.
-    assert.equal(colorChoices(sold, "gold-black").fronts.find((f) => f.name === "Grön")?.combo.id, "green-black");
-  });
-
-  it("varje kombination går att nå med högst två val", () => {
-    for (const target of sold) {
-      const front = colorChoices(sold, "white-black").fronts.find((f) => f.combo.surface === target.surface);
-      assert.ok(front, target.id);
-      const { cores } = colorChoices(sold, front.combo.id);
-      assert.ok(front.combo.id === target.id || cores.some((c) => c.combo.id === target.id), target.id);
-    }
-  });
-
-  it("metallen ser ut som förut: en prick per yta och inget andra steg", () => {
-    const { fronts, cores } = colorChoices(metal.colors, "metal-gold");
-    assert.deepEqual(fronts.map((f) => f.name), ["Vit matt", "Mässing", "Nickel"]);
-    assert.deepEqual(cores, []);
-  });
-
-  it("en okänd vald färg markerar ingenting och ger inget andra steg", () => {
-    const { fronts, cores } = colorChoices(sold, "finns-inte");
-    assert.equal(fronts.some((f) => f.selected), false);
-    assert.deepEqual(cores, []);
+  it("metallen har en prick per yta, som förut", () => {
+    assert.deepEqual(byFront(offeredColors(metal)).map((c) => c.name), ["Vit matt", "Mässing", "Nickel"]);
   });
 });
