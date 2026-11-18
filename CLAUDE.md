@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1223 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1224 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -121,10 +121,18 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     verkstaden graverar bara.
   - `plastic`: tvålagers gravyrplast 1,5 mm (verkstadens kod `plastic-1.5mm`). Skärs ur ark och
     får därför ha egen form (`customShape`).
-    - **Alla verkstadens 18 färgkombinationer för 1,5 mm säljs** (beslut av ägaren 2026-11-16),
-      och alla kostar lika: 14 framsidor, där vit finns med svart, blå eller röd kärna, gul med
-      svart eller röd och grön med vit eller svart. Listan är `PLASTIC_15_COLORS` i
-      `catalog.ts`, med de fyra klassiska namnskyltsfärgerna först.
+    - **17 av verkstadens 18 färgkombinationer för 1,5 mm säljs**, och alla kostar lika: 14
+      framsidor, där vit finns med svart, blå eller röd kärna och grön med vit eller svart
+      (beslut av ägaren 2026-11-16). Listan är `PLASTIC_15_COLORS` i `catalog.ts`, med de fyra
+      klassiska namnskyltsfärgerna först.
+      - **Gul med röd gravyr säljs inte** (beslut av ägaren 2026-11-18, som ringade in valet
+        "Röd" under gul och bad att det skulle bort): `yellow-red` har `discontinued: true`.
+        Gul finns alltså bara med svart gravyr och har inget andra steg i färgvalet. Vit med
+        röd gravyr säljs fortfarande.
+      - En kombination som har utgått ligger kvar i materialets `colors`, så att en sparad
+        skylt ritas i sin färg. Det som går att välja och beställa läses med `offeredColors`
+        (färgväljaren, `isOfferedDocument`, `toOfferedDocument`, `matchColorCombo`, bytet av
+        material). En skylt i gul med röd gravyr som öppnas i skyltmotorn blir gul med svart.
     - Id:n, namn och färgkoder är verkstadens egna (deras `PLASTIC_15_COLOR_COMBOS`), och id:t
       skickas rakt av i ordern. `src/lib/supplier/catalog-sync.test.ts` jämför listan med deras
       katalog när deras projekt ligger bredvid på datorn, och hoppas över i CI. När deras API

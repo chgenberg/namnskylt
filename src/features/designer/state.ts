@@ -32,6 +32,7 @@ import {
   type Offset,
   type TextAlign,
   withTexts,
+  offeredColors,
 } from "@/engine";
 
 export type DesignerAction =
@@ -176,7 +177,9 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       return withoutOffsets(doc);
     case "material": {
       const material = getMaterial(action.materialId);
-      const colorId = material.colors.some((c) => c.id === doc.colorId) ? doc.colorId : material.colors[0]!.id;
+      // Bara färger som säljs: en kombination som har utgått följer inte med till ett annat material.
+      const colors = offeredColors(material);
+      const colorId = colors.some((c) => c.id === doc.colorId) ? doc.colorId : colors[0]!.id;
       const next = { ...doc, materialId: action.materialId, colorId };
       // Metallens och plastens ämnen har olika mått, och bara material som skärs ur ark kan ha en
       // egen form: skylten flyttas till närmaste ämne på det nya materialet (`withFittingBlank`).

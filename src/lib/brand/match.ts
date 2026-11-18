@@ -1,4 +1,4 @@
-import { getMaterial, type FontId, type MaterialId } from "@/engine";
+import { getMaterial, offeredColors, type FontId, type MaterialId } from "@/engine";
 import { colorDistance, parseCssColor } from "./color";
 
 /**
@@ -106,7 +106,8 @@ const MAX_COLOR_DISTANCE = 45;
  * vitt). `null` = ingen kombination ligger nära nog.
  */
 export function matchColorCombo(brandHexes: readonly string[], materialId: MaterialId): string | null {
-  const { colors } = getMaterial(materialId);
+  // Bara kombinationer som säljs: varumärkets färg ska aldrig ge en färg som inte går att beställa.
+  const colors = offeredColors(getMaterial(materialId));
   let best: { id: string; score: number } | null = null;
   for (const [rank, hex] of brandHexes.slice(0, 3).entries()) {
     const brand = parseCssColor(hex);

@@ -37,6 +37,12 @@ export interface ColorCombo {
   metallic?: boolean;
   /** Lackad yta på metall: slät och matt, utan borstning och metallglans. */
   lacquered?: boolean;
+  /**
+   * Kombinationen säljs inte längre. Den ligger kvar i materialet, så att en sparad skylt
+   * ritas i sin färg, men går varken att välja eller beställa. Det som säljs läses med
+   * `offeredColors`.
+   */
+  discontinued?: boolean;
 }
 
 export interface BadgeMaterial {
@@ -84,7 +90,8 @@ const PLASTIC_COLORS: readonly ColorCombo[] = [
   { id: "orange-white", name: "Orange / Vit", surface: "#FF6A00", engraving: WHITE },
   { id: "white-blue", name: "Vit / Blå", surface: WHITE, engraving: "#0057B8" },
   { id: "white-red", name: "Vit / Röd", surface: WHITE, engraving: "#E31C23" },
-  { id: "yellow-red", name: "Gul / Röd", surface: "#FFD200", engraving: "#E31C23" },
+  // Säljs inte längre (beslut av ägaren 2026-11-18: gul finns bara med svart gravyr).
+  { id: "yellow-red", name: "Gul / Röd", surface: "#FFD200", engraving: "#E31C23", discontinued: true },
   { id: "gray-white", name: "Grå / Vit", surface: "#7A828C", engraving: WHITE },
   { id: "brown-white", name: "Brun / Vit", surface: "#8A4020", engraving: WHITE },
   { id: "darkbrown-white", name: "Mörkbrun / Vit", surface: "#4A2412", engraving: WHITE },
@@ -564,6 +571,11 @@ export function getMaterial(id: MaterialId): BadgeMaterial {
 
 export function getBlank(id: BlankId): BadgeBlank {
   return BLANKS.find((b) => b.id === id) ?? BLANKS[0]!;
+}
+
+/** Materialets färger som säljs i dag. En kombination som har utgått ligger kvar i `colors` men är inte med här. */
+export function offeredColors(material: Pick<BadgeMaterial, "colors">): readonly ColorCombo[] {
+  return material.colors.filter((color) => !color.discontinued);
 }
 
 export function getColor(materialId: MaterialId, colorId: string): ColorCombo {

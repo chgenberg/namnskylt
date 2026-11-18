@@ -12,6 +12,7 @@ import {
   pigmentCodeText,
   createBadgeDocument,
   getMaterial,
+  offeredColors,
   outlinePath,
   withBlank,
   type BadgeBlank,
@@ -106,7 +107,7 @@ function finishSwatch(finish: MaterialFinish, surfaces: readonly string[]): stri
 }
 
 function materialSwatch(material: BadgeMaterial): string {
-  const surfaces = [...new Set(material.colors.map((color) => color.surface))];
+  const surfaces = [...new Set(offeredColors(material).map((color) => color.surface))];
   return finishSwatch(material.finish, surfaces.slice(0, SWATCH_BANDS));
 }
 
@@ -241,7 +242,8 @@ interface ColorPickerProps {
 export function ColorPicker({ materialId, value, onChange }: ColorPickerProps) {
   const material = getMaterial(materialId);
   const isMetal = material.finish === "aluminium" || material.finish === "steel" || material.finish === "brass";
-  const { fronts, cores } = colorChoices(material.colors, value);
+  // Bara kombinationer som säljs går att välja. En som har utgått ritas fortfarande på sparade skyltar.
+  const { fronts, cores } = colorChoices(offeredColors(material), value);
   // Koderna visas för plasten, där färgen är ett pigment. Metallens ytor har ingen färgkod.
   const chosen = getColor(materialId, value);
   const names = colorNames(chosen);

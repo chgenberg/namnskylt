@@ -16,6 +16,7 @@ import {
   type BadgeMaterial,
   type BlankArticle,
   type ColorCombo,
+  offeredColors,
 } from "./catalog";
 import { customOutlineIssue, scaleOutline } from "./custom-outline";
 import { getShapePreset, presetOutline } from "./shape-presets";
@@ -257,7 +258,7 @@ export function isOfferedDocument(doc: BadgeDocument): boolean {
   const material = getMaterial(doc.materialId);
   return (
     material.offered &&
-    material.colors.some((c) => c.id === doc.colorId) &&
+    offeredColors(material).some((c) => c.id === doc.colorId) &&
     (hasOfferedBlank(doc) || isValidCustomShape(doc)) &&
     getMounting(doc.mounting).offered &&
     mountingFitsDocument(doc)
@@ -269,8 +270,9 @@ function nearestColor(doc: BadgeDocument, material: BadgeMaterial): ColorCombo {
   const surface = getColor(doc.materialId, doc.colorId).surface;
   // Ljus metall ligger nära vitt i färg men ska bli borstad metall, inte vit lack.
   const wasMetal = METAL_FINISHES.has(getMaterial(doc.materialId).finish);
-  const brushed = material.colors.filter((c) => !c.lacquered);
-  const candidates = wasMetal && brushed.length > 0 ? brushed : material.colors;
+  const colors = offeredColors(material);
+  const brushed = colors.filter((c) => !c.lacquered);
+  const candidates = wasMetal && brushed.length > 0 ? brushed : colors;
   return candidates.reduce((best, c) => (colorDistance(c.surface, surface) < colorDistance(best.surface, surface) ? c : best));
 }
 
@@ -291,9 +293,11 @@ export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
   const offeredMaterial = getMaterial(doc.materialId).offered;
   const material = offeredMaterial ? getMaterial(doc.materialId) : nearestOfferedMaterial(doc);
   if (!material) return doc;
-  const offeredColor = offeredMaterial && material.colors.some((c) => c.id === doc.colorId);
-  // Finns samma kombination i det nya materialet (äldre plast till dagens plast) behålls den. Annars den som ligger närmast.
-  const colorId = material.colors.some((c) => c.id === doc.colorId) ? doc.colorId : nearestColor(doc, material).id;
+  const sold = offeredColors(material).some((c) => c.id === doc.colorId);
+  const offeredColor = offeredMaterial && sold;
+  // Finns samma kombination i det nya materialet (äldre plast till dagens plast) behålls den. Annars den som
+  // ligger närmast: en kombination som har utgått blir samma framsida med en gravyrfärg som säljs.
+  const colorId = sold ? doc.colorId : nearestColor(doc, material).id;
   const moved: BadgeDocument = offeredColor ? doc : { ...doc, materialId: material.id, colorId };
   const offeredShape = hasOfferedBlank(moved) || isValidCustomShape(moved);
   const shaped = offeredShape ? moved : withBlank(moved, nearestBlank(moved).id);
