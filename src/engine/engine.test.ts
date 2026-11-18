@@ -14,6 +14,7 @@ import {
 } from "./index";
 import { endPriceTable } from "./price-model";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
+import { engravedBadge } from "./testing";
 
 describe("parseSmartInput", () => {
   it("delar på komma, pipe och streck med mellanslag", () => {
@@ -105,7 +106,8 @@ describe("frameBands", () => {
 
 describe("renderBadgeSvg", () => {
   it("escapar text och använder leverantörens färgkonvention i produktion", () => {
-    const doc = createBadgeDocument(["Ö & <Å>"]);
+    // En skylt som graveras: det som printas finns inte i produktionsfilen.
+    const doc = engravedBadge(["Ö & <Å>"]);
     const svg = renderBadgeSvg(doc, layoutBadge(doc, approxFonts), { mode: "production" });
     assert.ok(svg.includes("Ö &amp; &lt;Å&gt;"));
     assert.ok(svg.includes('stroke="#FF0000"'));

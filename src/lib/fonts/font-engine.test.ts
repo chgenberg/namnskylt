@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { before, describe, it } from "node:test";
 import {
-  createBadgeDocument,
   engravingPaths,
   layoutBadge,
   renderBadgeSvg,
   type FontEngine,
 } from "@/engine";
+import { engravedBadge } from "@/engine/testing";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createFontEngine, drawnText } from "./font-engine";
@@ -68,7 +68,7 @@ describe("createFontEngine", () => {
     assert.ok(fonts.measure("Ωmega", size) > fonts.measure("mega", size) * 1.4);
     assert.ok((fonts.outline?.("Ωmega", size, 0, 10) ?? "").length > 100);
     // Layouten räknar radens storlek med reservens versalhöjd, så versalerna får rätt höjd.
-    const doc = { ...createBadgeDocument(["ΩMEGA"]), font: "arial-narrow" as const };
+    const doc = { ...engravedBadge(["ΩMEGA"]), font: "arial-narrow" as const };
     const layout = layoutBadge(doc, fonts);
     const row = layout.rows[0]!;
     const bounds = pathBounds(engravingPaths(layout, fonts)![0]!.d);
@@ -76,7 +76,7 @@ describe("createFontEngine", () => {
   });
 
   it("ger glyfkonturer på exakt den versalhöjd layouten räknat", () => {
-    const doc = createBadgeDocument(["HELENA"]);
+    const doc = engravedBadge(["HELENA"]);
     const layout = layoutBadge(doc, fonts);
     const row = layout.rows[0]!;
     const bounds = pathBounds(engravingPaths(layout, fonts)![0]!.d);
@@ -116,7 +116,7 @@ describe("createFontEngine", () => {
   it("ger giltiga konturer för svenska namn och siffror", () => {
     const texts = ["Anna Lindqvist", "Projektledare", "Erik Holm", "Överläkare", "Avdelning 4"];
     for (const font of ["arial", "arial-narrow"] as const) {
-      const doc = { ...createBadgeDocument(texts.slice(0, 3)), font };
+      const doc = { ...engravedBadge(texts.slice(0, 3)), font };
       for (const path of engravingPaths(layoutBadge(doc, fonts), fonts)!) {
         const at = path.d.indexOf("NaN");
         assert.equal(at, -1, `${font}/${path.id}: ${path.d.slice(Math.max(0, at - 60), at + 20)}`);
@@ -126,7 +126,8 @@ describe("createFontEngine", () => {
 
   it("ritar produktionsfilen med konturer i stället för text", () => {
     const doc = {
-      ...createBadgeDocument(["Anna Lindqvist", "Projektledare"]),
+      // En skylt som graveras: det som printas finns inte i produktionsfilen.
+      ...engravedBadge(["Anna Lindqvist", "Projektledare"]),
       frame: { style: "solid" as const, insetMm: 1.5, thicknessMm: 0.4 },
     };
     const svg = renderBadgeSvg(doc, layoutBadge(doc, fonts), { mode: "production", fonts });

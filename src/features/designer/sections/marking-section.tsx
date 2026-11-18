@@ -7,6 +7,7 @@ import {
   MARKING_MODE_NAME,
   PRINT_COLOR_MAX,
   getMarkingMethod,
+  isPrintOnly,
   markingFits,
   markingOf,
   type BadgeDocument,
@@ -34,12 +35,17 @@ function priceLabel(sek: number): string {
  * streckade, så att ingen missar att de finns. Priserna kommer ur prismodellen,
  * med butikens påslag. Vid valen står priset från, alltså det lägsta, och i
  * sammanfattningen under dem tillägget som gäller för orderns antal.
+ *
+ * Metallen går bara att printa på (beslut av ägaren 2026-11-18). Där går bara
+ * "Endast print" att välja, och de tre valen med gravyr syns streckade med raden
+ * om att gravyr finns på plastskyltar, som Egen form och Klämma gör på metall.
  */
 export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps) {
   const { markingPrice, markingFrom } = useShopPrices(tierIndex);
   const selected = getMarkingMethod(markingOf(doc));
   // Färgkoden gäller trycket: fältet visas bara när namnet eller loggan printas.
   const printsSomething = selected.nameMode === "print" || (Boolean(doc.logo) && selected.logoMode === "print");
+  const printOnly = isPrintOnly(doc.materialId);
   return (
     <PanelSection step={2} title="Märkningsmetod" aside="1 metod ingår">
       <div className={styles.markingList} role="radiogroup" aria-label="Märkningsmetod">
@@ -60,10 +66,15 @@ export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps
               <span className={styles.markingText}>
                 <span className={styles.markingName}>{method.name}</span>
                 <span className={styles.markingNote}>
-                  {available ? method.description : `${method.description}. Lägg till en logotyp nedan för att välja.`}
+                  {available
+                    ? method.description
+                    : printOnly
+                      ? `${method.description}. Gravyr finns bara på plastskyltar.`
+                      : `${method.description}. Lägg till en logotyp nedan för att välja.`}
                 </span>
               </span>
-              <span className={styles.markingPrice}>{fromPriceLabel(markingFrom(method.id, doc.materialId))}</span>
+              {/* Ett val som inte finns på materialet har inget pris här. */}
+              {(available || !printOnly) && <span className={styles.markingPrice}>{fromPriceLabel(markingFrom(method.id, doc.materialId))}</span>}
             </button>
           );
         })}

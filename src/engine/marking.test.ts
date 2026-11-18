@@ -7,6 +7,8 @@ import {
   badgePriceParts,
   createBadgeDocument,
   engravingPaths,
+  isOfferedDocument,
+  isPrintOnly,
   layoutBadge,
   logoMarking,
   markingFits,
@@ -21,10 +23,12 @@ import {
   toOfferedDocument,
   withLogoMarking,
   withMarking,
+  withMaterialMarking,
   type FontEngine,
 } from "./index";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
 import { endPriceTable, itemBreakdown, parseStoredPriceModel, priceModelSchema, resellerPriceTable, type PriceModel } from "./price-model";
+import { engravedBadge, plasticBadge } from "./testing";
 import type { BadgeDocument, BadgeLogo, MarkingMethod } from "./types";
 
 /** Tabellmått plus en ruta per textrad som "kontur" — räcker för att se vad som graveras och vad som printas. */
@@ -40,7 +44,8 @@ const fonts: FontEngine = {
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 const MONO: BadgeLogo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left", heightMm: 10 };
 const COLOR: BadgeLogo = { ...MONO, image: { src: PNG } };
-const plain: BadgeDocument = toOfferedDocument(createBadgeDocument(["Anna Lind", "Säljare"]));
+/** En plastskylt, där alla fyra metoderna finns. Metallen går bara att printa på och har egna tester sist. */
+const plain: BadgeDocument = plasticBadge(["Anna Lind", "Säljare"]);
 const framed: BadgeDocument = { ...plain, frame: { ...plain.frame, style: "solid" } };
 const withLogo = (logo: BadgeLogo, marking?: MarkingMethod): BadgeDocument => ({ ...framed, logo, ...(marking && { marking }) });
 const kinds = (paths: ReturnType<typeof engravingPaths>) => (paths ?? []).map((path) => path.kind).sort();
@@ -250,3 +255,63 @@ describe("märkningsmetodens pris", () => {
     assert.deepEqual(parseStoredPriceModel(JSON.parse(JSON.stringify(PRICED)))?.options.markingPrintNameEngraveLogo, [9.6, 9.6, 6, 6]);
   });
 });
+
+describe("metallen går bara att printa på", () => {
+  const metal = createBadgeDocument(["Anna Lind", "Säljare"]);
+
+  it("en ny skylt börjar på metall med metoden Endast print", () => {
+    assert.equal(metal.materialId, "metal");
+    assert.equal(isPrintOnly("metal"), true);
+    assert.equal(isPrintOnly("plastic"), false);
+    assert.equal(metal.marking, "print");
+    assert.equal(markingOf(metal), "print");
+    assert.equal(isOfferedDocument(metal), true);
+    assert.equal(badgeDocumentSchema.safeParse(metal).success, true);
+  });
+
+  it("bara Endast print går att välja, med eller utan logga", () => {
+    for (const doc of [metal, { ...metal, logo: MONO }, { ...metal, logo: COLOR }]) {
+      assert.deepEqual(MARKING_METHODS.filter((method) => markingFits(method.id, doc)).map((method) => method.id), ["print"]);
+    }
+    // På plast finns alla fyra när skylten har en logga.
+    assert.equal(MARKING_METHODS.filter((method) => markingFits(method.id, withLogo(MONO))).length, 4);
+  });
+
+  it("ett annat val blir print, och en ny logga printas, i färg eller svartvit", () => {
+    for (const method of MARKING_METHODS) assert.equal(markingOf(withMarking({ ...metal, logo: MONO }, method.id)), "print");
+    assert.equal(markingOf(withLogoMarking({ ...metal, logo: COLOR })), "print");
+    assert.equal(markingOf(withLogoMarking({ ...metal, logo: MONO })), "print");
+    // Ingenting fräses på en metallskylt: namnet, ramen och loggan printas.
+    const layout = layoutBadge({ ...metal, frame: { ...metal.frame, style: "solid" }, logo: MONO }, fonts);
+    assert.deepEqual(kinds(engravingPaths(layout, fonts)), []);
+    assert.deepEqual(kinds(printedPaths(layout, fonts)), ["frame", "logo", "text", "text"]);
+  });
+
+  it("en metallskylt som graveras säljs inte, och blir en som printas när den öppnas", () => {
+    // Så sparades metallskyltar förut: utan vald metod, alltså graverade.
+    const old = engravedBadge(["Anna Lind", "Säljare"]);
+    assert.equal(markingOf(old), "engrave");
+    assert.equal(isOfferedDocument(old), false);
+    assert.equal(isOfferedDocument({ ...old, marking: "engrave" }), false);
+    assert.equal(isOfferedDocument({ ...old, logo: COLOR }), false);
+    const opened = toOfferedDocument(old);
+    assert.equal(markingOf(opened), "print");
+    assert.equal(isOfferedDocument(opened), true);
+    // Texten, måttet och färgen är orörda.
+    assert.deepEqual({ ...opened, marking: undefined }, { ...old, marking: undefined });
+    // En skylt som redan printas rörs inte.
+    assert.equal(toOfferedDocument(metal), metal);
+  });
+
+  it("metoden följer materialet när det byts", () => {
+    // Från metall till plast börjar skylten om på gravyr: print var bara valt för att metallen krävde det.
+    const toPlastic = withMaterialMarking({ ...plain, marking: "print" as const });
+    assert.equal(markingOf(toPlastic), "engrave");
+    assert.equal("marking" in toPlastic, false);
+    assert.equal(markingOf(withMaterialMarking({ ...withLogo(COLOR), marking: "print" as const })), "engrave-name-print-logo");
+    // Från plast till metall blir allt print.
+    assert.equal(markingOf(withMaterialMarking({ ...metal, logo: COLOR, marking: "engrave" as const })), "print");
+    assert.equal(markingOf(withMaterialMarking(engravedBadge(["Anna"]))), "print");
+  });
+});
+

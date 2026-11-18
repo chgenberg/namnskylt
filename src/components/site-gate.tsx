@@ -67,7 +67,7 @@ export function SiteGate({ unlocked, children }: SiteGateProps) {
         <div className={styles.hero}>
           <Image
             src="/gate-badge.jpg"
-            alt="Graverad namnskylt i mässing med texten Välkommen"
+            alt="Namnskylt i mässing med texten Välkommen"
             width={1100}
             height={582}
             priority

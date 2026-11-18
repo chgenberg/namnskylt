@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { approxFonts, createBadgeDocument, logoImageRef, NO_SHIPPING, type BadgeDocument, type BadgeLogo } from "@/engine";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
+import { engravedBadge } from "@/engine/testing";
 import { endPriceTable, resellerPriceTable } from "@/engine/price-model";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
 import type { Delivery } from "@/lib/orders/delivery";
@@ -148,7 +149,8 @@ describe("bilderna i anropet", () => {
   });
 
   it("en graverad logga får sin svartvita miniatyr på samma sätt", () => {
-    const request = buildSupplierRequest(input([{ ...named("Anna Lind"), logo: LOGO }], { logoPng: () => PNG }));
+    // Gravyr finns på plast och på äldre skyltar utan vald metod. Dagens metallskylt printas.
+    const request = buildSupplierRequest(input([{ ...engravedBadge(["Anna Lind"]), logo: LOGO }], { logoPng: () => PNG }));
     const image = request.lines[0]?.document.layers.find((layer) => layer.data.kind === "image");
     assert.equal(image?.data.kind === "image" && image.data.renderMode, "engrave");
     assert.deepEqual(Object.values(request.images), [PNG]);

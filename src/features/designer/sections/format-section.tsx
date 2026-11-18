@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { Segmented } from "@/components/ui/segmented";
-import { FRAME_STYLES, blankOf, type BadgeDocument } from "@/engine";
+import { FRAME_STYLES, blankOf, nameMarking, type BadgeDocument } from "@/engine";
 import { useCustomShapeChoice } from "../custom-shape-choice";
 import { CustomShapeEditor } from "../custom-shape/custom-shape-editor";
 import { BlankPicker } from "../pickers";
@@ -52,7 +52,8 @@ export function FormatSection({ doc, dispatch }: FormatSectionProps) {
       </AnimatePresence>
 
       <div className={styles.labelled}>
-        <span className={styles.sliderLabel}>Graverad ram</span>
+        {/* Ramen märks som namnet: graverad, eller tryckt när namnet printas, som på metall. */}
+        <span className={styles.sliderLabel}>{nameMarking(doc) === "print" ? "Tryckt ram" : "Graverad ram"}</span>
         <Segmented
           label="Ram"
           value={doc.frame.style}

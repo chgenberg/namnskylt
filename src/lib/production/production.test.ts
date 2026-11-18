@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { approxFonts, createBadgeDocument, withBlank, withShapePreset, type BadgeDocument, type FontEngine } from "@/engine";
+import { engravedBadge } from "@/engine/testing";
 import { computeCutGrid } from "./cut-grid";
 import { sheetToDxf } from "./dxf";
 import { flattenPath } from "./flatten-path";
@@ -33,7 +34,7 @@ const fonts: FontEngine = {
 /** Arkpackningen gäller skyltar som skärs ur ark: äldre gravyrplast i 70 × 25 mm. */
 function badge(patch: Partial<BadgeDocument> = {}, texts = ["Anna Lind", "Butikschef"]): BadgeDocument {
   return {
-    ...createBadgeDocument(texts),
+    ...engravedBadge(texts),
     materialId: "plastic-2-layer",
     colorId: "white-black",
     size: { widthMm: 70, heightMm: 25 },
@@ -270,8 +271,12 @@ describe("sheetMarks och DXF", () => {
 
 describe("färdiga ämnen", () => {
   const ctx = { fonts, productionNo: "2026-002", sheetNo: 1, sheetCount: 1, method: "blank" as const };
+  /**
+   * En metallskylt som den gjordes till 2026-11-18: utan vald metod, alltså graverad. Sedan dess
+   * printas metallen, se sista testet. Ordrar från före det ska fortfarande gå att lägga upp.
+   */
   const metal = (patch: Partial<BadgeDocument> = {}): BadgeDocument => ({
-    ...createBadgeDocument(["Anna Lind", "Butikschef"]),
+    ...engravedBadge(["Anna Lind", "Butikschef"]),
     ...patch,
   });
 
@@ -367,9 +372,28 @@ describe("färdiga ämnen", () => {
   });
 });
 
+describe("färdiga ämnen som printas", () => {
+  const ctx = { fonts, productionNo: "2026-003", sheetNo: 1, sheetCount: 1, method: "blank" as const };
+
+  it("dagens metallskylt printas: ingenting graveras på ämnet, och namnet är hjälplinjer", () => {
+    // En ny skylt börjar på metall med metoden Endast print.
+    const today = createBadgeDocument(["Anna Lind", "Butikschef"]);
+    assert.equal(today.marking, "print");
+    const units = productionBatches([order("NS-1", [today])])[0]?.units ?? [];
+    const [sheet] = packSheets(units, "blank").sheets;
+    assert.ok(sheet);
+    const marks = sheetMarks(sheet, ctx);
+    assert.equal(marks.filter((m) => m.ink === "engrave").length, 0);
+    assert.equal(marks.filter((m) => m.ink === "cut" || m.ink === "throughCut").length, 0);
+    // De två raderna syns som hjälplinjer, så att den som lägger upp ämnena ser var trycket ska sitta.
+    assert.equal(marks.filter((m) => m.ink === "guide" && m.placementKey && m.fillRule === "nonzero").length, 2);
+    assert.equal((renderMachineSvg(sheet, marks).match(/<path /g) ?? []).length, 0);
+  });
+});
+
 describe("plast i egen form", () => {
   const ctx = { fonts, productionNo: "2026-003", sheetNo: 1, sheetCount: 1, method: "plastic-sheet" as const };
-  const star = withShapePreset({ ...createBadgeDocument(["Anna Lind"]), materialId: "plastic", colorId: "white-black" }, "star");
+  const star = withShapePreset({ ...engravedBadge(["Anna Lind"]), materialId: "plastic", colorId: "white-black" }, "star");
 
   it("skärs ur ark: egen batch per färg, genomskärning längs konturen och luft till grannen", () => {
     const batches = productionBatches([order("NS-1", [{ ...star, quantity: 2 }])]);
@@ -393,7 +417,7 @@ describe("plast i egen form", () => {
   });
 
   it("plast på ett ämne skärs som förut: rektangeln delar skärlinjer", () => {
-    const plain = { ...createBadgeDocument(["Anna Lind"]), materialId: "plastic" as const, colorId: "black-white", quantity: 2 };
+    const plain = { ...engravedBadge(["Anna Lind"]), materialId: "plastic" as const, colorId: "black-white", quantity: 2 };
     const batches = productionBatches([order("NS-2", [plain])]);
     assert.equal(batches[0]?.method, "plastic-sheet");
     const [sheet] = packSheets(batches[0]?.units ?? [], "plastic-sheet").sheets;

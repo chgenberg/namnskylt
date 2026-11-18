@@ -33,6 +33,8 @@ import {
   type TextAlign,
   withTexts,
   offeredColors,
+  isPrintOnly,
+  withMaterialMarking,
 } from "@/engine";
 
 export type DesignerAction =
@@ -180,7 +182,10 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       // Bara färger som säljs: en kombination som har utgått följer inte med till ett annat material.
       const colors = offeredColors(material);
       const colorId = colors.some((c) => c.id === doc.colorId) ? doc.colorId : colors[0]!.id;
-      const next = { ...doc, materialId: action.materialId, colorId };
+      const moved = { ...doc, materialId: action.materialId, colorId };
+      // Metoden följer materialet: metall går bara att printa på, och plasten börjar om på gravyr
+      // när skylten kommer från metall. Samma material behåller kundens val.
+      const next = isPrintOnly(action.materialId) || isPrintOnly(doc.materialId) ? withMaterialMarking(moved) : moved;
       // Metallens och plastens ämnen har olika mått, och bara material som skärs ur ark kan ha en
       // egen form: skylten flyttas till närmaste ämne på det nya materialet (`withFittingBlank`).
       // Ett fäste som inte går att få på den nya skylten (klämman på metall) byts mot nålen.

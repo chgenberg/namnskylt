@@ -3,24 +3,28 @@ import { describe, it } from "node:test";
 import { createBadgeDocument, priceItemsOf, withTexts, type BadgeDocument } from "@/engine";
 import { orderShippingSek } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
+import { plasticBadge } from "@/engine/testing";
 import { shippingItems, shippingRequestSchema } from "./shipping";
 
+/** En ny skylt: metall, som bara går att printa på. */
 const metal: BadgeDocument = createBadgeDocument(["Anna Lind"]);
-const plastic: BadgeDocument = { ...metal, materialId: "plastic", colorId: "white-black" };
+/** En plastskylt utan vald metod, alltså graverad. */
+const plastic: BadgeDocument = plasticBadge(["Anna Lind"]);
 
 describe("frågan om frakt", () => {
   it("slår ihop likadana skyltar, så att hundra namn blir en rad", () => {
     const names = Array.from({ length: 100 }, (_, i) => withTexts(metal, [`Person ${i}`]));
     assert.deepEqual(shippingItems(names), [
-      { signClass: "premium", mounting: "pin", extraEngraving: false, customShape: false, marking: "engrave", quantity: 100 },
+      { signClass: "premium", mounting: "pin", extraEngraving: false, customShape: false, marking: "print", quantity: 100 },
     ]);
   });
 
   it("håller isär märkningsmetoderna, eftersom de kan ha olika pris", () => {
+    // På plast finns båda metoderna. Metallen går bara att printa på.
     const items = shippingItems([
-      { ...metal, quantity: 2 },
-      { ...metal, marking: "print", quantity: 3 },
-      { ...withTexts(metal, ["Bo Ek"]), marking: "print", quantity: 1 },
+      { ...plastic, quantity: 2 },
+      { ...plastic, marking: "print", quantity: 3 },
+      { ...withTexts(plastic, ["Bo Ek"]), marking: "print", quantity: 1 },
     ]);
     assert.deepEqual(
       items.map((item) => [item.marking, item.quantity]),

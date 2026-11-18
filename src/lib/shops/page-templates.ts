@@ -102,7 +102,7 @@ const FAQ = [
   { question: "Kan jag beställa till hela teamet på en gång?", answer: "Ja. Skriv ett namn per rad eller ladda upp en Excel-lista — namn och titel hittas automatiskt." },
   { question: "Vilka material finns?", answer: "Metallskyltar i vit matt aluminium, mässing och nickel och plastskyltar i arton färgkombinationer. Metallen finns i fem format och plasten i fem, eller i egen form." },
   { question: "Vilka fästen kan jag välja?", answer: "Nål eller magnet på alla skyltar, och klämma på plastskyltar som är minst 80 × 25 mm. Magneten är skonsam mot kläderna." },
-  { question: "Kan vi få vår logga på skylten?", answer: "Ja. Ladda upp loggan i skyltmotorn. En svartvit logga graveras med texten och en logga i färg trycks." },
+  { question: "Kan vi få vår logga på skylten?", answer: "Ja. Ladda upp loggan i skyltmotorn. På metall trycks loggan, i färg eller i en färg. På plast graveras en svartvit logga med texten, och en logga i färg trycks." },
   { question: "Blir det billigare om vi beställer fler?", answer: "Ja. Priset per skylt sjunker vid större beställningar — ju fler, desto lägre pris per skylt." },
   { question: "Kan jag ändra något efter beställningen?", answer: "Säg till innan du godkänt korrekturen, så rättar vi. Efter godkännandet går skyltarna direkt till tillverkning." },
 ];

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { approxFonts, badgeDocumentSchema, createBadgeDocument, layoutBadge, renderBadgeSvg } from "./index";
 import { otsuThreshold, placeLogoPath, traceLogoMask } from "./logo";
+import { engravedBadge } from "./testing";
 import type { BadgeDocument, BadgeLogo } from "./types";
 
 function mask(width: number, height: number, inked: (x: number, y: number) => boolean): Uint8Array {
@@ -19,7 +20,8 @@ const SQUARE_LOGO: BadgeLogo = {
 };
 
 function withLogo(logo: Partial<BadgeLogo> = {}): BadgeDocument {
-  return { ...createBadgeDocument(["Anna Lindqvist", "Projektledare"]), logo: { ...SQUARE_LOGO, ...logo } };
+  // Utan vald metod, som skyltar sparades förut: namnet och en svartvit logga graveras.
+  return { ...engravedBadge(["Anna Lindqvist", "Projektledare"]), logo: { ...SQUARE_LOGO, ...logo } };
 }
 
 describe("otsuThreshold", () => {

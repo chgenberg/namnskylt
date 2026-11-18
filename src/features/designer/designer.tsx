@@ -496,6 +496,11 @@ export function Designer({
   const moved = Boolean(doc.textOffsetMm || doc.logo?.offsetMm);
   /** Ritningen visar platshållare på en helt tom skylt. Då finns ingen logga, så här gäller skylten som den är. */
   const logoOverlapsText = Boolean(doc.logo) && layout.logoOverlapsText;
+  /**
+   * Något på skylten graveras. Bara då finns en gravyr att visa fram med lasern: en metallskylt
+   * printas (beslut av ägaren 2026-11-18), så där visas varken animationen eller knappen Gravera.
+   */
+  const engraves = (!layout.namePrinted && (layout.rows.length > 0 || layout.frames.length > 0)) || Boolean(layout.logo && !layout.logo.printed);
 
   const material = getMaterial(doc.materialId);
   const color = getColor(doc.materialId, doc.colorId);
@@ -532,22 +537,24 @@ export function Designer({
                 </svg>
                 {recording ? "Spelar in…" : "Video"}
               </button>
-              <button
-                type="button"
-                className={`chip ${styles.stageChip}`}
-                title="Se lasern gravera fram skylten"
-                disabled={recording || engrave !== null}
-                onClick={() => {
-                  setPhoto(false);
-                  setEngrave(performance.now());
-                }}
-              >
-                <svg className={styles.chipIcon} viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 3v7M9 7l3 3 3-3" />
-                  <path d="M4 20h16M7 16.5l1.5-1.5M17 16.5 15.5 15M12 17v-2" />
-                </svg>
-                Gravera
-              </button>
+              {engraves && (
+                <button
+                  type="button"
+                  className={`chip ${styles.stageChip}`}
+                  title="Se lasern gravera fram skylten"
+                  disabled={recording || engrave !== null}
+                  onClick={() => {
+                    setPhoto(false);
+                    setEngrave(performance.now());
+                  }}
+                >
+                  <svg className={styles.chipIcon} viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 3v7M9 7l3 3 3-3" />
+                    <path d="M4 20h16M7 16.5l1.5-1.5M17 16.5 15.5 15M12 17v-2" />
+                  </svg>
+                  Gravera
+                </button>
+              )}
               <button
                 type="button"
                 className={`chip ${styles.stageChip}`}
@@ -609,7 +616,7 @@ export function Designer({
                 fonts={fonts}
                 spinning={spinning}
                 focus={focus}
-                engrave={engrave}
+                engrave={engraves ? engrave : null}
                 onEngraveDone={endEngrave}
                 photo={photo}
                 photoSamples={PHOTO_SAMPLES}
@@ -641,7 +648,7 @@ export function Designer({
           ) : view === "drawing" ? (
             <p className={styles.hint} data-severity={logoOverlapsText ? "warning" : undefined} role="status">
               {logoOverlapsText
-                ? "Loggan ligger över texten — dra isär dem så att båda syns i gravyren."
+                ? "Loggan ligger över texten — dra isär dem så att båda syns på skylten."
                 : `Dra texten eller loggan, eller dra i ett hörn för att ändra storlek. Streckad linje = säkerhetsmarginal, ${layout.contentInsetMm.toLocaleString("sv-SE")} mm.`}
             </p>
           ) : view === "3d" && logoOverlapsText ? (

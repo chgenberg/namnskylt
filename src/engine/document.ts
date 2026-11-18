@@ -19,6 +19,7 @@ import {
   offeredColors,
 } from "./catalog";
 import { customOutlineIssue, scaleOutline } from "./custom-outline";
+import { hasFittingMarking, markingOf, withMarking } from "./marking";
 import { getShapePreset, presetOutline } from "./shape-presets";
 import type { BadgeDocument, BadgeTextRow, BlankId, ClipOrientation, MaterialFinish, Mm, MountingId } from "./types";
 
@@ -54,18 +55,22 @@ const DEFAULT_BLANK: BlankId = "metal-rectangle";
 
 export function createBadgeDocument(texts: readonly string[] = []): BadgeDocument {
   const rows = (texts.length > 0 ? texts : [""]).map((text, i) => createRow(i, text));
-  return {
-    version: 1,
-    materialId: "metal",
-    colorId: "metal-gold",
-    ...blankGeometry(getBlank(DEFAULT_BLANK)),
-    frame: { style: "none", insetMm: 1.5, thicknessMm: 0.4 },
-    font: "arial",
-    align: "center",
-    rows,
-    mounting: "pin",
-    quantity: 1,
-  };
+  // En ny skylt börjar på metall, som bara går att printa på: metoden är "Endast print".
+  return withMarking<BadgeDocument>(
+    {
+      version: 1,
+      materialId: "metal",
+      colorId: "metal-gold",
+      ...blankGeometry(getBlank(DEFAULT_BLANK)),
+      frame: { style: "none", insetMm: 1.5, thicknessMm: 0.4 },
+      font: "arial",
+      align: "center",
+      rows,
+      mounting: "pin",
+      quantity: 1,
+    },
+    "print",
+  );
 }
 
 function blankGeometry(blank: BadgeBlank): Pick<BadgeDocument, "shape" | "size" | "cornerRadiusMm"> {
@@ -259,6 +264,8 @@ export function isOfferedDocument(doc: BadgeDocument): boolean {
   return (
     material.offered &&
     offeredColors(material).some((c) => c.id === doc.colorId) &&
+    // Metallen graveras inte: en metallskylt ska ha metoden print.
+    hasFittingMarking(doc) &&
     (hasOfferedBlank(doc) || isValidCustomShape(doc)) &&
     getMounting(doc.mounting).offered &&
     mountingFitsDocument(doc)
@@ -304,9 +311,12 @@ export function toOfferedDocument(doc: BadgeDocument): BadgeDocument {
   // Fästet ska både säljas och gå att få på skylten där den hamnar: klämman finns inte på metall
   // och inte på en skylt under 80 × 25 mm.
   const offeredMounting = getMounting(doc.mounting).offered && mountingFitsDocument(shaped);
-  if (offeredColor && offeredShape && offeredMounting) return doc;
   // Säkerhetsnålen är en nål; den vanliga nålen är närmast. Den gäller också när fästet inte går att få på skylten.
-  return offeredMounting ? shaped : withMounting(shaped, "pin");
+  const mounted = offeredMounting ? shaped : withMounting(shaped, "pin");
+  // Metoden ska finnas på materialet: en metallskylt som graverades blir en som printas.
+  const offeredMarking = hasFittingMarking(mounted);
+  if (offeredColor && offeredShape && offeredMounting && offeredMarking) return doc;
+  return offeredMarking ? mounted : withMarking(mounted, markingOf(mounted));
 }
 
 /** Text som faktiskt graveras — tomma rader kostar inget och ritas inte. */

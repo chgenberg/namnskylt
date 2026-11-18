@@ -55,6 +55,11 @@ export interface BadgeMaterial {
   producer: Producer;
   /** Exklusiva material visas först och får egen etikett. */
   exclusive: boolean;
+  /**
+   * Materialet graveras inte: namn och logotyp printas (beslut av ägaren 2026-11-18 för
+   * metallen). Då finns bara metoden "Endast print", se `markingFits`.
+   */
+  printOnly?: boolean;
   /** Säljs på sajten i dag. */
   offered: boolean;
   /** Levereras som färdigskurna ämnen: verkstaden graverar bara, inget skärs. */
@@ -142,10 +147,12 @@ export const MATERIALS: readonly BadgeMaterial[] = [
     id: "metal",
     name: "Metall",
     tagline: "Stilren, i tre ytor",
-    description: "Tunn metallskylt med graverad text, i vit matt aluminium, mässing eller nickel.",
+    description: "Tunn metallskylt med tryckt text och logotyp, i vit matt aluminium, mässing eller nickel.",
     finish: "aluminium",
     producer: "skylt-gravyr",
     exclusive: false,
+    // Metallen graveras inte: namn och logotyp printas (beslut av ägaren 2026-11-18).
+    printOnly: true,
     offered: true,
     precut: true,
     supplierCode: "namnskylt-metall",

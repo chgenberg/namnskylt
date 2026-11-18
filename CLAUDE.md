@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1224 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1231 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -117,8 +117,10 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
 - **Material:** bara material med `offered: true` i `src/engine/catalog.ts` går att välja.
   - `metal`: tre ytor, som heter som verkstadens sedan 2026-11-17: **Vit matt** (`metal-white`,
     lackad aluminium), **Mässing** (`metal-gold`) och **Nickel** (`metal-silver`). Id:na är
-    oförändrade, eftersom verkstadens mottagare känner dem. Färdiga ämnen (`precut`), så
-    verkstaden graverar bara.
+    oförändrade, eftersom verkstadens mottagare känner dem. Färdiga ämnen (`precut`), som
+    verkstaden bara märker.
+    - **Metallen går bara att printa på** (beslut av ägaren 2026-11-18: "det ska inte gå att
+      gravera i metall"). Se Märkningsmetod.
   - `plastic`: tvålagers gravyrplast 1,5 mm (verkstadens kod `plastic-1.5mm`). Skärs ur ark och
     får därför ha egen form (`customShape`).
     - **17 av verkstadens 18 färgkombinationer för 1,5 mm säljs**, och alla kostar lika: 14
@@ -282,6 +284,37 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   printas, i sektionen "Märkningsmetod" i skyltmotorn (`marking-section.tsx`). Fyra val
   (`MARKING_METHODS` i `src/engine/marking.ts`): Endast gravyr, Endast print, Namn graveras ·
   logotyp printas och Namn printas · logotyp graveras. En metod ingår i skylten.
+  - **På metall finns bara "Endast print"** (beslut av ägaren 2026-11-18: "det ska inte gå att
+    gravera i metall. Man ska bara kunna ha print på metall."). Materialet bär regeln
+    (`BadgeMaterial.printOnly`, `isPrintOnly`), och `markingFits` tar skyltens material.
+    - I sektionen syns de tre valen med gravyr streckade på metall, med raden "Gravyr finns
+      bara på plastskyltar.", och utan pris. På plast finns alla fyra, som förut.
+    - **En ny skylt börjar på metall med `marking: "print"`** (`createBadgeDocument`). En ny
+      logga på metall printas alltid, i färg eller i en färg (`withMarking` ger print på ett
+      material som bara printas).
+    - **Metoden följer materialet när det byts** (`withMaterialMarking`, åtgärden
+      `material`): till metall blir allt print. Från metall till plast börjar skylten om på
+      plastens förval, gravyr med en logga i färg tryckt, eftersom print bara var valt för att
+      metallen krävde det. Det valde jag; ägaren sa inget om bytet.
+    - **En metallskylt som graveras säljs inte** (`hasFittingMarking` i `isOfferedDocument`).
+      Så sparades alla metallskyltar före 2026-11-18, utan vald metod. De ritas och läses som
+      förut, alltså graverade, men går inte att beställa igen som de är, och blir print när
+      de öppnas i skyltmotorn (`toOfferedDocument`), till exempel med Kopiera order. Ett
+      sparat arbete i webbläsaren med en sådan skylt kastas.
+    - Knappen Gravera och gravyranimationen i 3D visas bara när något på skylten graveras
+      (`engraves` i `designer.tsx`). Ramen heter "Tryckt ram" när namnet printas.
+    - Verkstaden får då ett enda trycklager med namnet (och en svartvit logga) som banor, en
+      logga i färg som bild, och i `productionNote` ämnets benämning följd av "Märkningsmetod:
+      Endast print. Namn: Print." och raderna i klartext. Prövat 2026-11-18 mot verkstadens
+      egna regler genom att läsa deras kod, i sju varianter (ytor, oval, ram, logga, färg per
+      rad): alla godkänns. **Ingen sådan order har gått till verkstaden på riktigt**, och att
+      verkstaden printar på metallämnena har ingen bekräftat åt mig.
+    - Testerna för gravyren använder `engravedBadge` och `plasticBadge` i
+      `src/engine/testing.ts`, eftersom en ny skylt inte graveras längre.
+    - Kända brister: kalkylen i `/admin/prismodell` låter fortfarande gravyrmetoderna väljas
+      ihop med Premium. Inspirationsbankens fyra exempel är omgjorda till print, men bilderna
+      är tagna när skyltarna graverades. Utskickets mejltext och redan sparat innehåll i
+      butikerna kan fortfarande tala om graverade metallskyltar.
   - Skylten bär valet i `BadgeDocument.marking`. Läs alltid med `markingOf`, `nameMarking` och
     `logoMarking`. Utan fältet gäller det gamla: namnet graveras, och loggan trycks om den har
     `image` och graveras annars. Fältet sparas bara när valet skiljer sig från det (`withMarking`).
@@ -509,8 +542,10 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   `placeOrder`. En äldre order går alltså inte att upprepa utan att skylten görs om.
 - **Pris:** se avsnittet Prismodellen. Alla ämnen kostar lika, även Lång rektangel.
 - **Verkstaden:** metallskylten har `precut: true` och produktionsmetoden `blank`. Ämnena läggs
-  med gods emellan och bara skyltens text graveras. Ämnets kant och rubrikerna är hjälplinjer
-  (`guide`) som syns på skärm och korrektur men aldrig skrivs till maskinfilerna.
+  med gods emellan. Ämnets kant och rubrikerna är hjälplinjer (`guide`) som syns på skärm och
+  korrektur men aldrig skrivs till maskinfilerna. Sedan 2026-11-18 printas metallen, så på ett
+  ämne graveras ingenting: namnet är också hjälplinjer i arkvyn. En äldre metallskylt utan
+  vald metod läggs fortfarande upp med sin text som gravyr.
 - **Inspirationsbanken** har fyra exempel, alla i dagens sortiment: tre på rektangeln 60 × 30 mm
   och ett på ovalen 63 × 32 mm, med skyltbilder från fotoläget tagna 2026-11-17. Personbilderna
   är äldre och visar skyltar i de tidigare proportionerna. Bilderna för de fyra borttagna
@@ -519,7 +554,8 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Metallämnenas mått och tjocklek är verkstadens egna sedan 2026-11-17. Uppskattade är
     fortfarande rektanglarnas hörnrundning (3 och 2 mm) och TV-brickans form.
   - Artikelkoden `namnskylt-metall` och priset 89 kr är antaganden.
-  - Gravyren visas svart på alla tre ytor, och mässing och nickel ritas borstade.
+  - Trycket visas svart på alla tre ytor när kunden inte anger en färg, och mässing och nickel
+    ritas borstade.
   - Kuddens exponent (`CUSHION_EXPONENT`), som också ritar TV-brickan, är uppskattad från foto.
   - Avståndet mellan ämnena i fixturen (`BLANK_GAP_MM`, 4 mm) och att rubrikerna inte graveras.
   - Att verkstaden kan trycka i färg på både metall och plast, och vilken tryckfil den behöver.

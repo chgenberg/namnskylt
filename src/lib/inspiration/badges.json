@@ -3,6 +3,7 @@
     "version": 1,
     "materialId": "metal",
     "colorId": "metal-gold",
+    "marking": "print",
     "shape": "rounded",
     "size": {
       "widthMm": 60,
@@ -44,6 +45,7 @@
     "version": 1,
     "materialId": "metal",
     "colorId": "metal-silver",
+    "marking": "print",
     "shape": "rounded",
     "size": {
       "widthMm": 60,
@@ -85,6 +87,7 @@
     "version": 1,
     "materialId": "metal",
     "colorId": "metal-silver",
+    "marking": "print",
     "shape": "rounded",
     "size": {
       "widthMm": 60,
@@ -126,6 +129,7 @@
     "version": 1,
     "materialId": "metal",
     "colorId": "metal-silver",
+    "marking": "print",
     "shape": "oval",
     "size": {
       "widthMm": 63,

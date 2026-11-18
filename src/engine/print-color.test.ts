@@ -4,6 +4,7 @@ import { getMaterial } from "./catalog";
 import { pigmentCodeText, pigmentCodes } from "./color-choice";
 import { cmykHex, cmykOf, cmykText, printColorHex, printColorText } from "./color-code";
 import { createBadgeDocument } from "./document";
+import { engravedBadge } from "./testing";
 import { engravingPaths, printedPaths } from "./engraving";
 import { layoutBadge, type FontEngine } from "./layout";
 import {
@@ -24,7 +25,8 @@ import { badgeDocumentSchema } from "./schema";
 import type { BadgeDocument, BadgeLogo } from "./types";
 
 const logo: BadgeLogo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left", heightMm: 8 };
-const base: BadgeDocument = createBadgeDocument(["Anna Lind"]);
+/** Utan vald metod, alltså graverad: färgkoden för trycket gäller först när något printas. */
+const base: BadgeDocument = engravedBadge(["Anna Lind"]);
 
 describe("färgkoder vid plastens färger", () => {
   it("visar skärmens hex i versaler för varje pigment", () => {

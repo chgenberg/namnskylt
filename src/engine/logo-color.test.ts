@@ -3,13 +3,13 @@ import { describe, it } from "node:test";
 import {
   approxFonts,
   badgeDocumentSchema,
-  createBadgeDocument,
   engravingPaths,
   layoutBadge,
   renderBadgeSvg,
   type FontEngine,
 } from "./index";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
+import { engravedBadge } from "./testing";
 import { logoImageRef, logoImageRefId, traceLogoMask, type RgbaPixels } from "./logo";
 import { colorLogo, hasColor, visibleMask, withoutWhiteBackground } from "./logo-color";
 import { endPriceTable } from "./price-model";
@@ -166,7 +166,8 @@ const ENGRAVED_LOGO: BadgeLogo = {
 const COLOR_LOGO: BadgeLogo = { ...ENGRAVED_LOGO, image: { src: PNG } };
 
 function withLogo(logo: BadgeLogo): BadgeDocument {
-  return { ...createBadgeDocument(["Anna Lindqvist", "Projektledare"]), logo };
+  // Utan vald metod, som skyltar sparades förut: namnet graveras och en logga i färg trycks.
+  return { ...engravedBadge(["Anna Lindqvist", "Projektledare"]), logo };
 }
 
 /** Typsnitt med konturer, så att gravyrens banor går att läsa ut i ett test. */

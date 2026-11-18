@@ -151,7 +151,7 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
                     <p className={styles.issue} data-severity={issue.code === "row-too-long" ? "error" : "info"}>
                       {issue.code === "row-too-long"
                         ? "Texten ryms inte — korta den eller välj en större skylt."
-                        : `Graveras med ${formatMm(drawn.capHeightMm)} mm så att raden ryms.`}
+                        : `${namePrinted ? "Printas" : "Graveras"} med ${formatMm(drawn.capHeightMm)} mm så att raden ryms.`}
                     </p>
                   )}
                 </div>

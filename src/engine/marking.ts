@@ -1,5 +1,6 @@
+import { getMaterial } from "./catalog";
 import { printColorHex, printColorText } from "./color-code";
-import type { BadgeDocument, MarkingMethod, MarkingMode } from "./types";
+import type { BadgeDocument, MarkingMethod, MarkingMode, MaterialId } from "./types";
 
 /**
  * Märkningsmetoden: hur namnet och loggan hamnar på skylten. Gravyr fräser ner
@@ -80,20 +81,40 @@ export function markingOf(doc: Marked): MarkingMethod {
   return doc.logo ? markingFor(name, logoMarking(doc)) : name;
 }
 
-/** Om metoden går att välja på skylten: de kombinerade kräver en logga. */
-export function markingFits(method: MarkingMethod, doc: Pick<BadgeDocument, "logo">): boolean {
+type MarkedBadge = Marked & Pick<BadgeDocument, "materialId">;
+
+/**
+ * Materialet graveras inte: det går bara att printa på (beslut av ägaren 2026-11-18: "det
+ * ska inte gå att gravera i metall"). Gäller metallen, se `BadgeMaterial.printOnly`.
+ */
+export function isPrintOnly(materialId: MaterialId): boolean {
+  return getMaterial(materialId).printOnly === true;
+}
+
+/**
+ * Om metoden går att välja på skylten. På ett material som bara printas finns bara
+ * "Endast print". De kombinerade metoderna kräver en logga.
+ */
+export function markingFits(method: MarkingMethod, doc: Pick<BadgeDocument, "logo" | "materialId">): boolean {
+  if (isPrintOnly(doc.materialId)) return method === "print";
   return Boolean(doc.logo) || !getMarkingMethod(method).combined;
+}
+
+/** Metoden skylten har går att få på dess material: en metallskylt som graveras säljs inte. */
+export function hasFittingMarking(doc: MarkedBadge): boolean {
+  return markingFits(markingOf(doc), doc);
 }
 
 /**
  * Skylten med en vald metod. Fältet sparas bara när valet skiljer sig från det
  * skylten får av sig själv, så att en skylt som ingen har rört metoden på ser
- * ut precis som en äldre skylt.
+ * ut precis som en äldre skylt. En metod som inte finns på materialet blir den
+ * som finns: på metall alltid print.
  */
-export function withMarking<T extends Marked>(doc: T, method: MarkingMethod): T {
+export function withMarking<T extends MarkedBadge>(doc: T, method: MarkingMethod): T {
   const rest = { ...doc };
   delete rest.marking;
-  const wanted = markingFits(method, doc) ? method : getMarkingMethod(method).nameMode;
+  const wanted = isPrintOnly(doc.materialId) ? "print" : markingFits(method, doc) ? method : getMarkingMethod(method).nameMode;
   return markingOf(rest) === wanted ? rest : { ...rest, marking: wanted };
 }
 
@@ -101,10 +122,21 @@ export function withMarking<T extends Marked>(doc: T, method: MarkingMethod): T 
  * Metoden som föreslås när skylten får en ny logga: namnet behåller sin metod,
  * en logga i färg trycks och en svartvit följer namnet. Kunden kan byta sedan.
  */
-export function withLogoMarking<T extends Marked>(doc: T): T {
+export function withLogoMarking<T extends MarkedBadge>(doc: T): T {
   if (!doc.logo) return withMarking(doc, nameMarking(doc));
   const name = nameMarking(doc);
   return withMarking(doc, markingFor(name, doc.logo.image ? "print" : name));
+}
+
+/**
+ * Skylten med materialets förvalda metod, när materialet har bytts: på ett material som
+ * bara printas är det print. På ett som graveras, som plasten, börjar skylten om på gravyr
+ * (en logga i färg trycks), eftersom print bara var valt för att metallen krävde det.
+ */
+export function withMaterialMarking<T extends MarkedBadge>(doc: T): T {
+  const rest = { ...doc };
+  delete rest.marking;
+  return isPrintOnly(doc.materialId) ? withMarking(rest, "print") : withLogoMarking(rest);
 }
 
 /** Längsta färgkod kunden får ange för trycket, och för en rad. */

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createBadgeDocument, parseSmartInput } from "@/engine";
+import { plasticBadge } from "@/engine/testing";
 import { isUsablePhoto, photoRejection, type PhotoCheck } from "./photo-check";
 import {
   MAX_WORKPLACE_CHARS,
@@ -109,7 +110,8 @@ describe("prompter", () => {
       ...doc,
       logo: { d: "M0 0L1 0L1 1Z", viewWidth: 1, viewHeight: 1, placement: "left" as const, heightMm: 10 },
     };
-    assert.match(personaPrompt(withLogo, UNKNOWN_WEARER), /single-colour logo .* to the left of the text/);
+    // Skylten är i metall, som bara går att printa på: också en svartvit logga printas.
+    assert.match(personaPrompt(withLogo, UNKNOWN_WEARER), /logo printed flat in a single colour .* to the left of the text/);
     assert.match(personaPrompt(doc, UNKNOWN_WEARER), /No other text, logos or symbols/);
   });
 
@@ -134,8 +136,8 @@ describe("prompter", () => {
     assert.match(oneColour, /\(surface #[0-9A-Fa-f]{6}, text #00[0-9A-Fa-f]{4}\)/);
     assert.match(oneColour, /logo printed flat in a single colour \(#00[0-9A-Fa-f]{4}\)/);
 
-    // Gravyr beskrivs som förut, i materialets färg.
-    const engraved = personaPrompt({ ...doc, logo }, UNKNOWN_WEARER);
+    // Gravyr, som finns på plast, beskrivs som förut, i materialets färg.
+    const engraved = personaPrompt({ ...plasticBadge(["Åsa Öberg", "Säljchef"]), logo }, UNKNOWN_WEARER);
     assert.match(engraved, /the text is engraved/);
     assert.match(engraved, /the engraved single-colour logo exactly as in the reference image/);
     assert.doesNotMatch(engraved, /printed flat/);
@@ -153,7 +155,9 @@ describe("prompter", () => {
     const prompt = personaPrompt({ ...createBadgeDocument([""]), logo }, UNKNOWN_WEARER);
     assert.match(prompt, /The badge has no text at all/);
     assert.doesNotMatch(prompt, /Text in Arial|to the left of the text|the text is/);
-    assert.match(prompt, /The badge also carries the engraved single-colour logo/);
+    assert.match(prompt, /The badge also carries the logo printed flat in a single colour/);
+    // På plast graveras en svartvit logga, om inget annat är valt.
+    assert.match(personaPrompt({ ...plasticBadge([""]), logo }, UNKNOWN_WEARER), /The badge also carries the engraved single-colour logo/);
   });
 
   it("ber om att bevara kundens foto vid provning", () => {

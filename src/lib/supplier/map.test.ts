@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { before, describe, it } from "node:test";
 import { approxFonts, createBadgeDocument, layoutBadge, toOfferedDocument, withBlank, withShapePreset, type FontEngine } from "@/engine";
+import { engravedBadge, plasticBadge } from "@/engine/testing";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { toSupplierSignDocument } from "./map";
 
@@ -64,7 +65,8 @@ describe("toSupplierSignDocument", () => {
 
   it("skickar loggan som graverat bildlager med vektorbanorna", () => {
     const doc = {
-      ...createBadgeDocument(["Anna"]),
+      // Utan vald metod, som skyltar sparades förut: en svartvit logga graveras.
+      ...engravedBadge(["Anna"]),
       logo: {
         d: "M0 0L10 0L10 10L0 10Z",
         viewWidth: 10,
@@ -92,10 +94,21 @@ describe("toSupplierSignDocument", () => {
     assert.deepEqual(supplier.layers.map((layer) => layer.data.kind), ["image"]);
     const [layer] = supplier.layers;
     assert.ok(layer?.data.kind === "image");
-    assert.equal(layer.data.renderMode, "engrave");
+    // Skylten är i metall, som bara går att printa på.
+    assert.equal(layer.data.renderMode, "print");
     // Lagrets mittpunkt är skyltens mitt.
     assert.equal(layer.transform.position.x, doc.size.widthMm / 2);
     assert.equal(layer.transform.position.y, doc.size.heightMm / 2);
+    // På plast graveras en svartvit logga, om inget annat är valt.
+    const plastic = toSupplierSignDocument({ ...plasticBadge([""]), logo: doc.logo }, approxFonts, { logoPng: "data:image/png;base64,AA" });
+    assert.deepEqual(plastic.layers.map((l) => (l.data.kind === "image" ? l.data.renderMode : l.data.kind)), ["engrave"]);
+  });
+
+  it("dagens metallskylt printas: metoden står i klartext, efter verkstadens benämning på ämnet", () => {
+    const today = toSupplierSignDocument(createBadgeDocument(["Anna"]), approxFonts);
+    assert.equal(today.productionNote, "Ämne: Namnskylt Mässing 60x30, 0,51 mm. Märkningsmetod: Endast print. Namn: Print.");
+    // En äldre metallskylt utan vald metod graverades, och har bara ämnets benämning.
+    assert.equal(toSupplierSignDocument(engravedBadge(["Anna"]), approxFonts).productionNote, "Ämne: Namnskylt Mässing 60x30, 0,51 mm.");
   });
 
   it("skickar gravyrformen när en logga i färg graveras, och siluetten rörs inte när den printas", () => {
@@ -165,7 +178,8 @@ describe("toSupplierSignDocument", () => {
       assert.ok(layer?.data.kind === "image");
       return { supplier, data: layer.data };
     };
-    const base = createBadgeDocument(["Anna"]);
+    // En skylt utan vald metod, så att alla fyra metoderna går att pröva på samma underlag.
+    const base = engravedBadge(["Anna"]);
     // Ett färdigt metallämne står alltid med verkstadens benämning, också när skylten bara graveras.
     const ARTICLE = "Ämne: Namnskylt Mässing 60x30, 0,51 mm.";
     const withArticle = (note: string) => `${ARTICLE} ${note}`;
@@ -190,7 +204,7 @@ describe("toSupplierSignDocument", () => {
     );
     assert.equal(toSupplierSignDocument({ ...base, printColor: "PMS 286 C" }, approxFonts).productionNote, ARTICLE);
     // En rad med egen kod: hexkoden går i radens färgfält, och alla koder står i klartext.
-    const two = createBadgeDocument(["Anna", "Säljare"]);
+    const two = engravedBadge(["Anna", "Säljare"]);
     const rows = two.rows.map((row, i) => ({ ...row, printColor: i === 0 ? "#c8102e" : "PMS 300 C" }));
     const rowColors = (doc: typeof two) =>
       toSupplierSignDocument(doc, approxFonts).layers.flatMap((l) => (l.data.kind === "text" ? l.data.rows.map((row) => row.color) : []));
@@ -260,7 +274,7 @@ describe("det som printas skickas som ett trycklager", () => {
   const WORKSHOP_MARKUP = /^(<path d="[MLCZ0-9 .eE+-]+" fill="#[0-9a-f]{6}"( fill-rule="evenodd")?\/>)+$/;
   const mono = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left" as const, heightMm: 12 };
   // Plastens rektangel, 75 × 25 mm: metallens och plastens ämnen har olika mått.
-  const plastic = (rows: string[]) => withBlank({ ...createBadgeDocument(rows), materialId: "plastic" as const, colorId: "white-black" }, "rectangle");
+  const plastic = (rows: string[]) => plasticBadge(rows);
   const printLayerOf = (supplier: ReturnType<typeof toSupplierSignDocument>) => {
     const layer = supplier.layers.find((l) => l.id === "print");
     return layer?.data.kind === "image" && layer.data.renderMode === "print" ? layer : undefined;
