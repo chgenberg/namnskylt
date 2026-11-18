@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1237 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1258 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -69,6 +69,7 @@ pnpm db:migrate              # migreringar mot DATABASE_URL (lokal Postgres på 
 pnpm outreach:import         # läser kundlistan till outreach_leads
 pnpm outreach:prepare --wave A [--lead <uuid>] [--no-persona|--redo-persona]
 pnpm outreach:preview        # skriver mejlexempel till tmp/outreach-preview/
+pnpm email:preview           # skriver sajtens övriga mejl till tmp/mejl-forhandsvisning/, utan att skicka något
 pnpm outreach:tick           # en körning av sändningskön (dry-run utan Resend-nyckel)
 pnpm reseller:create <id> "<namn>" <e-post> [lösenord]
 pnpm shops:build <sajter.json> <resultat.json> [parallellt]
@@ -99,7 +100,7 @@ pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
 | `src/lib/reseller-auth/` | Återförsäljarnas konton, inlogg, ansökningar (`applications.ts`) och hemliga länkar för att välja lösenord (`access-links.ts`). |
 | `src/lib/customer-auth/` | Slutkundens konto: regler (`model.ts`), lagring (`accounts.ts`), inloggningens kaka (`session.ts`), lösenordslänken (`access-links.ts`) och webbläsarens anrop (`client.ts`). Se avsnittet Kundkonton. |
 | `src/lib/outreach/` | Utskicket till återförsäljare (se nedan). 42 filer i en platt mapp, vilket är känd skuld. |
-| `src/lib/email/` | Transport: `ResendEmailSender` och `MockEmailSender`, som skriver `.eml` till `tmp/outreach-outbox`. |
+| `src/lib/email/` | Transport: `ResendEmailSender` och `MockEmailSender`, som skriver `.eml` till `tmp/outreach-outbox`. Mejlmallen (`layout.ts`) som alla mejl ritas med, och säljarens logga för mejl (`seller-logo.ts`, `seller-brand.ts`). |
 | `src/lib/notices/` | Besked till panelens ägare när en kund har svarat eller beställt: texter (`model.ts`), lagring, `notify` och mejlet bakom en strömbrytare. |
 | `src/lib/payments/` | Kortbetalning via Stripe bakom en strömbrytare: `stripe.ts` (anrop och signatur med `fetch`, utan SDK), `checkout.ts` (kassan som väntar på betalning och blir en order), `model.ts`. |
 | `src/lib/maintenance/` | Fellogg (`error-log.ts`), bakgrundsjobb i processen (`scheduler.ts`, `jobs.ts`) och driftsidans lägen (`status.ts`). |
@@ -1334,6 +1335,51 @@ strömbrytare: `RESEND_API_KEY` och `NOTICE_FROM_EMAIL` (`noticeEmailSettings`,
   på förfrågans värdnamn. Kundens namn och butikens namn rensas från radbrytningar innan de
   hamnar i ämnesrad och avsändare.
 
+## Mejlmallen — läge 2026-11-18
+
+Alla mejl från sajten ritas med samma mall (besked av ägaren 2026-11-18, som såg offertmejlet
+som nakna textstycken: "gör en mycket snyggare mejlmall som följer vår brandbook för alla
+olika utskick som går via Resend"). Mallen ligger i `src/lib/email/layout.ts`.
+
+- **Skalet** (`emailDocument`) är det utskicket till återförsäljare redan hade: papper i
+  botten, ett vitt kort på 600 px med rundade hörn, tabeller och inbäddad stil, dold
+  förhandstext och ett mörkt läge. Det flyttades från `src/lib/outreach/email-layout.ts`.
+  Utskickets mejl är orört i text och uppbyggnad. Det enda som ändrats där är de två
+  gråtonerna (`MUTED`, `FAINT`), som nu är sajtens varma i stället för de kalla.
+- **Byggstenarna** för sajtens egna mejl: `brandRow` (logga eller namn), `headRow` (liten
+  rad i versaler, rubrik i serif och ingress), `textRow`, `quoteRow` (någons egna ord),
+  `pictureRow`, `factsRow` (uppgifter i två kolumner med tunna linjer), `linesRow` (en
+  adress), `actionsRow` (knappar), `noteRow`, `signatureRow` och `footerLines`. Ett nytt mejl
+  byggs av dem, aldrig med egen HTML.
+- **Fem mejl ritas med byggstenarna:** offertmejlet, orderbekräftelsen, fraktbeskedet,
+  beskedet till panelens ägare och mejlet för nytt lösenord. Bara offertmejlet skickas i
+  dag; de övriga fyra är fortfarande avstängda (se Mejl från sajten). Textdelen i varje
+  mejl är densamma som förut.
+- **Vem mejlet kommer ifrån** (`EmailBrand`, `sellerBrand` i `seller-brand.ts`):
+  - namnskylt.com har sajtens logga (`siteBrand`) och bläcksvart knapp. Loggan är en PNG,
+    `public/logo-namnskylt-mejl.png`, ritad ur SVG:n i tre gånger visningsmåtten, eftersom
+    Gmail och Outlook inte visar SVG. Ändras sajtens logga ska den filen göras om.
+    `public/logo-namnskylt.png` är en äldre logga och används inte.
+  - En återförsäljare har sin egen logga, sitt namn som ordmärke när loggan saknas, och
+    sin egen färg på knappen. Mallens form och typografi är sajtens, men mejlet nämner
+    aldrig namnskylt.com eller verkstaden (utom i länkarnas adress). Att återförsäljarens
+    mejl ser ut så är min tolkning av "vår brandbook": det är samma regel som på
+    offertsidan.
+  - Säljarens färg går rakt in i mejlets stil. Bara en hexkod släpps igenom, på ett
+    ställe (`actionButton`), annars blir knappen bläcksvart.
+- **Bilder i mejl ska ligga på en öppen adress**, som PNG eller JPEG. Data-URL:er, SVG och
+  WebP visas inte av alla e-postklienter. Sajtens statiska filer släpps förbi sajtspärren,
+  och offertens egna vägar är öppna för den som har länken.
+- **Mörkt läge:** kortet blir mörkt, loggan får en ljus platta (`.plate`), den bläcksvarta
+  knappen vänds (`.btn-ink`) och en säljares egen färg står kvar.
+- `pnpm email:preview` skriver alla fem mejl med påhittade uppgifter till
+  `tmp/mejl-forhandsvisning/` (öppna `index.html`). Inget skickas.
+- Provat 2026-11-18 i Chrome och WebKit, på dator och mobil och i mörkt läge, både
+  förhandsvisningarna och riktiga offertmejl ur en låtsasmottagare med bilderna hämtade
+  från den lokala servern. **Inte provat i riktiga e-postklienter** (Gmail, Outlook, Apple
+  Mail): Outlooks knappar ritas med VML som ingen har sett, och inget riktigt mejl med
+  den nya mallen har skickats.
+
 ## Kassan, betalning och köpvillkor — läge 2026-11-15
 
 Beslut av ägaren 2026-11-15, samma upplägg som hos Skylt & Gravyrteknik: **företag beställer
@@ -1602,6 +1648,21 @@ mejl sajten skickar. Koden ligger i `src/lib/quotes/quote-email.ts` (regler och 
   - `quotes.emailed_at` (migrering 031) är när offerten senast mejlades. Gränser i processens
     minne: 60 mejl per säljare och timme, 10 per mottagare och timme och 500 per dygn för hela
     sajten.
+- **Mejlet ritas med mejlmallen** (2026-11-18, se avsnittet Mejlmallen): säljarens logga
+  eller namn, offertens nummer och projekt som rubrik, en bild av offertens första skylt,
+  antal och summor, de två knapparna och säljarens uppgifter under kortet.
+  - **Bilden av skylten** hämtas från `/offert/<kod>/skylt.png` (`renderMailBadge` i
+    `src/lib/quotes/mail-image.ts`): samma ritning som på offerten, på papper med skugga,
+    1056 × 528 px. Raden under säger vad som står på skylten, material, färg och mått, och
+    hur många skyltar till offerten har (`quotePictureCaption`).
+  - **Säljarens logga** hämtas från `/offert/<kod>/logga.png` (`mailLogo` i
+    `src/lib/email/seller-logo.ts`): loggan ur företagsuppgifterna gjord till PNG i lagom
+    storlek, med mörk platta bakom en ljus logga, som på offerten. Vägen svarar 404 för
+    namnskylt.coms egna offerter, som har sajtens logga, och för en säljare utan logga.
+  - Båda vägarna är öppna för den som har offertens kod, som offertsidan själv, och visar
+    inget som inte redan står där. De har en gräns på 600 hämtningar per klient och timme.
+  - Kunden kan ha bilder avstängda: då står säljarens namn, rubriken, uppgifterna och
+    knapparna kvar, och bilden ersätts av sin text.
 - **Mejlet har knapparna Godkänn och Neka**, som går till `/offert/<kod>?svar=godkann` eller
   `?svar=neka`. Länken bestämmer ingenting: valet är förvalt på sidan, och ett klick där
   bekräftar (ägarens val: "Knapp plus ett bekräftande klick", `quoteAnswerOf`, `answer` i

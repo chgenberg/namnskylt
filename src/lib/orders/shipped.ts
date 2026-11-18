@@ -1,5 +1,7 @@
 import "server-only";
 import { requireDb } from "@/lib/db/client";
+import { nameBrand } from "@/lib/email/layout";
+import { sellerBrand } from "@/lib/email/seller-brand";
 import { sendTransactional } from "@/lib/email/transactional";
 import { noticeEmailSettings } from "@/lib/notices/email";
 import { customerLabel } from "@/lib/notices/model";
@@ -38,7 +40,12 @@ export async function announceShipped(orderNo: string): Promise<void> {
           trackingUrl: order.trackingUrl,
           orderUrl: `${settings.origin}/order/${order.customerToken}`,
         },
-        { sellerName: shop?.profile.name || company.name, replyTo: company.email || settings.replyTo, fromAddress: settings.replyTo },
+        {
+          sellerName: shop?.profile.name || company.name,
+          replyTo: company.email || settings.replyTo,
+          fromAddress: settings.replyTo,
+          brand: shop ? nameBrand(shop.profile.name, shop.profile.primaryColor) : await sellerBrand(company, settings.origin),
+        },
       ),
     );
     if (sent) await requireDb()`update orders set shipping_emailed_at = now() where order_no = ${orderNo}`;

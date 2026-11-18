@@ -1,5 +1,23 @@
+import { engravedRows, getColor, getMaterial, type BadgeDocument } from "@/engine";
 import type { EmailMessage } from "@/lib/email";
-import { escapeHtml, fromWithName, oneLine } from "@/lib/email/transactional";
+import {
+  actionsRow,
+  brandRow,
+  emailDocument,
+  END_ROW,
+  esc,
+  factsRow,
+  footerLines,
+  headRow,
+  nameBrand,
+  noteLink,
+  noteRow,
+  pictureRow,
+  quoteRow,
+  signatureRow,
+  type EmailBrand,
+} from "@/lib/email/layout";
+import { fromWithName, oneLine } from "@/lib/email/transactional";
 import { formatDay, formatSek } from "@/lib/format";
 
 /**
@@ -74,6 +92,28 @@ export interface QuoteMail {
   url: string;
   /** När offerten skickades. Ett nytt utskick av samma offert är ett nytt mejl. */
   sentAt: string;
+  /** Bilden av offertens första skylt, på en adress som e-postklienten når utan inloggning. Utan den visas ingen bild. */
+  picture?: { url: string; caption: string } | null;
+}
+
+/** Måtten skyltens bild visas i. Filen är dubbelt så stor (`renderMailBadge`). */
+export const QUOTE_PICTURE = { width: 528, height: 264 };
+
+/** Raden under bilden: vad som står på skylten, vad den är gjord av och hur stor den är. */
+export function quotePictureCaption(badges: readonly BadgeDocument[]): string {
+  const first = badges[0];
+  if (!first) return "";
+  const text = engravedRows(first)
+    .map((row) => row.text.trim())
+    .filter(Boolean)
+    .join(", ");
+  const more = badges.length - 1;
+  return [
+    text || "Utan text",
+    `${getMaterial(first.materialId).name}, ${getColor(first.materialId, first.colorId).name}`,
+    `${first.size.widthMm} × ${first.size.heightMm} mm`,
+    ...(more > 0 ? [`och ${more} till`] : []),
+  ].join(" · ");
 }
 
 export interface QuoteMailSender {
@@ -84,26 +124,31 @@ export interface QuoteMailSender {
   fromAddress: string;
   /** Säljarens uppgifter under mejlet, som på offerten. */
   footer: readonly string[];
+  /** Säljarens logga och färg överst i mejlet. Utelämnad = namnet som ordmärke. */
+  brand?: EmailBrand;
 }
-
-const BUTTON = "display:inline-block;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px";
 
 /** Offertmejlet till kunden: vad offerten gäller, vad den kostar och knapparna Godkänn och Neka. */
 export function composeQuoteEmail(quote: QuoteMail, sender: QuoteMailSender): EmailMessage {
   const seller = oneLine(sender.sellerName);
+  const brand = sender.brand ?? nameBrand(seller);
   const firstName = oneLine(quote.customerName).split(" ")[0] ?? "";
   const accept = `${quote.url}?${QUOTE_ANSWER_PARAM}=${ANSWER_VALUES.accept}`;
   const decline = `${quote.url}?${QUOTE_ANSWER_PARAM}=${ANSWER_VALUES.decline}`;
   const plus = quote.shippingPending ? " + frakt" : "";
-  const intro = `Här är offerten på ${quote.quantity === 1 ? "en namnskylt" : `${quote.quantity} namnskyltar`} från ${seller}.`;
+  const count = quote.quantity === 1 ? "en namnskylt" : `${quote.quantity} namnskyltar`;
+  const intro = `Här är offerten på ${count} från ${seller}.`;
+  const project = quote.project ? oneLine(quote.project) : "";
+  const validUntil = formatDay(`${quote.validUntil}T12:00:00Z`);
   const rows: [string, string][] = [
-    ["Offert", quote.project ? `${quote.quoteNo}, ${oneLine(quote.project)}` : quote.quoteNo],
+    ["Offert", project ? `${quote.quoteNo}, ${project}` : quote.quoteNo],
     ["Summa exkl. moms", `${formatSek(quote.totalSek)}${plus}`],
     ["Summa inkl. moms", `${formatSek(quote.totalInclVatSek)}${plus}`],
-    ["Giltig till och med", formatDay(`${quote.validUntil}T12:00:00Z`)],
+    ["Giltig till och med", validUntil],
   ];
   const message = quote.message?.trim() ?? "";
   const how = "Knapparna öppnar offerten, där du ser skyltarna och bekräftar ditt val med ett klick.";
+  const subject = oneLine(`Offert ${quote.quoteNo} från ${seller}`);
   const text = [
     `Hej ${firstName},`,
     "",
@@ -121,29 +166,44 @@ export function composeQuoteEmail(quote: QuoteMail, sender: QuoteMailSender): Em
     "Vänliga hälsningar",
     ...sender.footer,
   ].join("\n");
-  const cell = "padding:4px 16px 4px 0";
-  const html = [
-    `<p>Hej ${escapeHtml(firstName)},</p>`,
-    `<p>${escapeHtml(intro)}</p>`,
-    message ? `<p style="white-space:pre-line">${escapeHtml(message)}</p>` : null,
-    `<table style="border-collapse:collapse">${rows
-      .map(([label, value]) => `<tr><td style="${cell};color:#666666">${escapeHtml(label)}</td><td style="${cell}"><strong>${escapeHtml(value)}</strong></td></tr>`)
-      .join("")}</table>`,
-    `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 8px"><tr>` +
-      `<td><a href="${escapeHtml(accept)}" style="${BUTTON};background:#0a0a0b;color:#ffffff;border:1px solid #0a0a0b">Godkänn offerten</a></td>` +
-      `<td style="width:12px"></td>` +
-      `<td><a href="${escapeHtml(decline)}" style="${BUTTON};background:#ffffff;color:#0a0a0b;border:1px solid #c9c7c0">Neka offerten</a></td>` +
-      `</tr></table>`,
-    `<p style="color:#666666;font-size:13px">${escapeHtml(how)} <a href="${escapeHtml(quote.url)}">Se offerten</a></p>`,
-    `<p>Vänliga hälsningar<br>${sender.footer.map((line) => escapeHtml(oneLine(line))).join("<br>")}</p>`,
-  ]
-    .filter((part) => part !== null)
-    .join("\n");
+  const html = emailDocument({
+    title: subject,
+    preheader: `${intro} Giltig till och med ${validUntil}.`,
+    rows: [
+      brandRow(brand),
+      headRow({
+        eyebrow: `Offert · ${quote.quoteNo}`,
+        title: project || `Din offert på ${count}`,
+        lead: `Hej ${firstName}, ${intro.charAt(0).toLowerCase()}${intro.slice(1)}`,
+      }),
+      message ? quoteRow(message) : null,
+      quote.picture
+        ? pictureRow({ ...QUOTE_PICTURE, url: quote.picture.url, alt: "Skylten i offerten", href: quote.url, caption: quote.picture.caption })
+        : null,
+      factsRow([
+        { label: "Antal", value: quote.quantity === 1 ? "1 skylt" : `${quote.quantity} skyltar` },
+        { label: "Summa exkl. moms", value: `${formatSek(quote.totalSek)}${plus}` },
+        { label: "Att betala inkl. moms", value: `${formatSek(quote.totalInclVatSek)}${plus}`, strong: true },
+        { label: "Giltig till och med", value: validUntil },
+      ]),
+      actionsRow(
+        [
+          { href: accept, label: "Godkänn offerten" },
+          { href: decline, label: "Neka offerten", kind: "secondary" },
+        ],
+        brand,
+      ),
+      noteRow(`${esc(how)} ${noteLink(quote.url, "Se offerten")}`),
+      signatureRow("Vänliga hälsningar", seller),
+      END_ROW,
+    ].filter((part) => part !== null),
+    footer: footerLines(sender.footer),
+  });
   return {
     from: fromWithName(seller, sender.fromAddress),
     to: quote.customerEmail,
     replyTo: sender.replyTo,
-    subject: oneLine(`Offert ${quote.quoteNo} från ${seller}`),
+    subject,
     html,
     text,
     headers: { "Auto-Submitted": "auto-generated" },

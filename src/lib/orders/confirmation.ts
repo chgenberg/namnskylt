@@ -1,5 +1,7 @@
 import "server-only";
 import { requireDb } from "@/lib/db/client";
+import { nameBrand } from "@/lib/email/layout";
+import { sellerBrand } from "@/lib/email/seller-brand";
 import { sendTransactional } from "@/lib/email/transactional";
 import { noticeEmailSettings } from "@/lib/notices/email";
 import { getShop } from "@/lib/shops/repository";
@@ -40,6 +42,8 @@ export async function sendOrderConfirmation(orderNo: string): Promise<void> {
           replyTo: company.email || settings.replyTo,
           fromAddress: settings.replyTo,
           termsUrl: `${settings.origin}${shop ? `/butik/${shop.slug}/villkor` : "/villkor"}`,
+          // En butik syns med sitt eget namn och sin färg, namnskylt.com med sajtens logga.
+          brand: shop ? nameBrand(shop.profile.name, shop.profile.primaryColor) : await sellerBrand(company, settings.origin),
         },
       ),
     );

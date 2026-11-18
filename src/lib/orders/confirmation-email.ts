@@ -1,6 +1,23 @@
 import { VAT_RATE } from "@/engine";
 import type { EmailMessage } from "@/lib/email";
-import { escapeHtml, fromWithName, oneLine } from "@/lib/email/transactional";
+import {
+  actionsRow,
+  brandRow,
+  emailDocument,
+  END_ROW,
+  esc,
+  factsRow,
+  headRow,
+  linesRow,
+  nameBrand,
+  noteLink,
+  noteRow,
+  signatureRow,
+  textRow,
+  type EmailAction,
+  type EmailBrand,
+} from "@/lib/email/layout";
+import { fromWithName, oneLine } from "@/lib/email/transactional";
 import { formatSek } from "@/lib/format";
 import { paymentLabel, type OrderPayment } from "@/lib/payments/model";
 import { deliveryLines, SHIPPING_METHOD_LABEL, shippingMethodOf, type Delivery } from "./delivery";
@@ -29,6 +46,8 @@ export interface ConfirmationSender {
   fromAddress: string;
   /** Länken till köpvillkoren. */
   termsUrl: string;
+  /** Säljarens logga och färg överst i mejlet. Utelämnad = namnet som ordmärke. */
+  brand?: EmailBrand;
 }
 
 /** Orderbekräftelsen till en kund som har beställt själv: vad som beställdes, vad det kostar och vart det skickas. */
@@ -63,20 +82,28 @@ export function composeOrderConfirmation(order: ConfirmedOrder, sender: Confirma
     "",
     `Köpvillkor: ${sender.termsUrl}`,
   ].join("\n");
-  const cell = "padding:4px 16px 4px 0";
-  const html = [
-    `<p>Hej ${escapeHtml(oneLine(order.customerName))},</p>`,
-    `<p>${escapeHtml(intro)}</p>`,
-    `<table style="border-collapse:collapse">${rows
-      .map(([label, value]) => `<tr><td style="${cell}">${escapeHtml(label)}</td><td style="${cell};text-align:right">${escapeHtml(value)}</td></tr>`)
-      .join("")}</table>`,
-    address.length > 0 ? `<p><strong>Levereras till</strong><br>${address.map(escapeHtml).join("<br>")}</p>` : null,
-    `<p>${escapeHtml(outro)}</p>`,
-    order.orderUrl ? `<p><a href="${escapeHtml(order.orderUrl)}">Följ din order</a></p>` : null,
-    `<p style="color:#666;font-size:13px"><a href="${escapeHtml(sender.termsUrl)}">Köpvillkor</a></p>`,
-  ]
-    .filter((part) => part !== null)
-    .join("\n");
+  const seller = oneLine(sender.sellerName);
+  const brand = sender.brand ?? nameBrand(seller);
+  const html = emailDocument({
+    title: subject,
+    preheader: intro,
+    rows: [
+      brandRow(brand),
+      headRow({
+        eyebrow: `Orderbekräftelse · ${order.orderNo}`,
+        title: "Tack för din beställning",
+        lead: `Hej ${oneLine(order.customerName)}, vi har tagit emot order ${order.orderNo} hos ${seller}.`,
+      }),
+      factsRow(rows.map(([label, value]) => ({ label, value, strong: label.startsWith("Summa inkl. moms") }))),
+      address.length > 0 ? linesRow("Levereras till", address) : null,
+      textRow(outro),
+      order.orderUrl ? actionsRow([{ href: order.orderUrl, label: "Följ din order" }], brand) : null,
+      noteRow(noteLink(sender.termsUrl, "Köpvillkor")),
+      signatureRow("Vänliga hälsningar", seller),
+      END_ROW,
+    ].filter((part) => part !== null),
+    footer: [],
+  });
   return {
     from: fromWithName(sender.sellerName, sender.fromAddress),
     to: order.customerEmail,
@@ -114,14 +141,29 @@ export function composeShippedEmail(order: ShippedOrder, sender: Omit<Confirmati
     "",
     "Där kan du också beställa fler skyltar med samma design, till exempel när ni får ny personal.",
   ].join("\n");
-  const html = [
-    `<p>Hej ${escapeHtml(oneLine(order.customerName))},</p>`,
-    `<p>${escapeHtml(intro)}</p>`,
-    order.trackingUrl ? `<p><a href="${escapeHtml(order.trackingUrl)}">Följ försändelsen</a></p>` : null,
-    `<p><a href="${escapeHtml(order.orderUrl)}">Se din order</a>. Där kan du också beställa fler skyltar med samma design, till exempel när ni får ny personal.</p>`,
-  ]
-    .filter((part) => part !== null)
-    .join("\n");
+  const seller = oneLine(sender.sellerName);
+  const brand = sender.brand ?? nameBrand(seller);
+  const actions: EmailAction[] = [
+    ...(order.trackingUrl ? [{ href: order.trackingUrl, label: "Följ försändelsen" }] : []),
+    { href: order.orderUrl, label: "Se din order", kind: order.trackingUrl ? "secondary" : "primary" },
+  ];
+  const html = emailDocument({
+    title: `Dina namnskyltar är skickade (${order.orderNo})`,
+    preheader: intro,
+    rows: [
+      brandRow(brand),
+      headRow({
+        eyebrow: `Order · ${order.orderNo}`,
+        title: "Dina namnskyltar är på väg",
+        lead: `Hej ${oneLine(order.customerName)}, order ${order.orderNo} har skickats från tillverkningen.`,
+      }),
+      actionsRow(actions, brand),
+      noteRow(esc("På ordersidan kan du också beställa fler skyltar med samma design, till exempel när ni får ny personal.")),
+      signatureRow("Vänliga hälsningar", seller),
+      END_ROW,
+    ],
+    footer: [],
+  });
   return {
     from: fromWithName(sender.sellerName, sender.fromAddress),
     to: order.customerEmail,

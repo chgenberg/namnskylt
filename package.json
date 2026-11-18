@@ -21,6 +21,7 @@
     "shops:build": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/shops-build.ts",
     "outreach:import": "tsx --env-file-if-exists=.env.local scripts/outreach-import.ts",
     "outreach:prepare": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/outreach-prepare.ts",
+    "email:preview": "tsx --conditions=react-server scripts/email-preview.ts",
     "outreach:preview": "tsx scripts/outreach-preview.ts",
     "outreach:tick": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/outreach-tick.ts"
   },

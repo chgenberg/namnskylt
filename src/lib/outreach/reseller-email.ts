@@ -1,5 +1,5 @@
 import { COPY, type EmailImageKind, type EmailStep, type OutreachLocale } from "./copy";
-import { button, emailDocument, esc, FAINT, INK, LINE, MONO, MUTED, SANS, SERIF } from "./email-layout";
+import { button, emailDocument, esc, FAINT, INK, LINE, MONO, MUTED, SANS, SERIF } from "@/lib/email/layout";
 import { firstNameOf, type RelationSegment } from "./model";
 
 /** Det korta mejlet: en hälsning, en bild som väcker nyfikenhet, en knapp. */

@@ -1,9 +1,6 @@
 import { emailMode, isRealEmailSend, type EmailMessage } from "./index";
 import { ResendEmailSender } from "./resend-sender";
 
-const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-export const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (c) => ESCAPES[c] ?? c);
-
 /** Ämnesrader och namn får inga radbrytningar, så att ett namn aldrig kan lägga till huvuden i mejlet. */
 export const oneLine = (value: string) => value.replace(/\s+/g, " ").trim();
 

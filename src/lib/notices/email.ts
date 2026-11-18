@@ -1,4 +1,5 @@
 import { emailMode, type EmailMessage } from "@/lib/email";
+import { actionsRow, brandRow, emailDocument, END_ROW, esc, headRow, quoteRow, siteBrand } from "@/lib/email/layout";
 import { noticeView, type PanelNotice } from "./model";
 
 type Env = Record<string, string | undefined>;
@@ -31,9 +32,6 @@ export function noticeEmailSettings(env: Env = process.env): NoticeEmailSettings
   return { from, replyTo, origin };
 }
 
-const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (c) => ESCAPES[c] ?? c);
-
 /** Rubriken får inga radbrytningar, så att kundens namn aldrig kan lägga till huvuden i mejlet. */
 const oneLine = (value: string) => value.replace(/\s+/g, " ").trim();
 
@@ -46,14 +44,19 @@ export function composeNoticeEmail(notice: PanelNotice, to: string, settings: No
   const url = `${settings.origin}${view.href}`;
   const detail = view.detail?.trim() || null;
   const text = [`${title}.`, detail, "", `Öppna i panelen: ${url}`, "", FOOTER].filter((line) => line !== null).join("\n");
-  const html = [
-    `<p style="font-size:16px"><strong>${escapeHtml(title)}.</strong></p>`,
-    detail ? `<p style="white-space:pre-line">${escapeHtml(detail)}</p>` : null,
-    `<p><a href="${escapeHtml(url)}">Öppna i panelen</a></p>`,
-    `<p style="color:#666;font-size:13px">${escapeHtml(FOOTER)}</p>`,
-  ]
-    .filter((part) => part !== null)
-    .join("\n");
+  const brand = siteBrand(settings.origin);
+  const html = emailDocument({
+    title,
+    preheader: detail ?? "Öppna beskedet i panelen.",
+    rows: [
+      brandRow(brand),
+      headRow({ eyebrow: "Besked från panelen", title: `${title}.` }),
+      detail ? quoteRow(detail) : null,
+      actionsRow([{ href: url, label: "Öppna i panelen" }], brand),
+      END_ROW,
+    ].filter((part) => part !== null),
+    footer: [esc(FOOTER)],
+  });
   return {
     from: settings.from,
     to,

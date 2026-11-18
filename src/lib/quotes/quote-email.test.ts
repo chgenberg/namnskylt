@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { composeQuoteEmail, quoteAnswerOf, quoteEmailSettings, type QuoteMail, type QuoteMailSender } from "./quote-email";
+import { createBadgeDocument, toOfferedDocument } from "@/engine";
+import { siteBrand } from "@/lib/email/layout";
+import { composeQuoteEmail, quoteAnswerOf, quoteEmailSettings, quotePictureCaption, type QuoteMail, type QuoteMailSender } from "./quote-email";
 
 const QUOTE: QuoteMail = {
   quoteNo: "OF-1042",
@@ -119,6 +121,55 @@ describe("offertmejlet", () => {
     assert.equal(/[\r\n]/.test(mail.from), false);
     assert.equal(/[\r\n]/.test(mail.subject), false);
     assert.ok(mail.from.endsWith("<offert@verkstaden.se>"));
+  });
+
+  test("mejlet ritas på mallen: säljarens märke, rubriken, uppgifterna och de två knapparna", () => {
+    const { html } = composeQuoteEmail(QUOTE, SENDER);
+    assert.match(html, /^<!doctype html>/);
+    // Utan logga står säljarens namn som ordmärke, och aldrig sajtens logga.
+    assert.match(html, /font-size:24px;line-height:30px;[^"]*">Exempel Profil AB<\/span>/);
+    assert.doesNotMatch(html, /logo-namnskylt/);
+    assert.match(html, />Offert · OF-1042<\/p>/);
+    assert.match(html, /<h1[^>]*>Namnskyltar till receptionen<\/h1>/);
+    assert.match(html, /Hej Anna, här är offerten på 12 namnskyltar från Exempel Profil AB\./);
+    assert.match(html, />12 skyltar<\/td>/);
+    assert.match(html, /font-weight:bold;">2[\s\u00a0]236 kr<\/td>/);
+    assert.match(html, /href="https:\/\/www\.namnskylt\.com\/offert\/abc123\?svar=godkann"[^>]*>Godkänn offerten<\/a>/);
+    assert.match(html, /href="https:\/\/www\.namnskylt\.com\/offert\/abc123\?svar=neka" class="btn btn-ghost"[^>]*>Neka offerten<\/a>/);
+    assert.match(html, /Exempel Profil AB · Org\.nr 556123-4567<br>Storgatan 1, 111 22 Stockholm/);
+    assert.ok(Buffer.byteLength(html) < 40 * 1024);
+  });
+
+  test("utan projektnamn säger rubriken vad offerten gäller", () => {
+    assert.match(composeQuoteEmail({ ...QUOTE, project: null }, SENDER).html, /<h1[^>]*>Din offert på 12 namnskyltar<\/h1>/);
+    assert.match(composeQuoteEmail({ ...QUOTE, project: null, quantity: 1 }, SENDER).html, /<h1[^>]*>Din offert på en namnskylt<\/h1>/);
+  });
+
+  test("skyltens bild och säljarens logga och färg visas när de finns", () => {
+    const picture = { url: "https://www.namnskylt.com/offert/abc123/skylt.png", caption: "Anna Lind, Säljare · Metall, Mässing · 60 × 30 mm" };
+    const brand = { name: "Exempel Profil AB", logo: { url: "https://www.namnskylt.com/offert/abc123/logga.png", width: 120, height: 40 }, accent: "#7a1f2b" };
+    const { html, text } = composeQuoteEmail({ ...QUOTE, picture }, { ...SENDER, brand });
+    assert.match(html, /<a href="https:\/\/www\.namnskylt\.com\/offert\/abc123"[^>]*><img class="paper" src="https:\/\/www\.namnskylt\.com\/offert\/abc123\/skylt\.png" width="528" height="264"/);
+    assert.match(html, />Anna Lind, Säljare · Metall, Mässing · 60 × 30 mm<\/p>/);
+    assert.match(html, /src="https:\/\/www\.namnskylt\.com\/offert\/abc123\/logga\.png" width="120" height="40" alt="Exempel Profil AB"/);
+    assert.match(html, /background:#7a1f2b;color:#ffffff;[^"]*">Godkänn offerten/);
+    // Textmejlet har ingen bild, och är detsamma som utan.
+    assert.equal(text, composeQuoteEmail(QUOTE, SENDER).text);
+    assert.doesNotMatch(composeQuoteEmail(QUOTE, SENDER).html, /skylt\.png/);
+  });
+
+  test("namnskylt.coms egna offerter har sajtens logga", () => {
+    const { html } = composeQuoteEmail(QUOTE, { ...SENDER, sellerName: "Skylt & Gravyrteknik", brand: siteBrand("https://www.namnskylt.com") });
+    assert.match(html, /src="https:\/\/www\.namnskylt\.com\/logo-namnskylt-mejl\.png"[^>]*alt="namnskylt\.com"/);
+    assert.match(html, /från Skylt &amp; Gravyrteknik\./);
+    assert.match(html, /class="btn btn-ink"/);
+  });
+
+  test("raden under bilden säger vad som står på skylten, vad den är gjord av och hur stor den är", () => {
+    const badge = toOfferedDocument(createBadgeDocument(["Anna Lind", "Säljare"]));
+    assert.equal(quotePictureCaption([badge]), "Anna Lind, Säljare · Metall, Mässing · 60 × 30 mm");
+    assert.equal(quotePictureCaption([badge, badge, badge]), "Anna Lind, Säljare · Metall, Mässing · 60 × 30 mm · och 2 till");
+    assert.equal(quotePictureCaption([]), "");
   });
 
   test("samma utskick ger aldrig två mejl, men ett nytt utskick av samma offert är ett nytt mejl", () => {

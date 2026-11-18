@@ -3,13 +3,14 @@ import { createRateLimiter } from "@/lib/ai/rate-limit";
 import { companyFooter } from "@/lib/company/profile";
 import { isRealEmailSend } from "@/lib/email";
 import { ResendEmailSender, type FetchLike } from "@/lib/email/resend-sender";
+import { sellerBrand } from "@/lib/email/seller-brand";
 import { publicOrigin } from "@/lib/http/public-url";
 import { shippingMethodOf } from "@/lib/orders/delivery";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { getSellerProfile } from "@/lib/orders/repository";
 import { accountEmail } from "@/lib/reseller-auth/accounts";
 import { displayStatus, type StoredQuote } from "./model";
-import { composeQuoteEmail, quoteEmailSettings, type QuoteEmailSettings } from "./quote-email";
+import { composeQuoteEmail, quoteEmailSettings, quotePictureCaption, type QuoteEmailSettings } from "./quote-email";
 import { markEmailed, markSent } from "./repository";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -62,6 +63,9 @@ export async function sendQuote(tenant: string, quoteNo: string, fetchImpl?: Fet
     // Säljaren som kunden möter: hos namnskylt.com är det Skylt & Gravyrteknik, dit också svaren går.
     const company = await getSellerProfile(tenant);
     const replyTo = company.email.trim() || (await accountEmail(tenant)) || settings.fromAddress;
+    // Länkarna och bilderna byggs på sajtens publika adress, aldrig på förfrågans värdnamn.
+    const origin = publicOrigin();
+    const url = `${origin}/offert/${quote.token}`;
     const message = composeQuoteEmail(
       {
         quoteNo: quote.quoteNo,
@@ -74,11 +78,18 @@ export async function sendQuote(tenant: string, quoteNo: string, fetchImpl?: Fet
         shippingPending: shippingMethodOf(quote.delivery) === "express",
         validUntil: quote.validUntil,
         message: quote.message,
-        // Länken byggs på sajtens publika adress, aldrig på förfrågans värdnamn.
-        url: `${publicOrigin()}/offert/${quote.token}`,
+        url,
         sentAt: quote.sentAt ?? new Date().toISOString(),
+        // Bilden av skylten och säljarens logga hämtas från offertens egen adress, som är öppen för den som har länken.
+        picture: quote.badges.length > 0 ? { url: `${url}/skylt.png`, caption: quotePictureCaption(quote.badges) } : null,
       },
-      { sellerName: company.name, replyTo, fromAddress: settings.fromAddress, footer: companyFooter(company) },
+      {
+        sellerName: company.name,
+        replyTo,
+        fromAddress: settings.fromAddress,
+        footer: companyFooter(company),
+        brand: await sellerBrand(company, origin, `${url}/logga.png`),
+      },
     );
     const result = await senderFor(settings, fetchImpl).send(message);
     if (!isRealEmailSend(result)) {

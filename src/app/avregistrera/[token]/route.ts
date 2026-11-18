@@ -1,5 +1,5 @@
 import { db } from "@/lib/db/client";
-import { esc } from "@/lib/outreach/email-layout";
+import { esc } from "@/lib/email/layout";
 import { linkSecrets } from "@/lib/outreach/link-token";
 import { getLead, getMessage, suppress } from "@/lib/outreach/repository";
 import { handleUnsubscribe, isUnsubscribeTokenValid, unsubscribeRequestKind } from "@/lib/outreach/unsubscribe";
