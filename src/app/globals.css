@@ -511,3 +511,12 @@ p {
 body:has([data-home]) {
   background: #f4f2ec;
 }
+
+/*
+ * Sidor med samma svävande meny som startsidan (`data-floating-header` på sidans `main`). Menyn
+ * tar ingen plats i flödet, så innehållet börjar där det började under den raka menyn.
+ * Startsidan sköter sitt eget avstånd.
+ */
+main[data-floating-header] {
+  padding-top: var(--header-height);
+}

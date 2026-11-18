@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function OmOssPage() {
   return (
-    <main>
+    <main data-floating-header>
       <AboutPage />
       <SiteFooter />
     </main>

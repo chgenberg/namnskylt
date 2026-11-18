@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function KontaktPage() {
   return (
-    <main>
+    <main data-floating-header>
       <ContactPage />
       <SiteFooter />
     </main>

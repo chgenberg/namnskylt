@@ -1198,6 +1198,23 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   sidan ger då `fromStart` till `Designer`, som visar startrutan för material och form utan
   text och sedan ställer markören i skyltens första rad. En direkt länk till `/skapa` utan `t`
   visar ingen startruta, som förut. Samma sak gäller butikernas startsida.
+- **Startsidans platta ritning rymmer sin egen skugga** (besked via ägaren 2026-11-18: en
+  kollega såg en blek ruta med skugga bakom 3D-skylten på startsidan, i Safari på Mac och
+  iPad). Ritningen (`BadgePreview`, `.flat` i `home-hero.module.css`) visas tills 3D-vyn har
+  startat och tas sedan bort. Rutan i kollegans bild var exakt ritningens ruta, 420 × 210 px,
+  med ritningens skugga runt om och sidans bakgrund i mitten. Min slutsats är att Safari
+  ritade om rutan när ritningen togs bort, men inte skuggan utanför den (`filter:
+  drop-shadow` på en SVG med `overflow: visible`), och att inget ritade om ytan sedan,
+  eftersom 3D-vyn ligger i ett eget lager ovanpå.
+  - Rättningen: `.flat` har en ruta som är 48 px större åt alla håll, med lika stor negativ
+    marginal, så att skuggan ligger innanför det som ritas om. Ritningen står exakt där den
+    stod (mätt i Chrome och WebKit på fyra skärmbredder).
+  - **Felet är inte återskapat**: varken ägarens Safari, Chrome eller Playwrights WebKit
+    visar det, och en skärmbild i ett testverktyg ritar ändå om hela sidan. Rättningen är
+    alltså inte bekräftad på en enhet som hade felet. Syns rutan igen: be den som ser den
+    rulla eller ändra fönstrets storlek. Försvinner rutan då är det samma slags fel.
+  - Ta inte bort marginalen och rutans storlek som överflödiga: de har ingen synlig verkan
+    i en webbläsare som ritar om rätt.
 - **Skyltmotorns arbete sparas i webbläsaren** (2026-11-15, `useSavedWork`, regler i
   `src/lib/designer-work/`): skylten i editorn, namnlistan och varukorgen ligger i
   `localStorage` och finns kvar när sidan laddas om. En nyckel per sammanhang (webben, en
@@ -1472,6 +1489,16 @@ kontaktar"). Deras uppgifter ligger i `WORKSHOP_COMPANY` (`src/lib/company/works
   och butikernas egen meny är orörd. Under 900 px ligger länkarna bakom knappen Meny
   (`SiteMenu` i `src/components/site-menu.tsx`), eftersom de inte ryms bredvid loggan,
   inloggningen och varukorgen. Provat ner till 320 px, med och utan varukorgens symbol.
+  - **Menyn står still mellan sidorna i den** (besked av ägaren 2026-11-18: "menyn och
+    headern måste vara statisk oavsett om man är på förstasidan, om oss eller kontakta oss").
+    Startsidans svävande meny gäller också Om oss, Kontakta oss och Inspirationsbank:
+    sidans `main` bär `data-floating-header`, som ger samma form som startsidans `data-home`
+    (`site-header.module.css`) och flyttar ner innehållet under menyn (`globals.css`).
+    Inspirationsbank lade jag till själv, eftersom den ligger i samma meny.
+  - Sidan man är på markeras bara med färg, aldrig med fetare stil: då ändras länkens bredd
+    och menyn flyttar sig.
+  - Skyltmotorn, villkoren, integritetssidan, inloggningen och kontot har kvar den raka
+    menyn över hela bredden. Skyltmotorn och panelen räknar sin höjd på den.
 
 ## Kundens ordersida — läge 2026-11-15
 

@@ -27,9 +27,18 @@
   height: clamp(220px, 36vh, 360px);
 }
 
-/* Ritningen syns tills WebGL-scenen finns. */
+/*
+ * Ritningen syns tills WebGL-scenen finns. Rutan är större än ritningen, så att den rymmer
+ * ritningens skugga: Safari ritar om rutan när ritningen tas bort, men inte skuggan utanför
+ * den, och då stod skuggan kvar som en blek ram bakom 3D-skylten (besked via ägaren
+ * 2026-11-18). Marginalen tar tillbaka utrymmet, så att ritningen står där den stod.
+ */
 .flat {
+  box-sizing: content-box;
   width: min(420px, 62%);
+  margin: calc(-1 * var(--space-7));
+  padding: var(--space-7);
+  pointer-events: none;
 }
 
 /* 30 % över och under scenen — summan måste motsvara CANVAS_OVERSCAN i home-hero.tsx. */

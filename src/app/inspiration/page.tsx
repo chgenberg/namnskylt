@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function InspirationPage() {
   return (
-    <main>
+    <main data-floating-header>
       <div className={`container ${styles.page}`}>
         <header className={styles.intro}>
           <p className="eyebrow">Inspirationsbank</p>

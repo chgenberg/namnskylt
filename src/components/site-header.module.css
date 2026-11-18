@@ -58,9 +58,9 @@
   background: var(--color-paper);
 }
 
+/* Sidan man är på markeras bara med färg. En fetare stil ändrar länkens bredd, och då flyttar sig menyn mellan sidorna. */
 .link[aria-current="page"] {
   color: var(--color-ink);
-  font-weight: 500;
 }
 
 /* Menyns länkar står på rad på en bred skärm. Knappen Meny finns bara på en smal, se nedan. */
@@ -113,8 +113,11 @@
   font-weight: 600;
 }
 
-/* Startsidan: menyn som en svävande, halvgenomskinlig pill. */
-:global(body:has([data-home])) .header {
+/*
+ * Startsidan och sidorna i menyn (Inspirationsbank, Om oss, Kontakta oss): menyn som en svävande,
+ * halvgenomskinlig pill. Den ska se likadan ut på alla fyra, så att den står still när man byter sida.
+ */
+:global(body:has([data-home], [data-floating-header])) .header {
   position: fixed;
   top: 18px;
   left: 50%;
@@ -127,15 +130,15 @@
   box-shadow: 0 12px 32px -22px rgb(10 10 11 / 0.35);
 }
 
-:global(body:has([data-home])) .inner {
+:global(body:has([data-home], [data-floating-header])) .inner {
   padding-inline: 18px 8px;
 }
 
-:global(body:has([data-home])) .brand {
+:global(body:has([data-home], [data-floating-header])) .brand {
   flex: none;
 }
 
-:global(body:has([data-home])) .logo {
+:global(body:has([data-home], [data-floating-header])) .logo {
   height: 24px;
 }
 
@@ -144,7 +147,7 @@
     padding-inline: var(--space-4);
   }
 
-  :global(body:has([data-home])) .header {
+  :global(body:has([data-home], [data-floating-header])) .header {
     top: 12px;
     width: calc(100% - 24px);
   }
