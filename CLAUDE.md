@@ -1620,6 +1620,11 @@ kontaktar"). Deras uppgifter ligger i `WORKSHOP_COMPANY` (`src/lib/company/works
   och butikernas egen meny är orörd. Under 900 px ligger länkarna bakom knappen Meny
   (`SiteMenu` i `src/components/site-menu.tsx`), eftersom de inte ryms bredvid loggan,
   inloggningen och varukorgen. Provat ner till 320 px, med och utan varukorgens symbol.
+  - **På 360 px och smalare är loggan en aning mindre och luften snålare** (rättat
+    2026-11-18 på ägarens ja): i skyltmotorn stack sidhuvudet ut 6 px på en 320 px bred
+    skärm, så att varukorgens symbol klipptes i högerkanten. Det tidigare provet mätte den
+    svävande menyn, som inte har någon varukorg. Butikernas eget sidhuvud (`ShopFrame`)
+    är inte mätt på 320 px.
   - **Menyn står still mellan sidorna i den** (besked av ägaren 2026-11-18: "menyn och
     headern måste vara statisk oavsett om man är på förstasidan, om oss eller kontakta oss").
     Startsidans svävande meny gäller också Om oss, Kontakta oss och Inspirationsbank:

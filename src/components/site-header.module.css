@@ -237,3 +237,23 @@
     display: none;
   }
 }
+
+/*
+ * De smalaste telefonerna, 320 px: loggan, Meny, Logga in och varukorgens symbol ryms inte i
+ * sina vanliga mått, och symbolen hamnade utanför skärmen i skyltmotorn. Här är loggan en aning
+ * mindre och luften snålare. Den svävande menyn på startsidan har ingen varukorg, och dess egna
+ * regler för loggan och luften väger tyngre än de här, så den är orörd.
+ */
+@media (max-width: 360px) {
+  .inner {
+    padding-inline: var(--space-3);
+  }
+
+  .logo {
+    height: 22px;
+  }
+
+  .login {
+    margin-left: var(--space-1);
+  }
+}

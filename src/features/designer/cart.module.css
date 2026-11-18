@@ -22,6 +22,13 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* På de smalaste telefonerna står symbolen tätare intill inloggningen, så att den ryms i sidhuvudet. */
+@media (max-width: 360px) {
+  .button {
+    margin-left: var(--space-1);
+  }
+}
+
 /* Utan sidhuvud att sitta i ligger knappen fast över skyltmotorn. */
 .button[data-floating] {
   position: fixed;
