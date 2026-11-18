@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState, type CSSProperties, type Dispatch, type FormEvent } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type Dispatch, type FormEvent } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { ProgressBanner } from "@/components/ui/progress-banner";
 import { Segmented } from "@/components/ui/segmented";
 import {
   LOGO_LIMITS,
+  logoHeightLimits,
   LOGO_PLACEMENTS,
   LOGO_PRINT_COLOR_MAX,
   getColor,
@@ -249,8 +250,12 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
   // Hur loggan hamnar på skylten följer märkningsmetoden: en logga i färg som graveras ritas ur sin gravyrform.
   const engraved = logoMarking(doc) === "engrave";
   const logoLook: LogoLook = engraved ? (doc.logo?.image ? "engrave-color" : "engrave") : doc.logo?.image ? "print-color" : "print";
-  const heightRange = LOGO_LIMITS.maxHeightMm - LOGO_LIMITS.minHeightMm;
-  const logoHeight = doc.logo?.heightMm ?? LOGO_LIMITS.defaultHeightMm;
+  // Reglaget går upp till det som ryms på skylten och visar höjden loggan faktiskt ritas i.
+  // Förut gick det till 40 mm, fast loggan slutade växa långt tidigare.
+  const limits = useMemo(() => logoHeightLimits(doc), [doc]);
+  const logoMax = Math.max(LOGO_LIMITS.minHeightMm, Math.floor((limits?.maxMm ?? LOGO_LIMITS.maxHeightMm) * 2) / 2);
+  const heightRange = Math.max(0.5, logoMax - LOGO_LIMITS.minHeightMm);
+  const logoHeight = Math.min(logoMax, Math.max(LOGO_LIMITS.minHeightMm, Math.round((limits?.drawnMm ?? LOGO_LIMITS.defaultHeightMm) * 2) / 2));
 
   return (
     <PanelSection
@@ -407,16 +412,18 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
               type="range"
               className="range"
               min={LOGO_LIMITS.minHeightMm}
-              max={LOGO_LIMITS.maxHeightMm}
+              max={logoMax}
               step={0.5}
               value={logoHeight}
+              disabled={logoMax <= LOGO_LIMITS.minHeightMm}
               style={{ "--range-fill": `${((logoHeight - LOGO_LIMITS.minHeightMm) / heightRange) * 100}%` } as CSSProperties}
               onChange={(e) => dispatch({ type: "logo/height", heightMm: Number(e.target.value) })}
             />
-            <span className={`mono ${styles.sliderValue}`}>{logoHeight} mm</span>
+            <span className={`mono ${styles.sliderValue}`}>{logoHeight.toLocaleString("sv-SE")} mm</span>
           </label>
           <p className={styles.hint}>
-            {LOGO_HINT[logoLook]} Får loggan inte plats krymps den till skylten. Metoden väljer du under Märkningsmetod.
+            {LOGO_HINT[logoLook]} Storleken är loggans höjd, och den går också att ändra genom att dra i loggans hörn under
+            Ritning. Metoden väljer du under Märkningsmetod.
           </p>
           {/* Färg finns bara i tryck: en logga som graveras får materialets färg. */}
           {!engraved && (

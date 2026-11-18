@@ -125,6 +125,13 @@ const LOGO_TEXT_GAP_MM = 2;
 const LOGO_SIDE_MAX_WIDTH_RATIO = 0.4;
 /** Loggan ovanför texten får ta högst så stor del av innehållets höjd. */
 const LOGO_TOP_MAX_HEIGHT_RATIO = 0.5;
+/**
+ * Taken när kunden själv har satt loggans storlek (`BadgeLogo.sizing`, besked via ägaren
+ * 2026-11-18, som drog reglaget i botten utan att loggan växte mer än marginellt): loggan får
+ * ta så stor del av bredden bredvid texten, och av höjden ovanför den. Resten är textens.
+ */
+const LOGO_FREE_SIDE_MAX_WIDTH_RATIO = 0.72;
+const LOGO_FREE_TOP_MAX_HEIGHT_RATIO = 0.7;
 
 const ANCHOR_BY_ALIGN: Record<TextAlign, TextAnchor> = {
   left: "start",
@@ -198,6 +205,44 @@ interface LogoPlan {
   regionFor(blockHeightMm: Mm): TextRegion;
 }
 
+/**
+ * Loggan bredvid texten när kunden själv har satt storleken: så stor som önskat, men aldrig
+ * bredare än sin del av skyltens bredd där loggan står. På en oval smalnar skylten uppåt och
+ * nedåt, så en högre logga har mindre bredd att ta av. Höjden söks därför fram.
+ */
+function fitFreeSide(doc: BadgeDocument, inset: Mm, fit: (maxW: Mm, maxH: Mm) => { w: Mm; h: Mm }): { w: Mm; h: Mm } {
+  const { heightMm } = doc.size;
+  const contentH = heightMm - inset * 2;
+  const wanted = fit(Infinity, contentH);
+  const aspect = wanted.w / wanted.h;
+  const fits = (h: Mm) => {
+    const top = (heightMm - h) / 2;
+    return h * aspect <= availableHalfWidth(doc, inset, top, top + h) * 2 * LOGO_FREE_SIDE_MAX_WIDTH_RATIO;
+  };
+  if (fits(wanted.h)) return wanted;
+  let low = 0;
+  let high = wanted.h;
+  for (let step = 0; step < 24; step++) {
+    const middle = (low + high) / 2;
+    if (fits(middle)) low = middle;
+    else high = middle;
+  }
+  return { w: low * aspect, h: low };
+}
+
+/**
+ * Hur hög loggan ritas nu, och hur hög den som mest kan bli på skylten med den placering den
+ * har. Reglaget för loggans storlek går mellan de två, så att hela reglaget gör skillnad.
+ */
+export function logoHeightLimits(doc: BadgeDocument): { drawnMm: Mm; maxMm: Mm } | null {
+  if (!doc.logo) return null;
+  const inset = safeInsetMm(doc);
+  const drawn = planLogo(doc, inset);
+  const largest = planLogo({ ...doc, logo: { ...doc.logo, heightMm: Number.MAX_SAFE_INTEGER, sizing: "free" } }, inset);
+  if (!drawn || !largest) return null;
+  return { drawnMm: drawn.boxFor(0).height, maxMm: largest.boxFor(0).height };
+}
+
 function planLogo(doc: BadgeDocument, inset: Mm): LogoPlan | null {
   const { logo } = doc;
   const { widthMm, heightMm } = doc.size;
@@ -232,8 +277,9 @@ function planLogo(doc: BadgeDocument, inset: Mm): LogoPlan | null {
     return { textHeightMm: contentH, boxFor: () => box, regionFor: () => region };
   }
 
+  const free = logo.sizing === "free";
   if (logo.placement === "top") {
-    const { w, h } = fit(contentW, contentH * LOGO_TOP_MAX_HEIGHT_RATIO);
+    const { w, h } = fit(contentW, contentH * (free ? LOGO_FREE_TOP_MAX_HEIGHT_RATIO : LOGO_TOP_MAX_HEIGHT_RATIO));
     const placeFor = (block: Mm) => {
       const total = h + (block > 0 ? LOGO_TEXT_GAP_MM + block : 0);
       return Math.max(inset, (heightMm - total) / 2);
@@ -248,7 +294,7 @@ function planLogo(doc: BadgeDocument, inset: Mm): LogoPlan | null {
     };
   }
 
-  const { w, h } = fit(contentW * LOGO_SIDE_MAX_WIDTH_RATIO, contentH);
+  const { w, h } = free ? fitFreeSide(doc, inset, fit) : fit(contentW * LOGO_SIDE_MAX_WIDTH_RATIO, contentH);
   const y = (heightMm - h) / 2;
   const edge = widthMm / 2 - availableHalfWidth(doc, inset, y, y + h);
   const x = logo.placement === "left" ? edge : widthMm - edge - w;

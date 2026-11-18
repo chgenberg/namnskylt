@@ -66,6 +66,7 @@ export const badgeDocumentSchema = z
         viewHeight: z.number().positive().max(LOGO_LIMITS.maxViewSize),
         placement: z.enum(["left", "right", "top"]),
         heightMm: z.number().min(LOGO_LIMITS.minHeightMm).max(LOGO_LIMITS.maxHeightMm),
+        sizing: z.literal("free").optional(),
         offsetMm: offsetSchema.optional(),
         // Bilden ligger i skylten som data-URL, eller på servern och pekas ut med sin adress.
         image: z

@@ -41,37 +41,93 @@ function num(value: number): string {
   return Number.isFinite(value) ? String(Number(value.toFixed(4))) : "0";
 }
 
-/** Hur ytan ritas: som materialets, eller som borstad metall när plasten har en metallfilm överst. */
-type SurfaceLook = MaterialFinish | "metallic-plastic";
+/** Hur ytan ritas: borstad metall, slät plast eller blank kupol. */
+type SurfaceLook = "brushed" | "satin" | "gloss";
 
-function surfaceDefs(finish: SurfaceLook, id: string): string {
-  if (finish === "metallic-plastic") {
-    // Guld- och silverplast: ljusa och mörka stråk som i borstad metall, så att guldet inte ser orange ut.
-    const stops = [
-      [0, "#fff", 0.42],
-      [0.16, "#fff", 0.08],
-      [0.34, "#fff", 0.5],
-      [0.52, "#000", 0.1],
-      [0.68, "#fff", 0.36],
-      [0.84, "#000", 0.06],
-      [1, "#fff", 0.3],
-    ]
-      .map(([offset, tone, opacity]) => `<stop offset="${offset}" stop-color="${tone}" stop-opacity="${opacity}"/>`)
-      .join("");
-    return `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2=".2">${stops}</linearGradient>`;
+function surfaceLook(finish: MaterialFinish, color: { lacquered?: boolean; metallic?: boolean }): SurfaceLook {
+  // Lackad metall är slät som plast. Guld- och silverplast har en borstad metallfilm överst.
+  if (color.lacquered) return "satin";
+  if (finish === "plastic") return color.metallic ? "brushed" : "satin";
+  if (finish === "acrylic" || finish === "epoxy") return "gloss";
+  return "brushed";
+}
+
+/** Ljus yta: där syns en reflex som en svag skugga, inte som vitt på vitt. */
+function isLight(hex: string): boolean {
+  const value = /^#?([0-9a-f]{6})$/i.exec(hex)?.[1];
+  if (!value) return false;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(value.slice(i, i + 2), 16) / 255) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.8;
+}
+
+type Stop = readonly [offset: number, tone: string, opacity: number];
+
+function gradient(id: string, direction: string, stops: readonly Stop[]): string {
+  const marks = stops.map(([offset, tone, opacity]) => `<stop offset="${offset}" stop-color="${tone}" stop-opacity="${num(opacity)}"/>`).join("");
+  return `<linearGradient id="${id}" ${direction}>${marks}</linearGradient>`;
+}
+
+/**
+ * Ytan i förhandsvisningen: skyltens färg med ljus, reflexer och en fasad kant ovanpå, så att
+ * ritningen har samma känsla som 3D-vyn fast den står still (besked via ägaren 2026-11-18).
+ * Allt ligger under texten och loggan, och inget av det finns i produktionsfilen.
+ *
+ * - Borstad metall: stråk av ljus tvärs över skylten och fina borstlinjer längs med.
+ * - Slät plast och lack: mjukt ljus uppifrån och en sned reflex.
+ * - Akryl och epoxy: samma, men blankare.
+ */
+function surfaceMarkup(look: SurfaceLook, surface: string, outline: string, id: string): string {
+  const fill = (paint: string) => `<path d="${outline}" fill="url(#${id}-${paint})"/>`;
+  const light = isLight(surface);
+  // Kanten: ljus där ljuset kommer uppifrån, mörk i underkanten. Klipps till skyltens insida.
+  const edge = gradient(`${id}-edge`, 'x1="0" y1="0" x2="0" y2="1"', [
+    [0, "#fff", light ? 0.9 : 0.6],
+    [0.45, "#fff", 0],
+    [0.6, "#000", 0],
+    [1, "#000", light ? 0.2 : 0.32],
+  ]);
+  const bevel = `<path d="${outline}" fill="none" stroke="url(#${id}-edge)" stroke-width=".9" clip-path="url(#${id}-clip)"/>`;
+  const clip = `<clipPath id="${id}-clip"><path d="${outline}"/></clipPath>`;
+  const base = `<path d="${outline}" fill="${surface}"/>`;
+
+  if (look === "brushed") {
+    const bands = gradient(`${id}-sheen`, 'x1="0" y1="0" x2="1" y2=".18"', [
+      [0, "#000", 0.14],
+      [0.12, "#fff", 0.1],
+      [0.3, "#fff", 0.46],
+      [0.42, "#fff", 0.1],
+      [0.58, "#000", 0.1],
+      [0.74, "#fff", 0.3],
+      [0.88, "#fff", 0.05],
+      [1, "#000", 0.1],
+    ]);
+    const shade = gradient(`${id}-shade`, 'x1="0" y1="0" x2="0" y2="1"', [
+      [0, "#fff", 0.16],
+      [0.45, "#fff", 0],
+      [1, "#000", 0.14],
+    ]);
+    // Borstlinjerna är tunnare än en skärmpunkt i små bilder och syns där bara som en svag ton.
+    const brush = `<pattern id="${id}-brush" width="12" height=".34" patternUnits="userSpaceOnUse"><rect width="12" height=".06" fill="#fff" fill-opacity=".16"/><rect y=".17" width="12" height=".05" fill="#000" fill-opacity=".07"/></pattern>`;
+    return `<defs>${clip}${edge}${bands}${shade}${brush}</defs>${base}${fill("brush")}${fill("sheen")}${fill("shade")}${bevel}`;
   }
-  if (finish === "plastic" || finish === "acrylic" || finish === "epoxy") {
-    // Akryl och epoxykupol är blanka: starkare ljusreflex i överkanten.
-    const shine = finish === "plastic" ? ".18" : ".42";
-    return `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="${shine}"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".08"/></linearGradient>`;
-  }
-  const stops = [0, 0.18, 0.34, 0.5, 0.66, 0.82, 1]
-    .map((o, i) => {
-      const opacity = i % 2 === 0 ? 0.22 : 0;
-      return `<stop offset="${o}" stop-color="#fff" stop-opacity="${opacity}"/>`;
-    })
-    .join("");
-  return `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2=".2">${stops}</linearGradient>`;
+
+  const strength = look === "gloss" ? 1.8 : 1;
+  const tone = light ? "#000" : "#fff";
+  const reflex = (opacity: number) => Math.min(0.6, opacity * strength * (light ? 0.22 : 1));
+  const shade = gradient(`${id}-sheen`, 'x1="0" y1="0" x2="0" y2="1"', [
+    [0, "#fff", Math.min(0.5, 0.22 * strength)],
+    [0.5, "#fff", 0],
+    [1, "#000", 0.1],
+  ]);
+  const streak = gradient(`${id}-streak`, 'x1="0" y1="0" x2="1" y2=".55"', [
+    [0.26, tone, 0],
+    [0.36, tone, reflex(0.2)],
+    [0.45, tone, 0],
+    [0.52, tone, 0],
+    [0.57, tone, reflex(0.09)],
+    [0.62, tone, 0],
+  ]);
+  return `<defs>${clip}${edge}${shade}${streak}</defs>${base}${fill("sheen")}${fill("streak")}${bevel}`;
 }
 
 function dimensionMarks(widthMm: number, heightMm: number): string {
@@ -119,15 +175,10 @@ export function renderBadgeSvg(
     return isPreview && ink ? ink : engraveFill;
   };
 
-  const gradientId = `${idPrefix}-sheen`;
   const parts: string[] = [];
 
   if (isPreview) {
-    // Lackad metall är slät som plast: mjuk glans i stället för borstade stråk.
-    const look: SurfaceLook = color.lacquered ? "plastic" : material.finish === "plastic" && color.metallic ? "metallic-plastic" : material.finish;
-    parts.push(`<defs>${surfaceDefs(look, gradientId)}</defs>`);
-    parts.push(`<path d="${layout.outline}" fill="${color.surface}"/>`);
-    parts.push(`<path d="${layout.outline}" fill="url(#${gradientId})"/>`);
+    parts.push(surfaceMarkup(surfaceLook(material.finish, color), color.surface, layout.outline, idPrefix));
   } else {
     parts.push(
       `<path d="${layout.outline}" fill="none" stroke="${PRODUCTION_CUT}" stroke-width=".1"/>`,
@@ -172,7 +223,7 @@ export function renderBadgeSvg(
 
   if (isPreview) {
     parts.push(
-      `<path d="${layout.outline}" fill="none" stroke="#0B0B0C" stroke-opacity=".12" stroke-width=".2"/>`,
+      `<path d="${layout.outline}" fill="none" stroke="#0B0B0C" stroke-opacity=".18" stroke-width=".2"/>`,
     );
     if (showDimensions) parts.push(dimensionMarks(w, h));
   }

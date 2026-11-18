@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1219 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1221 tester, grönt 2026-11-18).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -450,6 +450,33 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     eller offert tappar sin logga i färg efter 30 dagar.
   - Känd brist: mjuka, halvgenomskinliga kanter i en logga (en skugga eller ett sken) klipps i
     3D-vyn, eftersom ytan följer siluetten; ritningen visar hela bilden.
+- **Loggans storlek och ritningens handtag** (besked via ägaren 2026-11-18, som drog reglaget
+  i botten utan att loggan växte mer än marginellt, och ville dra i kanten på logga och text):
+  - **`BadgeLogo.sizing: "free"`** sätts när kunden själv ändrar storleken, med reglaget eller
+    ett hörnhandtag (åtgärden `logo/height`). Då får loggan ta upp till 72 % av bredden bredvid
+    texten och 70 % av höjden ovanför den (`LOGO_FREE_…` i `layout.ts`, `fitFreeSide` söker
+    fram höjden som ryms i en oval). **Utan fältet gäller de äldre taken, 40 % och 50 %**, så
+    att redan sparade skyltar, butikernas förvalda skyltar och utskickets bilder ritas som
+    förut. Ta inte bort den skillnaden: annars växer loggan på allt som redan är sparat.
+  - **Reglaget "Storlek"** går från 4 mm till det som ryms (`logoHeightLimits`) och visar
+    höjden loggan faktiskt ritas i. Förut gick det till 40 mm, fast loggan slutade växa
+    långt tidigare.
+  - **Hörnhandtag i vyn Ritning** (`BadgeEditor`): loggan och texten dras större eller
+    mindre i ett hörn. Storleken följer pekarens avstånd till rutans mitt. Texten ändrar
+    versalhöjden på alla rader med samma faktor (åtgärden `rows/caps`). När kunden släpper
+    sparas storleken layouten faktiskt ritade, inte den pekaren bad om.
+    - Handtagen ligger i ett eget lager överst och ritas bara för den ruta som är vald eller
+      som muspekaren är över. Står loggan ovanför texten möts deras hörn, och ett osynligt
+      handtag på den andra rutan tog annars greppet.
+    - Handtagen har ingen tangentbordsväg. Reglagen i panelen gör samma sak.
+  - Blir loggan mycket stor krymps texten, och raden "Texten krymps" visas som vanligt.
+- **Ritningens yta** (samma besked: ritningen var "väldigt statisk" jämfört med 3D-vyn):
+  förhandsvisningen ritar skyltens färg med ljus, reflexer och en fasad kant ovanpå
+  (`surfaceMarkup` i `render-svg.ts`). Borstad metall, och plastens guld och silver, får
+  ljusa stråk och fina borstlinjer; slät plast och lackad metall får mjukt ljus och en sned
+  reflex; akryl och epoxy är blankare. Bilden står still. Det gäller alla förhandsvisningar
+  (ritningen, miniatyrer, korrektur, offert, delningsbild och personbildens referens), aldrig
+  produktionsfilen, som bara har skärlinje och gravyr.
 - **Ordval:** sajten säger inte "graverad" om hela sortimentet, eftersom loggor i färg trycks.
   Sajten säger "namnskyltar", "tillverkas", "till tillverkningen" och "Korrektur innan
   produktion" (beslut av ägaren 2026-11-15), även i flikens titel, butikernas sidfot,
@@ -956,8 +983,9 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
     - Hittat genom att jämföra läsaren med en referensläsare på de 541 .xlsx-filer som låg
       på datorn (Excel för Mac och Windows, openpyxl, SheetJS): 537 lästes lika, och de
       fyra som blev tomma var alla av den sorten. Efter rättningen läses alla 541 lika.
-    - Ägarens fil är fortfarande inte sedd, men den är gjord av en AI-tjänst, öppnas i Excel
-      och gav just det felet, så orsaken är trolig men inte bekräftad.
+    - **Bekräftat med ägarens egen fil 2026-11-18** (`54_namn_och_titlar.xlsx`, som ägaren
+      lade på skrivbordet): den är av just den sorten. Läsaren före rättningen ger 0 rader,
+      läsaren efter ger 54 namn med titel, och i drift läses den som "54 namn × 1 = 54 st".
     - En .xlsx som inte är en zip-fil (lösenordsskyddad) och en tom fil säger nu vad som är
       fel, och felet skiljer "ingen text" från "inga namn".
 - **Antalet blir 1 när namnlistan får sina första namn** (besked via ägaren 2026-11-18, som
@@ -1493,8 +1521,11 @@ och "Också i återförsäljarnas butiker"). Det är ett tredje inlogg, skilt fr
   butik utan ägare och en återförsäljares butik. Inte provat i drift, och inte i Safari.
 - **Ett demokonto för slutkund finns i drift** sedan 2026-11-18, skapat på ägarens begäran
   för att kunna titta på Mitt konto: `demokund@namnskylt.com` på namnskylt.com. Lösenordet
-  fick ägaren i chatten och står ingenstans i repot. Kontot har inga ordrar: en order som
-  läggs inloggad i drift är en riktig order till verkstaden.
+  fick ägaren i chatten och står ingenstans i repot. Kontot har två demoordrar (NS-1095,
+  skickad, och NS-1096, mottagen), lagda på ägarens begäran med ett skript i driftens
+  container (`placeOrder` med `demo: true`). De skickas aldrig till verkstaden, syns inte i
+  Tillverkning eller Provision och tas bort med "Ta bort demodata" i panelen. En order som
+  läggs inloggad i kassan i drift är däremot en riktig order till verkstaden.
 - Granskat av en oberoende agent 2026-11-17. Den hittade ingen väg till någon annans konto
   eller ordrar. Sju fynd är rättade (de står som regler ovan), ett står under Kända brister.
 - Kända brister:

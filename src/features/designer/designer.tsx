@@ -631,7 +631,7 @@ export function Designer({
             <p className={styles.hint} data-severity={logoOverlapsText ? "warning" : undefined} role="status">
               {logoOverlapsText
                 ? "Loggan ligger över texten — dra isär dem så att båda syns i gravyren."
-                : `Dra texten eller loggan. Streckad linje = säkerhetsmarginal, ${layout.contentInsetMm.toLocaleString("sv-SE")} mm.`}
+                : `Dra texten eller loggan, eller dra i ett hörn för att ändra storlek. Streckad linje = säkerhetsmarginal, ${layout.contentInsetMm.toLocaleString("sv-SE")} mm.`}
             </p>
           ) : view === "3d" && logoOverlapsText ? (
             <p className={styles.hint} data-severity="warning" role="status">

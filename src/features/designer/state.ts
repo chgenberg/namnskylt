@@ -39,6 +39,8 @@ export type DesignerAction =
   /** Alla rader på en gång, med skyltens stil — när en kollegas skylt öppnas. */
   | { type: "texts"; texts: string[] }
   | { type: "row/cap"; id: string; capHeightMm: number }
+  /** Hela textens storlek, dragen i ritningen: versalhöjden för varje rad som har text. */
+  | { type: "rows/caps"; caps: readonly { id: string; capHeightMm: number }[] }
   | { type: "row/bold"; id: string }
   /** Kundens egen färgkod för radens tryck, som fritext. Tom text tar bort den. */
   | { type: "row/color"; id: string; code: string }
@@ -125,6 +127,19 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
         ...row,
         capHeightMm: clamp(action.capHeightMm, TEXT_LIMITS.minCapHeightMm, TEXT_LIMITS.maxCapHeightMm),
       }));
+    case "rows/caps": {
+      const caps = new Map(action.caps.map((cap) => [cap.id, cap.capHeightMm]));
+      return {
+        ...doc,
+        rows: doc.rows.map((row) => {
+          const cap = caps.get(row.id);
+          // En tiondels millimeter, som reglaget för versalhöjd.
+          return cap === undefined
+            ? row
+            : { ...row, capHeightMm: clamp(Math.round(cap * 10) / 10, TEXT_LIMITS.minCapHeightMm, TEXT_LIMITS.maxCapHeightMm) };
+        }),
+      };
+    }
     case "row/bold":
       return mapRow(doc, action.id, (row) => ({ ...row, bold: !row.bold }));
     case "row/color": {
@@ -242,6 +257,8 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
             logo: {
               ...doc.logo,
               heightMm: clamp(action.heightMm, LOGO_LIMITS.minHeightMm, LOGO_LIMITS.maxHeightMm),
+              // Kunden har själv satt storleken: loggan får ta mer av skylten än den automatiska placeringen ger.
+              sizing: "free" as const,
             },
           }
         : doc;

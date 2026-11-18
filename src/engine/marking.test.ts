@@ -178,8 +178,10 @@ describe("vad som graveras och vad som printas", () => {
     const production = renderBadgeSvg(doc, layout, { mode: "production", fonts });
     // Produktionsfilen: skärlinjen och den graverade loggan. Namnet och ramen printas och är inte med.
     assert.equal(paths(production), 2);
-    // Ritningen: yta, glans och kant, och sedan ram, två rader och loggan.
-    assert.equal(paths(preview), 3 + 4);
+    // Ritningen: ram, två rader och loggan, ovanpå skyltens yta med sitt ljus och sin kant.
+    const marked = (svg: string) => (svg.match(/<path [^>]*fill-rule=/g) ?? []).length;
+    assert.equal(marked(preview), 4);
+    assert.ok(paths(preview) > marked(preview));
     // Utan konturer (typsnitten inte laddade) gäller samma regel.
     const fallback = renderBadgeSvg(doc, layoutBadge(doc, approxFonts), { mode: "production" });
     assert.ok(!fallback.includes("<text"));

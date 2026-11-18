@@ -6,9 +6,11 @@ import {
   createBadgeDocument,
   frameBands,
   layoutBadge,
+  logoHeightLimits,
   parseSmartInput,
   priceBadge,
   renderBadgeSvg,
+  withBlank,
 } from "./index";
 import { endPriceTable } from "./price-model";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
@@ -131,15 +133,60 @@ describe("badgeDocumentSchema", () => {
       const doc = { ...createBadgeDocument(["Anna"]), materialId: "plastic" as const, colorId };
       return renderBadgeSvg(doc, layoutBadge(doc, approxFonts), { mode: "preview", fonts: approxFonts });
     };
-    // Borstade stråk går snett över skylten; den mjuka glansen går uppifrån och ned.
-    const brushed = /<linearGradient id="[^"]*" x1="0" y1="0" x2="1" y2="\.2">/;
-    const soft = /<linearGradient id="[^"]*" x1="0" y1="0" x2="0" y2="1">/;
-    assert.match(drawn("gold-black"), brushed);
-    assert.match(drawn("silver-black"), brushed);
-    assert.match(drawn("yellow-black"), soft);
-    assert.match(drawn("white-black"), soft);
+    // Borstad metall har borstlinjer och ljusa stråk; slät plast har en sned reflex.
+    const brushed = /<pattern id="[^"]*-brush"/;
+    const reflex = /<linearGradient id="[^"]*-streak"/;
+    for (const colorId of ["gold-black", "silver-black"]) {
+      assert.match(drawn(colorId), brushed);
+      assert.doesNotMatch(drawn(colorId), reflex);
+    }
+    for (const colorId of ["yellow-black", "white-black"]) {
+      assert.match(drawn(colorId), reflex);
+      assert.doesNotMatch(drawn(colorId), brushed);
+    }
     // Färgkoden är verkstadens och ändras inte av hur ytan ritas.
     assert.match(drawn("gold-black"), /fill="#D4A017"/);
+  });
+
+  it("ytans ljus och kant finns bara i förhandsvisningen, aldrig i produktionsfilen", () => {
+    const doc = createBadgeDocument(["Anna"]);
+    const layout = layoutBadge(doc, approxFonts);
+    const preview = renderBadgeSvg(doc, layout, { mode: "preview", fonts: approxFonts, idPrefix: "a" });
+    const production = renderBadgeSvg(doc, layout, { mode: "production", fonts: approxFonts });
+    assert.match(preview, /<clipPath id="a-clip">/);
+    assert.match(preview, /stroke="url\(#a-edge\)"/);
+    assert.doesNotMatch(production, /Gradient|pattern|clipPath/);
+  });
+
+  it("en logga kunden själv har satt storleken på får ta mer av skylten, och sparade skyltar ritas som förut", () => {
+    // En bred logga, som de flesta med text i: förut tog den högst 40 % av bredden hur reglaget än stod.
+    const wide = { d: "M0 0L230 0L230 100L0 100Z", viewWidth: 230, viewHeight: 100, placement: "left" as const, heightMm: 40 };
+    const doc = { ...createBadgeDocument(["Eva", "VD"]), logo: wide };
+    const before = layoutBadge(doc, approxFonts).logo;
+    const sized = layoutBadge({ ...doc, logo: { ...wide, sizing: "free" as const } }, approxFonts).logo;
+    assert.ok(before && sized);
+    const content = doc.size.widthMm - layoutBadge(doc, approxFonts).contentInsetMm * 2;
+    assert.ok(Math.abs(before.width - content * 0.4) < 1e-6);
+    assert.ok(sized.width > before.width * 1.6);
+    // Loggan och texten ryms fortfarande bredvid varandra.
+    const free = layoutBadge({ ...doc, logo: { ...wide, sizing: "free" as const } }, approxFonts);
+    assert.equal(free.logoOverlapsText, false);
+    assert.ok(free.rows.every((row) => row.leftMm >= sized.x + sized.width));
+
+    // Reglaget går mellan det som ritas och det som ryms.
+    const limits = logoHeightLimits(doc);
+    assert.ok(limits && Math.abs(limits.drawnMm - before.height) < 1e-6 && Math.abs(limits.maxMm - sized.height) < 1e-6);
+
+    // På en oval smalnar skylten uppåt och nedåt: också den största loggan håller sig innanför kanten.
+    const oval = withBlank({ ...doc, logo: { ...wide, sizing: "free" as const } }, "metal-oval");
+    const inOval = layoutBadge(oval, approxFonts).logo;
+    assert.ok(inOval);
+    const inset = layoutBadge(oval, approxFonts).contentInsetMm;
+    const a = oval.size.widthMm / 2 - inset;
+    const b = oval.size.heightMm / 2 - inset;
+    for (const [x, y] of [[inOval.x, inOval.y], [inOval.x, inOval.y + inOval.height]] as const) {
+      assert.ok(((x - oval.size.widthMm / 2) / a) ** 2 + ((y - oval.size.heightMm / 2) / b) ** 2 <= 1 + 1e-6);
+    }
   });
 
   it("godtar en skylt med bara logga, och loggan står då mitt på skylten", () => {

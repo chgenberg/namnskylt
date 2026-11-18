@@ -99,6 +99,12 @@ export interface BadgeLogo {
   viewHeight: number;
   placement: LogoPlacement;
   heightMm: Mm;
+  /**
+   * Kunden har själv satt storleken, med reglaget eller genom att dra i loggans hörn. Då får
+   * loggan ta mer av skylten än den automatiska placeringen ger (se `planLogo`). Utan fältet
+   * gäller de äldre taken, så att redan sparade skyltar ritas som de alltid har ritats.
+   */
+  sizing?: "free";
   /** Dragen av kunden. Hålls alltid inom säkerhetszonen av layouten. */
   offsetMm?: Offset;
   /** Loggan i färg. Den trycks som den är när loggan printas; graveras loggan används bara banorna. */
