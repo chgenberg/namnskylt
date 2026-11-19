@@ -51,7 +51,8 @@ export function QuoteSheet({ markup, onEdit, onJump, locked = false }: QuoteShee
     const host = hostRef.current;
     if (!host) return;
     const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
-    const editing = () => Boolean(root.activeElement?.hasAttribute("data-edit"));
+    // Säljaren skriver i en text i dokumentet, eller i marginalfältet: då får dokumentet inte bytas under händerna.
+    const editing = () => Boolean(root.activeElement?.matches("[data-edit], [data-input]"));
     const show = () => {
       if (editing() || applied.current === latest.current) return;
       root.innerHTML = latest.current;
@@ -85,6 +86,10 @@ export function QuoteSheet({ markup, onEdit, onJump, locked = false }: QuoteShee
         }
         return;
       }
+      if (event.target instanceof HTMLInputElement && event.target.dataset.input) {
+        if (event.key === "Enter") event.target.blur();
+        return;
+      }
       const jump = jumpOf(event);
       if (jump && (event.key === "Enter" || event.key === " ")) {
         event.preventDefault();
@@ -102,17 +107,31 @@ export function QuoteSheet({ markup, onEdit, onJump, locked = false }: QuoteShee
     const onClick = (event: Event) => {
       const jump = jumpOf(event);
       if (jump) handlers.current.onJump(jump.dataset.jump ?? "");
+      // En knapp i säljarens egen ruta, till exempel "Återställ till listpris".
+      const action = event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-action]") : null;
+      if (action) handlers.current.onEdit(action.dataset.action ?? "", "");
+    };
+    // Ett fält i säljarens egen ruta, till exempel marginalen: värdet gäller när fältet lämnas eller Enter trycks.
+    const onChange = (event: Event) => {
+      const input = event.target instanceof HTMLInputElement ? event.target : null;
+      if (!input?.dataset.input) return;
+      handlers.current.onEdit(input.dataset.input, input.value);
+      window.setTimeout(show, 0);
     };
     root.addEventListener("focusout", onFocusOut);
     root.addEventListener("keydown", onKeyDown as EventListener);
     root.addEventListener("paste", onPaste as EventListener);
     root.addEventListener("click", onClick);
+    root.addEventListener("change", onChange);
+    // Lämnas marginalfältet utan ändring ska det som väntade ändå ritas.
+    root.addEventListener("focusout", () => window.setTimeout(show, 0));
     show();
     return () => {
       root.removeEventListener("focusout", onFocusOut);
       root.removeEventListener("keydown", onKeyDown as EventListener);
       root.removeEventListener("paste", onPaste as EventListener);
       root.removeEventListener("click", onClick);
+      root.removeEventListener("change", onChange);
     };
   }, []);
 
@@ -120,7 +139,7 @@ export function QuoteSheet({ markup, onEdit, onJump, locked = false }: QuoteShee
   useLayoutEffect(() => {
     latest.current = `<style>${FRAME_CSS}${markup.css}</style><div id="zoom">${markup.body}</div>`;
     const root = hostRef.current?.shadowRoot;
-    if (!root || root.activeElement?.hasAttribute("data-edit") || applied.current === latest.current) return;
+    if (!root || root.activeElement?.matches("[data-edit], [data-input]") || applied.current === latest.current) return;
     root.innerHTML = latest.current;
     applied.current = latest.current;
   }, [markup]);

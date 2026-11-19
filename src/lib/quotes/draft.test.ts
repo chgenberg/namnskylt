@@ -104,6 +104,45 @@ describe("offertens delar, bilder och redigering", () => {
     assert.ok(html.includes('<div class="hero"><svg'));
   });
 
+  it("alla skyltar syns: en ritning per namn när en design har flera namn", () => {
+    const names = ["Julia Tomte", "Erik, tomtenisse", "Olle Tomte"].map((name) => ({ ...withTexts(badge, [name]), quantity: name === "Olle Tomte" ? 3 : 1 }));
+    const html = quoteHtml(draftQuote({ ...base, badges: names }), approxFonts, seller);
+    assert.ok(html.includes('<p class="eyebrow">Alla skyltar</p>'));
+    assert.equal(html.split("<figure><svg").length - 1, 3);
+    assert.ok(html.includes("<figcaption>Erik, tomtenisse</figcaption>") && html.includes("<figcaption>Olle Tomte · 3 st</figcaption>"));
+    // En ensam skylt, eller en skylt per design, visas redan av bilderna: då behövs ingen ruta.
+    assert.ok(!quoteHtml(draftQuote(base), approxFonts, seller).includes('class="all"'));
+    assert.ok(!quoteHtml(draftQuote({ ...base, badges: [badge, second] }), approxFonts, seller).includes('class="all"'));
+    // Rutan går att ta bort för sig.
+    assert.ok(!quoteHtml(draftQuote({ ...base, badges: names, options: { badges: false } }), approxFonts, seller).includes('class="all"'));
+  });
+
+  it("säljarens marginal syns bara i förhandsvisningen, aldrig i dokumentet som går till kunden", () => {
+    const margin = { purchaseSek: 980.5, saleSek: 1630, marginSek: 649.5, percent: 40, custom: false };
+    const draft = draftQuote(base);
+    const preview = quoteDocument(draft, approxFonts, seller, null, { editable: true, margin });
+    for (const part of ["Er marginal", "Syns bara för dig", "Ert inköp", "980,5 kr", "Kundens pris", "1 630 kr", 'data-input="margin"', 'value="40"']) {
+      assert.ok(preview.body.includes(part), part);
+    }
+    assert.ok(!preview.body.includes("Återställ till listpris"));
+    assert.ok(quoteDocument(draft, approxFonts, seller, null, { editable: true, margin: { ...margin, custom: true } }).body.includes('data-action="margin-reset"'));
+    // Utan redigering ritas rutan aldrig, också om marginalen skulle skickas med.
+    const printed = quoteDocument(draft, approxFonts, seller, null, { margin });
+    for (const part of ["Er marginal", "Ert inköp", "data-private", "data-input"]) assert.ok(!printed.body.includes(part), part);
+    assert.ok(!quoteHtml(draft, approxFonts, seller).includes("Er marginal"));
+  });
+
+  it("säljarens egna priser gäller på offerten, och listpriset stryks bara när kunden får ett lägre pris", () => {
+    const list = draftQuote(base);
+    const unit = list.totalSek - 159;
+    const higher = draftQuote({ ...base, pricing: { unitOverrides: [Math.round(unit / 10) + 50], discountPercent: 0, extras: [] } });
+    assert.equal(higher.totalSek, list.totalSek + 500);
+    assert.ok(!quoteHtml(higher, approxFonts, seller).includes("<s>"));
+    const lower = draftQuote({ ...base, pricing: { unitOverrides: [Math.round(unit / 10) - 20], discountPercent: 0, extras: [] } });
+    assert.equal(lower.totalSek, list.totalSek - 200);
+    assert.ok(quoteHtml(lower, approxFonts, seller).includes("<s>"));
+  });
+
   it("en avslutande text står under summan", () => {
     const html = quoteHtml(draftQuote({ ...base, options: { closing: "Vi hörs <snart>." } }), approxFonts, seller);
     assert.ok(html.includes('<p class="closing">Vi hörs &lt;snart&gt;.</p>'));

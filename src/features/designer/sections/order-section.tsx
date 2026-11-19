@@ -190,6 +190,12 @@ interface DesignerCart {
   onDiscard: () => void;
   /** Öppnar varukorgen, där kassan ligger. */
   onOpen: () => void;
+  /**
+   * Öppnar offerten på skyltens plats, med kunden som är vald i varukorgen (beslut av ägaren
+   * 2026-11-19: varukorgens knapp öppnar den nya offerten i stället för att mejla en direkt).
+   * Saknas den finns ingen offertknapp.
+   */
+  onQuote?: (target: CustomerTarget) => void;
 }
 
 const designCount = (count: number) => (count === 1 ? "1 design" : `${count} designer`);
@@ -218,7 +224,6 @@ export function OrderSection({
   // En kund som beställer själv möts av formuläret direkt i varukorgen. Återförsäljaren väljer först order eller offert.
   const [order, setOrder] = useState<OrderState>(() => (mode === "checkout" && !reseller ? { status: "form" } : { status: "idle" }));
   /** Det återförsäljaren håller på att skapa, medan det skickas. */
-  const [sendingKind, setSendingKind] = useState<"order" | "quote">("order");
   // Allt som är designat ligger i varukorgen: skylten i editorn är ny och orörd.
   const inCart = cart.pending && cart.designs > 0;
   // Ett företag faktureras. En privatperson betalar med kort, där det går.
@@ -387,24 +392,22 @@ export function OrderSection({
   const offersAccount = accounts && !account && !privateCustomer;
 
   /** Återförsäljaren: ordern eller offerten läggs på kunden och panelen öppnar den. */
-  async function submitForCustomer(context: ResellerOrderContext, kind: "order" | "quote") {
-    const quote = kind === "quote";
-    setSendingKind(kind);
+  /** Säljaren lägger ordern åt kunden. Offerter görs i offertvyn, som varukorgens knapp Offert öppnar. */
+  async function submitForCustomer(context: ResellerOrderContext) {
     // Kunden är vald i förväg från panelen, eller väljs i varukorgen.
     const chosen = context.customerId
       ? { ok: true as const, body: { customerId: context.customerId } }
       : customerOf(target, context.customers ?? [], context.needsInvoiceDetails ?? false);
     setCustomerError(chosen.ok ? null : chosen.error);
     if (!chosen.ok) return;
-    // En offert får sin leverans på offerten. En order behöver adressen nu.
-    const delivery = quote ? null : shippingAddressFromDraft(address, method);
-    if (delivery && !delivery.ok) {
+    const delivery = shippingAddressFromDraft(address, method);
+    if (!delivery.ok) {
       setOrder({ status: "form", message: delivery.error });
       return;
     }
     setOrder({ status: "sending" });
     try {
-      const response = await fetch(quote ? "/api/admin/quotes" : "/api/admin/orders", {
+      const response = await fetch("/api/admin/orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -412,17 +415,15 @@ export function OrderSection({
           badges,
           badgeShot: captureShot?.() ?? undefined,
           project: context.project,
-          ...(delivery && { delivery: { to: deliverTo, address: delivery.address, method } }),
+          delivery: { to: deliverTo, address: delivery.address, method },
           // En tidigare order som öppnades för ändring: den nya ordern pekar tillbaka på den.
-          ...(!quote && context.copy && { copyOf: context.copy.orderNo }),
+          ...(context.copy && { copyOf: context.copy.orderNo }),
         }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "Något gick fel");
       onStep?.("ordered");
-      window.location.href = quote
-        ? `/admin/offerter/${encodeURIComponent(body.quoteNo)}`
-        : `/admin/ordrar/${encodeURIComponent(body.orderNumber)}`;
+      window.location.href = `/admin/ordrar/${encodeURIComponent(body.orderNumber)}`;
     } catch (error) {
       setOrder({ status: "error", message: error instanceof Error ? error.message : "Något gick fel" });
     }
@@ -690,21 +691,18 @@ export function OrderSection({
           )}
           {/* Sättet återförsäljaren kom in på (ny order eller ny offert) avgör vilken knapp som är framhävd. */}
           <div className={styles.cartCheckout} data-primary={reseller.mode}>
-            <button
-              type="button"
-              className={`btn ${reseller.mode === "quote" ? "btn--primary" : ""}`}
-              data-kind="quote"
-              disabled={!valid || order.status === "sending"}
-              onClick={() => void submitForCustomer(reseller, "quote")}
-            >
-              {order.status === "sending" && sendingKind === "quote"
-                ? reseller.quoteEmail
-                  ? "Skickar offerten…"
-                  : "Skapar offerten…"
-                : reseller.quoteEmail
-                  ? "Skicka offert"
-                  : "Skapa offert"}
-            </button>
+            {/* Offerten visas på skyltens plats, där den ändras och sparas som PDF. Inget mejlas härifrån. */}
+            {cart.onQuote && (
+              <button
+                type="button"
+                className={`btn ${reseller.mode === "quote" ? "btn--primary" : ""}`}
+                data-kind="quote"
+                disabled={!valid || order.status === "sending"}
+                onClick={() => cart.onQuote?.(target)}
+              >
+                Offert
+              </button>
+            )}
             <button
               type="button"
               className={`btn ${reseller.mode === "order" ? "btn--primary" : ""}`}
@@ -712,17 +710,17 @@ export function OrderSection({
               disabled={!valid || order.status === "sending"}
               onClick={() =>
                 // Ordern behöver en leveransadress: första klicket visar den, andra lägger ordern.
-                order.status === "form" ? void submitForCustomer(reseller, "order") : openDelivery()
+                order.status === "form" ? void submitForCustomer(reseller) : openDelivery()
               }
             >
-              {order.status === "sending" && sendingKind === "order"
+              {order.status === "sending"
                 ? "Lägger ordern…"
                 : order.status === "form"
                   ? `Lägg ordern · ${sek.format(checkoutSek)} exkl. moms${method === "express" ? " + frakt" : ""}`
                   : "Lägg order"}
             </button>
           </div>
-          {/* Vem det går till står alltid vid knapparna, så att en offert aldrig mejlas till en kund som inte syns. */}
+          {/* Vem ordern läggs åt står alltid vid knapparna. Offerten visas först, och kunden går att byta där. */}
           <p className={styles.cartNote} data-recipient>
             {recipient ? (
               <>
@@ -732,17 +730,13 @@ export function OrderSection({
             ) : (
               "Ingen kund är vald än. "
             )}
-            {recipient?.demo
-              ? null
-              : reseller.quoteEmail
-                ? "Offerten mejlas direkt till kunden, som godkänner eller nekar med knapparna i mejlet."
-                : "Offerten öppnas i panelen, där du skickar den till kunden."}
+            {!recipient?.demo && cart.onQuote && "Offert visar offerten, som du sparar som PDF och skickar själv."}
           </p>
           {/* En demokund: säljaren ska veta före klicket att inget mejlas och inget skickas till verkstaden. */}
           {recipient?.demo && (
             <p className={styles.demoNote} role="status" data-demo-customer>
-              Det här är en demokund. Offerten mejlas inte, och en order skickas inte till tillverkningen. Välj en annan kund,
-              eller Ny kund, för en riktig order.
+              Det här är en demokund. Det som görs åt den blir demo: en order skickas inte till tillverkningen. Välj en
+              annan kund, eller Ny kund, för en riktig order.
             </p>
           )}
         </>

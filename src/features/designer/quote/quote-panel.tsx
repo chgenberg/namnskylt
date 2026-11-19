@@ -163,8 +163,9 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
         </div>
 
         <p className={sections.cartNote}>
-          Offerten görs till listpris, med skyltarna i varukorgen och skylten du just har gjort. Pris, leverans och
-          villkor ändrar du i panelen efteråt.
+          Offerten gäller skyltarna i varukorgen och skylten du just har gjort, till listpris
+          {reseller.purchaseList ? ". Din marginal ändrar du i rutan bredvid summan, som bara du ser" : ""}. Leverans
+          och villkor ändrar du i panelen efteråt.
         </p>
       </div>
 

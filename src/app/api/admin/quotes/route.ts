@@ -5,6 +5,8 @@ import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-sh
 import { defaultQuoteDelivery } from "@/lib/orders/delivery-options";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { orderCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-customer";
+import { DIRECT_PRICING_ERROR, isLineInvoiceable, pricingSchema } from "@/lib/orders/pricing";
+import { isOwner } from "@/lib/tenants/model";
 import { databaseConfigured } from "@/lib/orders/repository";
 import { isValidUntil, parseQuoteOptions, QUOTE_SHOT_ANGLES, QUOTE_SHOT_DESIGNS, swedishDay, type QuoteShot } from "@/lib/quotes/model";
 import { createQuote } from "@/lib/quotes/repository";
@@ -52,6 +54,8 @@ const requestSchema = z.object({
     .array(z.object({ main: shotSchema, angles: z.array(shotSchema).max(QUOTE_SHOT_ANGLES) }).nullable())
     .max(QUOTE_SHOT_DESIGNS)
     .optional(),
+  /** Säljarens egna à-priser, satta med marginalen i offertvyn. Utelämnad = listpris. */
+  pricing: pricingSchema.optional(),
   /**
    * `false` = offerten mejlas inte härifrån. Säljaren har sparat den med knappen Offert i skyltmotorn,
    * skickar PDF:en själv och svarar åt kunden i panelen.
@@ -68,6 +72,8 @@ const requestSchema = z.object({
  * Med `send: false` mejlas ingenting (beslut av ägaren 2026-11-19, knappen Offert i
  * skyltmotorn): offerten sparas som väntande, säljaren laddar ner PDF:en, skickar den
  * själv och godkänner eller nekar åt kunden i panelen. Svaret bär då PDF:ens adress.
+ * Sedan samma dag är det den enda vägen sidorna använder: varukorgens knapp öppnar
+ * offertvyn i stället för att mejla. Mejlet skickas från offertsidan i panelen.
  */
 export async function POST(request: Request) {
   const tenant = await currentTenant();
@@ -88,10 +94,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Välj en dag som offerten gäller till, från i dag och högst ett år fram." }, { status: 400 });
   }
   const manual = parsed.data.send === false;
+  const pricing = parsed.data.pricing ?? null;
+  if (pricing && pricing.unitOverrides.length > parsed.data.badges.length) return NextResponse.json({ error: "Ogiltig offert" }, { status: 400 });
 
   const found = await resolveOrderCustomer(tenant, parsed.data);
   if (!found.ok) return NextResponse.json({ error: found.error }, { status: found.status });
   const { customer } = found;
+  // En offert hos namnskylt.com blir en direktorder, som verkstaden fakturerar kunden rad för rad.
+  if (isOwner(tenant) && !customer.demo && !isLineInvoiceable(pricing)) return NextResponse.json({ error: DIRECT_PRICING_ERROR }, { status: 400 });
   try {
     const { quoteNo, token } = await createQuote({
       tenant,
@@ -103,6 +113,7 @@ export async function POST(request: Request) {
       delivery: await defaultQuoteDelivery(tenant, customer),
       message: parsed.data.message || null,
       validUntil: validUntil ?? null,
+      pricing,
       options: parseQuoteOptions(parsed.data.options),
       shots: await normalizeShots(parsed.data.shots),
       manual,

@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1331 tester, grönt 2026-11-19).
+# Kvalitetsgrinden. Kör den innan något lämnas (1334 tester, grönt 2026-11-19).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -1611,8 +1611,8 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   - Pris och antal går inte att ändra i dokumentet. Antalet hör till skylten, och priset
     ändras i panelen efteråt.
 - **Ikonraden till vänster om offerten** (`QuoteRail`, samma besked) lägger till och tar bort
-  delar: Logga, Hälsning, Bilder, Vinklar, Moms, Avslutande text, Löften, Svarsruta, Villkor,
-  Våra uppgifter och 3D-film till mejlet. På telefon står raden ovanför offerten. Valen
+  delar: Logga, Hälsning, Bilder, Vinklar, Alla skyltar, Moms, Avslutande text, Löften,
+  Svarsruta, Villkor, Våra uppgifter och 3D-film till mejlet. På telefon står raden ovanför offerten. Valen
   sparas i `quotes.options` (`QUOTE_ELEMENTS`, `QuoteOptions`, `storedQuoteOptions` sparar
   bara det som avviker från förvalet), och den avslutande texten som `options.closing`.
   - **Valen gäller PDF:en.** Kundens offertsida på webben följer bara valet om loggan.
@@ -1623,6 +1623,13 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   `quotes.shots` (migrering 033, `QuoteShot`), en plats per design i den ordning
   `orderDesigns` ger, och läses bara när en enskild offert hämtas. Högst fyra designer får
   bilder; fler, och äldre offerter, ritas som ritningar. Flera designer står två i bredd.
+  - **Alla skyltar syns på offerten** (besked av ägaren 2026-11-19, som gjorde en offert med
+    fyra namn och bara såg den första skylten: "vill att alla skyltar ska synas på offerten").
+    Bilderna ur 3D-vyn visar en skylt per design. Har en design flera namn står därför rutan
+    "Alla skyltar" under: en ritning per namn, fyra i bredd, med namnet under
+    (`everyBadge` i `document.ts`, valet `badges`). Högst 60 ritas; fler står i raderna, och
+    det sägs. Ritningarna sparas per skylt (`drawing`), så att förhandsvisningen inte ritar om
+    dem för varje tecken. Rutan gäller alla offerters PDF, också äldre och dem från varukorgen.
   - **En vridbar 3D-skylt i PDF:en är inte byggd**, och jag avrådde: formatet finns, men bara
     Adobe Acrobat på dator visar det. Webbläsarens visare, Förhandsvisning på Mac och
     telefoner visar en tom ruta.
@@ -1634,9 +1641,45 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   Filen heter `namnskylt-<namn>-<offertnummer>.mp4`. Spara väntar tills bilderna och filmerna
   är klara, och knappen säger vad som pågår. Filmerna sparas inte på servern: de ligger i
   webbläsarens minne, och den sparade rutan har knappar för att ladda ner dem igen.
+  - Filmen är en per design, inte en per namn: fyra namn i samma design ger en film, med
+    det första namnet. Ägaren sa "på respektive skylt"; en film per namn skulle ta sex
+    sekunder och 3 MB per namn.
   - Väljs "3D-film till mejlet" bort i ikonraden spelas inget in, och Spara väntar inte.
   - Webbläsaren kan fråga om lov när flera filer laddas ner samtidigt. Två olika skyltar tog
     14 sekunder att filma i provet.
+- **Panelens "Ny offert" öppnar skyltmotorn direkt** (besked av ägaren 2026-11-19: från
+  panelen ledde vägen genom kundformuläret och varukorgen, och den snabba offerten nåddes bara
+  via startsidan). `/admin/ny-offert` skickar vidare till `/skapa?offert=1`, med `?kund=` när
+  kunden är vald i förväg. Raden överst i panelen säger "Ny offert. Gör skylten och tryck på
+  Offert över skylten. Kunden väljer du där.", och knappen Offert är framhävd
+  (`data-primary`, när `reseller.mode` är `quote`). Kundformuläret (`StartOrderForm`) används
+  bara för Ny order.
+- **Er marginal, bredvid summan** (besked av ägaren 2026-11-19, som ringade in den tomma
+  ytan till vänster om summan: "er marginal - ska kunna ändra enligt merchin", "syns bara för
+  dig"). Rutan visar säljarens inköp, kundens pris och marginalen på varorna, utan frakt, och
+  har ett fält för marginalen i procent (`QuoteMargin`, `privateBox` i `document.ts`).
+  - **Rutan ritas bara i förhandsvisningen** (`render.editable` med `render.margin`), aldrig
+    i PDF:en eller på kundens offertsida. Ett test vaktar det.
+  - **Ändras procenten räknas kundens pris om**: à-pris = säljarens inköp per skylt delat med
+    (1 − marginalen), i hela kronor (`marginPercent` och `pricing` i `use-quote.ts`), högst
+    90 %. Priset sparas på offerten som à-pris per skylt (`Pricing.unitOverrides`,
+    `pricing` i `POST /api/admin/quotes`), så panelens prisredigerare visar samma pris.
+    "Återställ till listpris" tar bort ändringen. Marginalen som visas är den verkliga efter
+    avrundningen, så 55 % kan visas som 55 eller 54.
+  - **Bara en inloggad återförsäljare ser rutan.** Admin har inga inköpspriser i
+    skyltmotorn (se Återförsäljarens priser visas bara för en inloggad återförsäljare).
+  - **Ett överstruket listpris visas bara när kunden får ett lägre pris**, i PDF:en och på
+    kundens offertsida. Förut ströks listpriset också när priset höjdes, vilket såg ut som
+    en rabatt åt fel håll. Sänks priset visas rabatten mot listpris, som förut.
+  - Hos namnskylt.com gäller regeln för direktordrar också här: bara à-priser, ingen rabatt
+    i procent och inga extrarader (`DIRECT_PRICING_ERROR`).
+  - Provat lokalt som återförsäljare 2026-11-19 (10 kontroller): höja, återställa, sänka,
+    spara, och att en utloggad kund ser det nya priset men varken inköp eller marginal.
+- **Varukorgens knapp heter Offert och öppnar samma offertvy** (beslut av ägaren 2026-11-19),
+  med kunden som valdes i varukorgen (`DesignerCart.onQuote`). Förut hette den "Skicka
+  offert" och mejlade offerten direkt till kunden. Det finns nu en väg till en offert, och
+  ingenting mejlas förrän säljaren väljer det i panelen. Varukorgens andra knapp, Lägg order,
+  är orörd.
 - **Offerten gäller varukorgen och skylten i editorn** (`orderBadges`), till listpris. Efter
   Spara töms varukorgen och skylten börjar om, som efter en lagd order.
 - **Dokumentet i förhandsvisningen är samma som PDF:en** (`quoteDocument`, som `quoteHtml`
@@ -1669,6 +1712,11 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   organisationsnummer, som i varukorgen.
 - Statusen heter "Skickad" i panelen, fast ägaren sa "väntande". Jag lade inte till en ny
   status: en skickad offert är den som väntar på svar.
+- **Flödet är provat som återförsäljare** (2026-11-19, efter att ägaren misstänkte att det
+  bara gällde admin; mina första prov kördes som admin): från panelens Ny offert, fyra namn i
+  samma design, ny kund utan organisationsnummer, Spara med PDF och film, och offerten i
+  återförsäljarens lista med Godkänn och Neka. Offerten bär återförsäljarens namn och nämner
+  varken namnskylt.com eller verkstaden.
 - Provat lokalt 2026-11-19 i Chrome (18 kontroller, och två skyltar i samma offert, och
   telefon): knapparna, bilderna, redigering i dokumentet, ikonraden, Spara med PDF och film
   utan mejl, och den sparade offerten. Godkänn utan adress och Neka i listan provades i
@@ -2032,6 +2080,14 @@ När någon skriver ett organisationsnummer fylls företagets namn och adress i 
   Petersons gata" blir "F O Petersons Gata".
 
 ## Offertmejlet — läge 2026-11-17
+
+**Sedan 2026-11-19 mejlas ingen offert när den skapas** (beslut av ägaren, på frågan om de två
+vägarna till en offert: "Öppna nya offerten"). Varukorgens knapp heter Offert och öppnar
+offertvyn, där offerten sparas som PDF som säljaren skickar själv (se Offert från
+skyltmotorn). Offertmejlet finns kvar och skickas bara när säljaren själv väljer det på
+offertsidan i panelen ("Mejla offerten", "Mejla igen"). Det som står nedan om att mejlet går
+direkt från varukorgen, och om knappen "Skicka offert", gäller alltså inte längre.
+`POST /api/admin/quotes` utan `send: false` mejlar fortfarande, men ingen sida anropar den så.
 
 En offert mejlas till kunden när den skickas (beslut av ägaren 2026-11-17). Det är det enda
 mejl sajten skickar. Koden ligger i `src/lib/quotes/quote-email.ts` (regler och text) och

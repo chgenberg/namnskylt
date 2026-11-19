@@ -10,7 +10,6 @@ import { EMPTY_DELIVERY_DRAFT } from "@/lib/orders/delivery";
 import { deliveryOptions, resellerDeliveryDraft } from "@/lib/orders/delivery-options";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { databaseConfigured, getCustomer, getOrder, getPriceModel, listCustomerChoices } from "@/lib/orders/repository";
-import { quoteEmailOn } from "@/lib/quotes/send";
 import { quoteSellerView } from "@/lib/quotes/seller-view";
 import { isOwner } from "@/lib/tenants/model";
 import { paymentsConfigured } from "@/lib/payments/stripe";
@@ -73,7 +72,7 @@ async function resellerContext(customerId: string | undefined, quote: boolean, p
   // Inköpspriserna går bara till en inloggad återförsäljare. Admin ser slutkundens pris, som alla andra.
   const purchaseList = isOwner(tenant) ? undefined : resellerPriceTable(await getPriceModel());
   // Säljaren som offertens dokument ritas med, för knappen Offert: samma som PDF:en ritas med.
-  const shared = { mode, ...(purchaseList && { purchaseList }), quoteEmail: quoteEmailOn(), quoteSeller: await quoteSellerView(tenant) };
+  const shared = { mode, ...(purchaseList && { purchaseList }), quoteSeller: await quoteSellerView(tenant) };
   const customer = customerId ? await getCustomer(tenant, customerId) : null;
   // Utan kund i adressen, eller med en som inte går att beställa åt, väljs kunden i varukorgen.
   if (!customer || isErasedCustomer(customer)) {

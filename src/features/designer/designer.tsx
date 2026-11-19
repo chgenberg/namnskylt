@@ -45,6 +45,7 @@ import { QuoteRail } from "./quote/quote-rail";
 import { QuoteSheet } from "./quote/quote-sheet";
 import { QuoteShots } from "./quote/quote-shots";
 import { useQuote } from "./quote/use-quote";
+import type { CustomerTarget } from "./sections/reseller-customer";
 import { SectionNav } from "./section-nav";
 import styles from "./designer.module.css";
 import { BatchSection } from "./sections/batch-section";
@@ -489,6 +490,14 @@ export function Designer({
     onAdd: addDesign,
     onDiscard: discardDesign,
     onOpen: () => setCartOpen(true),
+    // Varukorgens knapp Offert: offerten visas på skyltens plats, med kunden som valdes i varukorgen.
+    onQuote: reseller?.quoteSeller
+      ? (target: CustomerTarget) => {
+          if (!reseller.customerId) quote.setTarget(target);
+          setCartOpen(false);
+          openQuote();
+        }
+      : undefined,
   };
 
   const layout = useMemo(() => layoutBadge(doc, fonts), [doc, fonts]);
@@ -534,6 +543,8 @@ export function Designer({
                   type="button"
                   className={`chip ${styles.stageChip}`}
                   title="Se offerten som den ser ut, välj kund och spara den som PDF"
+                  // Kom säljaren hit för att göra en offert är knappen nästa steg, och framhävd.
+                  data-primary={reseller.mode === "quote" || undefined}
                   disabled={recording}
                   onClick={openQuote}
                 >
@@ -664,14 +675,18 @@ export function Designer({
                     {reseller.mode === "quote" ? "Offert till" : "Order åt"} <strong>{reseller.customerName}</strong>
                     {reseller.project && <> · {reseller.project}</>}
                   </span>
-                  <a href={reseller.mode === "quote" ? "/admin/ny-offert" : "/admin/ny-order"} className={styles.resellerLink}>
+                  <a href={reseller.mode === "quote" ? "/skapa?offert=1" : "/admin/ny-order"} className={styles.resellerLink}>
                     Byt kund
                   </a>
                 </>
               ) : (
                 <>
-                  {/* Den som är inloggad i panelen och går rakt hit väljer kund i varukorgen. */}
-                  <span>Order eller offert åt en kund. Kunden väljer du i varukorgen.</span>
+                  {/* Från panelens Ny offert: vägen är skylten, knappen Offert och kunden där. Annars väljs kunden i varukorgen. */}
+                  <span>
+                    {reseller.mode === "quote" && reseller.quoteSeller
+                      ? "Ny offert. Gör skylten och tryck på Offert över skylten. Kunden väljer du där."
+                      : "Order eller offert åt en kund. Kunden väljer du i varukorgen."}
+                  </span>
                   <a href="/admin" className={styles.resellerLink}>
                     Till panelen
                   </a>

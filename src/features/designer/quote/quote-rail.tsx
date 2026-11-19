@@ -38,6 +38,19 @@ const PARTS: { key: QuoteToggle; label: string; icon: ReactNode }[] = [
       </>
     ),
   },
+  {
+    // En ritning per namn, när en design har flera namn.
+    key: "badges",
+    label: "Alla skyltar",
+    icon: (
+      <>
+        <rect x="3" y="4" width="8" height="6" rx="1.5" />
+        <rect x="13" y="4" width="8" height="6" rx="1.5" />
+        <rect x="3" y="14" width="8" height="6" rx="1.5" />
+        <rect x="13" y="14" width="8" height="6" rx="1.5" />
+      </>
+    ),
+  },
   { key: "vat", label: "Moms", icon: <path d="M6 18L18 6M7.5 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM16.5 18a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" /> },
   { key: "closing", label: "Avslutande text", icon: <path d="M4 7h16M4 12h16M4 17h9" /> },
   {

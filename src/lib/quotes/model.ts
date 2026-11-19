@@ -25,7 +25,7 @@ const QUOTE_VALID_MAX_DAYS = 365;
  * Delarna i offertens dokument som säljaren kan slå av och på med ikonraden bredvid offerten
  * (beslut av ägaren 2026-11-19). Alla visas om inget annat är valt.
  */
-export const QUOTE_ELEMENTS = ["logo", "pictures", "angles", "promises", "accept", "vat", "terms", "seller"] as const;
+export const QUOTE_ELEMENTS = ["logo", "pictures", "angles", "badges", "promises", "accept", "vat", "terms", "seller"] as const;
 export type QuoteElement = (typeof QUOTE_ELEMENTS)[number];
 
 /** Längsta avslutande text på en offert. */
@@ -37,6 +37,7 @@ export const QUOTE_CLOSING_MAX = 1000;
  *
  * - `logo`: säljarens logga överst. Utan den står säljarens namn där.
  * - `pictures`: bilderna av skyltarna. `angles`: de tre små bilderna ur andra vinklar.
+ * - `badges`: rutan med alla skyltar, en ritning per namn, när offerten har flera namn i samma design.
  * - `promises`: raden med de tre löftena. `accept`: rutan om hur offerten godkänns.
  * - `vat`: raderna med moms och belopp inklusive moms.
  * - `terms`: villkoren i foten. `seller`: säljarens uppgifter i foten.

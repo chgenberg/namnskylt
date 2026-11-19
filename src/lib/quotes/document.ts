@@ -8,6 +8,7 @@ import {
   layoutBadge,
   renderBadgeSvg,
   shapeLabel,
+  type BadgeDocument,
   type FontEngine,
 } from "@/engine";
 import { companyFooter, DEFAULT_COMPANY, readableOn } from "@/lib/company/profile";
@@ -47,6 +48,23 @@ export interface QuoteRenderOptions {
   editable?: boolean;
   /** Platser som visas tomma i förhandsvisningen, så att säljaren kan klicka och skriva där. */
   slots?: { message?: boolean; closing?: boolean };
+  /**
+   * Säljarens marginal, i rutan bredvid summan (besked av ägaren 2026-11-19: "er marginal",
+   * som går att ändra som i Merchin, och "syns bara för dig"). Den finns bara i
+   * förhandsvisningen: det färdiga dokumentet får aldrig rutan, eftersom det går till kunden.
+   */
+  margin?: QuoteMargin;
+}
+
+/** Säljarens inköp och marginal på offertens varor, utan frakt. */
+export interface QuoteMargin {
+  purchaseSek: number;
+  saleSek: number;
+  marginSek: number;
+  /** Marginalen i procent av kundens pris. `null` när priset är 0. */
+  percent: number | null;
+  /** Priset är ändrat från listpris med marginalen. */
+  custom: boolean;
 }
 
 /** Texterna som står där det ännu inte finns något, i förhandsvisningen. */
@@ -57,6 +75,29 @@ const PLACEHOLDER = {
 
 /** Bildtexterna under de små bilderna, i den ordning vinklarna tas (`QUOTE_SHOT_YAWS` i skyltmotorn). */
 const ANGLE_LABELS = ["Framifrån", "Från sidan", "Baksidan"];
+
+/** Så många skyltar ritas i rutan "Alla skyltar". Fler står i raderna under, och det sägs. */
+const ALL_BADGES_MAX = 60;
+
+/**
+ * Skyltens ritning, sparad per skylt: förhandsvisningen ritas om för varje tecken säljaren
+ * skriver, och en offert kan ha många namn. På servern är varje skylt ny, så inget ligger kvar.
+ */
+const drawings = new WeakMap<BadgeDocument, { fonts: FontEngine; svg: string }>();
+function drawing(badge: BadgeDocument, fonts: FontEngine): string {
+  const known = drawings.get(badge);
+  if (known && known.fonts === fonts) return known.svg;
+  const svg = renderBadgeSvg(badge, layoutBadge(badge, fonts), { mode: "preview", fonts });
+  drawings.set(badge, { fonts, svg });
+  return svg;
+}
+
+/** Det som står på skylten, som en rad: "Erik, tomtenisse". */
+const badgeText = (badge: BadgeDocument) =>
+  engravedRows(badge)
+    .map((row) => row.text.trim())
+    .filter(Boolean)
+    .join(", ");
 
 /**
  * Offertens dokument i två delar: stilen och sidans innehåll. Förhandsvisningen i skyltmotorn
@@ -113,7 +154,7 @@ export function quoteDocument(
           ? `<img src="${esc(shot.main)}" alt="">`
           : single
             ? `<img src="${esc(single)}" alt="">`
-            : renderBadgeSvg(design.doc, layoutBadge(design.doc, fonts), { mode: "preview", fonts });
+            : drawing(design.doc, fonts);
         const angles =
           shot && withAngles && shot.angles.length > 0
             ? `<div class="angles">${shot.angles
@@ -130,6 +171,17 @@ export function quoteDocument(
         return `<div class="gallery"><div class="hero${shot || single ? " photo" : ""}">${main}</div>${angles}${note ? `<small>${esc(note)}</small>` : ""}</div>`;
       })
     : [];
+  // Alla skyltar, en ritning per namn (besked av ägaren 2026-11-19: "vill att alla skyltar ska synas på
+  // offerten"). Bilderna ovan visar en skylt per design, så rutan behövs när en design har flera namn.
+  const everyBadge =
+    showsElement(quote, "badges") && quote.badges.length > designs.length
+      ? `<div class="all"><p class="eyebrow">Alla skyltar</p><div class="allgrid">${quote.badges
+          .slice(0, ALL_BADGES_MAX)
+          .map((badge) => `<figure>${drawing(badge, fonts)}<figcaption>${esc(badgeText(badge) || "Utan text")}${badge.quantity > 1 ? ` · ${badge.quantity} st` : ""}</figcaption></figure>`)
+          .join("")}</div>${
+          quote.badges.length > ALL_BADGES_MAX ? `<small>Och ${quote.badges.length - ALL_BADGES_MAX} skyltar till. Alla står i raderna nedan.</small>` : ""
+        }</div>`
+      : "";
   // En design står bredvid kundens uppgifter. Flera står i en egen rad under, två i bredd.
   const beside = galleries.length === 1 ? (galleries[0] ?? "") : "";
   const below = galleries.length > 1 ? `<div class="designs">${galleries.join("")}</div>` : "";
@@ -138,11 +190,9 @@ export function quoteDocument(
     .map((badge, i) => {
       const line = priced.lines[i];
       if (!line) return "";
-      const text = engravedRows(badge)
-        .map((r) => r.text.trim())
-        .filter(Boolean)
-        .join(", ");
-      const list = line.overridden ? `<s>${esc(sek(line.listUnitSek))}</s> ` : "";
+      const text = badgeText(badge);
+      // Listpriset stryks bara när kunden får ett lägre pris. Ett högre pris, satt med marginalen, är ingen rabatt.
+      const list = line.overridden && line.unitSek < line.listUnitSek ? `<s>${esc(sek(line.listUnitSek))}</s> ` : "";
       return `<tr><td><b>${esc(text || "Utan text")}</b><div class="spec">${esc(badgeSpec(quote, i))}</div></td><td class="r">${line.quantity} st</td><td class="r">${list}${esc(sek(line.unitSek))}</td><td class="r"><b>${esc(sek(line.totalSek))}</b></td></tr>`;
     })
     .join("");
@@ -156,6 +206,17 @@ export function quoteDocument(
     closingText || (editable && render.slots?.closing)
       ? `<p class="closing"${edit("closing")}${editable ? ` data-placeholder="${PLACEHOLDER.closing}"` : ""}>${esc(closingText)}</p>`
       : "";
+  // Säljarens egen ruta. Den ritas bara i förhandsvisningen, aldrig i dokumentet som går till kunden.
+  const margin = editable ? render.margin : undefined;
+  const ore = (value: number) => `${new Intl.NumberFormat("sv-SE", { maximumFractionDigits: 2 }).format(value).replace(/\u00a0/g, " ")} kr`;
+  const privateBox = margin
+    ? `<div class="private" data-private><p class="ptitle">Er marginal<span>Syns bara för dig</span></p>
+<div class="prow"><span>Ert inköp</span><span>${esc(ore(margin.purchaseSek))}</span></div>
+<div class="prow"><span>Kundens pris</span><span>${esc(sek(margin.saleSek))}</span></div>
+<div class="prow strong${margin.marginSek < 0 ? " bad" : ""}"><span>Marginal</span><span>${esc(ore(margin.marginSek))}</span></div>
+<label class="pfield"><span>Marginal i procent</span><span class="pinput"><input data-input="margin" type="number" inputmode="numeric" min="0" max="90" step="1" value="${margin.percent ?? 0}" aria-label="Marginal i procent"><span>%</span></span></label>
+<p class="pnote">Ändra procenten, så räknas kundens pris om.${margin.custom ? ` <button type="button" data-action="margin-reset">Återställ till listpris</button>` : ""}</p></div>`
+    : "";
   const terms = showsElement(quote, "terms")
     ? `<div class="terms">Offerten gäller till ${esc(day(quote.validUntil))}.${company.quoteTerms ? `\n${esc(company.quoteTerms)}` : ""}</div>`
     : "<div></div>";
@@ -188,6 +249,11 @@ body{margin:0}
 .angles img{display:block;width:100%;height:17mm;object-fit:contain;filter:drop-shadow(0 1.2mm 1.4mm rgba(11,31,58,.2))}
 .angles figcaption{font-size:6.5px;color:#6b7280;letter-spacing:.06em;text-transform:uppercase}
 .gallery small{font-size:7.5px;color:#6b7280;text-align:center}
+.all{margin-top:6mm}.page .all .eyebrow{margin:0 0 2.5mm}.all small{display:block;margin-top:2mm;font-size:7.5px;color:#6b7280}
+.allgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:3mm}
+.allgrid figure{display:grid;gap:1.4mm;justify-items:center;align-content:space-between;padding:3mm 2.5mm 2mm;border-radius:8px;background:#f4f4f1;break-inside:avoid}
+.allgrid svg{width:100%;height:auto;max-height:30mm;filter:drop-shadow(0 1mm 1.2mm rgba(11,31,58,.16))}
+.allgrid figcaption{font-size:7px;line-height:1.3;color:#374151;text-align:center}
 table{margin-top:7mm;width:100%;border-collapse:collapse;font-size:9.5px}
 th{text-align:left;font-weight:600;font-size:7.5px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;border-bottom:1px solid #0000001f;padding:2mm 0}
 td{padding:2.4mm 0;border-bottom:1px solid #00000012;vertical-align:top}td b{font-weight:600}
@@ -207,7 +273,18 @@ s{color:#9ca3af;font-weight:400}
 [data-edit]:hover{outline-color:#9ca3af}[data-edit]:focus{outline:1.5px solid ${primary}}
 [data-edit]:empty::before{content:attr(data-placeholder);color:#9ca3af}
 [data-jump]{cursor:pointer;outline:1px dashed transparent;outline-offset:1mm;border-radius:1mm}
-[data-jump]:hover,[data-jump]:focus-visible{outline-color:#9ca3af}`
+[data-jump]:hover,[data-jump]:focus-visible{outline-color:#9ca3af}
+.sumrow{display:flex;justify-content:space-between;align-items:flex-start;gap:8mm;margin-top:4mm}.sumrow .sum{margin:0}
+.private{width:74mm;padding:3.5mm 4mm;border:1px dashed #c9a53c;border-radius:10px;background:#fffaf0;font-size:9.5px;color:#0a0a0b}
+.page .ptitle{display:flex;justify-content:space-between;align-items:center;gap:3mm;margin:0 0 2mm;font-size:10.5px;font-weight:700}
+.ptitle span{padding:.6mm 2mm;border-radius:99px;background:#f3e3b3;font-size:6.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#6b5312}
+.prow{display:flex;justify-content:space-between;padding:.8mm 0;font-variant-numeric:tabular-nums}.prow.strong{font-weight:700;color:#0b7a4b}.prow.strong.bad{color:#b42318}
+.pfield{display:flex;justify-content:space-between;align-items:center;gap:3mm;margin-top:2mm;padding-top:2mm;border-top:1px solid #0000001a;font-weight:600}
+.pinput{display:inline-flex;align-items:center;gap:1mm}
+.pinput input{width:15mm;padding:1.2mm 1.5mm;border:1px solid #00000033;border-radius:5px;background:#fff;font:inherit;font-weight:600;text-align:right}
+.pinput input:focus{outline:1.5px solid ${primary};outline-offset:1px}
+.page .pnote{margin:1.6mm 0 0;font-size:7.5px;line-height:1.45;color:#6b7280}
+.pnote button{padding:0;border:0;background:none;color:${primary};font:inherit;text-decoration:underline;cursor:pointer}`
       : ""
   }`;
 
@@ -220,10 +297,11 @@ ${message}
 <div class="grid${beside ? "" : " wide"}"><div class="info">${info.map(([k, v, to]) => `<div${to ? jump(to) : ""}><p class="k">${esc(k)}</p><p class="v">${esc(v)}</p></div>`).join("")}</div>
 ${beside}</div>
 ${below}
+${everyBadge}
 <table><thead><tr><th>Skylt</th><th class="r">Antal</th><th class="r">À-pris</th><th class="r">Summa</th></tr></thead><tbody>${rows}${priced.extras
     .map((e) => `<tr><td><b>${esc(e.label)}</b></td><td class="r">1 st</td><td class="r">${esc(sek(e.amountSek))}</td><td class="r"><b>${esc(sek(e.amountSek))}</b></td></tr>`)
     .join("")}</tbody></table>
-<div class="sum">
+${privateBox ? `<div class="sumrow">${privateBox}` : ""}<div class="sum">
 ${
     priced.savingsSek > 0
       ? `<div class="vat"><span>Skyltar till listpris</span><span>${esc(sek(priced.listTotalSek))}</span></div><div class="disc"><span>Rabatt ${esc(String(priced.savingsPercent).replace(".", ","))} %</span><span>−${esc(sek(priced.savingsSek))}</span></div>`
@@ -241,7 +319,7 @@ ${
 <div class="vat"><span>Att betala inkl. moms</span><span>${esc(sek(priced.totalInclVatSek))}</span></div>`
       : ""
   }
-</div>
+</div>${privateBox ? "</div>" : ""}
 ${closing}
 ${showsElement(quote, "promises") ? `<div class="promise">${PROMISES.map((p) => `<span>${esc(p)}</span>`).join("")}</div>` : ""}
 ${

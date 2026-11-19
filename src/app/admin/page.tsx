@@ -51,9 +51,10 @@ export default async function AdminOverviewPage() {
         <p className={styles.eyebrow}>Välkommen</p>
         <h1 className={styles.welcomeTitle}>Gör din första offert</h1>
         <p className={styles.muted}>
-          Designa skyltarna åt kunden i skyltmotorn och skicka offerten från varukorgen. Kunden får den som mejl och
-          godkänner eller nekar med ett klick, och en godkänd offert blir en order som går rakt till tillverkningen. Lägg
-          först in er logga under Inställningar, så står den på offerten och i mejlet tillsammans med företagets uppgifter.
+          Ny offert öppnar skyltmotorn. Gör skylten, tryck på Offert och välj kund: offerten laddas ner som PDF med en
+          3D-film av skylten, som ni själva skickar till kunden. När kunden har svarat godkänner eller nekar ni offerten
+          här i panelen, och en godkänd offert blir en order som går rakt till tillverkningen. Lägg först in er logga under
+          Inställningar, så står den på offerten tillsammans med företagets uppgifter.
         </p>
         <div className={styles.welcomeActions}>
           <Link href="/admin/ny-offert" className={`btn btn--lg ${styles.onDarkButton}`}>

@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
-import { isBlankBadge, orderDesigns, type BadgeDocument, type FontEngine, type PriceTable } from "@/engine";
+import { isBlankBadge, lineUnitPrices, orderDesigns, resellerOrder, type BadgeDocument, type FontEngine, type PriceTable } from "@/engine";
 import { useOrderShipping } from "@/hooks/use-order-shipping";
 import { formattedOrgNumber } from "@/lib/company/org-number";
-import { quoteDocument } from "@/lib/quotes/document";
+import { priceWithPricing, type Pricing } from "@/lib/orders/pricing";
+import { marginOf } from "@/lib/orders/purchase";
+import { quoteDocument, type QuoteMargin } from "@/lib/quotes/document";
 import { draftQuote, type DraftCustomer } from "@/lib/quotes/draft";
 import {
   addDays,
@@ -52,6 +54,7 @@ const FIRST_ELEMENTS: Record<QuoteToggle, boolean> = {
   message: true,
   pictures: true,
   angles: true,
+  badges: true,
   vat: true,
   closing: false,
   promises: true,
@@ -60,6 +63,9 @@ const FIRST_ELEMENTS: Record<QuoteToggle, boolean> = {
   seller: true,
   film: true,
 };
+
+/** Högsta marginalen som går att sätta i offertvyn. Vid 100 % vore kundens pris oändligt. */
+const MAX_MARGIN_PERCENT = 90;
 
 /** Fälten i panelen som dokumentet leder till när säljaren klickar på kunden eller giltighetsdagen. */
 export const QUOTE_FIELD_IDS = { customer: "quote-customer", validUntil: "quote-valid-until" } as const;
@@ -139,18 +145,45 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
   }, [elements, closing]);
   const greeting = elements.message ? message : "";
 
+  /**
+   * Säljarens marginal (besked av ägaren 2026-11-19: "er marginal", som går att ändra som i Merchin
+   * och bara syns för säljaren). `null` = listpris. Annars sätts kundens pris per skylt så att
+   * marginalen blir den valda, räknat på säljarens inköp: pris = inköp / (1 − marginal).
+   * Bara en återförsäljare har inköpspriser här; admin ser aldrig rutan.
+   */
+  const [marginPercent, setMarginPercent] = useState<number | null>(null);
+  const purchaseList = reseller?.purchaseList;
+  const purchase = useMemo(
+    () => (purchaseList && badges.length > 0 ? { units: lineUnitPrices(badges, purchaseList), goodsSek: resellerOrder(badges, purchaseList).goodsSek } : null),
+    [purchaseList, badges],
+  );
+  const pricing = useMemo<Pricing | null>(
+    () =>
+      marginPercent === null || !purchase
+        ? null
+        : { unitOverrides: purchase.units.map((unit) => Math.max(1, Math.round(unit / (1 - marginPercent / 100)))), discountPercent: 0, extras: [] },
+    [marginPercent, purchase],
+  );
+
   const customer = useMemo(() => (reseller ? previewCustomer(reseller, target) : null), [reseller, target]);
   const draft = useMemo(
     () =>
       active && seller && badges.length > 0
-        ? draftQuote({ badges, priceList, shippingSek, customer, project, message: greeting, validUntil, options, badgeShot, shots: quoteShots, now: new Date() })
+        ? draftQuote({ badges, priceList, shippingSek, customer, project, message: greeting, validUntil, options, badgeShot, shots: quoteShots, pricing, now: new Date() })
         : null,
-    [active, seller, badges, priceList, shippingSek, customer, project, greeting, validUntil, options, badgeShot, quoteShots],
+    [active, seller, badges, priceList, shippingSek, customer, project, greeting, validUntil, options, badgeShot, quoteShots, pricing],
   );
+  // Marginalen räknas på varorna, utan frakt, som överallt annars.
+  const margin = useMemo<QuoteMargin | undefined>(() => {
+    if (!draft || !purchase) return undefined;
+    const saleSek = priceWithPricing(draft.badges, draft.pricing, draft.priceList, 0).goodsSek;
+    const { sek, percent } = marginOf(saleSek, purchase.goodsSek);
+    return { purchaseSek: purchase.goodsSek, saleSek, marginSek: sek, percent, custom: draft.pricing !== null };
+  }, [draft, purchase]);
   const slots = useMemo(() => ({ message: elements.message, closing: elements.closing }), [elements.message, elements.closing]);
   const drawn = useMemo(
-    () => (draft && seller ? quoteDocument(draft, fonts, seller.company, seller.plate, { editable: true, slots }) : null),
-    [draft, fonts, seller, slots],
+    () => (draft && seller ? quoteDocument(draft, fonts, seller.company, seller.plate, { editable: true, slots, margin }) : null),
+    [draft, fonts, seller, slots, margin],
   );
   // Dokumentet står kvar efter att offerten har sparats och varukorgen tömts.
   const [kept, setKept] = useState<{ css: string; body: string } | null>(null);
@@ -176,6 +209,12 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
   const edit = useCallback(
     (field: string, raw: string) => {
       const text = raw.replace(/\r/g, "").trim();
+      if (field === "margin-reset") setMarginPercent(null);
+      if (field === "margin") {
+        // Ett tomt eller oläsligt fält ändrar ingenting.
+        const percent = Number(text.replace(",", "."));
+        if (text !== "" && Number.isFinite(percent)) setMarginPercent(Math.min(MAX_MARGIN_PERCENT, Math.max(0, Math.round(percent))));
+      }
       if (field === "message") setMessage(text.slice(0, 2000));
       if (field === "closing") setClosing(text.slice(0, QUOTE_CLOSING_MAX));
       if (field === "project") {
@@ -226,6 +265,7 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
           message: greeting.trim() || undefined,
           validUntil,
           options,
+          ...(pricing && { pricing }),
           ...(elements.pictures && quoteShots.some(Boolean) && { shots: quoteShots }),
           // Säljaren skickar PDF:en själv: inget mejlas härifrån.
           send: false,
@@ -251,6 +291,7 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
   const reset = () => {
     if (save.status === "saved") save.quote.films.forEach((film) => URL.revokeObjectURL(film.url));
     setFilms({});
+    setMarginPercent(null);
     setProject(reseller?.project ?? "");
     setMessage("");
     setClosing("");

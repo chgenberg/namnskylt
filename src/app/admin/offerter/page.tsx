@@ -30,7 +30,7 @@ export default async function QuotesPage() {
           <p className={styles.pageLead}>
             {open.length > 0
               ? `${open.length} öppna offerter värda ${formatSek(openValue)} exkl. moms.`
-              : "Gör en offert i skyltmotorn — kunden godkänner med ett klick och offerten blir en order."}
+              : "Gör en offert i skyltmotorn och skicka PDF:en till kunden. Godkänn eller neka här när kunden har svarat."}
           </p>
         </div>
         <Link href="/admin/ny-offert" className="btn btn--primary">

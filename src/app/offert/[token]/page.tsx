@@ -130,7 +130,7 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
                     </div>
                   </div>
                   <div className={styles.lineAmount}>
-                    {line?.overridden && <s>{formatSek(line.listUnitSek)}/st</s>}
+                    {line?.overridden && line.unitSek < line.listUnitSek && <s>{formatSek(line.listUnitSek)}/st</s>}
                     {line?.quantity} st × {formatSek(line?.unitSek ?? 0)}
                     <div>
                       <strong>{formatSek(line?.totalSek ?? 0)}</strong>

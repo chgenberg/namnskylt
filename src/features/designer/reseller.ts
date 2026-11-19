@@ -72,8 +72,6 @@ export interface ResellerOrderContext {
   customers?: readonly CustomerChoice[];
   /** En ny kund behöver företag och organisationsnummer: hos namnskylt.com fakturerar Skylt & Gravyrteknik kunden. */
   needsInvoiceDetails?: boolean;
-  /** Offertmejlet är påslaget: offerten mejlas till kunden direkt när den skapas. */
-  quoteEmail?: boolean;
   /**
    * Säljaren som offertens dokument ritas med när offerten görs med knappen Offert: uppgifterna, loggan
    * och plattan bakom en ljus logga, samma som PDF:en ritas med. Utan den finns knappen inte.

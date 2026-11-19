@@ -1,5 +1,5 @@
 import type { BadgeDocument, PriceTable } from "@/engine";
-import { priceWithPricing } from "@/lib/orders/pricing";
+import { priceWithPricing, type Pricing } from "@/lib/orders/pricing";
 import type { QuoteOptions, QuoteShot, StoredQuote } from "./model";
 
 /** Kunden som den står på en offert som inte är sparad än. */
@@ -27,6 +27,8 @@ export interface QuoteDraftInput {
   badgeShot: string | null;
   /** Bilderna ur 3D-vyn, en plats per design. `null` där bilderna inte är tagna än. */
   shots?: (QuoteShot | null)[];
+  /** Säljarens egna à-priser, satta med marginalen. Utelämnad = listpris. */
+  pricing?: Pricing | null;
   /** Dagen offerten görs. */
   now: Date;
 }
@@ -41,12 +43,14 @@ const text = (value: string): string | null => value.trim() || null;
  * förhandsvisningen i skyltmotorn (knappen Offert, beslut av ägaren 2026-11-19).
  * `quoteHtml` ritar samma dokument ur den här som PDF:en sedan ritas ur den sparade
  * offerten, så att säljaren ser det kunden får. Priset är listpris, som när offerten
- * sparas, och leveransen går till kunden, som fyller i adressen senare.
+ * sparas, om säljaren inte har ändrat sin marginal, och leveransen går till kunden, som fyller i
+ * adressen senare.
  */
 export function draftQuote(input: QuoteDraftInput): StoredQuote {
   const badges = [...input.badges];
   const shippingSek = input.shippingSek ?? 0;
-  const priced = priceWithPricing(badges, null, input.priceList, shippingSek);
+  const pricing = input.pricing ?? null;
+  const priced = priceWithPricing(badges, pricing, input.priceList, shippingSek);
   const customer = input.customer;
   return {
     id: "draft",
@@ -67,7 +71,7 @@ export function draftQuote(input: QuoteDraftInput): StoredQuote {
     },
     status: "draft",
     badges,
-    pricing: null,
+    pricing,
     priceList: input.priceList,
     shippingSek,
     totalSek: priced.totalSek,

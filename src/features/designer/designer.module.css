@@ -72,6 +72,13 @@
   stroke-linecap: round;
 }
 
+/* Nästa steg för en säljare som kom hit för att göra en offert. */
+.stageChip[data-primary] {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-white);
+}
+
 .stageChip[data-recording="true"] {
   color: var(--color-danger);
   opacity: 1;
