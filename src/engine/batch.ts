@@ -167,3 +167,25 @@ export function sameDesign(badges: readonly BadgeDocument[]): boolean {
   const key = designKey(first);
   return badges.every((badge) => designKey(badge) === key);
 }
+
+/** En design i en order: en skylt som visar den, och hur många skyltar som har den. */
+export interface OrderDesign {
+  doc: BadgeDocument;
+  count: number;
+}
+
+/**
+ * Orderns designer i den ordning de står, var och en med sitt antal skyltar. Skyltar med
+ * samma design och olika namn räknas ihop. En order med metallskyltar och plastskyltar har
+ * alltså två: den som läser ordern ska se båda, inte bara den första.
+ */
+export function orderDesigns(badges: readonly BadgeDocument[]): OrderDesign[] {
+  const designs: (OrderDesign & { key: string })[] = [];
+  for (const badge of badges) {
+    const key = designKey(badge);
+    const same = designs.find((design) => design.key === key);
+    if (same) same.count += badge.quantity;
+    else designs.push({ doc: badge, count: badge.quantity, key });
+  }
+  return designs.map(({ doc, count }) => ({ doc, count }));
+}

@@ -540,7 +540,7 @@ export async function applySupplierUpdate(
        where id = ${order.id}`;
     if (next) {
       await tx`insert into order_events (order_id, status, note, at)
-               values (${order.id}, ${next}, ${"Från tryckeriet"}, ${new Date(update.at)})`;
+               values (${order.id}, ${next}, ${"Från verkstaden"}, ${new Date(update.at)})`;
     }
     if (update.expressShippingSek != null) {
       await applyExpressPrice(tx, order.id, update.expressShippingSek, currentModel, "satt av verkstaden");

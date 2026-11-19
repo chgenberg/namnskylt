@@ -15,6 +15,7 @@ import {
   quantityForNames,
   removeBatchEntry,
   replaceBatchEntry,
+  orderDesigns,
   sameDesign,
   withLeadName,
   withTexts,
@@ -177,6 +178,25 @@ describe("samma design", () => {
     assert.equal(sameDesign([...group, { ...doc, quantity: 7 }]), true);
     assert.equal(sameDesign([doc]), true);
     assert.equal(sameDesign([]), true);
+  });
+
+  it("en order med två designer redovisar båda, var och en med sitt antal", () => {
+    const metal = { ...doc, quantity: 10 };
+    const plastic: BadgeDocument = { ...doc, materialId: "plastic", colorId: "white-black", mounting: "magnet" };
+    const names = groupBadges({ doc: plastic, batchText: "Bo Ek\nCia Dal, Kock" });
+    const designs = orderDesigns([metal, ...names]);
+    assert.deepEqual(
+      designs.map((design) => [design.doc.materialId, design.count]),
+      [
+        ["metal", 10],
+        ["plastic", 3],
+      ],
+    );
+    // Skylten som visar designen är den första med den.
+    assert.equal(designs[1]!.doc, names[0]);
+    // Samma design längre ner i ordern räknas till den första, så att varje design står en gång.
+    assert.deepEqual(orderDesigns([metal, ...names, { ...doc, quantity: 2 }]).map((design) => design.count), [12, 3]);
+    assert.deepEqual(orderDesigns([]), []);
   });
 
   it("hänvisningen till loggans originalfil hör inte till designen", () => {

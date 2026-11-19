@@ -16,6 +16,7 @@ import {
   printColorLabel,
   printColorOf,
   printInkOf,
+  printsInOneColor,
   rowPrintColorOf,
   rowPrintInkOf,
   withScreenPrintColors,
@@ -436,5 +437,34 @@ describe("tryckets färger är skärmfärger", () => {
     assert.equal(isOfferedDocument(opened), true);
     // Loggan i övrigt är orörd.
     assert.deepEqual({ ...opened.logo, printColor: "#C8102E" }, old.logo);
+  });
+});
+
+describe("tryckets färg gäller bara det som printas i en färg", () => {
+  const colorLogo: BadgeLogo = { ...logo, image: { src: "data:image/png;base64,iVBORw0KGgo=" } };
+  /** En plastskylt som graveras. */
+  const engraved: BadgeDocument = { ...plasticBadge(["Erik Sund", "Kock"]), printColor: "#0057B8" };
+
+  it("namnet som printas, eller en svartvit logga som printas, har tryckets färg", () => {
+    assert.equal(printsInOneColor({ ...engraved, marking: "print" }), true);
+    assert.equal(printsInOneColor({ ...engraved, logo, marking: "engrave-name-print-logo" }), true);
+    assert.equal(printColorOf({ ...engraved, logo, marking: "engrave-name-print-logo" }), "#0057B8");
+  });
+
+  it("printas bara en logga i färg gäller ingen tryckfärg, och ingen följer med ordern", () => {
+    // Så blir en plastskylt som läggs till efter en metallskylt med färg och logga: namnet graveras, loggan trycks ur sin bild.
+    const doc: BadgeDocument = { ...engraved, logo: colorLogo };
+    assert.equal(printsInOneColor(doc), false);
+    assert.equal(printColorOf(doc), null);
+    assert.equal(printInkOf(doc), null);
+    assert.equal(printColorLabel(doc), null);
+    // Printas namnet också gäller färgen, för namnet.
+    assert.equal(printColorLabel({ ...doc, marking: "print" }), "Tryckfärg #0057B8");
+  });
+
+  it("ingenting som graveras har tryckets färg", () => {
+    assert.equal(printsInOneColor(engraved), false);
+    assert.equal(printsInOneColor({ ...engraved, logo: colorLogo, marking: "engrave" }), false);
+    assert.equal(printColorLabel(engraved), null);
   });
 });

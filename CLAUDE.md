@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1280 tester, grönt 2026-11-18).
+# Kvalitetsgrinden. Kör den innan något lämnas (1284 tester, grönt 2026-11-19).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -395,10 +395,15 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       eget projekt (läst 2026-11-18) väljer kunden en skärmfärg, tryckfilen ritas i RGB med
       sRGB som profil, och RIP:en (Caldera eller RasterLink) räknar om den. Där finns inget
       manuellt steg. Beslutet upphäver det från 2026-11-17 om att CMYK-koder skulle anges.
-    - **Fältet "Färg på trycket"** står i sektionen Märkningsmetod när namnet eller loggan
-      printas (`PrintColorField` i `sections/print-color-field.tsx`): standardfärgerna som
+    - **Fältet "Färg på trycket"** står i sektionen Märkningsmetod när något printas i en
+      färg (`PrintColorField` i `sections/print-color-field.tsx`): standardfärgerna som
       rutor, en färgväljare, ett fält för hexkoden och Återställ. Under står "Trycket kan
       skilja något från skärmen." (`BadgeDocument.printColor`, åtgärden `print/color`).
+    - **Färgen gäller bara det som printas i en färg** (`printsInOneColor` i `marking.ts`,
+      rättat 2026-11-19): namnet, med ramen, eller en svartvit logga. Printas bara en logga
+      i färg, som trycks ur sin bild, visas fältet inte och ingen "Tryckfärg" följer med
+      ordern. Förut bar en plastskylt med graverat namn och logga i färg tryckfärgen från
+      skylten som designades före den, i etiketten och i verkstadens kommentar.
     - **Standardfärgerna är verkstadens egna** (`PRINT_STANDARD_COLORS` i
       `src/engine/color-code.ts`, deras `PRINT_STANDARD_RGB`): Vit, Svart, Varningsgul, Röd,
       Blå, Grön och Orange, med samma id, namn och hex. `catalog-sync.test.ts` jämför listan
@@ -953,6 +958,50 @@ ingen riktig order lagts än.
 - Kända brister: på inloggningen och ansökan visar sidhuvudet länkar till sidor som är
   låsta för den som saknar sajtkoden, och ansökans länk "designa och beställ direkt" leder
   också till spärren.
+
+## Genomgången inför start, 2026-11-19
+
+Hela flödet gicks igenom lokalt på ägarens begäran ("gå igenom hela flödet igen så att du ser
+att allting funkar"), mot produktionsbygget med **sajten öppen som vid start, utan sajtspärr**,
+en låtsasverkstad och en låtsasmottagare för mejl. **Inte kört i drift**: där har fortfarande
+ingen riktig order lagts.
+
+- **Kundens väg, 51 kontroller, i Chrome och i Safaris motor (WebKit):** startsidan och de
+  publika sidorna, `robots.txt` och sitemapen, skyltmotorn från startsidans ruta, en
+  metallskylt som printas med färg på trycket, färg per rad, logga i färg och magnet (10 st),
+  en plastskylt som graveras med ram och klämma i tre namn, varukorgen med två designer,
+  kassan med konto, ordern hos verkstaden med hela underlaget, statusbytena tillbaka, kundens
+  ordersida, Mitt konto och Kopiera order.
+  - Verkstaden fick kunden som beställare till kundens pris, 4 rader, paket för 159 kr, och
+    per skylt rätt material, trycklagret i kundens färger, loggan som bild i tryckläge,
+    ämnets benämning och fästet i klartext. Provision visade ordern som direktorder med 40 %.
+- **Återförsäljarens väg, 39 kontroller**, samma som 2026-11-18 men från den öppna startsidan:
+  Logga in → Logga in som återförsäljare → ansökan.
+- **Varukorgen och kassan på 390 och 320 px**, i båda motorerna.
+- **Safaris motor kräver https lokalt.** Över `http://localhost` sparar WebKit inte kakor som
+  är märkta säkra, så inloggade sidor visar inloggningen igen. Det är provmiljön, inte ett fel
+  i sajten: med en https-port framför servern gick allt igenom.
+- **Rättat efter genomgången:**
+  - Adminens och återförsäljarens ordersida beskrev bara orderns första design under
+    Detaljer. En order med flera designer visar nu en rad per design, "Design 2, 3 st" med
+    material, form, fäste och tryckfärg (`orderDesigns` i `src/engine/batch.ts`).
+  - Tidslinjens not för verkstadens statusbyten sa "Från tryckeriet". Den säger "Från
+    verkstaden". Noter som redan är sparade ändras inte.
+  - Tryckfärgen följde med en skylt där bara en logga i färg printas (se Märkningsmetod).
+  - På namnskylt.coms egna ordrar säger ordersidan nu att priset är kundens, som Skylt &
+    Gravyrteknik fakturerar, och hänvisar till dem om adressen ska ändras. Förut stod
+    texterna som är skrivna för en återförsäljare.
+- **Sett men inte ändrat:**
+  - Den öppna startsidan har ingen länk för den som vill bli återförsäljare. Vägen går via
+    Logga in och "Logga in som återförsäljare".
+  - På en direktorder visar adminens ordersida "Marginal 824,06 kr · 40 %", räknat ur
+    inköpslistan, medan Provision visar 821,20 kr, alltså 40 % av varuvärdet. Provision är
+    regeln; skillnaden är avrundning per del.
+  - En skylt kostar 463 kr och tio kostar 173 kr styck (metall med nål respektive magnet),
+    eftersom startkostnaden fördelas på orderns skyltar. Det är prismodellen, inget fel.
+  - "Beställ fler med samma design" på kundens ordersida utgår från orderns första design.
+  - Efter att en offert har godkänts står tacket i kortet, men sidans rubrik byts först
+    när sidan laddas om.
 
 ## Ordern till verkstaden — läge 2026-11-14
 

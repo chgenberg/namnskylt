@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Fragment } from "react";
 import { BadgePreview } from "@/components/badge-preview";
-import { engravedRows, getColor, getMaterial, mountingLabel, printColorLabel, shapeLabel } from "@/engine";
+import { engravedRows, getColor, getMaterial, mountingLabel, orderDesigns, printColorLabel, shapeLabel, type BadgeDocument } from "@/engine";
 import { shippingMethodOf } from "@/lib/orders/delivery";
 import { staffOrderAction, updateOrderPricingAction } from "@/features/admin/actions";
 import { PricingEditor } from "@/features/admin/pricing-editor";
@@ -22,7 +23,7 @@ import { siteOrigin } from "@/lib/http/origin";
 import { countUnreadNotices } from "@/lib/notices/repository";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
-import { badgeCount, ORDER_SOURCE_LABEL } from "@/lib/orders/model";
+import { badgeCount, isDirectOrder, ORDER_SOURCE_LABEL } from "@/lib/orders/model";
 import { getOrder, latestProof } from "@/lib/orders/repository";
 import { paymentLabel } from "@/lib/payments/model";
 import { dispatchStatus, partyFor } from "@/lib/supplier/dispatch";
@@ -38,6 +39,17 @@ const SYNC_NOTE: Record<SupplierLink, string> = {
 
 interface OrderPageProps {
   params: Promise<{ orderNo: string }>;
+}
+
+/** "Metall · Mässing": materialet och ytan eller färgen. */
+function materialText(badge: BadgeDocument): string {
+  return `${getMaterial(badge.materialId).name} · ${getColor(badge.materialId, badge.colorId).name}`;
+}
+
+/** "Rektangel · Magnet · Tryckfärg #0057B8": formen, fästet och tryckets färg när den gäller. */
+function shapeText(badge: BadgeDocument): string {
+  const print = printColorLabel(badge);
+  return `${shapeLabel(badge)} · ${mountingLabel(badge)}${print ? ` · ${print}` : ""}`;
 }
 
 export default async function OrderPage({ params }: OrderPageProps) {
@@ -66,12 +78,18 @@ export default async function OrderPage({ params }: OrderPageProps) {
           ? ["Ordern väntar på att skickas."]
           : [];
   const fixHint = dispatch?.state === "blocked" && !isOwner(tenant) && dispatch.problems.some((problem) => problem.startsWith("Återförsäljarens "));
+  // Den som ändrar adressen efter utskicket är verkstaden. En återförsäljare går via namnskylt.com.
   const deliveryLocked = order.supplierSentAt
-    ? "Ordern har gått till verkstaden. Hör av dig till namnskylt.com om adressen ska ändras."
+    ? `Ordern har gått till verkstaden. Hör av dig till ${isOwner(tenant) ? "Skylt & Gravyrteknik" : "namnskylt.com"} om adressen ska ändras.`
     : order.status === "cancelled"
       ? "Ordern är avbruten."
       : null;
+  // En order kan ha flera designer, till exempel metall och plast. Detaljerna visar alla, inte bara den första.
+  const designs = orderDesigns(order.badges);
+  /** Mallen för "Ny personal": orderns första skylt. */
   const template = order.badges[0];
+  // namnskylt.coms egna ordrar fakturerar verkstaden kunden för, till det här priset.
+  const direct = isOwner(tenant) && isDirectOrder(order);
   const customerName = order.customer.company ?? order.customer.name;
   // En borttagen kund får inga nya ordrar eller mallar; ordern står bara kvar för bokföringen.
   const erased = isErasedCustomer(order.customer);
@@ -154,7 +172,11 @@ export default async function OrderPage({ params }: OrderPageProps) {
           <section className={styles.panel}>
             <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>Pris</h2>
-              <span className={styles.muted}>Ditt pris till kunden — påverkar fakturaunderlaget, inte tillverkningen</span>
+              <span className={styles.muted}>
+                {direct
+                  ? "Kundens pris, som Skylt & Gravyrteknik fakturerar. Det går inte att ändra när ordern har gått till verkstaden."
+                  : "Ditt pris till kunden — påverkar fakturaunderlaget, inte tillverkningen"}
+              </span>
             </div>
             <PricingEditor
               priceList={order.priceList}
@@ -185,19 +207,25 @@ export default async function OrderPage({ params }: OrderPageProps) {
                   </dd>
                 </>
               )}
-              {template && (
+              {designs.length === 1 && designs[0] && (
                 <>
                   <dt>Material</dt>
-                  <dd>
-                    {getMaterial(template.materialId).name} · {getColor(template.materialId, template.colorId).name}
-                  </dd>
+                  <dd>{materialText(designs[0].doc)}</dd>
                   <dt>Form och fäste</dt>
-                  <dd>
-                    {shapeLabel(template)} · {mountingLabel(template)}
-                    {printColorLabel(template) && ` · ${printColorLabel(template)}`}
-                  </dd>
+                  <dd>{shapeText(designs[0].doc)}</dd>
                 </>
               )}
+              {designs.length > 1 &&
+                designs.map((design, i) => (
+                  <Fragment key={i}>
+                    <dt>
+                      Design {i + 1}, {design.count} st
+                    </dt>
+                    <dd>
+                      {materialText(design.doc)} · {shapeText(design.doc)}
+                    </dd>
+                  </Fragment>
+                ))}
               <dt>Belopp</dt>
               <dd>
                 {formatSek(order.totalSek)} exkl. · {formatSek(order.totalInclVatSek)} inkl. moms

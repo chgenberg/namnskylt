@@ -208,9 +208,18 @@ type PrintedRow = Pick<BadgeDocument["rows"][number], "text" | "printColor">;
  */
 export function printColorOf(doc: Printed): string | null {
   const code = doc.printColor?.trim();
-  if (!code) return null;
-  const printed = nameMarking(doc) === "print" || (Boolean(doc.logo) && logoMarking(doc) === "print");
-  return printed ? code : null;
+  return code && printsInOneColor(doc) ? code : null;
+}
+
+/**
+ * Sant när något på skylten printas i en färg: namnet (och ramen, som följer det), eller en
+ * svartvit logga. En logga i färg trycks ur sin bild och har ingen sådan färg. Printas bara
+ * den gäller alltså ingen färg för trycket: fältet visas inte, och ingen "Tryckfärg" följer
+ * med ordern (hittat i genomgången 2026-11-19, där en plastskylt med graverat namn och en
+ * logga i färg bar tryckfärgen från skylten före).
+ */
+export function printsInOneColor(doc: Marked): boolean {
+  return nameMarking(doc) === "print" || (Boolean(doc.logo) && !doc.logo?.image && logoMarking(doc) === "print");
 }
 
 /**

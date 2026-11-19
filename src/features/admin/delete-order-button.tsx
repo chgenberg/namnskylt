@@ -11,7 +11,7 @@ interface DeleteOrderButtonProps {
   customerName: string;
   badgeCount: number;
   totalSek: number;
-  /** Leverantörens ordernummer när ordern redan ligger hos tryckeriet och inte är klar. */
+  /** Leverantörens ordernummer när ordern redan ligger hos verkstaden och inte är klar. */
   atPrinter: string | null;
   compact?: boolean;
   /** Vart sidan går efteråt — detaljsidan finns ju inte längre. */

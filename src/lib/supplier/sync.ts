@@ -17,7 +17,7 @@ export function supplierLink(order: StoredOrder): SupplierLink {
   return isTrackableSupplierOrder(order.supplierOrderNo) ? "connected" : "not-sent";
 }
 
-/** Leverantörens nummer när ordern ligger hos tryckeriet och ännu inte är klar. */
+/** Leverantörens nummer när ordern ligger hos verkstaden och ännu inte är klar. */
 export function atPrinter(order: StoredOrder): string | null {
   return supplierLink(order) === "connected" && isOpen(order) ? order.supplierOrderNo : null;
 }

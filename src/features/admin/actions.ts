@@ -290,7 +290,10 @@ export async function updateOrderDeliveryAction(orderNo: string, delivery: Deliv
     const phoneIssue = deliveryPhoneIssue(parsed.address, parsed.method);
     if (phoneIssue) return { ok: false, error: phoneIssue };
     const ok = await updateOrderDelivery(tenant, orderNoSchema.parse(orderNo), parsed);
-    if (!ok) return { ok: false, error: "Ordern har redan gått till verkstaden. Hör av dig till namnskylt.com om adressen ska ändras." };
+    if (!ok) {
+      const contact = isOwner(tenant) ? "Skylt & Gravyrteknik" : "namnskylt.com";
+      return { ok: false, error: `Ordern har redan gått till verkstaden. Hör av dig till ${contact} om adressen ska ändras.` };
+    }
     if (parsed.to === "reseller") await saveResellerDeliveryAddress(tenant, parsed.address);
     return done(orderNo);
   } catch (error) {

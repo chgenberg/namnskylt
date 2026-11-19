@@ -13,6 +13,7 @@ import {
   markingOf,
   printHex,
   printInkOf,
+  printsInOneColor,
   type BadgeDocument,
 } from "@/engine";
 import { formatSek } from "@/lib/format";
@@ -47,8 +48,8 @@ function priceLabel(sek: number): string {
 export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps) {
   const { markingPrice, markingFrom } = useShopPrices(tierIndex);
   const selected = getMarkingMethod(markingOf(doc));
-  // Färgen gäller trycket: fältet visas bara när namnet eller loggan printas.
-  const printsSomething = selected.nameMode === "print" || (Boolean(doc.logo) && selected.logoMode === "print");
+  // Färgen gäller det som printas i en färg: namnet eller en svartvit logga. En logga i färg trycks ur sin bild.
+  const printsSomething = printsInOneColor(doc);
   const printOnly = isPrintOnly(doc.materialId);
   return (
     <PanelSection step={2} title="Märkningsmetod" aside="1 metod ingår">
