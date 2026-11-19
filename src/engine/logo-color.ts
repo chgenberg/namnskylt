@@ -152,3 +152,62 @@ export function colorLogo(pixels: RgbaPixels): LogoPixels | null {
   if (!hasColor(cleared)) return null;
   return cropToVisible(cleared);
 }
+
+/** Så nära varandra (per kanal, i snitt) räknas två färger i loggan som samma. */
+const SAME_COLOR_DISTANCE = 36;
+/** En färg som täcker mindre än så av loggan är en kant eller en detalj, ingen av loggans färger. */
+const MIN_PALETTE_SHARE = 0.05;
+
+/**
+ * Loggans färger som `#RRGGBB`, den som täcker mest först (besked av ägaren 2026-11-19:
+ * systemet ska läsa av loggans färger när en logga läggs in). Bara det som syns räknas.
+ * Nyanser som ligger nära varandra slås ihop, så att en toning eller kantutjämningen i en
+ * bild inte blir många färger, och färger som bara täcker en liten del tas inte med.
+ */
+export function logoPalette({ data, width, height }: RgbaPixels, max = 4): string[] {
+  // Grov indelning först: 16 steg per kanal räcker för att skilja en loggas färger åt.
+  const buckets = new Map<number, { count: number; r: number; g: number; b: number }>();
+  let visible = 0;
+  for (let i = 0; i < width * height; i++) {
+    if ((data[i * 4 + 3] ?? 0) < VISIBLE_ALPHA) continue;
+    visible++;
+    const r = data[i * 4] ?? 0;
+    const g = data[i * 4 + 1] ?? 0;
+    const b = data[i * 4 + 2] ?? 0;
+    const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+    const bucket = buckets.get(key);
+    if (bucket) {
+      bucket.count++;
+      bucket.r += r;
+      bucket.g += g;
+      bucket.b += b;
+    } else {
+      buckets.set(key, { count: 1, r, g, b });
+    }
+  }
+  if (visible === 0) return [];
+  // Sedan slås grannar ihop, störst först, så att varje färg i loggan blir en.
+  const groups: { count: number; r: number; g: number; b: number }[] = [];
+  for (const bucket of [...buckets.values()].sort((a, b) => b.count - a.count)) {
+    const mean = [bucket.r / bucket.count, bucket.g / bucket.count, bucket.b / bucket.count] as const;
+    const near = groups.find((group) => {
+      const distance = Math.abs(group.r / group.count - mean[0]) + Math.abs(group.g / group.count - mean[1]) + Math.abs(group.b / group.count - mean[2]);
+      return distance / 3 < SAME_COLOR_DISTANCE;
+    });
+    if (near) {
+      near.count += bucket.count;
+      near.r += bucket.r;
+      near.g += bucket.g;
+      near.b += bucket.b;
+    } else {
+      groups.push({ ...bucket });
+    }
+  }
+  const hex = (value: number) => Math.round(value).toString(16).padStart(2, "0");
+  return groups
+    .filter((group) => group.count >= visible * MIN_PALETTE_SHARE)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, max)
+    .map((group) => `#${hex(group.r / group.count)}${hex(group.g / group.count)}${hex(group.b / group.count)}`.toUpperCase());
+}
+

@@ -8,11 +8,14 @@ import {
   LOGO_LIMITS,
   logoHeightLimits,
   LOGO_PLACEMENTS,
+  engravingHex,
   getColor,
   getFont,
   logoEngravingPath,
   logoMarking,
   logoPrintInkOf,
+  nameMarking,
+  printsInOneColor,
   type BadgeDocument,
   type LogoPlacement,
 } from "@/engine";
@@ -23,6 +26,7 @@ import { FETCHED_LOGO_NAME, dataUrlFile, storeLogoOriginal } from "../logo/store
 import { traceImage, type LogoTrace } from "../logo/trace-image";
 import { useLogoEngraving } from "../logo/use-logo-engraving";
 import type { DesignerAction } from "../state";
+import { TextColorField } from "./print-color-field";
 import styles from "./sections.module.css";
 
 const ACCEPTED_TYPES = "image/png,image/jpeg,image/webp,image/svg+xml,image/gif";
@@ -62,8 +66,8 @@ const LOGO_HINT: Record<LogoLook, string> = {
   engrave: "Loggan graveras i en färg, samma som texten.",
   "engrave-color":
     "Loggan är i färg och graveras i en färg, samma som texten: färgerna blir gravyr, och vitt och detaljer inuti loggan sparas ur. Stämmer formen inte, prova Invertera.",
-  // Färgen är tryckets, som väljs under Märkningsmetod.
-  print: "Loggan printas i en färg, tryckets.",
+  // Färgen är textfärgen när namnet också printas. Printas bara loggan väljs färgen här under.
+  print: "Loggan printas i en färg.",
   "print-color": "Loggan är i färg och printas som den är i filen.",
 };
 
@@ -416,6 +420,17 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
             {LOGO_HINT[logoLook]} Storleken är loggans höjd, och den går också att ändra genom att dra i loggans hörn under
             Ritning. Metoden väljer du under Märkningsmetod.
           </p>
+          {/* Printas bara loggan, i en färg, väljs färgen här. Printas namnet också står valet vid texten, som Textfärg. */}
+          {nameMarking(doc) !== "print" && printsInOneColor(doc) && (
+            <TextColorField
+              label="Loggans färg"
+              target="loggan"
+              shown={logoPrintInkOf(doc) ?? engravingHex(getColor(doc.materialId, doc.colorId))}
+              surface={getColor(doc.materialId, doc.colorId).surface}
+              logoColors={[]}
+              onChange={(next) => dispatch({ type: "print/color", color: next })}
+            />
+          )}
         </>
       )}
     </PanelSection>

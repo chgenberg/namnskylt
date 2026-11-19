@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getMaterial } from "./catalog";
-import { pigmentCodeText, pigmentCodes } from "./color-choice";
+import { INVISIBLE_CONTRAST, PRINT_PALETTE, bestTextColor, contrastRatio, pigmentCodeText, pigmentCodes, printColorName } from "./color-choice";
+import { logoPalette } from "./logo-color";
 import { PRINT_STANDARD_COLORS, cmykHex, cmykOf, cmykText, isPrintHex, printColorHex, printColorText, printHex } from "./color-code";
 import { createBadgeDocument, isOfferedDocument, toOfferedDocument } from "./document";
 import { engravedBadge, plasticBadge } from "./testing";
@@ -20,6 +21,8 @@ import {
   rowPrintColorOf,
   rowPrintInkOf,
   withScreenPrintColors,
+  withTextColor,
+  withVisibleInk,
 } from "./marking";
 import { approxFonts } from "./measure";
 import { renderBadgeSvg } from "./render-svg";
@@ -466,5 +469,146 @@ describe("tryckets färg gäller bara det som printas i en färg", () => {
     assert.equal(printsInOneColor(engraved), false);
     assert.equal(printsInOneColor({ ...engraved, logo: colorLogo, marking: "engrave" }), false);
     assert.equal(printColorLabel(engraved), null);
+  });
+});
+
+describe("palettens fjorton färger", () => {
+  it("är gravyrplastens framsidor, med verkstadens namn och skärmfärger", () => {
+    const fronts = new Map(getMaterial("plastic").colors.map((combo) => [combo.surface.toUpperCase(), combo.name.split(" / ")[0]!.trim()]));
+    assert.equal(PRINT_PALETTE.length, 14);
+    assert.deepEqual([...PRINT_PALETTE].map((color) => color.hex).sort(), [...fronts.keys()].sort());
+    for (const color of PRINT_PALETTE) assert.equal(color.name, fronts.get(color.hex), color.hex);
+  });
+
+  it("rymmer verkstadens sju standardfärger för tryck", () => {
+    for (const standard of PRINT_STANDARD_COLORS) assert.ok(PRINT_PALETTE.some((color) => color.hex === standard.hex), standard.name);
+  });
+
+  it("ger namnet på en färg i paletten, och inget för en egen", () => {
+    assert.equal(printColorName("#0057b8"), "Blå");
+    assert.equal(printColorName("#003366"), "Mörkblå");
+    assert.equal(printColorName("#C8102E"), null);
+    assert.equal(printColorName(null), null);
+  });
+});
+
+describe("kontrast mot skyltens yta", () => {
+  it("går från 1 för samma färg till 21 för svart mot vitt", () => {
+    assert.equal(contrastRatio("#FFFFFF", "#FFFFFF"), 1);
+    assert.equal(Math.round(contrastRatio("#000000", "#FFFFFF")), 21);
+    assert.equal(contrastRatio("#0057B8", "#C8A440"), contrastRatio("#C8A440", "#0057B8"));
+  });
+
+  it("vitt på vit matt metall syns inte, svart på mässing syns bra", () => {
+    const white = getMaterial("metal").colors.find((combo) => combo.id === "metal-white")!.surface;
+    const brass = getMaterial("metal").colors.find((combo) => combo.id === "metal-gold")!.surface;
+    assert.ok(contrastRatio("#FFFFFF", white) < INVISIBLE_CONTRAST);
+    assert.ok(contrastRatio("#111111", brass) > 5);
+  });
+});
+
+describe("loggans färger", () => {
+  /** En bild i rutor: varje färg får så många bildpunkter som talet säger. */
+  const pixels = (...areas: [number, number, number, number, number][]) => {
+    const data: number[] = [];
+    for (const [r, g, b, a, count] of areas) for (let i = 0; i < count; i++) data.push(r, g, b, a);
+    return { data, width: data.length / 4, height: 1 };
+  };
+
+  it("läses av i ordning efter hur mycket av loggan de täcker", () => {
+    assert.deepEqual(logoPalette(pixels([0, 87, 184, 255, 600], [227, 28, 35, 255, 300], [255, 210, 0, 255, 100])), ["#0057B8", "#E31C23", "#FFD200"]);
+  });
+
+  it("räknar bara det som syns, och slår ihop nyanser som ligger nära varandra", () => {
+    const found = logoPalette(pixels([0, 87, 184, 255, 500], [4, 90, 180, 255, 300], [255, 255, 255, 0, 5000], [227, 28, 35, 255, 200]));
+    assert.equal(found.length, 2);
+    assert.ok(contrastRatio(found[0]!, "#0057B8") < 1.1, String(found[0]));
+    assert.equal(found[1], "#E31C23");
+  });
+
+  it("tar inte med en färg som bara är en kant eller en liten detalj", () => {
+    assert.deepEqual(logoPalette(pixels([0, 87, 184, 255, 980], [227, 28, 35, 255, 20])), ["#0057B8"]);
+  });
+
+  it("ger högst fyra färger, och inga för en bild utan något synligt", () => {
+    const many = [[0, 0, 0], [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [255, 0, 255]].map(([r, g, b]) => [r!, g!, b!, 255, 100] as [number, number, number, number, number]);
+    assert.equal(logoPalette(pixels(...many)).length, 4);
+    assert.deepEqual(logoPalette(pixels([10, 10, 10, 0, 50])), []);
+  });
+});
+
+describe("färgen som passar bäst som textfärg", () => {
+  const brass = "#C8A440";
+  const white = "#F7F7F5";
+
+  it("är loggans huvudfärg när den syns bra mot skylten", () => {
+    assert.equal(bestTextColor(["#0057B8", "#E31C23", "#FFD200"], brass), "#0057B8");
+    assert.equal(bestTextColor(["#0057B8", "#E31C23"], white), "#0057B8");
+  });
+
+  it("är nästa färg när huvudfärgen inte syns mot ytan", () => {
+    // Gult är loggans största färg men syns inte på mässing eller vitt: då passar den blå bäst.
+    assert.equal(bestTextColor(["#FFD200", "#0057B8"], brass), "#0057B8");
+    assert.equal(bestTextColor(["#FFD200", "#0057B8"], white), "#0057B8");
+  });
+
+  it("är ingen när ingen av loggans färger går att läsa på ytan", () => {
+    assert.equal(bestTextColor(["#FFD200", "#F2E9C0"], white), null);
+    assert.equal(bestTextColor([], brass), null);
+  });
+});
+
+describe("textfärgen gäller alla rader", () => {
+  const printed: BadgeDocument = createBadgeDocument(["Anna Lind", "Säljare"]);
+  const [first, second] = printed.rows;
+
+  it("ett val av textfärg tar bort radernas egna färger, så att valet alltid syns", () => {
+    const own: BadgeDocument = { ...printed, printColor: "#0057B8", rows: [first!, { ...second!, printColor: "#E31C23" }] };
+    const picked = withTextColor(own, "#00a33a");
+    assert.equal(picked.printColor, "#00A33A");
+    assert.equal("printColor" in picked.rows[1]!, false);
+    assert.equal(rowPrintInkOf(picked, picked.rows[1]!), "#00A33A");
+    assert.equal(printColorLabel(picked), "Tryckfärg #00A33A");
+  });
+
+  it("ingen färg tar bort den, och något som inte är en färg ändrar ingenting", () => {
+    const own: BadgeDocument = { ...printed, printColor: "#0057B8" };
+    assert.equal("printColor" in withTextColor(own, null), false);
+    assert.equal(withTextColor(own, "PMS 286 C"), own);
+    assert.equal(withTextColor(own, "100/60/0/20"), own);
+  });
+});
+
+describe("namnet försvinner inte när skylten byter yta", () => {
+  const printed: BadgeDocument = createBadgeDocument(["Anna Lind", "Säljare"]);
+  const [first, second] = printed.rows;
+  const onWhite = (doc: BadgeDocument): BadgeDocument => ({ ...doc, colorId: "metal-white" });
+
+  it("en vit textfärg tas bort när ytan blir vit, så att trycket får ytans förvalda färg", () => {
+    const white: BadgeDocument = { ...printed, printColor: "#FFFFFF" };
+    // På mässing syns vitt och står kvar.
+    assert.equal(withVisibleInk(white), white);
+    const moved = withVisibleInk(onWhite(white));
+    assert.equal("printColor" in moved, false);
+    assert.equal(printInkOf(moved), null);
+  });
+
+  it("gäller också en rads egen färg, och rör inte färger som syns", () => {
+    const doc: BadgeDocument = { ...printed, printColor: "#0057B8", rows: [first!, { ...second!, printColor: "#FFFFFF" }] };
+    const moved = withVisibleInk(onWhite(doc));
+    assert.equal(moved.printColor, "#0057B8");
+    assert.equal("printColor" in moved.rows[1]!, false);
+    assert.equal(moved.rows[0], doc.rows[0]);
+  });
+
+  it("en färg som bara syns dåligt står kvar: där varnar färgvalet i stället", () => {
+    const yellow: BadgeDocument = onWhite({ ...printed, printColor: "#FFD200" });
+    assert.equal(withVisibleInk(yellow), yellow);
+  });
+
+  it("en skylt som graveras behåller sin oanvända textfärg, tills den printas igen", () => {
+    // Vit text på mässing, sedan över plast (där namnet graveras) och tillbaka: färgen ska finnas kvar.
+    const plastic: BadgeDocument = { ...plasticBadge(["Anna Lind"]), printColor: "#FFFFFF" };
+    assert.equal(withVisibleInk(plastic), plastic);
   });
 });

@@ -7,10 +7,12 @@ import { Segmented } from "@/components/ui/segmented";
 import {
   FONTS,
   TEXT_LIMITS,
+  colorNames,
   getColor,
   nameMarking,
   engravingHex,
-  printHex,
+  printColorName,
+  printInkOf,
   rowPrintInkOf,
   type BadgeDocument,
   type BadgeLayout,
@@ -18,7 +20,7 @@ import {
 } from "@/engine";
 import { formatMm } from "@/lib/format";
 import type { DesignerAction } from "../state";
-import { OwnColor } from "./print-color-field";
+import { TextColorField, useLogoColors } from "./print-color-field";
 import styles from "./sections.module.css";
 
 const ROW_PLACEHOLDERS = ["Namn", "Titel", "Avdelning"];
@@ -54,11 +56,20 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
   const canAdd = doc.rows.length < TEXT_LIMITS.maxRows;
   // Färg per rad finns bara i tryck: gravyren får materialets färg, lika på alla rader.
   const namePrinted = nameMarking(doc) === "print";
-  /** Färgen en rad utan egen färg visas i när trycket inte heller har någon, som väljaren utgår från. */
-  const defaultInk = engravingHex(getColor(doc.materialId, doc.colorId));
+  const color = getColor(doc.materialId, doc.colorId);
+  /** Färgen texten visas i när ingen textfärg är vald: ytans förvalda. */
+  const defaultInk = engravingHex(color);
+  /** Textfärgen som gäller för hela trycket. En rad kan avvika med sin egen. */
+  const textColor = printInkOf(doc) ?? defaultInk;
+  // Loggans färger står först bland valen, med den som passar bäst mot skylten utpekad.
+  const logoColors = useLogoColors(doc.logo?.image?.src ?? null);
 
   return (
-    <PanelSection step={1} title="Text" aside={`${doc.rows.length}/${TEXT_LIMITS.maxRows} rader`}>
+    <PanelSection
+      step={1}
+      title="Text"
+      aside={`${doc.rows.length}/${TEXT_LIMITS.maxRows} rader${namePrinted ? ` · ${printColorName(textColor) ?? "Egen färg"}` : ""}`}
+    >
       <ul className={styles.rows}>
         <AnimatePresence initial={false}>
           {doc.rows.map((row, i) => {
@@ -93,6 +104,18 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
                     >
                       <strong>B</strong>
                     </button>
+                    {/* Radens färg, som hos Skylt & Gravyrteknik: en liten ruta vid texten. Den visar färgen raden har. */}
+                    {namePrinted && (
+                      <input
+                        type="color"
+                        className={styles.rowInk}
+                        aria-label={`Egen färg för rad ${i + 1}`}
+                        title="Egen färg för raden"
+                        // Väljaren kräver sex siffror i gemener.
+                        value={(rowPrintInkOf(doc, row) ?? defaultInk).toLowerCase()}
+                        onChange={(e) => dispatch({ type: "row/color", id: row.id, color: e.target.value.toUpperCase() })}
+                      />
+                    )}
                     {doc.rows.length > 1 && (
                       <button
                         type="button"
@@ -123,18 +146,6 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
                     />
                     <span className={`mono ${styles.sliderValue}`}>{formatMm(row.capHeightMm)} mm</span>
                   </label>
-                  {namePrinted && (
-                    <div className={styles.rowColor}>
-                      <span className={styles.sliderLabel}>Färg</span>
-                      <OwnColor
-                        target={`rad ${i + 1}`}
-                        value={printHex(row.printColor)}
-                        shown={rowPrintInkOf(doc, row) ?? defaultInk}
-                        placeholder="Tryckets färg"
-                        onChange={(color) => dispatch({ type: "row/color", id: row.id, color })}
-                      />
-                    </div>
-                  )}
                   {issue && drawn && (
                     <p className={styles.issue} data-severity={issue.code === "row-too-long" ? "error" : "info"}>
                       {issue.code === "row-too-long"
@@ -148,11 +159,27 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
           })}
         </AnimatePresence>
       </ul>
-      <p className={styles.hint}>
-        {namePrinted
-          ? "En rad kan få en egen färg: välj med färgväljaren eller skriv en hexkod. Utan egen färg får raden tryckets färg, se Märkningsmetod."
-          : "Egen färg per rad går att välja när namnet printas, se Märkningsmetod."}
-      </p>
+      {namePrinted ? (
+        <>
+          <TextColorField
+            label="Textfärg"
+            target="texten"
+            shown={textColor}
+            surface={color.surface}
+            logoColors={logoColors}
+            onChange={(next) => dispatch({ type: "print/color", color: next })}
+          />
+          <p className={styles.hint}>
+            Färgen gäller alla rader. Rutan vid en rad ger just den raden en egen färg. Trycket kan skilja något från
+            skärmen.
+          </p>
+        </>
+      ) : (
+        <p className={styles.hint}>
+          Texten graveras och får plastens gravyrfärg, {(colorNames(color).core ?? colorNames(color).front).toLowerCase()}. Byt
+          färg under Material &amp; färg, eller välj print under Märkningsmetod för att välja textfärg fritt.
+        </p>
+      )}
 
       {canAdd && (
         <button type="button" className={`btn btn--ghost ${styles.addRow}`} onClick={() => dispatch({ type: "row/add", id: crypto.randomUUID() })}>

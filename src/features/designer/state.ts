@@ -15,6 +15,8 @@ import {
   withFittingBlank,
   withFittingFrame,
   withFittingMounting,
+  withTextColor,
+  withVisibleInk,
   withLogoMarking,
   withMarking,
   withMounting,
@@ -52,7 +54,8 @@ export type DesignerAction =
   | { type: "row/remove"; id: string }
   | { type: "font"; font: FontId }
   | { type: "align"; align: TextAlign }
-  | { type: "material"; materialId: MaterialId }
+  /** `colorId`: ytan eller färgen skylten hade senast på det materialet, så att ett byte tillbaka ger samma skylt. */
+  | { type: "material"; materialId: MaterialId; colorId?: string }
   | { type: "color"; colorId: string }
   | { type: "blank"; blankId: BlankId }
   /** Egen form: börja från ett formförslag, i förslagets mått. */
@@ -75,7 +78,7 @@ export type DesignerAction =
   | { type: "logo/height"; heightMm: number }
   /** Kunden väljer hur namn och logotyp märks. Ett kombinerat val kräver en logga. */
   | { type: "marking"; method: MarkingMethod }
-  /** Färgen på det som printas, som `#RRGGBB`. `null` tar bort den, och trycket får materialets förvalda färg. */
+  /** Textfärgen för allt som printas, som `#RRGGBB`. Den gäller alla rader. `null` tar bort den, och trycket får ytans förvalda färg. */
   | { type: "print/color"; color: string | null }
   | { type: "move"; target: "text" | "logo"; offset: Offset }
   | { type: "move/reset" }
@@ -192,7 +195,9 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       const material = getMaterial(action.materialId);
       // Bara färger som säljs: en kombination som har utgått följer inte med till ett annat material.
       const colors = offeredColors(material);
-      const colorId = colors.some((c) => c.id === doc.colorId) ? doc.colorId : colors[0]!.id;
+      const sold = (id: string | undefined) => (id && colors.some((c) => c.id === id) ? id : null);
+      // Samma kombination om den finns på materialet, annars den skylten hade där senast, annars materialets första.
+      const colorId = sold(doc.colorId) ?? sold(action.colorId) ?? colors[0]!.id;
       const moved = { ...doc, materialId: action.materialId, colorId };
       // Metoden följer materialet: metall går bara att printa på, och plasten börjar om på gravyr
       // när skylten kommer från metall. Samma material behåller kundens val.
@@ -200,11 +205,13 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       // Metallens och plastens ämnen har olika mått, och bara material som skärs ur ark kan ha en
       // egen form: skylten flyttas till närmaste ämne på det nya materialet (`withFittingBlank`).
       // Ett fäste som inte går att få på den nya skylten (klämman på metall) byts mot nålen,
-      // och ramen, som bara finns på plast, tas bort på metall.
-      return withFittingFrame(withFittingMounting(withFittingBlank(next)));
+      // och ramen, som bara finns på plast, tas bort på metall. En textfärg som inte syns mot
+      // den nya ytan tas bort, så att namnet inte försvinner.
+      return withVisibleInk(withFittingFrame(withFittingMounting(withFittingBlank(next))));
     }
     case "color":
-      return { ...doc, colorId: action.colorId };
+      // En textfärg som inte syns mot den nya ytan tas bort, så att namnet inte försvinner.
+      return withVisibleInk({ ...doc, colorId: action.colorId });
     case "blank":
       // Ett ämne som inte finns på materialet går inte att välja, hur klicket än kom hit.
       // Formen ändrar måttet: en klämma som inte längre ryms byts mot nålen.
@@ -241,10 +248,9 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     }
     case "marking":
       return markingFits(action.method, doc) ? withMarking(doc, action.method) : doc;
-    case "print/color": {
-      const color = screenColor(action.color);
-      return color === undefined ? doc : withPrintColor(doc, color);
-    }
+    case "print/color":
+      // Textfärgen gäller alla rader: radernas egna färger tas bort, så att valet alltid syns.
+      return withTextColor(doc, action.color);
     case "logo/engraving":
       // Svaret kommer i efterhand: gäller bara om samma logga ligger kvar och fortfarande saknar gravyrform.
       return doc.logo && doc.logo.d === action.d && !doc.logo.engraveD

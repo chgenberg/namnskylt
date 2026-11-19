@@ -1,5 +1,6 @@
-import { getMaterial } from "./catalog";
-import { isPrintHex, printColorHex, printColorText } from "./color-code";
+import { getColor, getMaterial } from "./catalog";
+import { INVISIBLE_CONTRAST, contrastRatio } from "./color-choice";
+import { isPrintHex, printColorHex, printColorText, printHex } from "./color-code";
 import type { BadgeDocument, MarkingMethod, MarkingMode, MaterialId } from "./types";
 
 /**
@@ -173,6 +174,40 @@ export const LOGO_PRINT_COLOR_MAX = 120;
 export function hasScreenPrintColors(doc: Pick<BadgeDocument, "printColor" | "rows" | "logo">): boolean {
   const screen = (code: string | undefined) => code === undefined || isPrintHex(code);
   return screen(doc.printColor) && doc.rows.every((row) => screen(row.printColor)) && doc.logo?.printColor === undefined;
+}
+
+/**
+ * Skylten med en textfärg för hela trycket (beslut av ägaren 2026-11-19). Valet gäller alla
+ * rader: radernas egna färger tas bort, så att ett klick alltid syns på skylten. Förut vann
+ * radens egen färg, och ett val för hela trycket kunde se ut att inte göra någonting. En rad
+ * kan få en egen färg igen efteråt. `null` tar bort färgen, och trycket får ytans förvalda.
+ */
+export function withTextColor<T extends Pick<BadgeDocument, "printColor" | "rows">>(doc: T, color: string | null): T {
+  const hex = color === null ? null : printHex(color);
+  if (color !== null && !hex) return doc;
+  return { ...withColor(doc, hex), rows: doc.rows.map((row) => (row.printColor === undefined ? row : withColor(row, null))) };
+}
+
+/**
+ * Skylten utan textfärger som inte syns mot dess yta, till exempel vitt på vit lack. Används
+ * när materialet eller ytan byts: namnet ska inte försvinna för att skylten fick en ny färg
+ * (felet ägaren mötte 2026-11-19, där ett byte från plast till metall gav en vit yta under
+ * en vit text). Färgen tas bort, så att trycket får ytans förvalda. En färg som bara syns
+ * dåligt får stå kvar; där varnar färgvalet i stället.
+ */
+export function withVisibleInk<T extends Marked & Pick<BadgeDocument, "printColor" | "rows" | "materialId" | "colorId">>(doc: T): T {
+  // Bara en färg som faktiskt printas kan dölja något. På en skylt som graveras ligger kundens
+  // textfärg kvar oanvänd, och ska finnas där när skylten printas igen på en yta där den syns.
+  if (!printsInOneColor(doc)) return doc;
+  const surface = getColor(doc.materialId, doc.colorId).surface;
+  const hidden = (code: string | undefined) => {
+    const hex = printColorHex(code);
+    return hex !== null && contrastRatio(hex, surface) < INVISIBLE_CONTRAST;
+  };
+  const hiddenRow = (row: T["rows"][number]) => nameMarking(doc) === "print" && hidden(row.printColor);
+  if (!hidden(doc.printColor) && !doc.rows.some(hiddenRow)) return doc;
+  const whole = hidden(doc.printColor) ? withColor(doc, null) : doc;
+  return { ...whole, rows: doc.rows.map((row) => (hiddenRow(row) ? withColor(row, null) : row)) };
 }
 
 /** Fältet utan värde är borta, inte `undefined`, så att skylten ser ut som en som aldrig haft det. */

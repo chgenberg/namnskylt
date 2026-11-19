@@ -351,8 +351,14 @@ export function Designer({
   };
 
   const { restart: resumeSaving } = saved;
+  // Ytan eller färgen skylten hade senast på varje material. Byter kunden från mässing till plast och tillbaka
+  // ska skylten vara mässing igen, inte materialets första yta.
+  const lastColors = useRef<Partial<Record<string, string>>>({});
+  useEffect(() => {
+    lastColors.current[doc.materialId] = doc.colorId;
+  }, [doc.materialId, doc.colorId]);
   const update = useCallback((action: DesignerAction) => {
-    dispatch(action);
+    dispatch(action.type === "material" ? { ...action, colorId: lastColors.current[action.materialId] } : action);
     // Kommer i bakgrunden när loggans originalfil har sparats eller gravyrformen har räknats: kunden har inte ändrat något.
     if (action.type === "logo/original" || action.type === "logo/engraving") return;
     // Efter en lagd order sparas inget förrän kunden börjar på något nytt. Det gör hen nu.

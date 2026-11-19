@@ -5,21 +5,15 @@ import { PanelSection } from "@/components/ui/panel-section";
 import {
   MARKING_METHODS,
   MARKING_MODE_NAME,
-  engravingHex,
-  getColor,
   getMarkingMethod,
   isPrintOnly,
   markingFits,
   markingOf,
-  printHex,
-  printInkOf,
-  printsInOneColor,
   type BadgeDocument,
 } from "@/engine";
 import { formatSek } from "@/lib/format";
 import { fromPriceLabel, useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
-import { PrintColorField } from "./print-color-field";
 import styles from "./sections.module.css";
 
 interface MarkingSectionProps {
@@ -48,8 +42,6 @@ function priceLabel(sek: number): string {
 export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps) {
   const { markingPrice, markingFrom } = useShopPrices(tierIndex);
   const selected = getMarkingMethod(markingOf(doc));
-  // Färgen gäller det som printas i en färg: namnet eller en svartvit logga. En logga i färg trycks ur sin bild.
-  const printsSomething = printsInOneColor(doc);
   const printOnly = isPrintOnly(doc.materialId);
   return (
     <PanelSection step={2} title="Märkningsmetod" aside="1 metod ingår">
@@ -98,21 +90,6 @@ export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps
           <dd>{priceLabel(markingPrice(selected.id, doc.materialId))}</dd>
         </div>
       </dl>
-      {printsSomething && (
-        <div className={styles.labelled}>
-          <span className={styles.sliderLabel}>Färg på trycket</span>
-          <PrintColorField
-            target="trycket"
-            value={printHex(doc.printColor)}
-            // Utan vald färg visas trycket i materialets förvalda färg.
-            shown={printInkOf(doc) ?? engravingHex(getColor(doc.materialId, doc.colorId))}
-            onChange={(color) => dispatch({ type: "print/color", color })}
-          />
-          <span className={styles.hint}>
-            Valfritt. Gäller allt som printas; en rad kan få en egen färg under Text. Trycket kan skilja något från skärmen.
-          </span>
-        </div>
-      )}
     </PanelSection>
   );
 }

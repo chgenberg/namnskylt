@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1284 tester, grönt 2026-11-19).
+# Kvalitetsgrinden. Kör den innan något lämnas (1302 tester, grönt 2026-11-19).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -395,33 +395,67 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       eget projekt (läst 2026-11-18) väljer kunden en skärmfärg, tryckfilen ritas i RGB med
       sRGB som profil, och RIP:en (Caldera eller RasterLink) räknar om den. Där finns inget
       manuellt steg. Beslutet upphäver det från 2026-11-17 om att CMYK-koder skulle anges.
-    - **Fältet "Färg på trycket"** står i sektionen Märkningsmetod när något printas i en
-      färg (`PrintColorField` i `sections/print-color-field.tsx`): standardfärgerna som
-      rutor, en färgväljare, ett fält för hexkoden och Återställ. Under står "Trycket kan
-      skilja något från skärmen." (`BadgeDocument.printColor`, åtgärden `print/color`).
+    - **Färgen väljs vid texten, som "Textfärg"** (besked av ägaren 2026-11-19, som fann fältet
+      under Märkningsmetod som "andra val" och såg att inget hände när man klickade). Valet
+      står under raderna i sektionen Text (`TextColorField` i `sections/print-color-field.tsx`),
+      och sektionens huvud visar färgens namn. Fältet "Färg på trycket" under Märkningsmetod
+      är borta. Förut vann radens egen färg över valet för hela trycket, så ett klick kunde se
+      ut att inte göra någonting, och trycket var svart från början utan att någon ruta var
+      markerad.
+      - **Ett val av Textfärg gäller alla rader** (`withTextColor` i `marking.ts`, åtgärden
+        `print/color`): radernas egna färger tas bort, så att valet alltid syns.
+      - **Färgen som gäller är alltid markerad**, också från början: utan vald färg är det
+        ytans förvalda (svart på metall), och den rutan är markerad.
+      - **Varje rad har en liten färgruta vid textfältet**, som hos Skylt & Gravyrteknik
+        (`BadgeTextRow.printColor`, åtgärden `row/color`). Den visar färgen raden har och ger
+        just den raden en egen färg. Raden "Färg" med hexfält per rad är borta.
+      - Graveras namnet står i stället att texten får plastens gravyrfärg, med hänvisning
+        till Material & färg och till print under Märkningsmetod.
+      - Printas bara en enfärgad logga, och namnet graveras, står samma val i loggans
+        sektion som "Loggans färg".
     - **Färgen gäller bara det som printas i en färg** (`printsInOneColor` i `marking.ts`,
       rättat 2026-11-19): namnet, med ramen, eller en svartvit logga. Printas bara en logga
-      i färg, som trycks ur sin bild, visas fältet inte och ingen "Tryckfärg" följer med
+      i färg, som trycks ur sin bild, visas inget färgval och ingen "Tryckfärg" följer med
       ordern. Förut bar en plastskylt med graverat namn och logga i färg tryckfärgen från
       skylten som designades före den, i etiketten och i verkstadens kommentar.
-    - **Standardfärgerna är verkstadens egna** (`PRINT_STANDARD_COLORS` i
-      `src/engine/color-code.ts`, deras `PRINT_STANDARD_RGB`): Vit, Svart, Varningsgul, Röd,
-      Blå, Grön och Orange, med samma id, namn och hex. `catalog-sync.test.ts` jämför listan
-      med deras katalog när deras projekt ligger bredvid på datorn. En ruta är markerad bara
-      när färgen är exakt dess.
-    - **Varje textrad kan få en egen färg** (`BadgeTextRow.printColor`, åtgärden
-      `row/color`): raden "Färg" i sektionen Text, med färgväljare och hexfält (`OwnColor`).
-      Regeln är verkstadens egen (deras `TextRow.color`): färg per rad finns bara i tryck.
-      När namnet graveras visas bara raden "Egen färg per rad går att välja när namnet
-      printas, se Märkningsmetod."
-    - **Hexfältet sparar bara sex siffror**, med eller utan brädgård (`printHex`,
-      verkstadens egen regel). Medan kunden skriver står texten som den är; en halvskriven
-      kod, eller en CMYK- eller PMS-kod, sparas aldrig och släpps när fältet lämnas. Ett tömt
-      fält tar bort färgen.
-    - **Loggan har ingen egen färg.** En svartvit logga som printas får tryckets färg, och en
+    - **Paletten har fjorton namngivna färger** (beslut av ägaren 2026-11-19: "14 plus våra
+      färger", `PRINT_PALETTE` i `src/engine/color-choice.ts`): gravyrplastens framsidor ur
+      verkstadens katalog, med samma namn och hex. Sju av dem är verkstadens egna
+      standardfärger för tryck (`PRINT_STANDARD_COLORS`, deras `PRINT_STANDARD_RGB`), som
+      `catalog-sync.test.ts` jämför med deras katalog när deras projekt ligger bredvid på
+      datorn. Ett test vaktar att paletten är just plastens framsidor. Guld och silver är
+      här platta tryckfärger, inte metall. En ruta är markerad bara när färgen är exakt dess.
+    - **Loggans färger läses av och visas först** (besked av ägaren 2026-11-19: systemet ska
+      läsa av loggan och visa vilken färg som passar bäst). `useLogoColors` läser loggans bild
+      i webbläsaren och `logoPalette` i `logo-color.ts` ger upp till fyra färger, den som
+      täcker mest först. De står i rutan "Från er logga", och under en av dem står "Passar
+      bäst": loggans huvudfärg om den syns bra mot skyltens yta, annars nästa
+      (`bestTextColor`). Färgen föreslås men väljs inte av sig själv. En svartvit logga har
+      ingen bild och ger inga färger, och inget sparas i skylten.
+    - **"Egen färg"** är en knapp som öppnar färgväljaren och ett hexfält. Fältet sparar bara
+      sex siffror, med eller utan brädgård (`printHex`, verkstadens egen regel). En
+      halvskriven kod, eller en CMYK- eller PMS-kod, sparas aldrig.
+    - **Låg kontrast varnar**: syns färgen dåligt mot skyltens yta (`contrastRatio` under
+      `LOW_CONTRAST`) står "Färgen syns dåligt mot skylten." under valet.
+    - **Namnet ska inte försvinna när skylten byter yta** (ägaren mötte 2026-11-19 att namnet
+      försvann vid byte mellan plast och metall). Texten själv tappas aldrig; det jag fann
+      var att ett byte från plast till metall alltid gav materialets första yta, Vit matt, och
+      att en ljus textfärg då inte syntes. Två rättningar:
+      - Skyltmotorn minns ytan eller färgen per material (`lastColors` i `designer.tsx`,
+        `colorId` i åtgärden `material`): mässing → plast → metall ger mässing igen.
+      - En textfärg som inte syns mot den nya ytan tas bort när materialet eller ytan byts
+        (`withVisibleInk`, kontrast under `INVISIBLE_CONTRAST`), så att trycket får ytans
+        förvalda färg. Det gäller bara färger som faktiskt printas: på en skylt som graveras
+        ligger kundens textfärg kvar oanvänd.
+      - **Felet är inte återskapat som ägaren beskrev det.** I Chrome och i Safaris motor
+        stod namnet kvar genom alla byten, i textfälten, ritningen, 3D-vyn och startrutan.
+        Kommer det tillbaka behövs de exakta stegen.
+    - **Loggan har ingen egen färg.** En svartvit logga som printas får textfärgen, och en
       logga i färg trycks ur sin bild. Fältet "Loggans färger i CMYK" och åtgärden
-      `logo/color` är borttagna. Ska loggan och texten ha olika färg sätts tryckets färg
-      för loggan och en egen färg på raderna.
+      `logo/color` är borttagna.
+    - Textradens kort får krympa till panelens bredd (`minmax(0, 1fr)` i `.rows`, `.rowInner`
+      och `.sliderRow`). På en 320 px bred telefon blev kortet annars bredare än panelen, så
+      att radens kryss hamnade utanför.
     - Läs alltid med `printColorOf`, `printInkOf`, `rowPrintColorOf` och `rowPrintInkOf`: de
       ger bara färgen när något faktiskt printas, så att en färg som står kvar efter ett byte
       till gravyr inte följer med. Färgen ritas i ritningen, 3D-vyn och fotoläget
@@ -442,8 +476,9 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       CMYK-kod färgen den visades i, en kod som inte gick att rita tas bort, och loggans
       koder tas bort (`withScreenPrintColors` i `toOfferedDocument`). Ett sparat arbete i
       webbläsaren med en sådan skylt kastas.
-    - Provat lokalt 2026-11-18 i webbläsaren, på dator och på 390 och 320 px. Ingen order
-      med en färg på trycket har gått till verkstaden på riktigt.
+    - Provat lokalt 2026-11-19 i webbläsaren, på dator och på 390 och 320 px, och i hela
+      kundflödet mot en låtsasverkstad. Ingen order med en textfärg har gått till verkstaden
+      på riktigt.
     - Pantone som väg till exakt färg är inte byggt. Verkstadens tryckfil har redan
       namngivna specialfärger för skärlinjerna (`CutContour`), så tekniken finns där, men
       det vore nytt i båda projekten och kräver Pärs svar om RIP:en har ett Pantone-bibliotek.
