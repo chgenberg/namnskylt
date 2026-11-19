@@ -62,23 +62,6 @@
   backdrop-filter: blur(10px);
 }
 
-/* Bländare: ring med prick — fotoläge. */
-.photoIcon {
-  position: relative;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  border: 1.5px solid currentColor;
-}
-
-.photoIcon::after {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
 .chipIcon {
   width: 14px;
   height: 14px;
@@ -274,6 +257,21 @@
 .shell[data-view="quote"] .stageBottom,
 .shell[data-view="quote"] .panel > :not([data-quote-panel]) {
   display: none;
+}
+
+/* Ikonraden till vänster och dokumentet bredvid. På telefon står raden ovanför. */
+.quoteView {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+@container stage (max-width: 620px) {
+  .quoteView {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
 }
 
 .quoteEmpty {

@@ -1,5 +1,6 @@
 import {
   engravedRows,
+  orderDesigns,
   getColor,
   getMaterial,
   mountingLabel,
@@ -13,7 +14,7 @@ import { companyFooter, DEFAULT_COMPANY, readableOn } from "@/lib/company/profil
 import type { SellerProfile } from "@/lib/company/seller";
 import { deliveryLines, shippingMethodOf, shippingNote } from "@/lib/orders/delivery";
 import { priceWithPricing } from "@/lib/orders/pricing";
-import { showsSellerLogo, type StoredQuote } from "./model";
+import { QUOTE_SHOT_DESIGNS, showsElement, showsSellerLogo, type StoredQuote } from "./model";
 
 const PROMISES = ["Korrektur innan produktion", "Leverans inom 5 arbetsdagar", "Svensk tillverkning"];
 
@@ -37,20 +38,46 @@ function badgeSpec(quote: StoredQuote, index: number): string {
   ].join(" · ");
 }
 
+/** Det som skiljer förhandsvisningen i skyltmotorn från det färdiga dokumentet. */
+export interface QuoteRenderOptions {
+  /**
+   * Förhandsvisningen: rubriken, hälsningen och den avslutande texten går att klicka på och
+   * ändra (`data-edit`), och kunden och giltighetsdagen leder till sina fält (`data-jump`).
+   */
+  editable?: boolean;
+  /** Platser som visas tomma i förhandsvisningen, så att säljaren kan klicka och skriva där. */
+  slots?: { message?: boolean; closing?: boolean };
+}
+
+/** Texterna som står där det ännu inte finns något, i förhandsvisningen. */
+const PLACEHOLDER = {
+  message: "Klicka för att skriva en hälsning",
+  closing: "Klicka för att skriva en avslutande text",
+};
+
+/** Bildtexterna under de små bilderna, i den ordning vinklarna tas (`QUOTE_SHOT_YAWS` i skyltmotorn). */
+const ANGLE_LABELS = ["Framifrån", "Från sidan", "Baksidan"];
+
 /**
- * Offerten som fristående A4-HTML — samma dokument blir PDF:en. Skyltarna är
- * inbäddade SVG med glyferna som konturer, så inget behöver hämtas.
+ * Offertens dokument i två delar: stilen och sidans innehåll. Förhandsvisningen i skyltmotorn
+ * lägger dem i sidan, och PDF:en ritas ur samma delar (`quoteHtml`), så att det säljaren ser är
+ * det kunden får. Skyltarna är bilder ur 3D-vyn när offerten har dem, annars inbäddade
+ * ritningar med glyferna som konturer, så inget behöver hämtas.
  */
-export function quoteHtml(
+export function quoteDocument(
   quote: StoredQuote,
   fonts: FontEngine,
   company: SellerProfile = DEFAULT_COMPANY,
   /** Färgen bakom en vit logga, så att den syns på det vita papperet. */
   logoPlate: string | null = null,
-): string {
+  render: QuoteRenderOptions = {},
+): { css: string; body: string } {
   const primary = company.primaryColor;
   const accent = company.accentColor;
   const onPrimary = readableOn(primary);
+  const editable = render.editable === true;
+  const edit = (field: string) => (editable ? ` data-edit="${field}" contenteditable="true" spellcheck="false"` : "");
+  const jump = (field: string) => (editable ? ` data-jump="${field}" tabindex="0" role="button"` : "");
   // Säljaren kan välja bort sin logga på offerten. Då står namnet där.
   const brand = company.logo && showsSellerLogo(quote)
     ? `<img class="logo${logoPlate ? " plate" : ""}" src="${esc(company.logo)}" alt="${esc(company.site ? "namnskylt.com" : company.name)}"${logoPlate ? ` style="background:${logoPlate}"` : ""}>`
@@ -59,8 +86,8 @@ export function quoteHtml(
   const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceList, quote.shippingSek);
   const shipping = shippingNote(shippingMethodOf(quote.delivery));
   const customer = quote.customer;
-  const info: [string, string][] = [
-    ["Kund", customer.company ?? customer.name],
+  const info: [string, string, string?][] = [
+    ["Kund", customer.company ?? customer.name, "customer"],
     ...(customer.orgNumber ? ([["Org.nr", customer.orgNumber]] as [string, string][]) : []),
     ["Kontakt", [customer.name, customer.email, customer.phone].filter(Boolean).join(" · ")],
     ...(customer.address ? ([["Adress", customer.address]] as [string, string][]) : []),
@@ -71,9 +98,42 @@ export function quoteHtml(
         ? ([["Leverans", deliveryLines(quote.delivery.address).join("\n")]] as [string, string][])
         : []),
     ["Offertdatum", day(quote.sentAt ?? quote.createdAt)],
-    ["Giltig till", day(quote.validUntil)],
+    ["Giltig till", day(quote.validUntil), "validUntil"],
   ];
-  const svgs = quote.badges.slice(0, 6).map((badge) => renderBadgeSvg(badge, layoutBadge(badge, fonts), { mode: "preview", fonts }));
+
+  // En bild per design: skylten som visar designen, och hur många skyltar som har den.
+  const designs = orderDesigns(quote.badges);
+  const withAngles = showsElement(quote, "angles");
+  const galleries = showsElement(quote, "pictures")
+    ? designs.slice(0, Math.max(QUOTE_SHOT_DESIGNS, 6)).map((design, i) => {
+        const shot = quote.shots?.[i] ?? null;
+        // Äldre offerter har en enda stillbild, av den första designen.
+        const single = !shot && i === 0 && designs.length === 1 ? quote.badgeShot : null;
+        const main = shot
+          ? `<img src="${esc(shot.main)}" alt="">`
+          : single
+            ? `<img src="${esc(single)}" alt="">`
+            : renderBadgeSvg(design.doc, layoutBadge(design.doc, fonts), { mode: "preview", fonts });
+        const angles =
+          shot && withAngles && shot.angles.length > 0
+            ? `<div class="angles">${shot.angles
+                .map((angle, n) => `<figure><img src="${esc(angle)}" alt=""><figcaption>${esc(ANGLE_LABELS[n] ?? "")}</figcaption></figure>`)
+                .join("")}</div>`
+            : "";
+        const names = quote.badges.length;
+        const note =
+          designs.length > 1
+            ? `Design ${i + 1} · ${design.count} st`
+            : names > 1
+              ? `Visas med första namnet — alla ${names} namn står nedan`
+              : "";
+        return `<div class="gallery"><div class="hero${shot || single ? " photo" : ""}">${main}</div>${angles}${note ? `<small>${esc(note)}</small>` : ""}</div>`;
+      })
+    : [];
+  // En design står bredvid kundens uppgifter. Flera står i en egen rad under, två i bredd.
+  const beside = galleries.length === 1 ? (galleries[0] ?? "") : "";
+  const below = galleries.length > 1 ? `<div class="designs">${galleries.join("")}</div>` : "";
+
   const rows = quote.badges
     .map((badge, i) => {
       const line = priced.lines[i];
@@ -87,26 +147,47 @@ export function quoteHtml(
     })
     .join("");
 
-  return `<!doctype html><html lang="sv"><head><meta charset="utf-8"><style>
-@page{size:A4;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;color:#0a0a0b}
-.page{width:210mm;min-height:297mm;padding:15mm 15mm 12mm;display:flex;flex-direction:column}
+  const message =
+    quote.message || (editable && render.slots?.message)
+      ? `<p class="message"${edit("message")}${editable ? ` data-placeholder="${PLACEHOLDER.message}"` : ""}>${esc(quote.message ?? "")}</p>`
+      : "";
+  const closingText = quote.options?.closing ?? "";
+  const closing =
+    closingText || (editable && render.slots?.closing)
+      ? `<p class="closing"${edit("closing")}${editable ? ` data-placeholder="${PLACEHOLDER.closing}"` : ""}>${esc(closingText)}</p>`
+      : "";
+  const terms = showsElement(quote, "terms")
+    ? `<div class="terms">Offerten gäller till ${esc(day(quote.validUntil))}.${company.quoteTerms ? `\n${esc(company.quoteTerms)}` : ""}</div>`
+    : "<div></div>";
+  const seller = showsElement(quote, "seller") ? `<div class="seller">${footer.map(esc).join("<br>")}</div>` : "";
+
+  const css = `@page{size:A4;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{margin:0}
+.page{width:210mm;min-height:297mm;padding:15mm 15mm 12mm;display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;font-size:16px;line-height:normal;color:#0a0a0b;background:#fff}
+.page p,.page h1,.page figure{margin:0}
 .top{display:flex;justify-content:space-between;align-items:flex-start}
 .logo{display:block;max-width:62mm;max-height:16mm;object-fit:contain;object-position:left top}
 .logo.plate{box-sizing:content-box;padding:2.5mm 4mm;border-radius:3mm}
 .brand{font-size:17px;font-weight:700;letter-spacing:-.01em}.brand small{display:block;margin-top:1mm;font-size:8.5px;font-weight:400;color:#6b7280;letter-spacing:0}
 .ref{text-align:right;font-size:9px;color:#6b7280}.ref b{display:block;font-size:12px;color:${primary}}
-.eyebrow{margin:10mm 0 0;font-size:8px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#6b7280}
-h1{margin:2mm 0 0;font-size:25px;line-height:1.1;letter-spacing:-.02em;color:${primary}}
-.message{margin:4mm 0 0;max-width:150mm;font-size:10.5px;line-height:1.55;color:#374151;white-space:pre-line}
+.page .eyebrow{margin:10mm 0 0;font-size:8px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#6b7280}
+.page h1{margin:2mm 0 0;font-size:25px;font-weight:700;line-height:1.1;letter-spacing:-.02em;color:${primary}}
+.page .message{margin:4mm 0 0;max-width:150mm;font-size:10.5px;line-height:1.55;color:#374151;white-space:pre-line}
 .grid{margin-top:7mm;display:grid;grid-template-columns:64mm 1fr;gap:7mm;align-items:start}
+.grid.wide{grid-template-columns:1fr}.grid.wide .info{display:grid;grid-template-columns:repeat(3,1fr);gap:3mm 6mm}.grid.wide .info div{margin:0}
 .info{background:#f4f4f1;border-radius:12px;padding:4mm}.info div{margin:0 0 2.6mm}.info div:last-child{margin:0}
-.k{margin:0;font-size:7.5px;color:#6b7280;text-transform:uppercase;letter-spacing:.08em}.v{margin:.6mm 0 0;font-size:10px;font-weight:500;white-space:pre-line}
-.stage{display:grid;grid-template-columns:repeat(${Math.min(2, svgs.length)},1fr);gap:4mm;padding:6mm;border-radius:12px;background:linear-gradient(180deg,#f6f5f1,#ebe9e2)}
-.stage svg{width:100%;height:auto;filter:drop-shadow(0 2mm 2.5mm rgba(11,31,58,.18))}
-.shot{display:grid;place-items:center;gap:2mm;padding:5mm;border-radius:12px;background:radial-gradient(120% 90% at 50% 35%,#fbfaf7 0%,#efede6 60%,#e4e1d8 100%)}
-.shot img{display:block;width:88%;max-height:56mm;object-fit:contain;filter:drop-shadow(0 3mm 3mm rgba(11,31,58,.22))}
-.shot small{font-size:7.5px;color:#6b7280}
+.page .k{margin:0;font-size:7.5px;color:#6b7280;text-transform:uppercase;letter-spacing:.08em}.page .v{margin:.6mm 0 0;font-size:10px;font-weight:500;white-space:pre-line}
+.designs{margin-top:5mm;display:grid;grid-template-columns:repeat(2,1fr);gap:5mm}
+.gallery{display:grid;gap:2mm;break-inside:avoid}
+.hero{display:grid;place-items:center;padding:6mm;border-radius:12px;background:radial-gradient(120% 90% at 50% 35%,#fbfaf7 0%,#efede6 60%,#e4e1d8 100%)}
+.hero svg{width:100%;height:auto;filter:drop-shadow(0 2mm 2.5mm rgba(11,31,58,.18))}
+.hero img{display:block;width:88%;max-height:56mm;object-fit:contain;filter:drop-shadow(0 3mm 3mm rgba(11,31,58,.22))}
+.designs .hero{height:50mm}.designs .hero img{max-height:38mm}.designs .hero svg{max-height:38mm}
+.angles{display:grid;grid-template-columns:repeat(3,1fr);gap:2mm}
+.angles figure{display:grid;gap:1mm;justify-items:center;padding:2.5mm 2mm 1.5mm;border-radius:8px;background:#f4f4f1}
+.angles img{display:block;width:100%;height:17mm;object-fit:contain;filter:drop-shadow(0 1.2mm 1.4mm rgba(11,31,58,.2))}
+.angles figcaption{font-size:6.5px;color:#6b7280;letter-spacing:.06em;text-transform:uppercase}
+.gallery small{font-size:7.5px;color:#6b7280;text-align:center}
 table{margin-top:7mm;width:100%;border-collapse:collapse;font-size:9.5px}
 th{text-align:left;font-weight:600;font-size:7.5px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;border-bottom:1px solid #0000001f;padding:2mm 0}
 td{padding:2.4mm 0;border-bottom:1px solid #00000012;vertical-align:top}td b{font-weight:600}
@@ -115,21 +196,30 @@ s{color:#9ca3af;font-weight:400}
 .sum{margin:4mm 0 0 auto;width:78mm;font-size:10px}.sum div{display:flex;justify-content:space-between;padding:1mm 0}
 .sum .disc{color:#0b7a4b}.sum .tot{margin-top:1.5mm;padding-top:2.5mm;border-top:1.5px solid ${primary};font-size:14px;font-weight:700;color:${primary}}
 .sum .vat{color:#6b7280;font-size:9px}
+.page .closing{margin:7mm 0 0;max-width:150mm;font-size:10.5px;line-height:1.55;color:#374151;white-space:pre-line}
 .promise{margin-top:8mm;display:flex;gap:7mm;font-size:9px;font-weight:600}.promise span:before{content:"✓";margin-right:1.6mm;color:${accent}}
 .accept{margin-top:6mm;padding:4mm 5mm;border-radius:12px;background:${primary};color:${onPrimary};font-size:10px}.accept b{font-size:11px}
 .foot{margin-top:auto;padding-top:6mm;display:flex;justify-content:space-between;gap:8mm;font-size:7.5px;line-height:1.55;color:#9ca3af}
-.foot .terms{max-width:85mm;white-space:pre-line}.foot .seller{text-align:right}
-</style></head><body><div class="page">
+.foot .terms{max-width:85mm;white-space:pre-line}.foot .seller{text-align:right}${
+    editable
+      ? `
+[data-edit]{outline:1px dashed transparent;outline-offset:1.5mm;border-radius:1mm;cursor:text;min-height:1.2em}
+[data-edit]:hover{outline-color:#9ca3af}[data-edit]:focus{outline:1.5px solid ${primary}}
+[data-edit]:empty::before{content:attr(data-placeholder);color:#9ca3af}
+[data-jump]{cursor:pointer;outline:1px dashed transparent;outline-offset:1mm;border-radius:1mm}
+[data-jump]:hover,[data-jump]:focus-visible{outline-color:#9ca3af}`
+      : ""
+  }`;
+
+  const title = quote.project ?? `Namnskyltar till ${customer.company ?? customer.name}`;
+  const body = `<div class="page">
 <div class="top">${brand}<div class="ref">Offert<b>${esc(quote.quoteNo)}</b></div></div>
 <p class="eyebrow">${quote.project ? `Offert till ${esc(customer.company ?? customer.name)}` : "Offert"}</p>
-<h1>${esc(quote.project ?? `Namnskyltar till ${customer.company ?? customer.name}`)}</h1>
-${quote.message ? `<p class="message">${esc(quote.message)}</p>` : ""}
-<div class="grid"><div class="info">${info.map(([k, v]) => `<div><p class="k">${esc(k)}</p><p class="v">${esc(v)}</p></div>`).join("")}</div>
-${
-    quote.badgeShot
-      ? `<div class="shot"><img src="${esc(quote.badgeShot)}" alt="">${quote.badges.length > 1 ? `<small>Visas med första namnet — alla ${quote.badges.length} namn står nedan</small>` : ""}</div>`
-      : `<div class="stage">${svgs.join("")}</div>`
-  }</div>
+<h1${edit("project")}>${esc(title)}</h1>
+${message}
+<div class="grid${beside ? "" : " wide"}"><div class="info">${info.map(([k, v, to]) => `<div${to ? jump(to) : ""}><p class="k">${esc(k)}</p><p class="v">${esc(v)}</p></div>`).join("")}</div>
+${beside}</div>
+${below}
 <table><thead><tr><th>Skylt</th><th class="r">Antal</th><th class="r">À-pris</th><th class="r">Summa</th></tr></thead><tbody>${rows}${priced.extras
     .map((e) => `<tr><td><b>${esc(e.label)}</b></td><td class="r">1 st</td><td class="r">${esc(sek(e.amountSek))}</td><td class="r"><b>${esc(sek(e.amountSek))}</b></td></tr>`)
     .join("")}</tbody></table>
@@ -145,16 +235,37 @@ ${priced.minimumTopUpSek > 0 ? `<div><span>Upp till minsta ordervärde</span><sp
 ${priced.shippingSek > 0 ? `<div><span>Frakt</span><span>${esc(sek(priced.shippingSek))}</span></div>` : ""}
 ${shipping ? `<div><span>${esc(shipping.label)}</span><span>${esc(shipping.value)}</span></div>` : ""}
 <div class="tot"><span>Totalt exkl. moms</span><span>${esc(sek(priced.totalSek))}</span></div>
-<div class="vat"><span>Moms 25 %</span><span>${esc(sek(priced.vatSek))}</span></div>
-<div class="vat"><span>Att betala inkl. moms</span><span>${esc(sek(priced.totalInclVatSek))}</span></div>
+${
+    showsElement(quote, "vat")
+      ? `<div class="vat"><span>Moms 25 %</span><span>${esc(sek(priced.vatSek))}</span></div>
+<div class="vat"><span>Att betala inkl. moms</span><span>${esc(sek(priced.totalInclVatSek))}</span></div>`
+      : ""
+  }
 </div>
-<div class="promise">${PROMISES.map((p) => `<span>${esc(p)}</span>`).join("")}</div>
-<div class="accept"><b>Godkänn offerten</b> — ${
-    // En offert som säljaren skickar själv har ingen länk i något mejl: kunden svarar säljaren.
-    quote.emailedAt
-      ? "öppna länken i mejlet och klicka ”Godkänn”, så går skyltarna till tillverkningen."
-      : `svara ${esc(company.site ? "oss" : company.name)} att ni godkänner, så går skyltarna till tillverkningen.`
-  }</div>
-<div class="foot"><div class="terms">Offerten gäller till ${esc(day(quote.validUntil))}.${company.quoteTerms ? `\n${esc(company.quoteTerms)}` : ""}</div><div class="seller">${footer.map(esc).join("<br>")}</div></div>
-</div></body></html>`;
+${closing}
+${showsElement(quote, "promises") ? `<div class="promise">${PROMISES.map((p) => `<span>${esc(p)}</span>`).join("")}</div>` : ""}
+${
+    showsElement(quote, "accept")
+      ? `<div class="accept"><b>Godkänn offerten</b> — ${
+          // En offert som säljaren skickar själv har ingen länk i något mejl: kunden svarar säljaren.
+          quote.emailedAt
+            ? "öppna länken i mejlet och klicka ”Godkänn”, så går skyltarna till tillverkningen."
+            : `svara ${esc(company.site ? "oss" : company.name)} att ni godkänner, så går skyltarna till tillverkningen.`
+        }</div>`
+      : ""
+  }
+<div class="foot">${terms}${seller}</div>
+</div>`;
+  return { css, body };
+}
+
+/** Offerten som fristående A4-HTML — samma dokument blir PDF:en. */
+export function quoteHtml(
+  quote: StoredQuote,
+  fonts: FontEngine,
+  company: SellerProfile = DEFAULT_COMPANY,
+  logoPlate: string | null = null,
+): string {
+  const { css, body } = quoteDocument(quote, fonts, company, logoPlate);
+  return `<!doctype html><html lang="sv"><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`;
 }

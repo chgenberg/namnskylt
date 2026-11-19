@@ -649,6 +649,12 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
     id: "032_quote_options",
     sql: `alter table quotes add column options jsonb;`,
   },
+  {
+    // Offertens bilder ur 3D-vyn (beslut av ägaren 2026-11-19): en stor bild och tre små ur andra
+    // vinklar per design. De är tunga och läses bara när en enskild offert hämtas.
+    id: "033_quote_shots",
+    sql: `alter table quotes add column shots jsonb;`,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

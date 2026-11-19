@@ -208,6 +208,8 @@ interface Badge3DProps {
   cameraZ?: number;
   /** Kamerans avstånd följer rutans storlek, som i skyltmotorn på telefon och surfplatta. */
   adaptive?: boolean;
+  /** Kameran står så nära som hela skylten ryms, också vriden: till offertens bilder. */
+  fit?: boolean;
   /** När WebGL-scenen finns — då kan en platt ersättare under den döljas. */
   onReady?: () => void;
   /** Paus efter ett släpp innan autosnurren tar vid. 0 = kastet glider direkt över i snurren. */
@@ -227,6 +229,7 @@ export default function Badge3D({
   recorderRef,
   cameraZ = 5.6,
   adaptive = false,
+  fit = false,
   onReady,
   resumeAfterDragMs = RESUME_AFTER_DRAG_MS,
 }: Badge3DProps) {
@@ -247,7 +250,7 @@ export default function Badge3D({
         onReady?.();
       }}
     >
-      <CameraDistance doc={doc} baseZ={cameraZ} adaptive={adaptive} onSettled={restartPhoto} />
+      <CameraDistance doc={doc} baseZ={cameraZ} adaptive={adaptive} fit={fit} onSettled={restartPhoto} />
       <StudioEnvironment intensity={1.35} />
       <directionalLight position={[2.5, 4, 5]} intensity={1.1} />
       <BadgeMesh

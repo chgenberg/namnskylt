@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1324 tester, grönt 2026-11-19).
+# Kvalitetsgrinden. Kör den innan något lämnas (1331 tester, grönt 2026-11-19).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -1531,10 +1531,15 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
 
 ## Skyltmotorns knappar, telefon och surfplatta — läge 2026-11-19
 
-- **Knapparna Gravera, Vänd och Snurra är borttagna** ur skyltmotorn (besked av ägaren
-  2026-11-19). Över skylten finns Fotoläge, Video och Dela, och för den som är inloggad i
-  panelen Offert (se Offert från skyltmotorn). Skylten vrids fortfarande genom att dra i den,
-  vänds av sig själv när ett fäste väljs, och graveras fram en gång när skyltmotorn öppnas.
+- **Över skylten finns bara Video, och Offert för den som är inloggad i panelen** (besked av
+  ägaren 2026-11-19, i två omgångar: först togs Gravera, Vänd och Snurra bort, sedan Fotoläge
+  och Dela). Skylten vrids fortfarande genom att dra i den, vänds av sig själv när ett fäste
+  väljs, och graveras fram en gång när skyltmotorn öppnas.
+  - Fotolägets strålspårning ligger kvar i `Badge3D` (`photo`, `PathTracer`), men ingen sida
+    slår på den. Skyltmotorn skickar `photo={false}`.
+  - Dela: `src/features/designer/share.ts` är borttagen. En delad länk (`/skapa?d=…`) öppnas
+    som förut, och `encodeShareCode` används fortfarande av inspirationsbanken och
+    ordersidorna. `POST /api/share-image` anropas inte längre av någon sida.
 - **Sajten ska vara lika lätt att använda på telefon och surfplatta som på dator** (besked av
   ägaren 2026-11-19: "Motorn är exempelvis inte mobile-vänlig. Det är alldeles för liten
   skrollyta för val"). Förut tog skylten 48 % av höjden och prisdelen cirka 220 px, så på en
@@ -1579,16 +1584,53 @@ Den som är inloggad i panelen har knappen **Offert** till höger om Dela (beslu
 som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden ligger i
 `src/features/designer/quote/` och `src/lib/quotes/draft.ts`.
 
-- **Flödet:** Offert → säljaren ser dokumentet, väljer kund (befintlig eller ny), fyller i
-  projekt, giltig till och hälsning och väljer om loggan ska stå på offerten → **Spara**. Då
-  sparas offerten, PDF:en laddas ner till säljarens enhet, och säljaren skickar den själv till
-  kunden. **Inget mejlas härifrån.** Offerten väntar sedan under Offerter i panelen, där
-  säljaren trycker **Godkänn** eller **Neka** åt kunden. En godkänd offert blir en order som
-  går till verkstaden, som förut.
+- **Flödet:** Offert → säljaren ser dokumentet, ändrar texterna direkt i det, lägger till och
+  tar bort delar med ikonraden, väljer kund (befintlig eller ny) och giltig till → **Spara**.
+  Då sparas offerten, PDF:en och en 3D-film per skylt laddas ner till säljarens enhet, och
+  säljaren skickar dem själv till kunden. **Inget mejlas härifrån.** Offerten väntar sedan
+  under Offerter i panelen, där säljaren trycker **Godkänn** eller **Neka** åt kunden. En
+  godkänd offert blir en order som går till verkstaden, som förut.
+- **Texterna ändras genom att klicka i offerten**, som i Merchins offert (besked av ägaren
+  2026-11-19): rubriken (projektet), hälsningen och den avslutande texten är redigerbara i
+  dokumentet (`data-edit`, `QuoteSheet`). Ändringen sparas när fältet lämnas, Escape ångrar,
+  och Enter sparar rubriken. Kunden och "Giltig till" ändras i panelen: ett klick på dem i
+  dokumentet ställer markören i rätt fält (`data-jump`, `QUOTE_FIELD_IDS`).
+  - Dokumentet ligger i en skuggrot i sidan, inte i en ram, så att sajtens stil inte når det
+    och texterna går att skriva i. Det byts på plats utan att blinka, och bytet väntar medan
+    säljaren skriver i ett fält.
+  - Pris och antal går inte att ändra i dokumentet. Antalet hör till skylten, och priset
+    ändras i panelen efteråt.
+- **Ikonraden till vänster om offerten** (`QuoteRail`, samma besked) lägger till och tar bort
+  delar: Logga, Hälsning, Bilder, Vinklar, Moms, Avslutande text, Löften, Svarsruta, Villkor,
+  Våra uppgifter och 3D-film till mejlet. På telefon står raden ovanför offerten. Valen
+  sparas i `quotes.options` (`QUOTE_ELEMENTS`, `QuoteOptions`, `storedQuoteOptions` sparar
+  bara det som avviker från förvalet), och den avslutande texten som `options.closing`.
+  - **Valen gäller PDF:en.** Kundens offertsida på webben följer bara valet om loggan.
+- **Bilderna: en stor och tre små per design** (samma besked), tagna ur 3D-vyn: tre kvart,
+  rakt framifrån, från sidan och baksidan med fästet (`QuoteShots`, `stillAt` i
+  `three/recorder.tsx`). Skyltarna ritas en i taget i en osynlig 3D-vy med kameran nära
+  (`fit`), beskärs i webbläsaren och kodas om på servern (`normalizeBadgeShot`). De sparas i
+  `quotes.shots` (migrering 033, `QuoteShot`), en plats per design i den ordning
+  `orderDesigns` ger, och läses bara när en enskild offert hämtas. Högst fyra designer får
+  bilder; fler, och äldre offerter, ritas som ritningar. Flera designer står två i bredd.
+  - **En vridbar 3D-skylt i PDF:en är inte byggd**, och jag avrådde: formatet finns, men bara
+    Adobe Acrobat på dator visar det. Webbläsarens visare, Förhandsvisning på Mac och
+    telefoner visar en tom ruta.
+  - Den osynliga 3D-vyn ligger utanför panelen i sidan. Panelens innehåll är dolt i
+    offertvyn, och en dold ruta har ingen yta att rita på: då tas inga bilder.
+- **En 3D-film per design laddas ner med PDF:en** (besked av ägaren 2026-11-19: så att
+  återförsäljaren kan skicka med filmerna i mejlet). Samma osynliga vy spelar in ett varv
+  runt skylten efter bilderna, 6 sekunder i 4 Mbit/s, cirka 3 MB per film (`recordTurn`).
+  Filen heter `namnskylt-<namn>-<offertnummer>.mp4`. Spara väntar tills bilderna och filmerna
+  är klara, och knappen säger vad som pågår. Filmerna sparas inte på servern: de ligger i
+  webbläsarens minne, och den sparade rutan har knappar för att ladda ner dem igen.
+  - Väljs "3D-film till mejlet" bort i ikonraden spelas inget in, och Spara väntar inte.
+  - Webbläsaren kan fråga om lov när flera filer laddas ner samtidigt. Två olika skyltar tog
+    14 sekunder att filma i provet.
 - **Offerten gäller varukorgen och skylten i editorn** (`orderBadges`), till listpris. Efter
   Spara töms varukorgen och skylten börjar om, som efter en lagd order.
-- **Dokumentet i förhandsvisningen är samma HTML som PDF:en** (`quoteHtml`), ritat i
-  webbläsaren ur ett utkast (`draftQuote`) i en ram utan skript (`QuoteSheet`). Säljarens
+- **Dokumentet i förhandsvisningen är samma som PDF:en** (`quoteDocument`, som `quoteHtml`
+  slår in till en fristående sida), ritat i webbläsaren ur ett utkast (`draftQuote`). Säljarens
   uppgifter, logga och platta kommer från servern och är dem PDF:en ritas med
   (`quoteSellerView` i `src/lib/quotes/seller-view.ts`, `ResellerOrderContext.quoteSeller`).
   Utkastet bär numret "Utkast" tills offerten har sparats.
@@ -1597,8 +1639,8 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   offerten sparas som **skickad** (`createQuote` med `manual`), inte som utkast: kundens länk
   ska gå att öppna om säljaren delar den, och offerten väntar på svar. Svaret bär `pdfPath`.
   Varukorgens "Skicka offert" är orörd och mejlar som förut.
-- **Offertens val** sparas i `quotes.options` (migrering 032, `QuoteOptions`): i dag bara
-  `logo: false`, som sätter säljarens namn i stället för loggan i PDF:en, på kundens
+- **Offertens val** sparas i `quotes.options` (migrering 032, `QuoteOptions`), se ikonraden
+  ovan. `logo: false` sätter säljarens namn i stället för loggan i PDF:en, på kundens
   offertsida och i offertmejlet (`showsSellerLogo`).
 - **En offert som inte har mejlats härifrån** säger i dokumentet "svara … att ni godkänner"
   i stället för "öppna länken i mejlet" (`quote.emailedAt`). Det gäller också äldre offerter
@@ -1617,14 +1659,18 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   organisationsnummer, som i varukorgen.
 - Statusen heter "Skickad" i panelen, fast ägaren sa "väntande". Jag lade inte till en ny
   status: en skickad offert är den som väntar på svar.
-- Provat lokalt 2026-11-19 i webbläsaren (17 kontroller) och på 390 och 768 px: knappen,
-  dokumentet, kund, projekt, hälsning och logga, Spara med PDF utan mejl, kundens offertsida,
-  Godkänn utan adress, och Neka i listan. **Inte provat i drift.** Ingen offert har godkänts
-  till en order i provet.
+- Provat lokalt 2026-11-19 i Chrome (18 kontroller, och två skyltar i samma offert, och
+  telefon): knapparna, bilderna, redigering i dokumentet, ikonraden, Spara med PDF och film
+  utan mejl, och den sparade offerten. Godkänn utan adress och Neka i listan provades i
+  omgången före. **Inte provat i Safari eller på en riktig telefon**, där filminspelningen
+  och flera nedladdningar på en gång är det som mest kan skilja sig. Ingen offert har
+  godkänts till en order i provet.
 - Kända brister: en ny kund i offertpanelen får inget uppslag på organisationsnumret.
   Förhandsvisningen visar kundens namn ur kundlistan, inte adress eller telefon, som den
   sparade offerten har. Leveransen och priset går inte att ändra i offertvyn, bara i panelen
-  efteråt. Stillbilden av skylten tas bara när offerten har en enda design.
+  efteråt. Texterna i dokumentet går inte att nå med skärmläsare på ett bra sätt; projektet
+  och dagen har egna fält i panelen, men hälsningen och den avslutande texten skrivs bara i
+  dokumentet. Filmerna försvinner om sidan laddas om innan de har laddats ner.
 
 ## Besked — läge 2026-11-15
 

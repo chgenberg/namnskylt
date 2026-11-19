@@ -41,7 +41,9 @@ import { CartButton } from "./cart-button";
 import { CartDrawer } from "./cart-drawer";
 import cartStyles from "./cart.module.css";
 import { QuotePanel } from "./quote/quote-panel";
+import { QuoteRail } from "./quote/quote-rail";
 import { QuoteSheet } from "./quote/quote-sheet";
+import { QuoteShots } from "./quote/quote-shots";
 import { useQuote } from "./quote/use-quote";
 import { SectionNav } from "./section-nav";
 import styles from "./designer.module.css";
@@ -56,7 +58,6 @@ import { OrderSection } from "./sections/order-section";
 import { TextSection } from "./sections/text-section";
 import type { SpinFocus } from "./badge-3d";
 import type { BadgeRecorder } from "./three/recorder";
-import { shareBadge } from "./share";
 import { videoFileName } from "./video-file";
 import { OnboardingDialog } from "./onboarding-dialog";
 import type { OrderCopy, ResellerOrderContext, ShopContext } from "./reseller";
@@ -82,8 +83,6 @@ const Badge3D = dynamic(() => import("./badge-3d"), {
 /** `quote` är offerten på skyltens plats. Den öppnas med knappen Offert, inte med vyväljaren. */
 type View = "3d" | "drawing" | "person" | "quote";
 
-/** Samplingar per pixel innan fotoläget räknas som klart. */
-const PHOTO_SAMPLES = 160;
 /** Fältet för skyltens första rad i panelen (`TextSection`). Dit ställs markören när skylten saknar namn. */
 const FIRST_ROW_LABEL = "Rad 1";
 function focusFirstRow({ onlyEmpty = false }: { onlyEmpty?: boolean } = {}): void {
@@ -98,23 +97,12 @@ function forgetReorderInAddress(): void {
   url.searchParams.delete(COPY_MARK_PARAM);
   window.history.replaceState(window.history.state, "", url);
 }
+const noPhotoProgress = () => {};
 /** Ett varv runt skylten i 3D-filmen. */
 const VIDEO_SECONDS = 6;
 const VIDEO_STEPS = [
   [0, "Spelar in ett varv runt skylten…"],
   [85, "Sparar filmen…"],
-] as const;
-const SHARE_EXPECTED_MS = 2_500;
-const SHARE_STEPS = [
-  [0, "Ritar delningsbilden…"],
-  [60, "Skapar länken…"],
-] as const;
-/** Ungefärlig tid för fotolägets samplingar på en vanlig laptop. */
-const PHOTO_EXPECTED_MS = 4_000;
-const PHOTO_STEPS = [
-  [0, "Strålspårar ljuset…"],
-  [40, "Mjukar upp skuggorna…"],
-  [80, "Sista samplingarna…"],
 ] as const;
 const LOAD_3D_EXPECTED_MS = 2_500;
 const LOAD_3D_STEPS = [
@@ -195,8 +183,6 @@ export function Designer({
   const [focus, setFocus] = useState<SpinFocus | null>(null);
   /** Skylten graveras fram en gång när designern öppnas, och igen efter startrutan. */
   const [engrave, setEngrave] = useState<number | null>(0);
-  const [photo, setPhoto] = useState(false);
-  const [photoSamples, setPhotoSamples] = useState(0);
   const fonts = useFontEngine();
   const recorderRef = useRef<BadgeRecorder | null>(null);
   const [recording, setRecording] = useState(false);
@@ -305,7 +291,6 @@ export function Designer({
     const designs = cart.length + (pending ? 0 : 1);
     // En design som redan ligger i varukorgen har sin bild därifrån. Skylten i editorn fotograferas nu.
     setQuoteShot(designs !== 1 ? null : pending ? cartShot.current : (recorderRef.current?.still() ?? null));
-    setPhoto(false);
     setView("quote");
   };
 
@@ -321,17 +306,9 @@ export function Designer({
   );
 
 
-  const togglePhoto = () => {
-    const next = !photo;
-    setPhoto(next);
-    setPhotoSamples(0);
-    if (next) setFocus({ side: "hero", key: performance.now() });
-  };
-
   const recordVideo = async () => {
     const recorder = recorderRef.current;
     if (recording || !recorder) return;
-    setPhoto(false);
     setStageNote(null);
     setRecording(true);
     const clip = await recorder.recordTurn(VIDEO_SECONDS).catch(() => null);
@@ -366,18 +343,6 @@ export function Designer({
     if (resellerStart) focusFirstRow({ onlyEmpty: true });
   }, [resellerStart]);
 
-  const [sharing, setSharing] = useState(false);
-  const [shareFailed, setShareFailed] = useState(false);
-  const share = async () => {
-    if (sharing) return;
-    setSharing(true);
-    setStageNote(null);
-    const note = await shareBadge(doc, shop ? `/butik/${shop.slug}/skapa` : undefined).catch(() => null);
-    setShareFailed(note === null);
-    setSharing(false);
-    setStageNote(note === null ? "Det gick inte att dela just nu. Försök igen." : note || null);
-  };
-
   const { restart: resumeSaving } = saved;
   // Ytan eller färgen skylten hade senast på varje material. Byter kunden från mässing till plast och tillbaka
   // ska skylten vara mässing igen, inte materialets första yta.
@@ -396,9 +361,9 @@ export function Designer({
     setPending(false);
     if (action.type === "quantity") return;
     // Fästet sitter på baksidan: skylten vänds när fästet eller klämmans riktning väljs.
-    const side = action.type === "mounting" || action.type === "clip/orientation" ? "back" : photo ? "hero" : "front";
+    const side = action.type === "mounting" || action.type === "clip/orientation" ? "back" : "front";
     setFocus({ side, key: performance.now() });
-  }, [photo, track, resumeSaving]);
+  }, [track, resumeSaving]);
 
   /** Kollegans skylt in i editorn; den som redigerades tar hennes plats i listan. */
   const openColleague = (index: number) => {
@@ -552,15 +517,6 @@ export function Designer({
               <button
                 type="button"
                 className={`chip ${styles.stageChip}`}
-                aria-pressed={photo}
-                onClick={togglePhoto}
-              >
-                <span className={styles.photoIcon} aria-hidden="true" />
-                Fotoläge
-              </button>
-              <button
-                type="button"
-                className={`chip ${styles.stageChip}`}
                 data-recording={recording}
                 title={`Spela in en ${VIDEO_SECONDS} sekunders 3D-film och ladda ner den`}
                 disabled={recording}
@@ -571,19 +527,6 @@ export function Designer({
                   <path d="M16 10.5l5-3v9l-5-3z" />
                 </svg>
                 {recording ? "Spelar in…" : "Video"}
-              </button>
-              <button
-                type="button"
-                className={`chip ${styles.stageChip}`}
-                title="Dela skylten som bild och länk"
-                disabled={sharing}
-                onClick={() => void share()}
-              >
-                <svg className={styles.chipIcon} viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 15V3M7.5 7.5 12 3l4.5 4.5" />
-                  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
-                </svg>
-                {sharing ? "Skapar bild…" : "Dela"}
               </button>
               {/* Bara för den som är inloggad i panelen: offerten visas på skyltens plats och sparas som PDF. */}
               {reseller?.quoteSeller && (
@@ -636,9 +579,10 @@ export function Designer({
                 focus={focus}
                 engrave={engraves ? engrave : null}
                 onEngraveDone={endEngrave}
-                photo={photo}
-                photoSamples={PHOTO_SAMPLES}
-                onPhotoProgress={setPhotoSamples}
+                // Fotoläget, som strålspårade skylten, togs bort med sin knapp 2026-11-19.
+                photo={false}
+                photoSamples={0}
+                onPhotoProgress={noPhotoProgress}
                 recorderRef={recorderRef}
                 adaptive
               />
@@ -647,8 +591,12 @@ export function Designer({
                 <BadgeEditor doc={doc} fonts={fonts} dispatch={update} />
               </div>
             ) : view === "quote" ? (
-              quote.html ? (
-                <QuoteSheet html={quote.html} />
+              quote.markup ? (
+                // Ikonraden står till vänster om offerten och lägger till eller tar bort dess delar.
+                <div className={styles.quoteView}>
+                  <QuoteRail elements={quote.elements} onToggle={quote.toggle} disabled={quote.save.status === "saving" || quote.save.status === "saved"} />
+                  <QuoteSheet markup={quote.markup} onEdit={quote.edit} onJump={quote.jump} locked={quote.save.status === "saved"} />
+                </div>
               ) : (
                 <p className={styles.quoteEmpty}>Skriv ett namn eller lägg in en logga på skylten, så visas offerten här.</p>
               )
@@ -668,8 +616,6 @@ export function Designer({
             <p className={styles.hint} role="status">
               {stageNote}
             </p>
-          ) : view === "3d" && photo ? (
-            <p className={styles.hint} data-tip>Fotoläge · dra för att vrida, ljuset räknas om</p>
           ) : view === "drawing" ? (
             // Varningen visas överallt. Tipset om hur man drar visas inte på telefon, där det tar skyltens plats.
             <p className={styles.hint} data-severity={logoOverlapsText ? "warning" : undefined} data-tip={logoOverlapsText ? undefined : ""} role="status">
@@ -703,25 +649,6 @@ export function Designer({
               expectedMs={VIDEO_SECONDS * 1000}
               steps={VIDEO_STEPS}
               doneLabel="Filmen är nedladdad"
-            />
-            <ProgressBanner
-              variant="floating"
-              active={sharing}
-              failed={shareFailed}
-              title="Dela skylten"
-              expectedMs={SHARE_EXPECTED_MS}
-              steps={SHARE_STEPS}
-              doneLabel="Klart att dela"
-            />
-            <ProgressBanner
-              variant="floating"
-              active={photo && photoSamples < PHOTO_SAMPLES}
-              failed={!photo}
-              title="Fotoläge"
-              expectedMs={PHOTO_EXPECTED_MS}
-              value={photoSamples / PHOTO_SAMPLES}
-              steps={PHOTO_STEPS}
-              doneLabel="Strålspårad — klar för skärmdump"
             />
           </>
         )}
@@ -820,6 +747,11 @@ export function Designer({
           cart={designerCart}
         />
       </aside>
+      {/*
+        Offertens bilder tas ur en osynlig 3D-vy, en design i taget, medan offerten visas. Vyn ligger utanför
+        panelen: panelens innehåll är dolt i offertvyn, och en dold ruta har ingen yta att rita på.
+      */}
+      {view === "quote" && quote.jobs.length > 0 && <QuoteShots jobs={quote.jobs} fonts={fonts} onShot={quote.onShot} onFilm={quote.onFilm} />}
       {/* Symbolen sitter i sidhuvudet, längst upp till höger. Sidor utan sidhuvud får den fast över sidan. */}
       {cartSlot &&
         (cartSlot.element ? (

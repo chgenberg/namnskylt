@@ -22,6 +22,8 @@ interface CameraDistanceProps {
   baseZ: number;
   /** Avståndet följer rutans storlek: nära i en låg ruta, och aldrig närmare än att skylten ryms på bredden. */
   adaptive?: boolean;
+  /** Kameran står så nära som hela skylten ryms, också när den är vriden. Till bilder där skylten ska fylla rutan. */
+  fit?: boolean;
   /** Kameran har stannat på ett nytt avstånd. */
   onSettled: () => void;
 }
@@ -36,7 +38,7 @@ interface CameraDistanceProps {
  * ryms. På en surfplatta med panelen bredvid är rutan smal och hög: där backar kameran
  * tills skylten ryms på bredden, också ett vanligt ämne.
  */
-export function CameraDistance({ doc, baseZ, adaptive = false, onSettled }: CameraDistanceProps) {
+export function CameraDistance({ doc, baseZ, adaptive = false, fit = false, onSettled }: CameraDistanceProps) {
   const size = useThree((state) => state.size);
   const aspect = size.width / Math.max(1, size.height);
   const halfHeight = (doc.size.heightMm * UNITS_PER_MM) / 2;
@@ -48,7 +50,9 @@ export function CameraDistance({ doc, baseZ, adaptive = false, onSettled }: Came
   const fitWidth = (halfWidth * FIT_MARGIN) / (reach * aspect);
   const fits = Math.max(fitHeight, fitWidth);
   let target = Math.max(baseZ, doc.shape === "custom" ? fits : 0);
-  if (adaptive) {
+  if (fit) {
+    target = Math.max(baseZ, fits);
+  } else if (adaptive) {
     const far = Math.max(baseZ, doc.shape === "custom" ? fits : fitWidth);
     const roomy = MathUtils.clamp((size.height - LOW_VIEW_PX) / (TALL_VIEW_PX - LOW_VIEW_PX), 0, 1);
     target = MathUtils.lerp(Math.min(fits, far), far, roomy);

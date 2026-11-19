@@ -1,6 +1,6 @@
 import type { BadgeDocument, PriceTable } from "@/engine";
 import { priceWithPricing } from "@/lib/orders/pricing";
-import type { QuoteOptions, StoredQuote } from "./model";
+import type { QuoteOptions, QuoteShot, StoredQuote } from "./model";
 
 /** Kunden som den står på en offert som inte är sparad än. */
 export interface DraftCustomer {
@@ -25,6 +25,8 @@ export interface QuoteDraftInput {
   options: QuoteOptions;
   /** Stillbilden av skylten, när offerten har en enda design. */
   badgeShot: string | null;
+  /** Bilderna ur 3D-vyn, en plats per design. `null` där bilderna inte är tagna än. */
+  shots?: (QuoteShot | null)[];
   /** Dagen offerten görs. */
   now: Date;
 }
@@ -84,5 +86,6 @@ export function draftQuote(input: QuoteDraftInput): StoredQuote {
     decidedAt: null,
     events: [],
     options: input.options,
+    shots: input.shots ?? [],
   };
 }

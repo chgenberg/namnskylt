@@ -1,22 +1,40 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import styles from "./quote.module.css";
 
 /** A4 i skärmpunkter: dokumentet ritas i sin riktiga bredd och krymps till ytan. */
 const PAGE_WIDTH_PX = 794;
-const PAGE_HEIGHT_PX = 1123;
+
+/** Stilen som bara gäller förhandsvisningen: sidan nollställs mot sajtens stil och krymps till ytan. */
+const FRAME_CSS = ":host{all:initial;display:block}#zoom{zoom:var(--quote-zoom,1)}";
+
+interface QuoteSheetProps {
+  /** Offertens dokument: samma stil och innehåll som PDF:en ritas ur. */
+  markup: { css: string; body: string };
+  /** Säljaren har skrivit om en text direkt i dokumentet. */
+  onEdit: (field: string, text: string) => void;
+  /** Säljaren har klickat på något som ändras i panelen, till exempel kunden. */
+  onJump: (field: string) => void;
+  /** Offerten är sparad: dokumentet visas men går inte att ändra. */
+  locked?: boolean;
+}
 
 /**
  * Offerten som den ser ut, på skyltens plats i skyltmotorn (beslut av ägaren 2026-11-19).
- * Dokumentet är samma HTML som PDF:en ritas ur (`quoteHtml`), i en ram utan skript, så att
- * det säljaren ser är det kunden får. Sidan krymps till ytans bredd.
+ * Dokumentet är samma som PDF:en ritas ur (`quoteDocument`), lagt i en egen skuggrot så att
+ * sajtens stil inte når det. Rubriken, hälsningen och den avslutande texten ändras genom att
+ * klicka och skriva i dokumentet, som i Merchins offert; ändringen sparas när fältet lämnas.
  */
-export function QuoteSheet({ html }: { html: string }) {
+export function QuoteSheet({ markup, onEdit, onJump, locked = false }: QuoteSheetProps) {
   const fitRef = useRef<HTMLDivElement>(null);
-  const frameRef = useRef<HTMLIFrameElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
-  const [height, setHeight] = useState(PAGE_HEIGHT_PX);
+  /** Dokumentet som ska visas, och det som ligger i sidan. De skiljer sig medan säljaren skriver. */
+  const latest = useRef("");
+  const applied = useRef<string | null>(null);
+  const handlers = useRef({ onEdit, onJump });
+  handlers.current = { onEdit, onJump };
 
   useEffect(() => {
     const fit = fitRef.current;
@@ -28,27 +46,95 @@ export function QuoteSheet({ html }: { html: string }) {
     return () => observer.disconnect();
   }, []);
 
-  // Dokumentet kan bli längre än en sida, till exempel med många namn: ramen följer dess höjd.
-  const measureHeight = () => {
-    const page = frameRef.current?.contentDocument?.documentElement;
-    if (page) setHeight(Math.max(PAGE_HEIGHT_PX, page.scrollHeight));
-  };
+  // Skuggroten och dess lyssnare skapas en gång. Innehållet byts i effekten under.
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+    const editing = () => Boolean(root.activeElement?.hasAttribute("data-edit"));
+    const show = () => {
+      if (editing() || applied.current === latest.current) return;
+      root.innerHTML = latest.current;
+      applied.current = latest.current;
+    };
+    /** Ändringen ångras med Escape: fältet lämnas utan att texten sparas. */
+    let reverted = false;
+    const fieldOf = (event: Event) => (event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-edit]") : null);
+    const jumpOf = (event: Event) => (event.target instanceof HTMLElement ? event.target.closest<HTMLElement>("[data-jump]") : null);
+
+    const onFocusOut = (event: Event) => {
+      const field = fieldOf(event);
+      if (!field) return;
+      if (reverted) applied.current = null;
+      else handlers.current.onEdit(field.dataset.edit ?? "", field.innerText.replace(/ /g, " "));
+      reverted = false;
+      // Det som har hänt medan fältet var öppet, eller texten som ångrades, ritas nu.
+      window.setTimeout(show, 0);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      const field = fieldOf(event);
+      if (field) {
+        if (event.key === "Escape") {
+          reverted = true;
+          field.blur();
+        }
+        // Rubriken är en rad. I de längre texterna är Enter en ny rad, och Ctrl eller Cmd + Enter sparar.
+        if (event.key === "Enter" && (field.dataset.edit === "project" || event.metaKey || event.ctrlKey)) {
+          event.preventDefault();
+          field.blur();
+        }
+        return;
+      }
+      const jump = jumpOf(event);
+      if (jump && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        handlers.current.onJump(jump.dataset.jump ?? "");
+      }
+    };
+    const onPaste = (event: ClipboardEvent) => {
+      const field = fieldOf(event);
+      if (!field) return;
+      // Bara texten klistras in, aldrig formatering ur ett annat dokument.
+      event.preventDefault();
+      const text = event.clipboardData?.getData("text/plain") ?? "";
+      document.execCommand("insertText", false, field.dataset.edit === "project" ? text.replace(/\s+/g, " ") : text);
+    };
+    const onClick = (event: Event) => {
+      const jump = jumpOf(event);
+      if (jump) handlers.current.onJump(jump.dataset.jump ?? "");
+    };
+    root.addEventListener("focusout", onFocusOut);
+    root.addEventListener("keydown", onKeyDown as EventListener);
+    root.addEventListener("paste", onPaste as EventListener);
+    root.addEventListener("click", onClick);
+    show();
+    return () => {
+      root.removeEventListener("focusout", onFocusOut);
+      root.removeEventListener("keydown", onKeyDown as EventListener);
+      root.removeEventListener("paste", onPaste as EventListener);
+      root.removeEventListener("click", onClick);
+    };
+  }, []);
+
+  // Dokumentet byts på plats, utan att sidan blinkar. Medan säljaren skriver i ett fält väntar bytet.
+  useLayoutEffect(() => {
+    latest.current = `<style>${FRAME_CSS}${markup.css}</style><div id="zoom">${markup.body}</div>`;
+    const root = hostRef.current?.shadowRoot;
+    if (!root || root.activeElement?.hasAttribute("data-edit") || applied.current === latest.current) return;
+    root.innerHTML = latest.current;
+    applied.current = latest.current;
+  }, [markup]);
 
   return (
     <div className={styles.sheet}>
       <div ref={fitRef} className={styles.sheetFit}>
-        <div className={styles.paper} style={{ height: height * scale, visibility: scale ? "visible" : "hidden" }}>
-          <iframe
-            ref={frameRef}
-            className={styles.frame}
-            title="Offerten som den ser ut"
-            // Inga skript: dokumentet är bara en bild av offerten. Samma ursprung, så att loggornas bilder hämtas och höjden går att läsa.
-            sandbox="allow-same-origin"
-            srcDoc={html}
-            onLoad={measureHeight}
-            style={{ width: PAGE_WIDTH_PX, height, transform: `scale(${scale})` }}
-          />
-        </div>
+        <div
+          ref={hostRef}
+          className={styles.paper}
+          data-quote-document
+          inert={locked}
+          style={{ "--quote-zoom": scale || 1, visibility: scale ? "visible" : "hidden" } as CSSProperties}
+        />
       </div>
     </div>
   );

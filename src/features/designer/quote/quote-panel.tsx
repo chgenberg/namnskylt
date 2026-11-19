@@ -6,7 +6,7 @@ import type { ResellerOrderContext } from "../reseller";
 import { ResellerCustomer } from "../sections/reseller-customer";
 import sections from "../sections/sections.module.css";
 import styles from "./quote.module.css";
-import type { QuoteState } from "./use-quote";
+import { QUOTE_FIELD_IDS, type QuoteState } from "./use-quote";
 
 interface QuotePanelProps {
   reseller: ResellerOrderContext;
@@ -15,11 +15,14 @@ interface QuotePanelProps {
   onBack: () => void;
 }
 
-/** Laddar ner PDF:en utan att lämna sidan: svaret är en bilaga. */
-function download(path: string) {
+/** Så länge väntar varje film efter den förra: webbläsare släpper inte igenom flera nedladdningar i samma ögonblick. */
+const DOWNLOAD_GAP_MS = 700;
+
+/** Laddar ner en fil utan att lämna sidan: PDF:en är en bilaga, och filmerna ligger i webbläsarens minne. */
+function download(path: string, name = "") {
   const link = document.createElement("a");
   link.href = path;
-  link.download = "";
+  link.download = name;
   document.body.append(link);
   link.click();
   link.remove();
@@ -36,12 +39,13 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
   const saving = save.status === "saving";
   const saved = save.status === "saved" ? save.quote : null;
 
-  // PDF:en laddas ner en gång, när offerten just har sparats.
+  // PDF:en och filmerna laddas ner en gång, när offerten just har sparats.
   const downloaded = useRef<string | null>(null);
   useEffect(() => {
     if (!saved || downloaded.current === saved.quoteNo) return;
     downloaded.current = saved.quoteNo;
     download(saved.pdfPath);
+    saved.films.forEach((film, index) => window.setTimeout(() => download(film.url, film.name), DOWNLOAD_GAP_MS * (index + 1)));
   }, [saved]);
 
   if (saved) {
@@ -53,8 +57,11 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
             <h1 className={styles.title}>Offert {saved.quoteNo} är sparad</h1>
           </header>
           <p className={styles.lead} role="status">
-            PDF:en laddas ner till din enhet. Skicka den till kunden. När kunden har svarat godkänner eller nekar du
-            offerten under Offerter i panelen. Godkänner du blir den en order som går till tillverkningen.
+            {saved.films.length > 0
+              ? `PDF:en och ${saved.films.length === 1 ? "en 3D-film av skylten" : `${saved.films.length} 3D-filmer av skyltarna`} laddas ner till din enhet. Bifoga dem i ditt mejl till kunden.`
+              : "PDF:en laddas ner till din enhet. Skicka den till kunden."}{" "}
+            När kunden har svarat godkänner eller nekar du offerten under Offerter i panelen. Godkänner du blir den en
+            order som går till tillverkningen.
           </p>
           <div className={styles.links}>
             <a className="btn btn--primary" href={`/admin/offerter/${saved.quoteNo}`}>
@@ -63,6 +70,12 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
             <a className="btn" href={saved.pdfPath} download>
               Ladda ner PDF:en igen
             </a>
+            {/* Frågar webbläsaren om lov för flera filer kan en film utebli. Då hämtas den här. */}
+            {saved.films.map((film, index) => (
+              <a key={film.url} className="btn" href={film.url} download={film.name} data-quote-film={film.name}>
+                Ladda ner 3D-filmen igen{saved.films.length > 1 ? ` (${index + 1})` : ""}
+              </a>
+            ))}
           </div>
         </div>
         <footer className={styles.foot}>
@@ -90,23 +103,29 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
           <h1 className={styles.title}>{quote.recipient ? `Offert till ${quote.recipient.label}` : "Ny offert"}</h1>
         </header>
         <p className={styles.lead}>
-          Så här ser offerten ut. När du sparar laddas den ner som PDF, som du själv skickar till kunden. Inget mejlas
-          härifrån.
+          Så här ser offerten ut. När du sparar laddas den ner som PDF, tillsammans med en 3D-film av varje skylt, som
+          du själv skickar till kunden. Inget mejlas härifrån.
         </p>
+        <ul className={styles.tips}>
+          <li>Klicka på rubriken eller texterna i offerten för att ändra dem.</li>
+          <li>Ikonerna bredvid offerten lägger till och tar bort delar, som loggan, bilderna och momsen.</li>
+        </ul>
 
-        {reseller.customerId ? (
-          <p className={sections.cartNote}>
-            Kund: <strong>{reseller.customerName}</strong>
-          </p>
-        ) : (
-          <ResellerCustomer
-            customers={reseller.customers ?? []}
-            value={quote.target}
-            onChange={quote.setTarget}
-            needsInvoiceDetails={reseller.needsInvoiceDetails ?? false}
-            disabled={saving}
-          />
-        )}
+        <div id={QUOTE_FIELD_IDS.customer} className={styles.anchor}>
+          {reseller.customerId ? (
+            <p className={sections.cartNote}>
+              Kund: <strong>{reseller.customerName}</strong>
+            </p>
+          ) : (
+            <ResellerCustomer
+              customers={reseller.customers ?? []}
+              value={quote.target}
+              onChange={quote.setTarget}
+              needsInvoiceDetails={reseller.needsInvoiceDetails ?? false}
+              disabled={saving}
+            />
+          )}
+        </div>
         {quote.recipient?.demo && (
           <p className={sections.demoNote} role="status" data-demo-customer>
             Det här är en demokund. En godkänd offert blir en demoorder, som inte skickas till tillverkningen. Välj en
@@ -132,28 +151,14 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
           <label className={styles.labelled}>
             <span>Giltig till</span>
             <span className="field">
-              <input type="date" value={quote.validUntil} disabled={saving} onChange={(event) => quote.setValidUntil(event.target.value)} />
+              <input
+                id={QUOTE_FIELD_IDS.validUntil}
+                type="date"
+                value={quote.validUntil}
+                disabled={saving}
+                onChange={(event) => quote.setValidUntil(event.target.value)}
+              />
             </span>
-          </label>
-          <label className={styles.labelled}>
-            <span>Hälsning överst på offerten</span>
-            <textarea
-              className={styles.message}
-              rows={3}
-              maxLength={2000}
-              placeholder="Frivilligt. Till exempel: Hej! Här kommer offerten vi pratade om."
-              value={quote.message}
-              disabled={saving}
-              onChange={(event) => quote.setMessage(event.target.value)}
-            />
-          </label>
-        </div>
-
-        <div className={styles.group}>
-          <p className={sections.specTitle}>Utseende</p>
-          <label className={styles.check}>
-            <input type="checkbox" checked={quote.logo} disabled={saving} onChange={(event) => quote.setLogo(event.target.checked)} />
-            <span>Visa vår logga på offerten</span>
           </label>
         </div>
 
@@ -179,8 +184,19 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
           <button type="button" className="btn" disabled={saving} onClick={onBack}>
             Tillbaka till skylten
           </button>
-          <button type="button" className="btn btn--primary" disabled={saving || quote.blank} onClick={() => void quote.submit()}>
-            {saving ? "Sparar…" : "Spara"}
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={saving || quote.blank || quote.capturing || quote.recording !== null}
+            onClick={() => void quote.submit()}
+          >
+            {saving
+              ? "Sparar…"
+              : quote.capturing
+                ? "Tar bilder…"
+                : quote.recording
+                  ? `Spelar in film ${quote.recording.done + 1}/${quote.recording.total}…`
+                  : "Spara"}
           </button>
         </div>
         {quote.blank && <p className={sections.cartNote}>Skylten är tom. Skriv ett namn eller lägg in en logga först.</p>}

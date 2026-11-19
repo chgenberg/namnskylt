@@ -18,10 +18,19 @@ export interface VideoClip {
 }
 
 export interface BadgeRecorder {
-  /** Ett varv runt skylten som videoklipp; `null` om webbläsaren inte kan spela in. */
-  recordTurn: (seconds: number) => Promise<VideoClip | null>;
+  /**
+   * Ett varv runt skylten som videoklipp; `null` om webbläsaren inte kan spela in.
+   * `bitsPerSecond` sänks för filmer som ska mejlas, så att filen blir mindre.
+   */
+  recordTurn: (seconds: number, bitsPerSecond?: number) => Promise<VideoClip | null>;
   /** Stillbild i tre kvarts vinkel med transparent bakgrund, som PNG-data-URL. */
   still: () => string | null;
+  /**
+   * Stillbild i en given vinkel kring skyltens lodräta axel (radianer, 0 = rakt framifrån,
+   * π = baksidan), förminskad till `widthPx` och med transparent bakgrund. Till offertens
+   * bilder ur flera vinklar.
+   */
+  stillAt: (yaw: number, widthPx: number) => string | null;
 }
 
 /** Fotolägets vinkel — fas och gravyrdjup syns. */
@@ -56,6 +65,41 @@ function paperColor(): Color {
   return new Color(css || "white");
 }
 
+/** Luft runt skylten efter beskärningen, andel av bredden. Samma som servern lägger till. */
+const TRIM_PADDING = 0.06;
+/** Så genomskinlig får en bildpunkt vara och ändå räknas till bottnen. */
+const TRIM_ALPHA = 8;
+
+/**
+ * Bilden beskuren till det som syns, med lite luft runt om. Scenen är mycket större än skylten,
+ * och utan beskärning blir skylten liten i offertens förhandsvisning, där servern inte har
+ * hunnit beskära bilden.
+ */
+function trimmed(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D): HTMLCanvasElement {
+  const { width, height } = canvas;
+  const { data } = context.getImageData(0, 0, width, height);
+  let left = width;
+  let right = -1;
+  let top = height;
+  let bottom = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if ((data[(y * width + x) * 4 + 3] ?? 0) <= TRIM_ALPHA) continue;
+      if (x < left) left = x;
+      if (x > right) right = x;
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
+    }
+  }
+  if (right < left || bottom < top) return canvas;
+  const pad = Math.round((right - left + 1) * TRIM_PADDING);
+  const cut = document.createElement("canvas");
+  cut.width = right - left + 1 + pad * 2;
+  cut.height = bottom - top + 1 + pad * 2;
+  cut.getContext("2d")?.drawImage(canvas, left, top, right - left + 1, bottom - top + 1, pad, pad, right - left + 1, bottom - top + 1);
+  return cut;
+}
+
 interface RecorderProps {
   apiRef: RefObject<BadgeRecorder | null>;
   turnRef: RefObject<RecordingTurn | null>;
@@ -68,27 +112,44 @@ export function Recorder({ apiRef, turnRef, target }: RecorderProps) {
   const camera = useThree((state) => state.camera);
 
   useEffect(() => {
+    /** Ritar skylten i vinkeln och läser bilden med `read`, i samma steg. Skylten står sedan som förut. */
+    const shoot = (yaw: number, read: (canvas: HTMLCanvasElement) => string): string | null => {
+      if (!target) return null;
+      const y = target.rotation.y;
+      target.rotation.y = yaw + Math.round((y - yaw) / (Math.PI * 2)) * Math.PI * 2;
+      // Kontaktskuggan är bred och halvgenomskinlig; bilden får sin skugga där den visas.
+      const hidden: Object3D[] = [];
+      scene.traverse((object) => {
+        if (object.userData[RASTER_ONLY] && object.visible) {
+          object.visible = false;
+          hidden.push(object);
+        }
+      });
+      // Bufferten töms efter varje bildruta — läs den i samma steg som den ritas.
+      gl.render(scene, camera);
+      const image = read(gl.domElement);
+      hidden.forEach((object) => (object.visible = true));
+      target.rotation.y = y;
+      return image.startsWith("data:image/") ? image : null;
+    };
     apiRef.current = {
       still: () => {
-        if (!target) return null;
-        const y = target.rotation.y;
-        target.rotation.y = STILL_ANGLE + Math.round((y - STILL_ANGLE) / (Math.PI * 2)) * Math.PI * 2;
-        // Kontaktskuggan är bred och halvgenomskinlig; bilden får sin skugga där den visas.
-        const hidden: Object3D[] = [];
-        scene.traverse((object) => {
-          if (object.userData[RASTER_ONLY] && object.visible) {
-            object.visible = false;
-            hidden.push(object);
-          }
-        });
-        // Bufferten töms efter varje bildruta — läs den i samma steg som den ritas.
-        gl.render(scene, camera);
-        const png = gl.domElement.toDataURL("image/png");
-        hidden.forEach((object) => (object.visible = true));
-        target.rotation.y = y;
-        return png.startsWith("data:image/png") ? png : null;
+        const png = shoot(STILL_ANGLE, (canvas) => canvas.toDataURL("image/png"));
+        return png?.startsWith("data:image/png") ? png : null;
       },
-      recordTurn: (seconds) => {
+      stillAt: (yaw, widthPx) =>
+        shoot(yaw, (canvas) => {
+          const scale = Math.min(1, widthPx / Math.max(1, canvas.width));
+          const small = document.createElement("canvas");
+          small.width = Math.max(1, Math.round(canvas.width * scale));
+          small.height = Math.max(1, Math.round(canvas.height * scale));
+          const context = small.getContext("2d");
+          if (!context) return "";
+          context.drawImage(canvas, 0, 0, small.width, small.height);
+          // WebP där webbläsaren kan koda det, annars PNG. Servern kodar om bilden ändå.
+          return trimmed(small, context).toDataURL("image/webp", 0.9);
+        }),
+      recordTurn: (seconds, bitsPerSecond = VIDEO_BITS_PER_SECOND) => {
         const canvas = gl.domElement;
         const mime = supportedMime();
         if (!mime || !target || typeof canvas.captureStream !== "function") return Promise.resolve(null);
@@ -99,7 +160,7 @@ export function Recorder({ apiRef, turnRef, target }: RecorderProps) {
         target.rotation.y = startY;
 
         const stream = canvas.captureStream(FPS);
-        const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: VIDEO_BITS_PER_SECOND });
+        const recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitsPerSecond });
         const chunks: Blob[] = [];
         recorder.ondataavailable = (event) => {
           if (event.data.size > 0) chunks.push(event.data);

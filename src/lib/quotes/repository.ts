@@ -14,10 +14,13 @@ import {
   addDays,
   isQuoteStatus,
   parseQuoteOptions,
+  parseQuoteShots,
   QUOTE_VALID_DAYS,
+  storedQuoteOptions,
   swedishDay,
   type QuoteEvent,
   type QuoteOptions,
+  type QuoteShot,
   type QuoteStatus,
   type StoredQuote,
 } from "./model";
@@ -58,6 +61,7 @@ interface QuoteRow {
   reseller_id: string;
   delivery: unknown;
   options: unknown;
+  shots: unknown;
 }
 
 function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudience): StoredQuote {
@@ -101,13 +105,14 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
     decidedAt: row.decided_at?.toISOString() ?? null,
     events,
     options: parseQuoteOptions(row.options),
+    shots: parseQuoteShots(row.shots),
   };
 }
 
 /** Stillbilden är den tunga kolumnen — listan klarar sig utan. */
 function selectQuotes(sql: Sql, withShot = false) {
   return sql`
-    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, q.project, q.reseller_id, q.delivery, q.options, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
+    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, ${withShot ? sql`q.shots` : sql`null::jsonb`} as shots, q.project, q.reseller_id, q.delivery, q.options, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
            to_char(q.valid_until, 'YYYY-MM-DD') as valid_until, q.token, q.decline_reason, q.is_demo,
            q.created_at, q.sent_at, q.emailed_at, q.decided_at, o.order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email,
@@ -179,6 +184,8 @@ export async function createQuote(input: {
   validUntil?: string | null;
   /** Hur dokumentet ska se ut, till exempel utan säljarens logga. */
   options?: QuoteOptions | null;
+  /** Bilderna ur 3D-vyn, en plats per design. */
+  shots?: (QuoteShot | null)[] | null;
   /**
    * Säljaren skickar offerten själv, som PDF, och svarar åt kunden i panelen (knappen Offert i
    * skyltmotorn, beslut av ägaren 2026-11-19). Offerten väntar då på svar direkt, utan att mejlas härifrån.
@@ -193,7 +200,8 @@ export async function createQuote(input: {
   if (await missingLogoImages(input.badges)) throw new Error(MISSING_LOGO_IMAGE_ERROR);
   const badges = await withStoredLogoImages(input.badges);
   const validUntil = input.validUntil ?? addDays(swedishDay(new Date()), QUOTE_VALID_DAYS);
-  const options = input.options && Object.keys(input.options).length > 0 ? input.options : null;
+  const options = storedQuoteOptions(input.options);
+  const shots = input.shots?.some(Boolean) ? input.shots : null;
   // En offert som kunden bad om, eller som säljaren skickar själv, väntar på svar från början.
   const waiting = Boolean(input.reorderOf) || Boolean(input.manual);
   const token = randomBytes(18).toString("base64url");
@@ -201,13 +209,13 @@ export async function createQuote(input: {
     // Kunden måste tillhöra samma återförsäljare — annars skapas ingen offert.
     const [row] = await tx<{ id: string; quote_no: string }[]>`
       insert into quotes (reseller_id, customer_id, badges, price_model, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project,
-                          delivery, pricing, reorder_of, status, sent_at, message, options)
+                          delivery, pricing, reorder_of, status, sent_at, message, options, shots)
       select ${input.tenant}, ${input.customerId}, ${tx.json(badges as unknown as Json)}, ${tx.json(model as unknown as Json)}, ${price.totalSek},
              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null}, ${input.project ?? null},
              ${input.delivery ? tx.json(input.delivery as unknown as Json) : null},
              ${pricing ? tx.json(pricing as unknown as Json) : null}, ${input.reorderOf?.orderId ?? null},
              ${waiting ? "sent" : "draft"}, ${waiting ? tx`now()` : null}, ${input.message || null},
-             ${options ? tx.json(options as unknown as Json) : null}
+             ${options ? tx.json(options as unknown as Json) : null}, ${shots ? tx.json(shots as unknown as Json) : null}
        where exists (select 1 from customers where id = ${input.customerId} and reseller_id = ${input.tenant})
       returning id, quote_no`;
     if (!row) throw new Error("Offerten kunde inte sparas");

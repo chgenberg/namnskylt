@@ -6,12 +6,34 @@ import { defaultQuoteDelivery } from "@/lib/orders/delivery-options";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { orderCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-customer";
 import { databaseConfigured } from "@/lib/orders/repository";
-import { isValidUntil, swedishDay } from "@/lib/quotes/model";
+import { isValidUntil, parseQuoteOptions, QUOTE_SHOT_ANGLES, QUOTE_SHOT_DESIGNS, swedishDay, type QuoteShot } from "@/lib/quotes/model";
 import { createQuote } from "@/lib/quotes/repository";
 import { quoteEmailOn, sendQuote } from "@/lib/quotes/send";
 import { currentTenant } from "@/lib/reseller-auth/session";
 
 export const runtime = "nodejs";
+
+const shotSchema = badgeShotUploadSchema.unwrap();
+
+/** Bilderna kommer från klienten: var och en avkodas och kodas om, så att inget annat än pixlar sparas. */
+async function normalizeShots(shots: { main: string; angles: string[] }[] | (null | { main: string; angles: string[] })[] | undefined): Promise<(QuoteShot | null)[] | null> {
+  if (!shots) return null;
+  const normalized: (QuoteShot | null)[] = [];
+  for (const shot of shots) {
+    const main = shot ? await normalizeBadgeShot(shot.main) : null;
+    if (!shot || !main) {
+      normalized.push(null);
+      continue;
+    }
+    const angles: string[] = [];
+    for (const angle of shot.angles) {
+      const image = await normalizeBadgeShot(angle);
+      if (image) angles.push(image);
+    }
+    normalized.push({ main, angles });
+  }
+  return normalized;
+}
 
 const requestSchema = z.object({
   /** Kunden offerten gäller: en befintlig, eller en ny som fylls i i varukorgen. */
@@ -23,8 +45,13 @@ const requestSchema = z.object({
   message: z.string().trim().max(2000).optional(),
   /** Sista giltiga dag, `YYYY-MM-DD`. Utelämnad = 30 dagar. */
   validUntil: z.string().optional(),
-  /** Hur dokumentet ska se ut, till exempel utan säljarens logga. */
-  options: z.object({ logo: z.boolean().optional() }).optional(),
+  /** Hur dokumentet ska se ut: vilka delar som visas, och en avslutande text. Läses med `parseQuoteOptions`. */
+  options: z.record(z.string(), z.unknown()).optional(),
+  /** Bilderna ur 3D-vyn, en plats per design: en stor och små ur andra vinklar. `null` = designen ritas som ritning. */
+  shots: z
+    .array(z.object({ main: shotSchema, angles: z.array(shotSchema).max(QUOTE_SHOT_ANGLES) }).nullable())
+    .max(QUOTE_SHOT_DESIGNS)
+    .optional(),
   /**
    * `false` = offerten mejlas inte härifrån. Säljaren har sparat den med knappen Offert i skyltmotorn,
    * skickar PDF:en själv och svarar åt kunden i panelen.
@@ -76,7 +103,8 @@ export async function POST(request: Request) {
       delivery: await defaultQuoteDelivery(tenant, customer),
       message: parsed.data.message || null,
       validUntil: validUntil ?? null,
-      options: parsed.data.options ?? null,
+      options: parseQuoteOptions(parsed.data.options),
+      shots: await normalizeShots(parsed.data.shots),
       manual,
     });
     // Säljaren skickar PDF:en själv. Den hämtas med offertens kod, som säljaren ändå ser i panelen.
