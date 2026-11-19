@@ -30,6 +30,11 @@ export interface CustomerChoice {
   detail: string;
   /** Dit en offert mejlas. */
   email: string;
+  /**
+   * En demokund ur panelens demodata. Allt som görs till den blir demo: offerten mejlas inte,
+   * och ordern skickas aldrig till verkstaden. Säljaren ska se det innan något skapas.
+   */
+  demo?: boolean;
 }
 
 /** Designern öppnad av återförsäljaren för att lägga en order eller göra en offert åt en kund. */
@@ -41,6 +46,8 @@ export interface ResellerOrderContext {
    */
   customerId: string | null;
   customerName: string;
+  /** Kunden som är vald i förväg är en demokund, se `CustomerChoice.demo`. */
+  customerDemo?: boolean;
   /** `quote` sparar en offert — inget går till tillverkningen förrän kunden godkänt. */
   mode: "order" | "quote";
   /** Offertens rubrik, satt innan skyltmotorn öppnades. */

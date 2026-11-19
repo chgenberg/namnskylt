@@ -283,7 +283,7 @@ export function OrderSection({
     ? null
     : picksCustomer
       ? recipientOf(target, reseller.customers ?? [])
-      : { label: reseller.customerName, email: "" };
+      : { label: reseller.customerName, email: "", ...(reseller.customerDemo && { demo: true }) };
   const sectionRef = useRef<HTMLElement>(null);
   // Formulären hör till kassan. Efter ett fel står kundens formulär kvar med det som fyllts i, så att det går att skicka igen.
   const formOpen =
@@ -709,10 +709,19 @@ export function OrderSection({
             ) : (
               "Ingen kund är vald än. "
             )}
-            {reseller.quoteEmail
-              ? "Offerten mejlas direkt till kunden, som godkänner eller nekar med knapparna i mejlet."
-              : "Offerten öppnas i panelen, där du skickar den till kunden."}
+            {recipient?.demo
+              ? null
+              : reseller.quoteEmail
+                ? "Offerten mejlas direkt till kunden, som godkänner eller nekar med knapparna i mejlet."
+                : "Offerten öppnas i panelen, där du skickar den till kunden."}
           </p>
+          {/* En demokund: säljaren ska veta före klicket att inget mejlas och inget skickas till verkstaden. */}
+          {recipient?.demo && (
+            <p className={styles.demoNote} role="status" data-demo-customer>
+              Det här är en demokund. Offerten mejlas inte, och en order skickas inte till tillverkningen. Välj en annan kund,
+              eller Ny kund, för en riktig order.
+            </p>
+          )}
         </>
       )}
 

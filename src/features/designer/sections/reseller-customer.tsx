@@ -24,10 +24,10 @@ type TargetResult = { ok: true; body: { customerId: string } | { customer: Recor
  * kunden och adressen offerten mejlas till. `null` innan någon kund är vald.
  * Raden står alltid kvar, också när sökningen har gömt den valda kunden i listan.
  */
-export function recipientOf(target: CustomerTarget, customers: readonly CustomerChoice[]): { label: string; email: string } | null {
+export function recipientOf(target: CustomerTarget, customers: readonly CustomerChoice[]): { label: string; email: string; demo?: boolean } | null {
   if (target.kind === "existing") {
     const chosen = customers.find((customer) => customer.id === target.id);
-    return chosen ? { label: chosen.label, email: chosen.email } : null;
+    return chosen ? { label: chosen.label, email: chosen.email, ...(chosen.demo && { demo: true }) } : null;
   }
   const label = target.company.trim() || target.name.trim();
   return label && target.email.trim() ? { label, email: target.email.trim() } : null;
@@ -133,7 +133,11 @@ export function ResellerCustomer({ customers, value, onChange, needsInvoiceDetai
                 disabled={disabled}
                 onClick={() => onChange({ kind: "existing", id: customer.id })}
               >
-                <strong>{customer.label}</strong>
+                <strong>
+                  {customer.label}
+                  {/* En demokund ska synas som det redan i listan: det som görs till den går aldrig till verkstaden. */}
+                  {customer.demo && <em className={styles.demoMark}>Demo</em>}
+                </strong>
                 <span>{customer.detail}</span>
               </button>
             ))}

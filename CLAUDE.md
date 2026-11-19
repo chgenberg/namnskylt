@@ -1329,6 +1329,14 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
     - I panelen står inköpspriserna kvar för admin (prisredigeraren på order och offert,
       `/admin/inkopspriser`, Prismodell och Provision). Det är adminens egna sidor.
   - Från panelen (`?kund=<id>`) är kunden vald i förväg, som förut, och valet visas inte.
+  - **En demokund är märkt, och varukorgen varnar** (2026-11-19). En kollega till ägaren
+    gjorde en offert till Demokund AB i drift, godkände den och väntade på ordern hos
+    verkstaden: allt som görs till en demokund blir demo (`demo: customer.demo` i
+    `POST /api/admin/quotes` och `/api/admin/orders`), så offerten mejlades inte och ordern
+    NS-1111 skickades aldrig. Kundlistan visar nu "Demo" på demokunder (`CustomerChoice.demo`),
+    och vid knapparna står att offerten inte mejlas och att ordern inte skickas till
+    tillverkningen, också när kunden är vald i förväg från panelen (`customerDemo`).
+    Ordersidan och offertsidan i panelen hade redan märket Demo.
 - **Återförsäljaren utgår från varukorgen** (besked av ägaren 2026-11-16). Från panelen
   (`/admin/ny-order`, `/admin/ny-offert`) öppnas skyltmotorn rakt i editorn, utan startsida
   och startruta, med markören i skyltens första rad.

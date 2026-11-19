@@ -82,6 +82,7 @@ async function resellerContext(customerId: string | undefined, quote: boolean, p
         label: choice.company ?? choice.name,
         detail: choice.company ? `${choice.name} · ${choice.email}` : choice.email,
         email: choice.email,
+        ...(choice.demo && { demo: true }),
       }));
     return {
       ...shared,
@@ -104,6 +105,7 @@ async function resellerContext(customerId: string | undefined, quote: boolean, p
     ...shared,
     customerId: customer.id,
     customerName: customer.company ?? customer.name,
+    ...(customer.demo && { customerDemo: true }),
     project: project?.trim().slice(0, 120) || (copy ? (original?.project ?? undefined) : undefined),
     delivery: await deliveryOptions(tenant, customer),
     copy,
