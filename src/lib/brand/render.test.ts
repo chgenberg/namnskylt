@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import sharp from "sharp";
-import { chooseLogo, flagLike, logoOptionOrder, previewJpeg } from "./logo-image";
+import { blankLike, chooseLogo, flagLike, logoOptionOrder, previewJpeg } from "./logo-image";
 import { isFamilyAlias, matchRenderedFont, renderedFamilies, type RenderedFontSample } from "./match";
 import { primaryFamily, rankColors } from "./parse-css";
 import { allowBrowserRequest, isPublicHost } from "./request-guard";
-import { withWww } from "./url";
+import { unoptimizedImageUrl, withWww } from "./url";
 
 const sample = (stack: string, widthRatio: number, roles: Partial<RenderedFontSample> = {}): RenderedFontSample => ({
   stack,
@@ -64,6 +64,25 @@ describe("withWww", () => {
   it("lämnar www och underdomäner", () => {
     assert.equal(withWww(new URL("https://www.ica.se/")), null);
     assert.equal(withWww(new URL("https://butik.ica.se/")), null);
+  });
+});
+
+describe("unoptimizedImageUrl", () => {
+  it("pekar ut originalet bakom bildtjänsten i Next.js och hos Vercel", () => {
+    assert.equal(unoptimizedImageUrl("https://www.example.se/_next/image?url=%2Flogo.webp&w=96&q=75"), "https://www.example.se/logo.webp");
+    assert.equal(
+      unoptimizedImageUrl("https://example.se/_next/image?url=https%3A%2F%2Fcdn.example.se%2Fa%2Flogo.png&w=256&q=75"),
+      "https://cdn.example.se/a/logo.png",
+    );
+    assert.equal(unoptimizedImageUrl("https://example.se/_vercel/image?url=%2Fbilder%2Flogo.png&w=128&q=80"), "https://example.se/bilder/logo.png");
+  });
+
+  it("lämnar vanliga adresser, och det som inte är en bild på nätet", () => {
+    assert.equal(unoptimizedImageUrl("https://example.se/logo.png?url=%2Fannan.png"), null);
+    assert.equal(unoptimizedImageUrl("https://example.se/_next/image?w=96&q=75"), null);
+    assert.equal(unoptimizedImageUrl("https://example.se/_next/image?url=javascript%3Aalert(1)"), null);
+    assert.equal(unoptimizedImageUrl("https://example.se/_next/image?url=data%3Aimage%2Fpng%3Bbase64%2CAAAA"), null);
+    assert.equal(unoptimizedImageUrl("inte en adress"), null);
   });
 });
 
@@ -147,6 +166,49 @@ describe("logoOptionOrder", () => {
   it("utan modell: alla som inte liknar flaggor, begränsat antal", () => {
     assert.deepEqual(logoOptionOrder(null, null, [true, false, false]), [1, 2]);
     assert.deepEqual(logoOptionOrder(1, null, [false, false, false, false, false], 3), [1, 0, 2]);
+  });
+});
+
+describe("blankLike", () => {
+  const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
+  const block = (width: number, height: number, background: string, left: number, top: number) => ({
+    input: { create: { width, height, channels: 4 as const, background } },
+    left,
+    top,
+  });
+
+  it("en svart ruta med knappt synlig logga är ingen logga", async () => {
+    // Så blir en genomskinlig svart logga när en bildtjänst gör om den till JPEG: svart botten, och kanter i mörkgrått.
+    const box = await sharp({ create: { width: 96, height: 96, channels: 3, background: "#000000" } })
+      .composite([block(40, 3, "#2a2a2a", 28, 40), block(3, 30, "#222222", 30, 30), block(30, 2, "#333333", 33, 70)])
+      .jpeg({ quality: 75 })
+      .toBuffer();
+    assert.equal(await blankLike(box), true);
+    const white = await sharp({ create: { width: 200, height: 80, channels: 3, background: "#FFFFFF" } }).png().toBuffer();
+    assert.equal(await blankLike(white), true);
+  });
+
+  it("en logga som syns mot sin botten är kvar, också en med tunna linjer", async () => {
+    const onWhite = await sharp({ create: { width: 260, height: 80, channels: 3, background: "#FFFFFF" } })
+      .composite(Array.from({ length: 6 }, (_, i) => block(18, 50, "#1D1D1F", 10 + i * 40, 15)))
+      .png()
+      .toBuffer();
+    assert.equal(await blankLike(onWhite), false);
+    const hairline = await sharp({ create: { width: 1200, height: 400, channels: 3, background: "#FFFFFF" } })
+      .composite([block(1000, 2, "#000000", 100, 199), block(2, 300, "#000000", 599, 50)])
+      .png()
+      .toBuffer();
+    assert.equal(await blankLike(hairline), false);
+  });
+
+  it("en enfärgad logga på genomskinlig botten är aldrig tom", async () => {
+    for (const ink of ["#000000", "#FFFFFF"]) {
+      const logo = await sharp({ create: { width: 260, height: 80, channels: 4, background: TRANSPARENT } })
+        .composite(Array.from({ length: 6 }, (_, i) => block(18, 50, ink, 10 + i * 40, 15)))
+        .png()
+        .toBuffer();
+      assert.equal(await blankLike(logo), false, ink);
+    }
   });
 });
 

@@ -2,13 +2,13 @@ import "server-only";
 import { Resvg } from "@resvg/resvg-js";
 import { readBrand, type BrandReading } from "@/lib/ai/brand-vision";
 import { describeCompany, openai, type CompanyDescription } from "@/lib/ai/openai";
-import { MAX_LOGO_OPTIONS, chooseLogo, flagLike, logoOptionOrder, logoPng, previewJpeg } from "./logo-image";
+import { MAX_LOGO_OPTIONS, blankLike, chooseLogo, flagLike, logoOptionOrder, logoPng, previewJpeg } from "./logo-image";
 import { isFamilyAlias, matchFont, matchRenderedFont, renderedFamilies, type FontMatch } from "./match";
 import { brandColors, fontFamilies, primaryFamily, rankColors } from "./parse-css";
 import { parsePage, type LogoCandidate } from "./parse-html";
 import { renderSite, type RenderedLogo, type RenderedSite } from "./render";
 import { safeFetch } from "./safe-fetch";
-import { FetchBlockedError, parsePublicUrl, withWww } from "./url";
+import { FetchBlockedError, parsePublicUrl, unoptimizedImageUrl, withWww } from "./url";
 
 export interface BrandProfile {
   url: string;
@@ -27,7 +27,13 @@ export interface BrandProfile {
 
 const PAGE_LIMITS = { maxBytes: 2_000_000, timeoutMs: 7_000, accept: "text/html,application/xhtml+xml" };
 const CSS_LIMITS = { maxBytes: 1_000_000, timeoutMs: 4_000, accept: "text/css,*/*;q=0.1" };
-const LOGO_LIMITS = { maxBytes: 3_000_000, timeoutMs: 5_000, accept: "image/svg+xml,image/*;q=0.9" };
+/**
+ * Formaten står utskrivna, som i en webbläsare. En bildtjänst som väljer format efter vad
+ * mottagaren säger sig ta emot (Next.js, och flera andra) gör annars om en genomskinlig WebP
+ * till JPEG, och då blir bottnen svart: en svart logga kom fram som en svart ruta.
+ */
+const LOGO_ACCEPT = "image/webp,image/png,image/svg+xml,image/*;q=0.8";
+const LOGO_LIMITS = { maxBytes: 3_000_000, timeoutMs: 5_000, accept: LOGO_ACCEPT };
 const LOGO_ATTEMPTS = 4;
 /** Bredd på en SVG-logga renderad till PNG — gott om pixlar för spårningen. */
 const SVG_RASTER_PX = 800;
@@ -48,8 +54,21 @@ function svgToPng(markup: string): Buffer {
 
 const dataUrl = (png: Buffer, type = "image/png") => `data:${type};base64,${png.toString("base64")}`;
 
-/** En logga på adressen som PNG. SVG med text kräver sidans typsnitt — `null`, så tar skärmdumpen över. */
+/** En tom ruta är ingen logga att välja. Går bilden inte att pröva får den vara kvar. */
+const notBlank = async (image: Buffer) => !(await blankLike(image).catch(() => false));
+
+/**
+ * En logga på adressen som PNG. Ligger den bakom en bildtjänst provas originalet först: det
+ * är skarpare, och har kvar sin genomskinlighet.
+ */
 async function fetchLogoPng(url: string): Promise<Buffer | null> {
+  const original = unoptimizedImageUrl(url);
+  const png = original ? await fetchPng(original).catch(() => null) : null;
+  return png ?? fetchPng(url);
+}
+
+/** Bilden på adressen som PNG. SVG med text kräver sidans typsnitt — `null`, så tar skärmdumpen över. */
+async function fetchPng(url: string): Promise<Buffer | null> {
   const response = await safeFetch(url, LOGO_LIMITS);
   const type = response.contentType.split(";")[0]?.trim().toLowerCase() ?? "";
   if (type === "image/svg+xml" || (/\.svg(\?|$)/i.test(response.url) && !RASTER_TYPES.test(type))) {
@@ -78,7 +97,8 @@ async function logoImages(site: RenderedSite) {
     const png = await fetchLogoPng(new URL(site.home.ldLogo, site.url).href).catch(() => null);
     if (png) images.push({ png, source: "strukturerad data" });
   }
-  return images;
+  const kept = await Promise.all(images.map((image) => notBlank(image.png)));
+  return images.filter((_, i) => kept[i]);
 }
 
 async function readRendered(site: RenderedSite, logos: { png: Buffer }[]): Promise<BrandReading | null> {
@@ -144,13 +164,19 @@ async function scrapeRendered(rawUrl: string): Promise<BrandProfile | null> {
 
 async function loadLogo(candidate: LogoCandidate): Promise<string | null> {
   if (candidate.kind === "svg") return dataUrl(svgToPng(candidate.markup));
-  const response = await safeFetch(candidate.url, LOGO_LIMITS);
+  const original = unoptimizedImageUrl(candidate.url);
+  const logo = original ? await loadLogoUrl(original).catch(() => null) : null;
+  return logo ?? loadLogoUrl(candidate.url);
+}
+
+async function loadLogoUrl(url: string): Promise<string | null> {
+  const response = await safeFetch(url, LOGO_LIMITS);
   const type = response.contentType.split(";")[0]?.trim().toLowerCase() ?? "";
   if (type === "image/svg+xml" || (/\.svg(\?|$)/i.test(response.url) && !RASTER_TYPES.test(type))) {
     return dataUrl(svgToPng(response.body.toString("utf8")));
   }
   if (!RASTER_TYPES.test(type)) return null;
-  return dataUrl(response.body, type);
+  return (await notBlank(response.body)) ? dataUrl(response.body, type) : null;
 }
 
 async function loadLogos(candidates: readonly LogoCandidate[]): Promise<string[]> {

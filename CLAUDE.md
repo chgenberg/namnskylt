@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1341 tester, grönt 2026-11-19).
+# Kvalitetsgrinden. Kör den innan något lämnas (1346 tester, grönt 2026-11-19).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -606,6 +606,30 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     eller offert tappar sin logga i färg efter 30 dagar.
   - Känd brist: mjuka, halvgenomskinliga kanter i en logga (en skugga eller ett sken) klipps i
     3D-vyn, eftersom ytan följer siluetten; ritningen visar hela bilden.
+- **En logga från en hemsida får aldrig komma fram som en svart ruta** (ägaren fick
+  2026-11-19 två alternativ från en hemsida, loggan och en svart ruta, och en skylt med bara
+  streck när rutan valdes). Sidans logga låg bakom bildtjänsten i Next.js
+  (`/_next/image?url=…&w=96`), som väljer format efter vad mottagaren säger sig ta emot. Vår
+  förfrågan sa bara `image/*`, och då gör tjänsten om en genomskinlig WebP till JPEG: bottnen
+  blir svart, och en svart logga syns inte mot den. Tre rättningar i `src/lib/brand/`:
+  - **Förfrågan räknar upp formaten**, som en webbläsare (`LOGO_ACCEPT` i `profile.ts`:
+    WebP, PNG, SVG). Ta inte bort WebP ur den: då kommer JPEG tillbaka från sådana tjänster.
+  - **Originalet bakom bildtjänsten hämtas först** (`unoptimizedImageUrl` i `url.ts`, för
+    `/_next/image` och `/_vercel/image`): det är skarpare än de 96 px sidan visar loggan i,
+    och har kvar sin genomskinlighet. Går det inte hämtas tjänstens adress som förut. Adressen
+    går genom samma `safeFetch` som övriga loggor.
+  - **En heltäckt ruta i nästan en enda ton är ingen kandidat** (`blankLike` i
+    `logo-image.ts`): täcker bilden hela sin yta, och skiljer sig under 0,2 % av den mer än
+    64 tonsteg från den vanligaste tonen, tas den bort innan modellen eller kunden ser den.
+    En logga på genomskinlig botten är aldrig tom. Gränserna valde jag efter den bild som
+    gav felet (ljusaste pixeln 59 av 255).
+  - Miniatyrerna under "Fel logga?" krymps nu till sina rutor. En kvadratisk logga stack
+    förut ut under rutan.
+  - Provat lokalt 2026-11-19 mot samma hemsida, i skyltmotorn i Chrome: loggan kommer i
+    854 px med genomskinlig botten och hamnar hel på skylten. **Inte provat i drift.**
+  - Känd brist: utan AI-modellen (lokalt, eller när den inte svarar) kom också sidans runda
+    språkflagga och kontoikon med som alternativ. `flagLike` känner inte igen en rund flagga
+    på vit botten. I drift väljer modellen bort dem.
 - **Loggans storlek och ritningens handtag** (besked via ägaren 2026-11-18, som drog reglaget
   i botten utan att loggan växte mer än marginellt, och ville dra i kanten på logga och text):
   - **`BadgeLogo.sizing: "free"`** sätts när kunden själv ändrar storleken, med reglaget eller
@@ -1823,7 +1847,14 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   - Gäller bara återförsäljare. Hos namnskylt.com visas panelens färger aldrig för kunden.
   - Provat lokalt 2026-11-19 som återförsäljare i Chrome (12 kontroller, och 390 och 320 px)
     med fyra påhittade loggor: röd, tre färger på vit botten, svart med orange och helt vit.
-    Offerten i skyltmotorn ritades i loggans färger. Inte provat i drift.
+    Offerten i skyltmotorn ritades i loggans färger.
+- **Kontrollerat i drift 2026-11-19 efter pushen (`6f30cb3`), bara läsning**, som provkontot
+  för återförsäljare (10 av 10): inloggningen leder till offertlistan, menyn saknar Översikt,
+  "Skapa offert" står vid priset och öppnar offerten utan varukorg, en ny kund behöver bara
+  företagets namn, Spara var redo efter 2,2 sekunder, och en röd provlogga under
+  Inställningar gav röda färger i formuläret. Migrering 034 är tillämpad: indexet gäller
+  bara kunder med e-post. **Spara trycktes aldrig**, varken på offerten eller under
+  Inställningar, så ingen offert utan e-post har sparats i drift än.
 
 ## Besked — läge 2026-11-15
 

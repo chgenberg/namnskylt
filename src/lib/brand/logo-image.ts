@@ -75,6 +75,45 @@ export async function flagLike(png: Buffer): Promise<boolean> {
   return stats.fill > 0.72 && stats.aspect > 0.85 && stats.aspect < 2.1 && top3 > 0.88 && stats.saturated > 0.35;
 }
 
+/**
+ * Längsta sidan när en bild prövas som tom ruta: en logga i spårningens storlek läses som den är.
+ * En större bild glesas ut med närmaste pixel, så att tunna linjer inte tonas bort.
+ */
+const BLANK_SAMPLE_PX = LOGO_MAX_PX;
+/** Från den här andelen täckta pixlar har bilden ingen genomskinlighet som skiljer loggan från bottnen. */
+const BLANK_OPAQUE_SHARE = 0.99;
+/** Så många tonsteg (av 255) ska en pixel skilja sig från bildens vanligaste ton för att räknas som innehåll. */
+const BLANK_TONE_DISTANCE = 64;
+/** Under den här andelen innehåll finns ingenting att spåra. */
+const BLANK_CONTENT_SHARE = 0.002;
+
+/**
+ * En heltäckt ruta i nästan en enda ton är ingen logga (ägaren fick 2026-11-19 en svart ruta
+ * bland loggorna från en hemsida, och en skylt med bara streck när den valdes). Så ser en
+ * genomskinlig logga ut när en bildtjänst har gjort om den till JPEG: bottnen blir svart, och
+ * en svart logga syns inte mot den. En logga på genomskinlig botten är aldrig tom, hur
+ * enfärgad den än är: där skiljer genomskinligheten loggan från bottnen.
+ */
+export async function blankLike(buf: Buffer): Promise<boolean> {
+  const { data, info } = await open(buf)
+    .ensureAlpha()
+    .resize(BLANK_SAMPLE_PX, BLANK_SAMPLE_PX, { fit: "inside", withoutEnlargement: true, kernel: "nearest" })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const tones = new Array<number>(256).fill(0);
+  let opaque = 0;
+  for (let k = 0; k + 3 < data.length; k += 4) {
+    if ((data[k + 3] ?? 0) <= 128) continue;
+    opaque++;
+    const tone = Math.round(0.2126 * (data[k] ?? 0) + 0.7152 * (data[k + 1] ?? 0) + 0.0722 * (data[k + 2] ?? 0));
+    tones[tone] = (tones[tone] ?? 0) + 1;
+  }
+  if (opaque < info.width * info.height * BLANK_OPAQUE_SHARE) return false;
+  const common = tones.indexOf(Math.max(...tones));
+  const content = tones.reduce((sum, count, tone) => sum + (Math.abs(tone - common) > BLANK_TONE_DISTANCE ? count : 0), 0);
+  return content < opaque * BLANK_CONTENT_SHARE;
+}
+
 /** En vit logga syns inte på ljus bakgrund — då visas den på mörkt för modellen. */
 const LIGHT_LOGO_LUMINANCE = 200;
 
