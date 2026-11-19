@@ -185,8 +185,12 @@ export default async function QuotePage({ params }: QuotePageProps) {
           {editable && (
             <section className={styles.panel}>
               <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>
-                Kunden har sagt ja?
+                Kundens svar
               </h2>
+              <p className={styles.hint} style={{ marginBottom: "var(--space-3)" }}>
+                Godkänn när kunden har sagt ja: då blir offerten en order som går till tillverkningen. Neka om kunden
+                tackar nej.
+              </p>
               <QuoteDecisionButtons quoteNo={quote.quoteNo} canCancel />
             </section>
           )}

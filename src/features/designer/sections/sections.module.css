@@ -757,11 +757,11 @@
 }
 
 /*
- * Låga skärmar (samma brytpunkt som panelen i designer.module.css) och mobil, där
- * skylten står fast ovanför: priset står kvar längst ner men tar mindre plats —
- * stegaren räcker utan snabbvalen.
+ * Låga skärmar (samma brytpunkt som panelen i designer.module.css): priset står kvar
+ * längst ner men tar mindre plats — stegaren räcker utan snabbvalen. Telefonen har en
+ * egen, tätare prisrad längre ner.
  */
-@media (min-width: 901px) and (max-height: 760px), (max-width: 900px) {
+@media (min-width: 700px) and (max-height: 760px) {
   .order {
     gap: var(--space-2);
     padding: var(--space-3) var(--space-5);
@@ -868,8 +868,8 @@
   white-space: nowrap;
 }
 
-/* Låga skärmar och mobil saknar snabbvalen: där står specifikationen bredvid både stegaren och priset. */
-@media (min-width: 901px) and (max-height: 760px), (max-width: 900px) {
+/* Låga skärmar saknar snabbvalen: där står specifikationen bredvid både stegaren och priset. */
+@media (min-width: 700px) and (max-height: 760px) {
   .summary {
     grid-template-areas:
       "quantity spec"
@@ -1019,7 +1019,133 @@
   font-size: var(--text-sm);
 }
 
-@media (max-width: 420px) {
+/* Knappen som fäller ut prisets delar finns bara på telefon. */
+.detailsToggle {
+  display: none;
+}
+
+/*
+ * Telefon: prisdelen är en enda rad som står fast nederst, med antal, pris och knappen
+ * (besked av ägaren 2026-11-19: ytan för valen var för liten). Prisets delar och
+ * återförsäljarens ruta fälls ut med "Prisdetaljer". Blir summan lång hamnar knappen
+ * på en egen rad under.
+ */
+@media (max-width: 699px) {
+  .order {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .order .summary {
+    display: contents;
+  }
+
+  .order .quantityRow {
+    order: 1;
+    flex: none;
+  }
+
+  .order .quantityRow .chips,
+  .order .purchase > p {
+    display: none;
+  }
+
+  .order .stepper {
+    width: 116px;
+    height: 44px;
+  }
+
+  .order .stepper > button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .order .priceBlock {
+    order: 2;
+    flex: 0 1 auto;
+    max-width: 34%;
+  }
+
+  .order .priceLabel {
+    overflow: hidden;
+    font-size: var(--text-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .order .priceTotal {
+    font-size: 1.45rem;
+    white-space: nowrap;
+  }
+
+  .order > :global(.btn--primary) {
+    order: 3;
+    flex: 1 1 150px;
+    width: auto;
+    min-height: 44px;
+    padding-inline: var(--space-3);
+  }
+
+  /* Raden under: noten om moms och frakt, och knappen för prisets delar. Bredden tvingar ner den under knappen. */
+  .order .priceRow {
+    order: 4;
+    flex: 1 1 calc(100% - 140px);
+    min-width: 0;
+  }
+
+  .order .priceNote {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .detailsToggle {
+    order: 4;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: var(--space-1);
+    min-height: 24px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-ink-2);
+    font: inherit;
+    font-size: var(--text-xs);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .order .spec {
+    order: 5;
+    flex: 1 1 100%;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .order .purchase {
+    order: 6;
+    flex: 1 1 100%;
+  }
+
+  .order:not([data-details="open"]) .spec,
+  .order:not([data-details="open"]) .purchase {
+    display: none;
+  }
+
+  .order > .specTitle,
+  .order > .cartNote {
+    order: 7;
+    flex: 1 1 100%;
+  }
+}
+
+/* Panelen är smal också bredvid skylten på en surfplatta: korten följer panelens bredd, inte fönstrets. */
+@container panel (max-width: 380px) {
   .materialGrid {
     grid-template-columns: 1fr;
   }

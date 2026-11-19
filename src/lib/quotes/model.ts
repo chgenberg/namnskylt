@@ -18,6 +18,35 @@ export const QUOTE_STATUS_LABEL: Record<QuoteDisplayStatus, string> = {
 };
 
 export const QUOTE_VALID_DAYS = 30;
+/** Så långt fram får en offert som längst gälla när säljaren själv väljer dagen. */
+const QUOTE_VALID_MAX_DAYS = 365;
+
+/**
+ * Hur offertens dokument ska se ut. Säljaren väljer det när offerten görs med knappen Offert i
+ * skyltmotorn (beslut av ägaren 2026-11-19). Tomt = som förut.
+ */
+export interface QuoteOptions {
+  /** Säljarens logga står överst. `false` = bara säljarens namn. */
+  logo?: boolean;
+}
+
+/** Offertens val som de lästes ur databasen eller ett anrop. Det som inte går att läsa räknas som inget val. */
+export function parseQuoteOptions(value: unknown): QuoteOptions {
+  if (!value || typeof value !== "object") return {};
+  const { logo } = value as { logo?: unknown };
+  return typeof logo === "boolean" ? { logo } : {};
+}
+
+/** Säljarens logga visas på offerten, om säljaren inte har valt bort den. */
+export function showsSellerLogo(quote: { options?: QuoteOptions }): boolean {
+  return quote.options?.logo !== false;
+}
+
+/** Dagen offerten gäller till är en riktig dag, inte passerad och inte orimligt långt fram. */
+export function isValidUntil(day: string, today: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T12:00:00Z`))) return false;
+  return day >= today && day <= addDays(today, QUOTE_VALID_MAX_DAYS);
+}
 
 export interface QuoteEvent {
   status: QuoteStatus;
@@ -61,6 +90,8 @@ export interface StoredQuote {
   emailedAt: string | null;
   decidedAt: string | null;
   events: QuoteEvent[];
+  /** Hur dokumentet ska se ut. Saknas på offerter som byggs utanför lagringen: då gäller förvalen. */
+  options?: QuoteOptions;
 }
 
 export function isQuoteStatus(value: string): value is QuoteStatus {

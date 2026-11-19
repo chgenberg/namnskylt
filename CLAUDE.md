@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1318 tester, grönt 2026-11-19).
+# Kvalitetsgrinden. Kör den innan något lämnas (1324 tester, grönt 2026-11-19).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -320,9 +320,10 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       förut, alltså graverade, men går inte att beställa igen som de är, och blir print när
       de öppnas i skyltmotorn (`toOfferedDocument`), till exempel med Kopiera order. Ett
       sparat arbete i webbläsaren med en sådan skylt kastas.
-    - Knappen Gravera och gravyranimationen i 3D visas bara när något på skylten graveras
-      (`engraves` i `designer.tsx`). På en plastskylt heter ramen "Tryckt ram" när namnet
-      printas.
+    - Gravyranimationen i 3D, som spelas när skyltmotorn öppnas, visas bara när något på
+      skylten graveras (`engraves` i `designer.tsx`). Knappen Gravera, som spelade den igen,
+      togs bort 2026-11-19 (se Skyltmotorns knappar). På en plastskylt heter ramen "Tryckt
+      ram" när namnet printas.
     - **Ramen finns bara på plastskyltar** (beslut av ägaren 2026-11-18: "Graverad ram ska
       endast gälla för plastskyltar. Inget valbart alternativ vid metall"). Regeln följer
       materialet: ett material som bara printas har ingen ram (`frameFits`, `hasFittingFrame`,
@@ -1527,6 +1528,103 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   sidan rullar dit först när formuläret har vecklat ut sig (`FORM_OPEN_MS`, `[data-order-form]`
   med `scroll-margin-top`). Rullas det direkt avbryts rullningen av att sidan ändrar höjd.
 - `/verkstad` ligger bakom sajtspärren: utan sajtkoden nekas verkstadens inloggning (401).
+
+## Skyltmotorns knappar, telefon och surfplatta — läge 2026-11-19
+
+- **Knapparna Gravera, Vänd och Snurra är borttagna** ur skyltmotorn (besked av ägaren
+  2026-11-19). Över skylten finns Fotoläge, Video och Dela, och för den som är inloggad i
+  panelen Offert (se Offert från skyltmotorn). Skylten vrids fortfarande genom att dra i den,
+  vänds av sig själv när ett fäste väljs, och graveras fram en gång när skyltmotorn öppnas.
+- **Sajten ska vara lika lätt att använda på telefon och surfplatta som på dator** (besked av
+  ägaren 2026-11-19: "Motorn är exempelvis inte mobile-vänlig. Det är alldeles för liten
+  skrollyta för val"). Förut tog skylten 48 % av höjden och prisdelen cirka 220 px, så på en
+  iPhone blev ungefär 60 px kvar till valen.
+  - **Telefon (under 700 px, `designer.module.css`):** skylten står fast överst i en tredjedel
+    av höjden (`--stage-height`, i `svh` så att den står still när adressfältet fälls in),
+    med vyväljaren ovanför och knapparna under. Måttraden och tipsen visas inte där, bara
+    varningar (`data-tip` på tipsen). Rubriken "Din namnskylt" är dold för ögat.
+    - **Genvägar mellan sektionerna** står fast under skylten (`SectionNav` i
+      `section-nav.tsx`): Text, Metod, Logga, Material, Form, Fäste, Fler namn. Ett tryck
+      rullar fram sektionen (`scroll-margin-top` ur `--panel-sticky-top`), och den man står i
+      är markerad. Raden finns bara på telefon.
+    - **Prisdelen är en rad** (`sections.module.css`): antal, pris och "Lägg i varukorgen",
+      med "exkl. moms och frakt" och knappen Prisdetaljer under. Prisets delar och
+      återförsäljarens ruta fälls ut med Prisdetaljer (`details` i `OrderSection`). Blir
+      summan lång, eller skärmen smal (320 px), hamnar knappen på en egen rad.
+    - Ytan för valen är nu cirka 240 px på en iPhone (390 × 664), 310 px på en större
+      Android och 150 px på de minsta telefonerna.
+  - **Kameran följer rutans storlek** (`adaptive` i `three/camera-distance.tsx`, bara i
+    skyltmotorn): i en låg ruta går den så nära som skylten ryms, annars blev skylten 88 px
+    bred på telefon. I en smal, hög ruta backar den tills skylten ryms på bredden.
+  - **Surfplatta (från 700 px):** skylten och valen står bredvid varandra, som på dator, med
+    en smalare panel upp till 900 px. Scenens rader och panelens kort följer sin egen bredd
+    med behållarfrågor (`container: stage` och `container: panel`), inte fönstrets.
+  - **Övriga sidor** stack inte ut på bredden på 320, 390, 768 eller 1024 px. Rättat:
+    sidfotens länkar står på en egen rad med tryckytor på 44 px, startsidans skrivfält var
+    24 px högt på telefon (nu 48), och länkarna "Så funkar det" och i stegen har större
+    tryckyta på pekskärm (`@media (pointer: coarse)`).
+  - **Panelen:** tabellen på Tillverkning fick hela sidan att rulla i sidled, också på dator
+    (dolda etiketter i tabellen räknades mot sidans bredd). Rättat med `position: relative`
+    på tabellens rullyta. Övriga sidor i panelen höll sig inom skärmen på 390 och 768 px.
+  - Provat lokalt 2026-11-19 i Chrome med pekskärm på 320, 375, 390, 412, 768, 820 och
+    1024 px. **Inte provat på en riktig telefon eller surfplatta, och inte i Safari.**
+  - Kända brister: sidhuvudet (64 px) står kvar över skylten på telefon. På de minsta
+    telefonerna är ytan för valen fortfarande liten. Panelens sidor är bara mätta på bredden,
+    inte genomgångna för tryckytor.
+
+## Offert från skyltmotorn — läge 2026-11-19
+
+Den som är inloggad i panelen har knappen **Offert** till höger om Dela (beslut av ägaren
+2026-11-19). Den visar offerten på skyltens plats, och offertens uppgifter i panelen bredvid,
+som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden ligger i
+`src/features/designer/quote/` och `src/lib/quotes/draft.ts`.
+
+- **Flödet:** Offert → säljaren ser dokumentet, väljer kund (befintlig eller ny), fyller i
+  projekt, giltig till och hälsning och väljer om loggan ska stå på offerten → **Spara**. Då
+  sparas offerten, PDF:en laddas ner till säljarens enhet, och säljaren skickar den själv till
+  kunden. **Inget mejlas härifrån.** Offerten väntar sedan under Offerter i panelen, där
+  säljaren trycker **Godkänn** eller **Neka** åt kunden. En godkänd offert blir en order som
+  går till verkstaden, som förut.
+- **Offerten gäller varukorgen och skylten i editorn** (`orderBadges`), till listpris. Efter
+  Spara töms varukorgen och skylten börjar om, som efter en lagd order.
+- **Dokumentet i förhandsvisningen är samma HTML som PDF:en** (`quoteHtml`), ritat i
+  webbläsaren ur ett utkast (`draftQuote`) i en ram utan skript (`QuoteSheet`). Säljarens
+  uppgifter, logga och platta kommer från servern och är dem PDF:en ritas med
+  (`quoteSellerView` i `src/lib/quotes/seller-view.ts`, `ResellerOrderContext.quoteSeller`).
+  Utkastet bär numret "Utkast" tills offerten har sparats.
+- **Servern:** `POST /api/admin/quotes` tar `send: false`, `message`, `validUntil` och
+  `options`. Med `send: false` mejlas ingenting, också när offertmejlet är påslaget, och
+  offerten sparas som **skickad** (`createQuote` med `manual`), inte som utkast: kundens länk
+  ska gå att öppna om säljaren delar den, och offerten väntar på svar. Svaret bär `pdfPath`.
+  Varukorgens "Skicka offert" är orörd och mejlar som förut.
+- **Offertens val** sparas i `quotes.options` (migrering 032, `QuoteOptions`): i dag bara
+  `logo: false`, som sätter säljarens namn i stället för loggan i PDF:en, på kundens
+  offertsida och i offertmejlet (`showsSellerLogo`).
+- **En offert som inte har mejlats härifrån** säger i dokumentet "svara … att ni godkänner"
+  i stället för "öppna länken i mejlet" (`quote.emailedAt`). Det gäller också äldre offerter
+  som säljaren har skickat själv.
+- **Panelen:** offertsidans del heter "Kundens svar", med knapparna Godkänn (förut "Godkänn
+  åt kunden → order"), Neka och Makulera. Offertlistan har Godkänn och Neka på varje offert
+  som väntar. **Neka är ny** (`declineQuoteForCustomer`, `declineQuoteForCustomerAction`):
+  offerten blir nekad men finns kvar och kan ändras och skickas igen. Makulera drar tillbaka
+  den helt.
+- **Godkänn kräver leveransadress och telefon**, som förut (`acceptanceIssue`). Offerten
+  sparas med leverans till kunden utan adress, så säljaren fyller i den under Leverans på
+  offertsidan före Godkänn. Felet säger vad som saknas.
+- **Knappen visas för alla som är inloggade i panelen**, också admin, fast ägaren sa
+  "inloggad som återförsäljare". Det är min tolkning: `/skapa` är i säljarläge för båda, och
+  admin gör offerter åt namnskylt.coms kunder. Hos namnskylt.com krävs kundens företag och
+  organisationsnummer, som i varukorgen.
+- Statusen heter "Skickad" i panelen, fast ägaren sa "väntande". Jag lade inte till en ny
+  status: en skickad offert är den som väntar på svar.
+- Provat lokalt 2026-11-19 i webbläsaren (17 kontroller) och på 390 och 768 px: knappen,
+  dokumentet, kund, projekt, hälsning och logga, Spara med PDF utan mejl, kundens offertsida,
+  Godkänn utan adress, och Neka i listan. **Inte provat i drift.** Ingen offert har godkänts
+  till en order i provet.
+- Kända brister: en ny kund i offertpanelen får inget uppslag på organisationsnumret.
+  Förhandsvisningen visar kundens namn ur kundlistan, inte adress eller telefon, som den
+  sparade offerten har. Leveransen och priset går inte att ändra i offertvyn, bara i panelen
+  efteråt. Stillbilden av skylten tas bara när offerten har en enda design.
 
 ## Besked — läge 2026-11-15
 

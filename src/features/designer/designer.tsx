@@ -40,6 +40,10 @@ import { CartAccount } from "./cart-account";
 import { CartButton } from "./cart-button";
 import { CartDrawer } from "./cart-drawer";
 import cartStyles from "./cart.module.css";
+import { QuotePanel } from "./quote/quote-panel";
+import { QuoteSheet } from "./quote/quote-sheet";
+import { useQuote } from "./quote/use-quote";
+import { SectionNav } from "./section-nav";
 import styles from "./designer.module.css";
 import { BatchSection } from "./sections/batch-section";
 import { CartList } from "./sections/cart-section";
@@ -75,7 +79,8 @@ const Badge3D = dynamic(() => import("./badge-3d"), {
   ),
 });
 
-type View = "3d" | "drawing" | "person";
+/** `quote` är offerten på skyltens plats. Den öppnas med knappen Offert, inte med vyväljaren. */
+type View = "3d" | "drawing" | "person" | "quote";
 
 /** Samplingar per pixel innan fotoläget räknas som klart. */
 const PHOTO_SAMPLES = 160;
@@ -187,9 +192,8 @@ export function Designer({
   });
   const [view, setView] = useState<View>("3d");
   const [onboarding, setOnboarding] = useState(() => !initialDoc && (initialText.trim() !== "" || (fromStart && !reseller)));
-  const [spinning, setSpinning] = useState(false);
   const [focus, setFocus] = useState<SpinFocus | null>(null);
-  /** Skylten graveras fram en gång när designern öppnas, och igen på begäran. */
+  /** Skylten graveras fram en gång när designern öppnas, och igen efter startrutan. */
   const [engrave, setEngrave] = useState<number | null>(0);
   const [photo, setPhoto] = useState(false);
   const [photoSamples, setPhotoSamples] = useState(0);
@@ -273,6 +277,38 @@ export function Designer({
   );
   const orderBadges = useMemo(() => (pending ? cartBadges : [...cartBadges, doc, ...batch]), [pending, cartBadges, doc, batch]);
   const priceList = usePriceList();
+  /**
+   * Offerten på skyltens plats (knappen Offert, beslut av ägaren 2026-11-19). Den gäller varukorgen och
+   * skylten i editorn. Stillbilden tas när vyn öppnas, medan skylten syns, och bara för en enda design.
+   */
+  const [quoteShot, setQuoteShot] = useState<string | null>(null);
+  const finishQuote = () => {
+    // Offerten är sparad: varukorgen och skylten börjar om, som efter en lagd order.
+    cartShot.current = null;
+    setQuoteShot(null);
+    setCart([]);
+    setBatchText("");
+    dispatch({ type: "load", doc: { ...withTexts(doc, [""]), quantity: 1 } });
+    setPending(true);
+    saved.finish();
+  };
+  const quote = useQuote({
+    reseller,
+    badges: orderBadges,
+    priceList,
+    fonts,
+    active: view === "quote",
+    badgeShot: quoteShot,
+    onSaved: finishQuote,
+  });
+  const openQuote = () => {
+    const designs = cart.length + (pending ? 0 : 1);
+    // En design som redan ligger i varukorgen har sin bild därifrån. Skylten i editorn fotograferas nu.
+    setQuoteShot(designs !== 1 ? null : pending ? cartShot.current : (recorderRef.current?.still() ?? null));
+    setPhoto(false);
+    setView("quote");
+  };
+
   /** Varukorgens designer som egna rader: antal och summa för var och en, med orderns pris per skylt. */
   const cartSums = useMemo(
     () => designSums(cart.map((group) => groupBadges(group)), shop?.priceList, priceList),
@@ -289,10 +325,7 @@ export function Designer({
     const next = !photo;
     setPhoto(next);
     setPhotoSamples(0);
-    if (next) {
-      setSpinning(false);
-      setFocus({ side: "hero", key: performance.now() });
-    }
+    if (next) setFocus({ side: "hero", key: performance.now() });
   };
 
   const recordVideo = async () => {
@@ -343,11 +376,6 @@ export function Designer({
     setShareFailed(note === null);
     setSharing(false);
     setStageNote(note === null ? "Det gick inte att dela just nu. Försök igen." : note || null);
-  };
-
-  const toggleSpin = () => {
-    setSpinning((s) => !s);
-    setPhoto(false);
   };
 
   const { restart: resumeSaving } = saved;
@@ -503,8 +531,9 @@ export function Designer({
   /** Ritningen visar platshållare på en helt tom skylt. Då finns ingen logga, så här gäller skylten som den är. */
   const logoOverlapsText = Boolean(doc.logo) && layout.logoOverlapsText;
   /**
-   * Något på skylten graveras. Bara då finns en gravyr att visa fram med lasern: en metallskylt
-   * printas (beslut av ägaren 2026-11-18), så där visas varken animationen eller knappen Gravera.
+   * Något på skylten graveras. Bara då finns en gravyr att visa fram med lasern när skyltmotorn
+   * öppnas: en metallskylt printas (beslut av ägaren 2026-11-18), så där visas ingen animation.
+   * Knappen Gravera, som spelade animationen igen, togs bort på ägarens begäran 2026-11-19.
    */
   const engraves = (!layout.namePrinted && (layout.rows.length > 0 || layout.frames.length > 0)) || Boolean(layout.logo && !layout.logo.printed);
 
@@ -543,46 +572,6 @@ export function Designer({
                 </svg>
                 {recording ? "Spelar in…" : "Video"}
               </button>
-              {engraves && (
-                <button
-                  type="button"
-                  className={`chip ${styles.stageChip}`}
-                  title="Se lasern gravera fram skylten"
-                  disabled={recording || engrave !== null}
-                  onClick={() => {
-                    setPhoto(false);
-                    setEngrave(performance.now());
-                  }}
-                >
-                  <svg className={styles.chipIcon} viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 3v7M9 7l3 3 3-3" />
-                    <path d="M4 20h16M7 16.5l1.5-1.5M17 16.5 15.5 15M12 17v-2" />
-                  </svg>
-                  Gravera
-                </button>
-              )}
-              <button
-                type="button"
-                className={`chip ${styles.stageChip}`}
-                title="Vänd skylten och se andra sidan"
-                onClick={() => setFocus({ side: "flip", key: performance.now() })}
-              >
-                <svg className={styles.chipIcon} viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3" />
-                  <path d="M18 3v4h-4M6 21v-4h4" />
-                </svg>
-                Vänd
-              </button>
-              <button
-                type="button"
-                className={`chip ${styles.stageChip}`}
-                aria-pressed={spinning}
-                title={spinning ? "Stoppa snurrandet" : "Låt skylten snurra"}
-                onClick={toggleSpin}
-              >
-                <span className={styles.spinDot} data-on={spinning} aria-hidden="true" />
-                Snurra
-              </button>
               <button
                 type="button"
                 className={`chip ${styles.stageChip}`}
@@ -595,6 +584,29 @@ export function Designer({
                   <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" />
                 </svg>
                 {sharing ? "Skapar bild…" : "Dela"}
+              </button>
+              {/* Bara för den som är inloggad i panelen: offerten visas på skyltens plats och sparas som PDF. */}
+              {reseller?.quoteSeller && (
+                <button
+                  type="button"
+                  className={`chip ${styles.stageChip}`}
+                  title="Se offerten som den ser ut, välj kund och spara den som PDF"
+                  disabled={recording}
+                  onClick={openQuote}
+                >
+                  <svg className={styles.chipIcon} viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7 3h7l5 5v13H7z" />
+                    <path d="M14 3v5h5M10 13h6M10 17h6" />
+                  </svg>
+                  Offert
+                </button>
+              )}
+            </div>
+          )}
+          {view === "quote" && (
+            <div className={styles.stageActions}>
+              <button type="button" className={`chip ${styles.stageChip}`} onClick={() => setView("3d")}>
+                ← Tillbaka till skylten
               </button>
             </div>
           )}
@@ -620,7 +632,7 @@ export function Designer({
               <Badge3D
                 doc={doc}
                 fonts={fonts}
-                spinning={spinning}
+                spinning={false}
                 focus={focus}
                 engrave={engraves ? engrave : null}
                 onEngraveDone={endEngrave}
@@ -628,11 +640,18 @@ export function Designer({
                 photoSamples={PHOTO_SAMPLES}
                 onPhotoProgress={setPhotoSamples}
                 recorderRef={recorderRef}
+                adaptive
               />
             ) : view === "drawing" ? (
               <div className={styles.drawing}>
                 <BadgeEditor doc={doc} fonts={fonts} dispatch={update} />
               </div>
+            ) : view === "quote" ? (
+              quote.html ? (
+                <QuoteSheet html={quote.html} />
+              ) : (
+                <p className={styles.quoteEmpty}>Skriv ett namn eller lägg in en logga på skylten, så visas offerten här.</p>
+              )
             ) : (
               <VisualizeView state={visualize} />
             )}
@@ -644,15 +663,16 @@ export function Designer({
             {doc.size.widthMm} × {doc.size.heightMm} mm · {material.name} · {color.name}
           </p>
           {view === "3d" && recording ? (
-            <p className={styles.hint}>Rör inte skylten medan filmen spelas in</p>
+            <p className={styles.hint} data-tip>Rör inte skylten medan filmen spelas in</p>
           ) : view === "3d" && stageNote ? (
             <p className={styles.hint} role="status">
               {stageNote}
             </p>
           ) : view === "3d" && photo ? (
-            <p className={styles.hint}>Fotoläge · dra för att vrida, ljuset räknas om</p>
+            <p className={styles.hint} data-tip>Fotoläge · dra för att vrida, ljuset räknas om</p>
           ) : view === "drawing" ? (
-            <p className={styles.hint} data-severity={logoOverlapsText ? "warning" : undefined} role="status">
+            // Varningen visas överallt. Tipset om hur man drar visas inte på telefon, där det tar skyltens plats.
+            <p className={styles.hint} data-severity={logoOverlapsText ? "warning" : undefined} data-tip={logoOverlapsText ? undefined : ""} role="status">
               {logoOverlapsText
                 ? "Loggan ligger över texten — dra isär dem så att båda syns på skylten."
                 : `Dra texten eller loggan, eller dra i ett hörn för att ändra storlek. Streckad linje = säkerhetsmarginal, ${layout.contentInsetMm.toLocaleString("sv-SE")} mm.`}
@@ -663,7 +683,7 @@ export function Designer({
             </p>
           ) : (
             view === "3d" && (
-              <p className={styles.hint}>
+              <p className={styles.hint} data-tip>
                 Dra för att vrida skylten ·{" "}
                 <button type="button" className={styles.hintLink} onClick={() => setView("drawing")}>
                   Flytta text och logga
@@ -757,6 +777,7 @@ export function Designer({
               {reseller ? (reseller.customerId ? `Skylt till ${reseller.customerName}` : "Skylt till en kund") : "Din namnskylt"}
             </h1>
           </div>
+          <SectionNav />
           <TextSection
             doc={doc}
             layout={layout}
@@ -784,6 +805,8 @@ export function Designer({
           />
         </div>
         {/* Vid priset läggs skylten i varukorgen. Order och offert skickas från varukorgen, inte härifrån. */}
+        {/* Offertens uppgifter tar panelens plats medan offerten visas. Skyltens val står kvar under, dolda. */}
+        {view === "quote" && reseller?.quoteSeller && <QuotePanel reseller={reseller} quote={quote} onBack={() => setView("3d")} />}
         <OrderSection
           mode="price"
           doc={doc}

@@ -3,7 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { formatDate, formatSek } from "@/lib/format";
-import { acceptQuoteForCustomerAction, cancelQuoteAction, sendQuoteAction, updateQuoteTermsAction } from "./quote-actions";
+import {
+  acceptQuoteForCustomerAction,
+  cancelQuoteAction,
+  declineQuoteForCustomerAction,
+  sendQuoteAction,
+  updateQuoteTermsAction,
+} from "./quote-actions";
 import styles from "./admin.module.css";
 
 interface TermsFormProps {
@@ -202,7 +208,7 @@ export function QuoteDecisionButtons({ quoteNo, canCancel }: { quoteNo: string; 
           className={styles.repeat}
           disabled={pending}
           onClick={() => {
-            if (!window.confirm("Kunden har godkänt — gör om offerten till en order nu?")) return;
+            if (!window.confirm("Kunden har godkänt — gör om offerten till en order nu? Ordern går till tillverkningen.")) return;
             setError(null);
             startTransition(async () => {
               const result = await acceptQuoteForCustomerAction(quoteNo);
@@ -211,7 +217,22 @@ export function QuoteDecisionButtons({ quoteNo, canCancel }: { quoteNo: string; 
             });
           }}
         >
-          ✓ Godkänn åt kunden → order
+          ✓ Godkänn
+        </button>
+        <button
+          type="button"
+          className={styles.ghostButton}
+          disabled={pending}
+          onClick={() => {
+            if (!window.confirm("Kunden har tackat nej — neka offerten? Den finns kvar och kan ändras och skickas igen.")) return;
+            setError(null);
+            startTransition(async () => {
+              const result = await declineQuoteForCustomerAction(quoteNo);
+              if (!result.ok) setError(result.error);
+            });
+          }}
+        >
+          Neka
         </button>
         {canCancel && (
           <button

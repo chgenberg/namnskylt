@@ -8,7 +8,7 @@ import { DIRECT_PRICING_ERROR, isLineInvoiceable, pricingSchema, type Pricing } 
 import { saveResellerDeliveryAddress } from "@/lib/orders/repository";
 import { acceptQuote } from "@/lib/quotes/accept";
 import { isOwner } from "@/lib/tenants/model";
-import { cancelQuote, getQuote, updateQuote, updateQuoteDelivery } from "@/lib/quotes/repository";
+import { cancelQuote, declineQuoteForCustomer, getQuote, updateQuote, updateQuoteDelivery } from "@/lib/quotes/repository";
 import { sendQuote } from "@/lib/quotes/send";
 import { requireReseller } from "@/lib/reseller-auth/session";
 import type { ActionResult } from "./actions";
@@ -105,6 +105,17 @@ export async function acceptQuoteForCustomerAction(quoteNo: string): Promise<Act
     return result.ok ? done({ ok: true, orderNo: result.orderNo }) : { ok: false, error: result.error };
   } catch (error) {
     return fail(error, "Ordern kunde inte läggas");
+  }
+}
+
+/** Kunden har sagt nej på annat sätt (telefon, mejl) — återförsäljaren nekar offerten åt kunden. */
+export async function declineQuoteForCustomerAction(quoteNo: string): Promise<ActionResult> {
+  const tenant = await requireReseller();
+  try {
+    const ok = await declineQuoteForCustomer(tenant, quoteNoSchema.parse(quoteNo));
+    return ok ? done() : { ok: false, error: "Offerten går inte att neka längre" };
+  } catch (error) {
+    return fail(error, "Offerten kunde inte nekas");
   }
 }
 

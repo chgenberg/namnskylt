@@ -1,3 +1,4 @@
+import type { SellerProfile } from "@/lib/company/seller";
 import type { BadgeGroup, PriceTable } from "@/engine";
 import type { DeliveryOptions } from "@/lib/orders/delivery";
 import type { ShopPriceList } from "@/lib/shops/price-list";
@@ -73,4 +74,9 @@ export interface ResellerOrderContext {
   needsInvoiceDetails?: boolean;
   /** Offertmejlet är påslaget: offerten mejlas till kunden direkt när den skapas. */
   quoteEmail?: boolean;
+  /**
+   * Säljaren som offertens dokument ritas med när offerten görs med knappen Offert: uppgifterna, loggan
+   * och plattan bakom en ljus logga, samma som PDF:en ritas med. Utan den finns knappen inte.
+   */
+  quoteSeller?: { company: SellerProfile; plate: string | null };
 }

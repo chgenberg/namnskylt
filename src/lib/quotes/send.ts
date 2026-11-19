@@ -9,7 +9,7 @@ import { shippingMethodOf } from "@/lib/orders/delivery";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { getSellerProfile } from "@/lib/orders/repository";
 import { accountEmail } from "@/lib/reseller-auth/accounts";
-import { displayStatus, type StoredQuote } from "./model";
+import { displayStatus, showsSellerLogo, type StoredQuote } from "./model";
 import { composeQuoteEmail, quoteEmailSettings, quotePictureCaption, type QuoteEmailSettings } from "./quote-email";
 import { markEmailed, markSent } from "./repository";
 
@@ -88,7 +88,8 @@ export async function sendQuote(tenant: string, quoteNo: string, fetchImpl?: Fet
         replyTo,
         fromAddress: settings.fromAddress,
         footer: companyFooter(company),
-        brand: await sellerBrand(company, origin, `${url}/logga.png`),
+        // Har säljaren valt bort loggan på offerten står namnet också i mejlet.
+        brand: showsSellerLogo(quote) ? await sellerBrand(company, origin, `${url}/logga.png`) : { ...(await sellerBrand(company, origin)), logo: null },
       },
     );
     const result = await senderFor(settings, fetchImpl).send(message);

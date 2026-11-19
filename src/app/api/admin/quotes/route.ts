@@ -6,6 +6,7 @@ import { defaultQuoteDelivery } from "@/lib/orders/delivery-options";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { orderCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-customer";
 import { databaseConfigured } from "@/lib/orders/repository";
+import { isValidUntil, swedishDay } from "@/lib/quotes/model";
 import { createQuote } from "@/lib/quotes/repository";
 import { quoteEmailOn, sendQuote } from "@/lib/quotes/send";
 import { currentTenant } from "@/lib/reseller-auth/session";
@@ -18,6 +19,17 @@ const requestSchema = z.object({
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
   badgeShot: badgeShotUploadSchema,
   project: z.string().trim().max(120).optional(),
+  /** Hälsningen överst på offerten. */
+  message: z.string().trim().max(2000).optional(),
+  /** Sista giltiga dag, `YYYY-MM-DD`. Utelämnad = 30 dagar. */
+  validUntil: z.string().optional(),
+  /** Hur dokumentet ska se ut, till exempel utan säljarens logga. */
+  options: z.object({ logo: z.boolean().optional() }).optional(),
+  /**
+   * `false` = offerten mejlas inte härifrån. Säljaren har sparat den med knappen Offert i skyltmotorn,
+   * skickar PDF:en själv och svarar åt kunden i panelen.
+   */
+  send: z.boolean().optional(),
 });
 
 /**
@@ -25,6 +37,10 @@ const requestSchema = z.object({
  * tillverkningen förrän kunden har godkänt. Med offertmejlet påslaget skickas
  * offerten direkt till kunden (beslut av ägaren 2026-11-17). Annars sparas den
  * som utkast, och säljaren skickar länken själv från panelen.
+ *
+ * Med `send: false` mejlas ingenting (beslut av ägaren 2026-11-19, knappen Offert i
+ * skyltmotorn): offerten sparas som väntande, säljaren laddar ner PDF:en, skickar den
+ * själv och godkänner eller nekar åt kunden i panelen. Svaret bär då PDF:ens adress.
  */
 export async function POST(request: Request) {
   const tenant = await currentTenant();
@@ -40,11 +56,17 @@ export async function POST(request: Request) {
   }
   if (!allOffered(parsed.data.badges)) return NextResponse.json({ error: NOT_OFFERED_ERROR }, { status: 400 });
 
+  const { validUntil } = parsed.data;
+  if (validUntil !== undefined && !isValidUntil(validUntil, swedishDay(new Date()))) {
+    return NextResponse.json({ error: "Välj en dag som offerten gäller till, från i dag och högst ett år fram." }, { status: 400 });
+  }
+  const manual = parsed.data.send === false;
+
   const found = await resolveOrderCustomer(tenant, parsed.data);
   if (!found.ok) return NextResponse.json({ error: found.error }, { status: found.status });
   const { customer } = found;
   try {
-    const { quoteNo } = await createQuote({
+    const { quoteNo, token } = await createQuote({
       tenant,
       customerId: customer.id,
       badges: parsed.data.badges,
@@ -52,7 +74,13 @@ export async function POST(request: Request) {
       badgeShot: await normalizeBadgeShot(parsed.data.badgeShot),
       project: parsed.data.project || null,
       delivery: await defaultQuoteDelivery(tenant, customer),
+      message: parsed.data.message || null,
+      validUntil: validUntil ?? null,
+      options: parsed.data.options ?? null,
+      manual,
     });
+    // Säljaren skickar PDF:en själv. Den hämtas med offertens kod, som säljaren ändå ser i panelen.
+    if (manual) return NextResponse.json({ quoteNo, emailed: false, pdfPath: `/offert/${token}/pdf` }, { status: 201 });
     // Offerten går direkt till kunden när offertmejlet är på. En demooffert mejlas aldrig.
     // Offerten finns redan: går utskicket inte får säljaren mejla den från panelen, inte skapa en till.
     const sent =

@@ -1,0 +1,182 @@
+/* ── Dokumentet på skyltens plats ── */
+
+.sheet {
+  height: 100%;
+  padding: var(--space-4) var(--space-5) var(--space-6);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sheetFit {
+  width: 100%;
+  max-width: 794px;
+  margin-inline: auto;
+}
+
+.paper {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  box-shadow:
+    0 1px 2px rgb(10 10 11 / 0.08),
+    0 12px 32px rgb(10 10 11 / 0.12);
+}
+
+.frame {
+  display: block;
+  border: 0;
+  transform-origin: top left;
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: var(--space-6);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+/* ── Offertens uppgifter i panelen ── */
+
+.panel {
+  display: grid;
+  grid-row: 1 / -1;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.body {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-height: 0;
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.head {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: 1.6rem;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.lead {
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  color: var(--color-ink-2);
+}
+
+.group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.labelled {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.message {
+  display: block;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  resize: vertical;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-ink);
+}
+
+.links {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.foot {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--color-line);
+  background: var(--surface-glass);
+  /* Suddig botten, som vid priset: på telefon rullar formuläret under knapparna. */
+  backdrop-filter: saturate(1.6) blur(18px);
+  -webkit-backdrop-filter: saturate(1.6) blur(18px);
+}
+
+.sum {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.sum strong {
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+/* Telefon: panelen rullar med sidan under dokumentet, och knapparna står fast nederst. */
+@media (max-width: 699px) {
+  .sheet {
+    height: auto;
+    padding: var(--space-3);
+    overflow: visible;
+  }
+
+  .panel {
+    display: block;
+  }
+
+  .body {
+    padding: var(--space-4);
+    overflow: visible;
+  }
+
+  .foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    padding-inline: var(--space-3);
+  }
+}

@@ -637,6 +637,13 @@
   opacity: 0.5;
 }
 
+/* Knapparna Godkänn och Neka i ett kort i listan: ovanför kortets länk, så att de går att trycka på. */
+.cardDecision {
+  position: relative;
+  z-index: 2;
+  margin-top: var(--space-3);
+}
+
 .cardActions {
   display: flex;
   align-items: center;

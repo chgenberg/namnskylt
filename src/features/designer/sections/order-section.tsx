@@ -295,6 +295,8 @@ export function OrderSection({
       ? recipientOf(target, reseller.customers ?? [])
       : { label: reseller.customerName, email: "", ...(reseller.customerDemo && { demo: true }) };
   const sectionRef = useRef<HTMLElement>(null);
+  /** På telefon är prisdelen en enda rad. Prisets delar fälls ut på begäran. */
+  const [details, setDetails] = useState(false);
   // Formulären hör till kassan. Efter ett fel står kundens formulär kvar med det som fyllts i, så att det går att skicka igen.
   const formOpen =
     checkout && badges.length > 0 && (order.status === "form" || order.status === "sending" || (!reseller && order.status === "error"));
@@ -496,6 +498,7 @@ export function OrderSection({
       ref={sectionRef}
       className={checkout ? styles.checkout : styles.order}
       aria-label={checkout ? "Kassa" : "Antal och pris"}
+      data-details={details ? "open" : undefined}
     >
       {!checkout && (
       <>
@@ -634,6 +637,12 @@ export function OrderSection({
             </p>
           )}
         </>
+      )}
+      {/* Bara på telefon, där prisdelen är en enda rad: prisets delar och återförsäljarens ruta fälls ut här. */}
+      {(!inCart || reseller?.purchaseList) && (
+        <button type="button" className={styles.detailsToggle} aria-expanded={details} onClick={() => setDetails((open) => !open)}>
+          {details ? "Dölj prisdetaljer" : "Prisdetaljer"}
+        </button>
       )}
       </>
       )}

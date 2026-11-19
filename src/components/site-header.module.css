@@ -257,3 +257,10 @@
     margin-left: var(--space-1);
   }
 }
+
+/* Pekskärm: loggans länk är lika hög som sidhuvudets övriga knappar. */
+@media (pointer: coarse) {
+  .brand {
+    min-height: 44px;
+  }
+}

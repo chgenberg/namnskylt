@@ -13,7 +13,7 @@ import { companyFooter, DEFAULT_COMPANY, readableOn } from "@/lib/company/profil
 import type { SellerProfile } from "@/lib/company/seller";
 import { deliveryLines, shippingMethodOf, shippingNote } from "@/lib/orders/delivery";
 import { priceWithPricing } from "@/lib/orders/pricing";
-import type { StoredQuote } from "./model";
+import { showsSellerLogo, type StoredQuote } from "./model";
 
 const PROMISES = ["Korrektur innan produktion", "Leverans inom 5 arbetsdagar", "Svensk tillverkning"];
 
@@ -51,7 +51,8 @@ export function quoteHtml(
   const primary = company.primaryColor;
   const accent = company.accentColor;
   const onPrimary = readableOn(primary);
-  const brand = company.logo
+  // Säljaren kan välja bort sin logga på offerten. Då står namnet där.
+  const brand = company.logo && showsSellerLogo(quote)
     ? `<img class="logo${logoPlate ? " plate" : ""}" src="${esc(company.logo)}" alt="${esc(company.site ? "namnskylt.com" : company.name)}"${logoPlate ? ` style="background:${logoPlate}"` : ""}>`
     : `<div class="brand">${esc(company.name)}${company.tagline ? `<small>${esc(company.tagline)}</small>` : ""}</div>`;
   const footer = companyFooter(company);
@@ -148,7 +149,12 @@ ${shipping ? `<div><span>${esc(shipping.label)}</span><span>${esc(shipping.value
 <div class="vat"><span>Att betala inkl. moms</span><span>${esc(sek(priced.totalInclVatSek))}</span></div>
 </div>
 <div class="promise">${PROMISES.map((p) => `<span>${esc(p)}</span>`).join("")}</div>
-<div class="accept"><b>Godkänn offerten</b> — öppna länken i mejlet och klicka ”Godkänn”, så går skyltarna till tillverkningen.</div>
+<div class="accept"><b>Godkänn offerten</b> — ${
+    // En offert som säljaren skickar själv har ingen länk i något mejl: kunden svarar säljaren.
+    quote.emailedAt
+      ? "öppna länken i mejlet och klicka ”Godkänn”, så går skyltarna till tillverkningen."
+      : `svara ${esc(company.site ? "oss" : company.name)} att ni godkänner, så går skyltarna till tillverkningen.`
+  }</div>
 <div class="foot"><div class="terms">Offerten gäller till ${esc(day(quote.validUntil))}.${company.quoteTerms ? `\n${esc(company.quoteTerms)}` : ""}</div><div class="seller">${footer.map(esc).join("<br>")}</div></div>
 </div></body></html>`;
 }

@@ -486,3 +486,10 @@
     animation: none;
   }
 }
+
+/* Pekskärm: länkarna i stegen får en yta som går att träffa med fingret. */
+@media (pointer: coarse) {
+  .cta {
+    min-height: 44px;
+  }
+}

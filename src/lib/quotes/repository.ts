@@ -13,9 +13,11 @@ import { getPriceModel } from "@/lib/orders/repository";
 import {
   addDays,
   isQuoteStatus,
+  parseQuoteOptions,
   QUOTE_VALID_DAYS,
   swedishDay,
   type QuoteEvent,
+  type QuoteOptions,
   type QuoteStatus,
   type StoredQuote,
 } from "./model";
@@ -55,6 +57,7 @@ interface QuoteRow {
   project: string | null;
   reseller_id: string;
   delivery: unknown;
+  options: unknown;
 }
 
 function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudience): StoredQuote {
@@ -97,13 +100,14 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
     emailedAt: row.emailed_at?.toISOString() ?? null,
     decidedAt: row.decided_at?.toISOString() ?? null,
     events,
+    options: parseQuoteOptions(row.options),
   };
 }
 
 /** Stillbilden är den tunga kolumnen — listan klarar sig utan. */
 function selectQuotes(sql: Sql, withShot = false) {
   return sql`
-    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, q.project, q.reseller_id, q.delivery, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
+    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, q.project, q.reseller_id, q.delivery, q.options, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
            to_char(q.valid_until, 'YYYY-MM-DD') as valid_until, q.token, q.decline_reason, q.is_demo,
            q.created_at, q.sent_at, q.emailed_at, q.decided_at, o.order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email,
@@ -169,6 +173,17 @@ export async function createQuote(input: {
   pricing?: Pricing | null;
   /** Ordern som kunden ville ha fler skyltar från. Offerten är då klar att godkänna direkt. */
   reorderOf?: { orderId: string; orderNo: string } | null;
+  /** Hälsningen överst på offerten. */
+  message?: string | null;
+  /** Sista giltiga dag. Utelämnad = `QUOTE_VALID_DAYS` dagar från i dag. */
+  validUntil?: string | null;
+  /** Hur dokumentet ska se ut, till exempel utan säljarens logga. */
+  options?: QuoteOptions | null;
+  /**
+   * Säljaren skickar offerten själv, som PDF, och svarar åt kunden i panelen (knappen Offert i
+   * skyltmotorn, beslut av ägaren 2026-11-19). Offerten väntar då på svar direkt, utan att mejlas härifrån.
+   */
+  manual?: boolean;
 }): Promise<{ quoteNo: string; token: string }> {
   const sql = requireDb();
   const model = await getPriceModel();
@@ -177,18 +192,22 @@ export async function createQuote(input: {
   // En logga i färg sparas en gång; skyltarna pekar på den. En bild som saknas stoppar offerten.
   if (await missingLogoImages(input.badges)) throw new Error(MISSING_LOGO_IMAGE_ERROR);
   const badges = await withStoredLogoImages(input.badges);
-  const validUntil = addDays(swedishDay(new Date()), QUOTE_VALID_DAYS);
+  const validUntil = input.validUntil ?? addDays(swedishDay(new Date()), QUOTE_VALID_DAYS);
+  const options = input.options && Object.keys(input.options).length > 0 ? input.options : null;
+  // En offert som kunden bad om, eller som säljaren skickar själv, väntar på svar från början.
+  const waiting = Boolean(input.reorderOf) || Boolean(input.manual);
   const token = randomBytes(18).toString("base64url");
   return sql.begin(async (tx) => {
     // Kunden måste tillhöra samma återförsäljare — annars skapas ingen offert.
     const [row] = await tx<{ id: string; quote_no: string }[]>`
       insert into quotes (reseller_id, customer_id, badges, price_model, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project,
-                          delivery, pricing, reorder_of, status, sent_at)
+                          delivery, pricing, reorder_of, status, sent_at, message, options)
       select ${input.tenant}, ${input.customerId}, ${tx.json(badges as unknown as Json)}, ${tx.json(model as unknown as Json)}, ${price.totalSek},
              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null}, ${input.project ?? null},
              ${input.delivery ? tx.json(input.delivery as unknown as Json) : null},
              ${pricing ? tx.json(pricing as unknown as Json) : null}, ${input.reorderOf?.orderId ?? null},
-             ${input.reorderOf ? "sent" : "draft"}, ${input.reorderOf ? tx`now()` : null}
+             ${waiting ? "sent" : "draft"}, ${waiting ? tx`now()` : null}, ${input.message || null},
+             ${options ? tx.json(options as unknown as Json) : null}
        where exists (select 1 from customers where id = ${input.customerId} and reseller_id = ${input.tenant})
       returning id, quote_no`;
     if (!row) throw new Error("Offerten kunde inte sparas");
@@ -196,6 +215,9 @@ export async function createQuote(input: {
       // Kunden har själv bett om fler skyltar från sin ordersida. Offerten går att godkänna direkt.
       await tx`insert into quote_events (quote_id, status, note)
                values (${row.id}, 'sent', ${`Kunden bad om fler skyltar med samma design som ${input.reorderOf.orderNo}`})`;
+    } else if (input.manual) {
+      await tx`insert into quote_events (quote_id, status, note)
+               values (${row.id}, 'sent', 'Offert sparad i skyltmotorn. Säljaren skickar PDF:en själv och svarar åt kunden.')`;
     } else {
       await tx`insert into quote_events (quote_id, status, note) values (${row.id}, 'draft', 'Offert skapad i skyltmotorn')`;
     }
@@ -348,6 +370,24 @@ export async function declineQuote(token: string, reason: string | null): Promis
       returning id`;
     if (!row) return false;
     await addEvent(tx, row.id, "declined", reason ? `Kunden tackade nej: ${reason}` : "Kunden tackade nej");
+    return true;
+  });
+}
+
+/**
+ * Säljaren nekar offerten åt kunden, som har svarat nej utanför sajten (beslut av ägaren 2026-11-19:
+ * panelen ska ha Godkänn och Neka). Går från utkast eller skickad. Offerten finns kvar och kan ändras
+ * och skickas igen, till skillnad från en makulerad.
+ */
+export async function declineQuoteForCustomer(tenant: string, quoteNo: string): Promise<boolean> {
+  const sql = requireDb();
+  return sql.begin(async (tx) => {
+    const [row] = await tx<{ id: string }[]>`
+      update quotes set status = 'declined', decided_at = now(), decline_reason = null
+       where quote_no = ${quoteNo} and reseller_id = ${tenant} and status in ('draft', 'sent')
+      returning id`;
+    if (!row) return false;
+    await addEvent(tx, row.id, "declined", "Kunden tackade nej. Nekad av säljaren åt kunden.");
     return true;
   });
 }

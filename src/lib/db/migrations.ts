@@ -643,6 +643,12 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
     id: "031_quote_emailed",
     sql: `alter table quotes add column emailed_at timestamptz;`,
   },
+  {
+    // Offerten från skyltmotorns knapp Offert (beslut av ägaren 2026-11-19): hur dokumentet ska se ut,
+    // i dag om säljarens logga står överst. Tom = som förut, med loggan.
+    id: "032_quote_options",
+    sql: `alter table quotes add column options jsonb;`,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

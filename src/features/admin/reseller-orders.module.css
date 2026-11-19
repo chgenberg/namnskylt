@@ -1,4 +1,6 @@
 .scroll {
+  /* `relative`: dolda etiketter i tabellen är absoluta, och räknas annars mot sidans bredd så att hela sidan rullar i sidled. */
+  position: relative;
   overflow-x: auto;
 }
 

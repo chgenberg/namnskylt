@@ -12,7 +12,7 @@ import { deliveryLines, draftForRecipient, draftFromAddress, shippingMethodOf, s
 import { customerOrderPath, databaseConfigured, getSellerProfile } from "@/lib/orders/repository";
 import { shippingFor } from "@/lib/orders/price-lists";
 import { priceWithPricing } from "@/lib/orders/pricing";
-import { displayStatus } from "@/lib/quotes/model";
+import { displayStatus, showsSellerLogo } from "@/lib/quotes/model";
 import { quoteAnswerOf, QUOTE_ANSWER_PARAM } from "@/lib/quotes/quote-email";
 import { getQuoteByToken, quotePriceModel } from "@/lib/quotes/repository";
 import { quoteShippingMethods } from "@/lib/quotes/shipping";
@@ -78,7 +78,7 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
   return (
     <main className={styles.page} style={brand}>
       <div className={styles.inner}>
-        <SellerLogo company={company} plate={plate} />
+        <SellerLogo company={company} plate={plate} logo={showsSellerLogo(quote)} />
         <header className={styles.head}>
           <p className={styles.eyebrow}>
             Offert · <span className="mono">{quote.quoteNo}</span>

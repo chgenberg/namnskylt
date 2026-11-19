@@ -6,10 +6,13 @@ interface SellerLogoProps {
   company: SellerProfile;
   /** Mörk platta bakom en ljus logga på genomskinlig botten. */
   plate: string | null;
+  /** `false` = säljaren har valt bort loggan på den här offerten. Då står namnet där. */
+  logo?: boolean;
 }
 
 /** Säljarens märke överst på offerten och kundens ordersida: sajtens logga, säljarens egen logga eller namnet. */
-export function SellerLogo({ company, plate }: SellerLogoProps) {
+export function SellerLogo({ company, plate, logo = true }: SellerLogoProps) {
+  if (!logo) return <p className={styles.brandName}>{company.name}</p>;
   if (company.site) {
     return <Image src="/logo-namnskylt.svg" alt="namnskylt.com" width={504} height={97} unoptimized className={styles.logo} priority />;
   }

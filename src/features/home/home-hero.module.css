@@ -347,7 +347,9 @@
     border-radius: 22px;
   }
 
+  /* Fältet står här i en kolumn: utan `flex: none` krymper skrivfältet till textens höjd, 24 px, och blir svårt att träffa. */
   .input {
+    flex: none;
     width: 100%;
     text-align: center;
   }
@@ -365,5 +367,18 @@
 
   .margins span:not(:last-child) {
     display: none;
+  }
+}
+
+/* Pekskärm: länken under rutan får en yta som går att träffa med fingret. */
+@media (pointer: coarse) {
+  .below {
+    min-height: 44px;
+  }
+
+  .secondary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
 }

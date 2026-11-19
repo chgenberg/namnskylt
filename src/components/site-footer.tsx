@@ -8,8 +8,14 @@ import styles from "./site-footer.module.css";
 export function SiteFooter() {
   return (
     <footer className={styles.footer}>
-      namnskylt.com drivs av Skylt &amp; Gravyrteknik · Leverans inom 5 arbetsdagar · <Link href="/om-oss">Om oss</Link> ·{" "}
-      <Link href="/kontakt">Kontakta oss</Link> · <Link href="/villkor">Köpvillkor</Link> · <Link href="/integritet">Integritet</Link>
+      <p>namnskylt.com drivs av Skylt &amp; Gravyrteknik · Leverans inom 5 arbetsdagar</p>
+      {/* Länkarna står på en egen rad, så att var och en går att träffa med fingret på en telefon. */}
+      <nav className={styles.links} aria-label="Om sajten">
+        <Link href="/om-oss">Om oss</Link>
+        <Link href="/kontakt">Kontakta oss</Link>
+        <Link href="/villkor">Köpvillkor</Link>
+        <Link href="/integritet">Integritet</Link>
+      </nav>
     </footer>
   );
 }

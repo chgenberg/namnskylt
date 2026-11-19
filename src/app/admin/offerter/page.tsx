@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BadgePreview } from "@/components/badge-preview";
 import { adminTenant } from "@/features/admin/guard";
+import { QuoteDecisionButtons } from "@/features/admin/quote-controls";
 import { QuoteStatusPill } from "@/features/admin/quote-parts";
 import styles from "@/features/admin/admin.module.css";
 import { formatDay, formatRelative, formatSek } from "@/lib/format";
@@ -78,6 +79,12 @@ export default async function QuotesPage() {
                     <span className={styles.amount}>{formatSek(quote.totalSek)}</span>
                     {quote.orderNo && <span className="mono">→ {quote.orderNo}</span>}
                   </div>
+                  {/* En offert som väntar på svar besvaras åt kunden direkt i listan (beslut av ägaren 2026-11-19). */}
+                  {(status === "sent" || status === "draft") && (
+                    <div className={styles.cardDecision}>
+                      <QuoteDecisionButtons quoteNo={quote.quoteNo} canCancel={false} />
+                    </div>
+                  )}
                 </div>
               </article>
             );
