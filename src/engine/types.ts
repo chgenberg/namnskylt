@@ -123,6 +123,13 @@ export interface BadgeLogo {
    */
   originalId?: string;
   /**
+   * Loggans färger som de lästes av när loggan lades in, den som täcker mest först, som
+   * `#RRGGBB` (besked av ägaren 2026-11-19: kunden ska se vilken färgkod som lästes av, och
+   * kunna rätta den). De är ett underlag för förslagen på textfärg och plastfärg, och ändrar
+   * aldrig hur loggan ritas, graveras eller trycks. Högst `LOGO_COLORS_MAX`.
+   */
+  colors?: string[];
+  /**
    * Bara på äldre skyltar: kundens färgkoder för loggans tryck, i fritext. I dag
    * har loggan ingen egen färg (`hasScreenPrintColors`). Förut CMYK, även PMS
    * eller hex. Gäller bara när loggan printas: läs med `logoPrintColorOf` och

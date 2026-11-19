@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { DoubleSide, Float32BufferAttribute, SRGBColorSpace, ShapeGeometry, TextureLoader, type Texture } from "three";
 import { getColor, layoutBadge, type BadgeDocument, type EngravedPath, type FontEngine, type Rect } from "@/engine";
 import { UNITS_PER_MM, glyphShapes, printSurface } from "./geometry";
+import { litColor } from "./materials";
 
 /** Trycket ligger en hårsmån över ytan, så att det inte flimrar mot plattan. */
 const LIFT_UNITS = 0.002;
@@ -106,7 +107,8 @@ export function InkPrint({ doc, printed, frontZ }: InkPrintProps) {
     });
   }, [doc, printed]);
   useEffect(() => () => surfaces.forEach((surface) => surface.geometry.dispose()), [surfaces]);
-  const engraving = getColor(doc.materialId, doc.colorId).engraving;
+  // Förvald färg: belyst som skyltens övriga ytor, och kompenserad för studioljuset som de.
+  const engraving = useMemo(() => litColor(getColor(doc.materialId, doc.colorId).engraving), [doc.materialId, doc.colorId]);
   return surfaces.map(({ ink, geometry }) => (
     <mesh key={ink} geometry={geometry} position={[0, 0, frontZ + LIFT_UNITS]}>
       {ink ? (

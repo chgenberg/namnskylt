@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1306 tester, grönt 2026-11-19).
+# Kvalitetsgrinden. Kör den innan något lämnas (1318 tester, grönt 2026-11-19).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -166,7 +166,7 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     - En skylt i äldre plast behåller sin färg när den flyttas till dagens plast
       (`toOfferedDocument`), eftersom id:na är desamma.
     - När kunden hämtar sin logga från hemsidan väljs den kombination som ligger närmast
-      varumärkets färg (`matchColorCombo`), och den har nu fler att välja bland.
+      loggans färg (`logoColorCombo`, se De avlästa färgerna under Märkningsmetod).
 - **Ämnen:** metallen och plasten har olika ämnen (`BLANKS`, `BadgeBlank.finishes`, `blankFits`),
   och formväljaren visar bara dem som finns på materialet.
   - **Metallens ämnen är verkstadens egna** (underlag från ägaren 2026-11-17, en lista med
@@ -426,12 +426,47 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       datorn. Ett test vaktar att paletten är just plastens framsidor. Guld och silver är
       här platta tryckfärger, inte metall. En ruta är markerad bara när färgen är exakt dess.
     - **Loggans färger läses av och visas först** (besked av ägaren 2026-11-19: systemet ska
-      läsa av loggan och visa vilken färg som passar bäst). `useLogoColors` läser loggans bild
-      i webbläsaren och `logoPalette` i `logo-color.ts` ger upp till fyra färger, den som
-      täcker mest först. De står i rutan "Från er logga", och under en av dem står "Passar
-      bäst": loggans huvudfärg om den syns bra mot skyltens yta, annars nästa
-      (`bestTextColor`). Färgen föreslås men väljs inte av sig själv. En svartvit logga har
-      ingen bild och ger inga färger, och inget sparas i skylten.
+      läsa av loggan och visa vilken färg som passar bäst). Loggans färger står i rutan "Från
+      er logga", och under en av dem står "Passar bäst": loggans huvudfärg om den syns bra mot
+      skyltens yta, annars nästa (`bestTextColor`). Färgen föreslås men väljs inte av sig själv.
+    - **De avlästa färgerna visas med kod och går att rätta** (besked av ägaren 2026-11-19:
+      "så att man ser vilken färgkod det är, så man kan ändra det på rätt sätt om det skulle
+      vara fel"). När en logga läggs in läses dess färger av (`LogoTrace.colors` i
+      `trace-image.ts`) och sparas med skylten som `BadgeLogo.colors`: högst fyra skärmfärger,
+      den som täcker mest först (`LOGO_COLORS_MAX`). De påverkar aldrig hur loggan ritas,
+      graveras eller trycks.
+      - Rutan "Avlästa färger ur loggan" står under loggans bild (`LogoColors` i
+        `sections/logo-colors.tsx`): en färgruta och ett hexfält per färg. Kunden rättar med
+        färgväljaren eller koden (åtgärden `logo/colors`, `cleanLogoColors`). Bara sex
+        hexsiffror sparas, aldrig en CMYK- eller PMS-kod.
+      - **Pantone finns inte här** (ägarens besked samma dag: "vi kan inte köra Pantone just
+        nu, för vi har ju inte köpt det ännu"). Koden är en skärmfärg, som i hela färgvalet.
+        Gissa aldrig en Pantone-kod ur en bild.
+      - Under färgerna står vad de leder till: "Närmast i plast: Vit / Röd", med knappen Välj
+        eller ordet Vald. Raden och valet vid hämtning från en hemsida följer samma regel,
+        `logoColorCombo` i `src/lib/brand/match.ts`: loggans egna färger styr, och hemsidans
+        bara när loggan är svart, vit eller grå. **En logga som trycks i sina egna färger får
+        aldrig en yta som dess huvudfärg syns dåligt mot** (kontrast under `GOOD_CONTRAST`):
+        en röd logga ger vit skylt med röd gravyr, inte röd skylt. En logga som graveras tar
+        gravyrens färg, och då bär ytan gärna varumärkets färg. Regeln om synlighet lade jag
+        till själv; förut kunde en hämtad logga hamna på en yta i sin egen färg.
+      - På metall räknas bara ytans färg (`matchColorCombo`, `isPrintOnly`): katalogens
+        "gravyrfärg" är där bara tryckets förvalda svarta. Förut gav varje mörkt varumärke
+        metallens första yta, Vit matt.
+      - Raden "Färger ● → Vit / Röd" i sammanfattningen efter en hämtning var missvisande:
+        pricken var hemsidans färg, och namnet var skyltens valda färg. Den heter nu
+        "Hemsidan" och visar hemsidans färger med kod.
+      - **Bara fyllda ytor räknas vid avläsningen** (`paletteOf` i `logo-color.ts`): en pixel
+        i kanten är loggans färg blandad med bottnen. En röd logga i tunna linjer på vit
+        botten lästes annars som rött och två rosa. Har loggan nästan ingen fylld yta räknas
+        alla pixlar, och det som ligger mellan en renare färg och bottnen tas bort. En logga
+        som spåras i en färg läses ur det som är bläck (`inkPalette`).
+      - En skylt sparad före 2026-11-19 saknar `colors`. Då läser textfärgens förslag
+        loggans bild som förut (`useLogoColors`), och rutan med koder visas inte förrän
+        loggan läggs in igen.
+      - Provat lokalt 2026-11-19 i webbläsaren, på dator och på 390 och 320 px: en röd
+        linjelogga (läses exakt som filens #C8362D), en logga i tre färger, en svart logga,
+        rättning, omladdning och hämtning från en hemsida. Inte provat i drift.
     - **"Egen färg"** är en knapp som öppnar färgväljaren och ett hexfält. Fältet sparar bara
       sex siffror, med eller utan brädgård (`printHex`, verkstadens egen regel). En
       halvskriven kod, eller en CMYK- eller PMS-kod, sparas aldrig.
@@ -1398,6 +1433,32 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   sidan ger då `fromStart` till `Designer`, som visar startrutan för material och form utan
   text och sedan ställer markören i skyltens första rad. En direkt länk till `/skapa` utan `t`
   visar ingen startruta, som förut. Samma sak gäller butikernas startsida.
+- **3D-skylten var svart på äldre Apple-enheter** (ägarens kollega 2026-11-19, på telefon:
+  mässingsskylten på startsidan nästan svart, med svart text). Ljusmiljön lästes som hela
+  flyttal, som äldre Apple-kretsar inte kan läsa av mjukt (`OES_texture_float_linear` saknas).
+  Bilden blev då svart, och metall, som bara speglar sin omgivning, ritades svart. three.js
+  varnar för det i konsolen. Ljusmiljön läses nu som halva flyttal (`configure` och
+  `desaturate` i `three/studio-environment.tsx`), som alla enheter klarar.
+  - Återskapat lokalt genom att stänga av funktionen i Chrome: skyltens yta #120D00 före,
+    #8E7C52 efter, samma som på en vanlig enhet. **Inte bekräftat på kollegans enheter.**
+    Ägarens egna Mac och iPhone hade aldrig felet.
+  - Sätt aldrig tillbaka `FloatType` på ljusmiljön, och lägg inte in andra bilder i hela
+    flyttal som ska läsas av mjukt.
+  - Kollegan såg också felet på sin dator. Vad som syntes där vet jag inte: en Mac klarar
+    hela flyttal. Kvarstår det behövs en skärmbild därifrån.
+- **Plastens färger i 3D är katalogens** (besked av ägaren 2026-11-19, som såg en orange
+  skylt som laxrosa i 3D bredvid rätt orange i panelen). Scenen är ljus: en matt yta blev
+  1,7 gånger sin egen färg, och färgomvandlingen (`NeutralToneMapping`) bleker det som är
+  ljusare än skärmen kan visa. Orange #FF6A00 ritades som #F9825A och blått #0057B8 som
+  #1C73E8. Plastens färger läggs nu i materialet delade med `STUDIO_GAIN` (`litColor` i
+  `three/materials.ts`): ytan, kärnan, den frästa fickan och tryck i förvald färg.
+  - Mätt på alla 17 plastfärger: störst avvikelse per kanal 90 före och 44 efter. Det som
+    återstår är ytans glans, som lyfter de mörkaste kanalerna (orange blir #F16B2C).
+    Vit plast ritas en aning mörkare än förut (#F0F0F1 mot #F9F9F9).
+  - Metallen, guld- och silverplastens metallfilm och den lackade vita ytan är orörda: de
+    är inställda för ögat och är inga färger att träffa. Tryck i kundens egen färg och en
+    logga i färg ritas som förut utan ljussättning, alltså exakt.
+  - Ändras ljuset (`StudioEnvironment`, riktljuset) ska `STUDIO_GAIN` mätas om.
 - **Startsidans platta ritning rymmer sin egen skugga** (besked via ägaren 2026-11-18: en
   kollega såg en blek ruta med skugga bakom 3D-skylten på startsidan, i Safari på Mac och
   iPad). Ritningen (`BadgePreview`, `.flat` i `home-hero.module.css`) visas tills 3D-vyn har

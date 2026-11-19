@@ -19,13 +19,14 @@ import {
   type BadgeDocument,
   type LogoPlacement,
 } from "@/engine";
-import { matchColorCombo } from "@/lib/brand/match";
+import { logoColorCombo } from "@/lib/brand/match";
 import { requestBrand, type BrandProfile } from "../logo/brand-api";
 import { storeLogoImage } from "../logo/store-image";
 import { FETCHED_LOGO_NAME, dataUrlFile, storeLogoOriginal } from "../logo/store-original";
 import { traceImage, type LogoTrace } from "../logo/trace-image";
 import { useLogoEngraving } from "../logo/use-logo-engraving";
 import type { DesignerAction } from "../state";
+import { LogoColors } from "./logo-colors";
 import { TextColorField } from "./print-color-field";
 import styles from "./sections.module.css";
 
@@ -138,6 +139,8 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
         heightMm: doc.logo?.heightMm ?? (nextPlacement === "top" ? TOP_LOGO_HEIGHT_MM : LOGO_LIMITS.defaultHeightMm),
         ...(trace.image && { image: trace.image }),
         ...(trace.engraveD && { engraveD: trace.engraveD }),
+        // Loggans färger följer med skylten, så att kunden ser vad som lästes av och kan rätta det.
+        ...(trace.colors.length > 0 && { colors: trace.colors }),
         // En ny logga ärver aldrig den förra loggans originalfil.
         ...(originalId && { originalId }),
       },
@@ -189,10 +192,15 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
       setProfile(found);
       const trace = found.logo ? await adoptImage(found.logo).catch(() => null) : null;
       dispatch({ type: "font", font: found.font.fontId });
-      const colorId = matchColorCombo(
-        [...(trace?.inkColor ? [trace.inkColor] : []), ...found.colors],
-        doc.materialId,
-      );
+      // Samma regel som raden under loggans avlästa färger, så att det som väljs här står som valt där.
+      // En ny logga i färg printas, och ska synas mot ytan.
+      const colorId = logoColorCombo({
+        materialId: doc.materialId,
+        logoColors: trace?.colors ?? [],
+        siteColors: found.colors,
+        printedInColor: Boolean(trace?.image),
+        neutralSite: true,
+      });
       if (colorId) dispatch({ type: "color", colorId });
       if (found.company?.workplace) onWorkplace(found.company.workplace);
       setStatus(
@@ -306,14 +314,17 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
               {getFont(profile.font.fontId).name}
             </dd>
           </div>
+          {/* Hemsidans egna färger, med kod. Vad loggans färg ledde till står under loggan, vid Avlästa färger. */}
           {profile.colors.length > 0 && (
             <div>
-              <dt>Färger</dt>
+              <dt>Hemsidan</dt>
               <dd className={styles.brandColors}>
-                {profile.colors.slice(0, 4).map((hex) => (
-                  <span key={hex} className={styles.brandColor} style={{ "--swatch": hex } as CSSProperties} title={hex} />
+                {profile.colors.slice(0, 3).map((hex) => (
+                  <span key={hex} className={styles.brandCode}>
+                    <span className={styles.brandColor} style={{ "--swatch": hex } as CSSProperties} aria-hidden="true" />
+                    {hex.toUpperCase()}
+                  </span>
                 ))}
-                <span>→ {color.name}</span>
               </dd>
             </div>
           )}
@@ -395,6 +406,15 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
               </svg>
             )}
           </div>
+          {doc.logo.colors && doc.logo.colors.length > 0 && (
+            <LogoColors
+              doc={doc}
+              colors={doc.logo.colors}
+              siteColors={profile?.colors}
+              onColors={(colors) => dispatch({ type: "logo/colors", colors })}
+              onPickCombo={(colorId) => dispatch({ type: "color", colorId })}
+            />
+          )}
           <Segmented
             label="Placering"
             value={doc.logo.placement}

@@ -2,6 +2,8 @@ import {
   LOGO_LIMITS,
   colorLogo,
   inkMask,
+  inkPalette,
+  logoPalette,
   traceLogoEngraving,
   traceLogoMask,
   visibleMask,
@@ -9,7 +11,6 @@ import {
   type LogoPixels,
   type TracedLogo,
 } from "@/engine";
-import { isBrandColor, toHex } from "@/lib/brand/color";
 
 /** Längsta sida på bilden som spåras — skarpt nog för en logga på 5–40 mm. */
 const TRACE_MAX_PX = 520;
@@ -17,12 +18,10 @@ const TRACE_MAX_PX = 520;
 const COLOR_MAX_PX = 640;
 /** Blir färgbilden för tung krymps den i de här stegen tills den ryms. */
 const SHRINK_STEPS = [1, 0.75, 0.56, 0.42, 0.32];
-/** 4 bitar per kanal räcker för att hitta loggans huvudfärg. */
-const COLOR_BUCKET_SHIFT = 4;
 
 export interface LogoTrace extends TracedLogo {
-  /** Loggans mest använda varumärkesfärg, om den har någon. */
-  inkColor: string | null;
+  /** Loggans färger som de lästes av, den som täcker mest först. Kunden ser dem med kod och kan rätta dem. */
+  colors: string[];
   /** Loggan i färg. Den trycks som den är när loggan printas. */
   image?: LogoImage;
   /** Gravyrformen av en logga i färg, när den skiljer sig från siluetten. Den fräses när loggan graveras. */
@@ -77,29 +76,6 @@ function encodePng(logo: LogoPixels): string | null {
   return null;
 }
 
-function dominantInkColor({ data }: { data: ArrayLike<number> }, mask: Uint8Array): string | null {
-  const buckets = new Map<number, { count: number; r: number; g: number; b: number }>();
-  for (let i = 0; i < mask.length; i++) {
-    if (!mask[i]) continue;
-    const r = data[i * 4] ?? 0;
-    const g = data[i * 4 + 1] ?? 0;
-    const b = data[i * 4 + 2] ?? 0;
-    if (!isBrandColor([r, g, b])) continue;
-    const key = ((r >> COLOR_BUCKET_SHIFT) << 8) | ((g >> COLOR_BUCKET_SHIFT) << 4) | (b >> COLOR_BUCKET_SHIFT);
-    const bucket = buckets.get(key) ?? { count: 0, r: 0, g: 0, b: 0 };
-    bucket.count++;
-    bucket.r += r;
-    bucket.g += g;
-    bucket.b += b;
-    buckets.set(key, bucket);
-  }
-  let best: { count: number; r: number; g: number; b: number } | null = null;
-  for (const bucket of buckets.values()) if (!best || bucket.count > best.count) best = bucket;
-  // Några enstaka färgade kantpixlar i en svart logga är inte en varumärkesfärg.
-  if (!best || best.count < mask.length * 0.002) return null;
-  return toHex([best.r / best.count, best.g / best.count, best.b / best.count]);
-}
-
 /** Bilden gick inte att läsa som en logga i färg: den är svartvit, eller för tung även som minst. */
 const NOT_COLOR = Symbol("svartvit");
 
@@ -121,7 +97,7 @@ function colorTrace(image: HTMLImageElement, invert: boolean): LogoTrace | null 
   if (engraving.kind === "empty") return null;
   return {
     ...traced,
-    inkColor: dominantInkColor(logo, mask),
+    colors: logoPalette(logo),
     image: { src },
     ...(engraving.kind === "detail" && { engraveD: engraving.d }),
   };
@@ -156,5 +132,6 @@ export async function traceImage(src: string, invert = false): Promise<LogoTrace
   const imageData = pixels(image, TRACE_MAX_PX);
   const mask = inkMask(imageData, invert);
   const traced = traceLogoMask(mask, imageData.width, imageData.height);
-  return traced ? { ...traced, inkColor: dominantInkColor(imageData, mask) } : null;
+  // En logga som spåras i en färg har ändå en färg i filen, till exempel röd: den läses ur det som är bläck.
+  return traced ? { ...traced, colors: inkPalette(imageData, mask) } : null;
 }

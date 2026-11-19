@@ -3,6 +3,7 @@ import { CUSTOM_SHAPE_LIMITS, LOGO_LIMITS, MATERIALS, MATERIAL_IDS, SHAPE_IDS, S
 import { CUSTOM_OUTLINE_ISSUE_TEXT, customOutlineIssue } from "./custom-outline";
 import { LOGO_PRINT_COLOR_MAX, MARKING_METHOD_IDS, PRINT_COLOR_MAX } from "./marking";
 import { LOGO_IMAGE_PATTERN, LOGO_IMAGE_REF_PATTERN, LOGO_ORIGINAL_ID_PATTERN, LOGO_PATH_PATTERN } from "./logo";
+import { LOGO_COLORS_MAX } from "./logo-color";
 import type { BadgeDocument } from "./types";
 
 /** Förflyttningen hålls inom skylten av layouten; schemat stoppar bara orimliga tal. */
@@ -81,6 +82,8 @@ export const badgeDocumentSchema = z
         engraveD: z.string().min(1).max(LOGO_LIMITS.maxPathChars).regex(LOGO_PATH_PATTERN).optional(),
         // Originalfilen pekas ut med sitt id; själva filen ligger aldrig i skylten.
         originalId: z.string().regex(LOGO_ORIGINAL_ID_PATTERN).optional(),
+        // Loggans avlästa färger, som kunden kan rätta: skärmfärger, `#RRGGBB`.
+        colors: z.array(z.string().regex(/^#[0-9A-Fa-f]{6}$/)).max(LOGO_COLORS_MAX).optional(),
         // Kundens färgkoder för loggans tryck: fritext utan styrtecken.
         printColor: printColorSchema(LOGO_PRINT_COLOR_MAX),
       })

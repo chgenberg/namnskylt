@@ -87,7 +87,7 @@ function Swatch({ hex, name, active, onPick }: SwatchProps) {
  * som den är, och färgen sparas först när den är sex siffror. En halvskriven
  * kod släpps när fältet lämnas.
  */
-function HexInput({ target, value, onChange }: { target: string; value: string; onChange: (color: string) => void }) {
+export function HexInput({ target, value, onChange }: { target: string; value: string; onChange: (color: string) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
   return (
     <span className="field">

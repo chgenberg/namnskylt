@@ -3,6 +3,7 @@ import {
   LOGO_LIMITS,
   TEXT_LIMITS,
   blankFits,
+  cleanLogoColors,
   clipOrientations,
   createRow,
   getBlank,
@@ -76,6 +77,8 @@ export type DesignerAction =
   | { type: "logo/original"; d: string; originalId: string }
   | { type: "logo/placement"; placement: LogoPlacement }
   | { type: "logo/height"; heightMm: number }
+  /** Loggans avlästa färger, rättade av kunden. Bara skärmfärger sparas. */
+  | { type: "logo/colors"; colors: string[] }
   /** Kunden väljer hur namn och logotyp märks. Ett kombinerat val kräver en logga. */
   | { type: "marking"; method: MarkingMethod }
   /** Textfärgen för allt som printas, som `#RRGGBB`. Den gäller alla rader. `null` tar bort den, och trycket får ytans förvalda färg. */
@@ -239,7 +242,10 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     case "logo": {
       // En ny logga får ett förslag på metod: i färg printas den, svartvit följer den namnet. Kunden kan byta sedan.
       // Samma logga i en ny form ("Invertera") behåller metoden kunden har valt.
-      if (action.logo && action.keepMarking && doc.logo) return { ...doc, logo: action.logo };
+      // Färgerna kunden har rättat står också kvar: det är samma logga.
+      if (action.logo && action.keepMarking && doc.logo) {
+        return { ...doc, logo: { ...action.logo, ...(doc.logo.colors && { colors: doc.logo.colors }) } };
+      }
       if (action.logo) return withLogoMarking({ ...doc, logo: action.logo });
       const rest = { ...doc };
       delete rest.logo;
@@ -251,6 +257,13 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     case "print/color":
       // Textfärgen gäller alla rader: radernas egna färger tas bort, så att valet alltid syns.
       return withTextColor(doc, action.color);
+    case "logo/colors": {
+      if (!doc.logo) return doc;
+      const colors = cleanLogoColors(action.colors);
+      const logo = { ...doc.logo };
+      delete logo.colors;
+      return { ...doc, logo: colors.length > 0 ? { ...logo, colors } : logo };
+    }
     case "logo/engraving":
       // Svaret kommer i efterhand: gäller bara om samma logga ligger kvar och fortfarande saknar gravyrform.
       return doc.logo && doc.logo.d === action.d && !doc.logo.engraveD

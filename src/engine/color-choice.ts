@@ -123,8 +123,8 @@ export function contrastRatio(a: string, b: string): number {
 export const INVISIBLE_CONTRAST = 1.3;
 /** Under den här kontrasten är texten svår att läsa, och färgvalet varnar. */
 export const LOW_CONTRAST = 2;
-/** Från den här kontrasten passar en färg som textfärg på ytan. */
-const GOOD_CONTRAST = 3;
+/** Från den här kontrasten syns en färg bra mot ytan: som textfärg, eller som en logga som trycks i sin färg. */
+export const GOOD_CONTRAST = 3;
 
 /**
  * Färgen som passar bäst som textfärg på skyltens yta, bland loggans färger. Färgerna kommer

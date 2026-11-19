@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { colorDistance, isBrandColor, parseCssColor } from "./color";
 import { isPublicAddress } from "./ip";
-import { matchColorCombo, matchFont } from "./match";
+import { logoColorCombo, matchColorCombo, matchFont } from "./match";
 import { brandColors, fontFamilies } from "./parse-css";
 import { parsePage } from "./parse-html";
 import { parsePublicUrl } from "./url";
@@ -167,5 +167,42 @@ describe("matchColorCombo", () => {
   it("väljer inget när inget liknar", () => {
     assert.equal(matchColorCombo(["#ff66cc"], "plastic-2-layer"), null);
     assert.equal(matchColorCombo([], "plastic-2-layer"), null);
+  });
+
+  it("på metall, som bara printas, räknas bara ytans färg: ett mörkt varumärke ger ingen yta", () => {
+    assert.equal(matchColorCombo(["#003366"], "metal"), null);
+    assert.equal(matchColorCombo(["#111111"], "metal"), null);
+    assert.equal(matchColorCombo(["#C9A53C"], "metal"), "metal-gold");
+  });
+});
+
+describe("logoColorCombo", () => {
+  const red = { materialId: "plastic" as const, logoColors: ["#C8362D"] };
+
+  it("en röd logga som trycks i färg ger vit skylt med röd gravyr, aldrig en röd yta som loggan försvinner mot", () => {
+    assert.equal(logoColorCombo({ ...red, printedInColor: true }), "white-red");
+    assert.equal(logoColorCombo({ materialId: "plastic", logoColors: ["#0057B8", "#FFD200"], printedInColor: true }), "white-blue");
+    // En mörkblå logga syns dåligt mot både mörkblått och grått. Då föreslås en vit skylt, där den syns.
+    assert.match(String(logoColorCombo({ materialId: "plastic", logoColors: ["#31496E", "#FBFCFC"], printedInColor: true })), /^white-/);
+    // Grönt finns bara som yta, och där syns en grön logga inte: då föreslås ingenting.
+    assert.equal(logoColorCombo({ materialId: "plastic", logoColors: ["#00A33A"], printedInColor: true }), null);
+  });
+
+  it("en logga som graveras tar gravyrens färg, och då bär ytan varumärkets färg", () => {
+    assert.equal(logoColorCombo({ ...red, printedInColor: false }), "red-white");
+  });
+
+  it("loggans egna färger styr, och hemsidans bara när loggan är svart, vit eller grå", () => {
+    assert.equal(logoColorCombo({ ...red, siteColors: ["#0057B8"], printedInColor: false }), "red-white");
+    assert.equal(logoColorCombo({ materialId: "plastic", logoColors: ["#111111"], siteColors: ["#0057B8"], printedInColor: false }), "blue-white");
+    assert.equal(logoColorCombo({ materialId: "plastic", logoColors: ["#111111"], siteColors: ["#FFFFFF"], printedInColor: false }), null);
+    assert.equal(logoColorCombo({ materialId: "plastic", logoColors: [], printedInColor: false }), null);
+  });
+
+  it("vid hämtning får hemsidans svarta eller vita välja när ingen färg finns, men aldrig en yta som en tryckt logga försvinner mot", () => {
+    const neutral = { materialId: "plastic" as const, siteColors: ["#111111"], neutralSite: true };
+    assert.equal(logoColorCombo({ ...neutral, logoColors: ["#111111"], printedInColor: false }), "black-white");
+    assert.equal(logoColorCombo({ ...neutral, logoColors: ["#111111"], printedInColor: true }), "white-black");
+    assert.equal(logoColorCombo({ materialId: "plastic", logoColors: ["#111111"], siteColors: ["#111111"], printedInColor: false }), null);
   });
 });

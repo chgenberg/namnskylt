@@ -61,8 +61,11 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
   const defaultInk = engravingHex(color);
   /** Textfärgen som gäller för hela trycket. En rad kan avvika med sin egen. */
   const textColor = printInkOf(doc) ?? defaultInk;
-  // Loggans färger står först bland valen, med den som passar bäst mot skylten utpekad.
-  const logoColors = useLogoColors(doc.logo?.image?.src ?? null);
+  // Loggans färger står först bland valen, med den som passar bäst mot skylten utpekad. De lästes av när loggan
+  // lades in och kan vara rättade av kunden. En äldre logga utan sparade färger läses ur sin bild.
+  const stored = doc.logo?.colors;
+  const read = useLogoColors(stored ? null : (doc.logo?.image?.src ?? null));
+  const logoColors = stored ?? read;
 
   return (
     <PanelSection

@@ -344,6 +344,92 @@
   box-shadow: inset 0 0 0 1px var(--color-line-strong);
 }
 
+/* En färg med sin kod bredvid, så att den går att läsa och inte bara se. */
+.brandCode {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-right: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* Färgerna som lästes av ur loggan: en ruta att rätta med och koden bredvid. */
+.readColors {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+}
+
+.readColorList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readColor {
+  display: grid;
+  grid-template-columns: 32px 104px;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.readColor :global(.field) {
+  min-width: 0;
+  height: 32px;
+  padding-inline: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.readSwatch {
+  width: 32px;
+  height: 32px;
+  padding: 3px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  cursor: pointer;
+}
+
+.readSwatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.readSwatch::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 3px);
+}
+
+.readSwatch::-moz-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 3px);
+}
+
+/* Vad loggans färg leder till: närmaste färg i materialet, och en knapp för att välja den. */
+.readResult {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-line);
+  font-size: var(--text-sm);
+  color: var(--color-ink-2);
+}
+
+.readChosen {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
 .brandColors > span:last-child {
   margin-left: var(--space-1);
 }

@@ -34,6 +34,20 @@ function metalBase(hex: string): Color {
   return s > 0.3 ? color.lerp(new Color("#fff3d6"), 0.4) : color;
 }
 
+/**
+ * Så mycket ljusare än sin egen färg blir en matt yta i studioljuset, vänd mot kameran
+ * (mätt 2026-11-19 på alla plastfärger). Utan kompensation ritades varje plastfärg för ljus,
+ * och de starka färgerna blektes av färgomvandlingen: orange #FF6A00 blev laxrosa #F9825A,
+ * och blått #0057B8 blev ljusblått #1C73E8. Kunden såg alltså en annan färg i 3D än den
+ * som valdes i panelen och som tillverkas.
+ */
+const STUDIO_GAIN = 1.7;
+
+/** Plastens färg som den ska ligga i materialet, för att ritas som katalogens färg i studioljuset. */
+export function litColor(hex: string): Color {
+  return new Color(hex).multiplyScalar(1 / STUDIO_GAIN);
+}
+
 function isDark(hex: string): boolean {
   const { r, g, b } = new Color(hex);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.25;
@@ -86,16 +100,16 @@ export function useBadgeMaterials(doc: BadgeDocument): MeshPhysicalMaterial[] {
           normalScale: new Vector2(0.25, 0.25),
           anisotropy: 0.5,
         }),
-        new MeshPhysicalMaterial({ color: color.engraving, roughness: 0.5 }),
-        new MeshPhysicalMaterial({ color: color.engraving, roughness: 0.82 }),
+        new MeshPhysicalMaterial({ color: litColor(color.engraving), roughness: 0.5 }),
+        new MeshPhysicalMaterial({ color: litColor(color.engraving), roughness: 0.82 }),
       ];
     }
     if (finish === "plastic") {
       return [
         // Ingen clearcoat: three-gpu-pathtracer 0.0.27 spårar den som svart.
-        new MeshPhysicalMaterial({ color: color.surface, roughness: 0.3, specularIntensity: 0.8 }),
-        new MeshPhysicalMaterial({ color: color.engraving, roughness: 0.5 }),
-        new MeshPhysicalMaterial({ color: color.engraving, roughness: 0.82 }),
+        new MeshPhysicalMaterial({ color: litColor(color.surface), roughness: 0.3, specularIntensity: 0.8 }),
+        new MeshPhysicalMaterial({ color: litColor(color.engraving), roughness: 0.5 }),
+        new MeshPhysicalMaterial({ color: litColor(color.engraving), roughness: 0.82 }),
       ];
     }
 

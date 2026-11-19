@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getMaterial } from "./catalog";
 import { INVISIBLE_CONTRAST, PRINT_PALETTE, bestTextColor, contrastRatio, pigmentCodeText, pigmentCodes, printColorName } from "./color-choice";
-import { logoPalette } from "./logo-color";
+import { LOGO_COLORS_MAX, cleanLogoColors, inkPalette, logoPalette } from "./logo-color";
 import { PRINT_STANDARD_COLORS, cmykHex, cmykOf, cmykText, isPrintHex, printColorHex, printColorText, printHex } from "./color-code";
 import { createBadgeDocument, isOfferedDocument, toOfferedDocument } from "./document";
 import { engravedBadge, plasticBadge } from "./testing";
@@ -530,6 +530,45 @@ describe("loggans färger", () => {
     assert.deepEqual(logoPalette(pixels([0, 87, 184, 255, 980], [227, 28, 35, 255, 20])), ["#0057B8"]);
   });
 
+  /** En bild där varje bildpunkt får sin färg av en funktion. `null` är genomskinligt. */
+  const image = (width: number, height: number, at: (x: number, y: number) => readonly [number, number, number] | null) => {
+    const data: number[] = [];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const color = at(x, y);
+        data.push(...(color ?? [0, 0, 0]), color ? 255 : 0);
+      }
+    }
+    return { data, width, height };
+  };
+  const RED = [200, 54, 45] as const;
+  /** Rött blandat till hälften med vitt, som i kanten av en röd logga på vit botten. */
+  const PINK = [228, 155, 150] as const;
+
+  it("kantens blandfärger är inga färger: en röd logga med mjuk kant är bara röd", () => {
+    // En röd ruta med två bildpunkter rosa kant runt om. Kanten är nästan en tredjedel av det som syns.
+    const inside = (x: number, y: number, from: number, to: number) => x >= from && x <= to && y >= from && y <= to;
+    const soft = image(40, 40, (x, y) => (inside(x, y, 10, 29) ? RED : inside(x, y, 8, 31) ? PINK : null));
+    assert.deepEqual(logoPalette(soft), ["#C8362D"]);
+  });
+
+  it("en logga i tunna linjer har ingen fylld yta, och läses ändå som sin egen färg", () => {
+    // Linjer på tre bildpunkter: röd i mitten och rosa på var sida. Det rosa täcker dubbelt så mycket som det röda.
+    const lines = image(60, 20, (x) => (x % 6 === 2 ? RED : x % 6 === 1 || x % 6 === 3 ? PINK : null));
+    assert.deepEqual(logoPalette(lines), ["#C8362D"]);
+    // Två färger som inte ligger mellan varandra och bottnen är båda loggans.
+    const two = image(60, 20, (x) => (x % 6 === 2 ? RED : x % 6 === 4 ? ([0, 87, 184] as const) : null));
+    assert.deepEqual(logoPalette(two).sort(), ["#0057B8", "#C8362D"]);
+  });
+
+  it("vitt bläck i tunna linjer på mörk botten läses som vitt, inte som kantens ljusblå", () => {
+    const ground = [0, 51, 102] as const;
+    const blend = [128, 153, 179] as const;
+    const lines = image(60, 10, (x) => (x % 6 === 2 ? ([255, 255, 255] as const) : x % 6 === 1 || x % 6 === 3 ? blend : ground));
+    const mask = Array.from({ length: 600 }, (_, i) => ((i % 60) % 6 >= 1 && (i % 60) % 6 <= 3 ? 1 : 0));
+    assert.deepEqual(inkPalette(lines, mask), ["#FFFFFF"]);
+  });
+
   it("ger högst fyra färger, och inga för en bild utan något synligt", () => {
     const many = [[0, 0, 0], [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [255, 0, 255]].map(([r, g, b]) => [r!, g!, b!, 255, 100] as [number, number, number, number, number]);
     assert.equal(logoPalette(pixels(...many)).length, 4);
@@ -610,5 +649,44 @@ describe("namnet försvinner inte när skylten byter yta", () => {
     // Vit text på mässing, sedan över plast (där namnet graveras) och tillbaka: färgen ska finnas kvar.
     const plastic: BadgeDocument = { ...plasticBadge(["Anna Lind"]), printColor: "#FFFFFF" };
     assert.equal(withVisibleInk(plastic), plastic);
+  });
+});
+
+describe("loggans avlästa färger följer med skylten", () => {
+  const withColors = (colors: unknown): unknown => ({ ...base, logo: { ...logo, colors } });
+
+  it("en logga som spåras i en färg har ändå sin färg: den läses ur det som är bläck", () => {
+    // Fyra bildpunkter: två röda som är bläck, och två vita som är botten.
+    const data = [200, 54, 45, 255, 204, 50, 41, 255, 255, 255, 255, 255, 255, 255, 255, 255];
+    const found = inkPalette({ data, width: 4, height: 1 }, [1, 1, 0, 0]);
+    assert.equal(found.length, 1);
+    assert.ok(contrastRatio(found[0]!, "#CA342B") < 1.05, String(found[0]));
+    // Utan bläck finns inga färger att läsa.
+    assert.deepEqual(inkPalette({ data, width: 4, height: 1 }, [0, 0, 0, 0]), []);
+  });
+
+  it("en rättad lista sparas som skärmfärger i versaler, utan dubbletter och inom taket", () => {
+    assert.deepEqual(cleanLogoColors(["#c8362d", "0057b8", " #FFD200 "]), ["#C8362D", "#0057B8", "#FFD200"]);
+    assert.deepEqual(cleanLogoColors(["#C8362D", "#c8362d"]), ["#C8362D"]);
+    assert.deepEqual(cleanLogoColors(["PMS 186 C", "100/60/0/20", "#C83", ""]), []);
+    assert.equal(cleanLogoColors(["#111111", "#222222", "#333333", "#444444", "#555555"]).length, LOGO_COLORS_MAX);
+  });
+
+  it("godtas av schemat som skärmfärger, och bara inom taket", () => {
+    assert.equal(badgeDocumentSchema.safeParse(withColors(["#C8362D", "#0057b8"])).success, true);
+    assert.equal(badgeDocumentSchema.safeParse(withColors([])).success, true);
+    assert.equal(badgeDocumentSchema.safeParse(withColors(["PMS 186 C"])).success, false);
+    assert.equal(badgeDocumentSchema.safeParse(withColors(["#C83"])).success, false);
+    assert.equal(badgeDocumentSchema.safeParse(withColors(["#111111", "#222222", "#333333", "#444444", "#555555"])).success, false);
+  });
+
+  it("ändrar inte vad som säljs, ritas eller följer med ordern", () => {
+    const printed = createBadgeDocument(["Anna Lind"]);
+    const doc: BadgeDocument = { ...printed, logo: { ...logo, colors: ["#C8362D"] } };
+    assert.equal(isOfferedDocument(doc), true);
+    assert.equal(toOfferedDocument(doc), doc);
+    assert.equal(printColorLabel(doc), null);
+    const drawn = (badge: BadgeDocument) => renderBadgeSvg(badge, layoutBadge(badge, fonts), { mode: "preview", fonts });
+    assert.equal(drawn(doc), drawn({ ...printed, logo }));
   });
 });

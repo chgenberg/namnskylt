@@ -1,5 +1,14 @@
-import { getMaterial, offeredColors, type FontId, type MaterialId } from "@/engine";
-import { colorDistance, parseCssColor } from "./color";
+import {
+  GOOD_CONTRAST,
+  contrastRatio,
+  getMaterial,
+  isPrintOnly,
+  offeredColors,
+  type ColorCombo,
+  type FontId,
+  type MaterialId,
+} from "@/engine";
+import { colorDistance, isBrandColor, parseCssColor } from "./color";
 
 /**
  * Leverantören graverar bara Arial och Arial Narrow, så sidans typsnitt
@@ -103,11 +112,19 @@ const MAX_COLOR_DISTANCE = 45;
 /**
  * Färgkombinationen i materialet som bäst bär varumärkets färg — som yta
  * (mörkblå skylt för ett mörkblått varumärke) eller som gravyr (blå text på
- * vitt). `null` = ingen kombination ligger nära nog.
+ * vitt). `null` = ingen kombination ligger nära nog. `fits` väljer vilka
+ * kombinationer som får föreslås.
  */
-export function matchColorCombo(brandHexes: readonly string[], materialId: MaterialId): string | null {
+export function matchColorCombo(
+  brandHexes: readonly string[],
+  materialId: MaterialId,
+  fits: (combo: ColorCombo) => boolean = () => true,
+): string | null {
   // Bara kombinationer som säljs: varumärkets färg ska aldrig ge en färg som inte går att beställa.
-  const colors = offeredColors(getMaterial(materialId));
+  const colors = offeredColors(getMaterial(materialId)).filter(fits);
+  // På ett material som bara printas väljer kunden själv tryckets färg. Katalogens "gravyrfärg" är då
+  // bara förvalet (svart), och ska inte räknas: annars gav varje mörkt varumärke materialets första yta.
+  const surfaceOnly = isPrintOnly(materialId);
   let best: { id: string; score: number } | null = null;
   for (const [rank, hex] of brandHexes.slice(0, 3).entries()) {
     const brand = parseCssColor(hex);
@@ -116,10 +133,54 @@ export function matchColorCombo(brandHexes: readonly string[], materialId: Mater
       const surface = parseCssColor(combo.surface);
       const engraving = parseCssColor(combo.engraving);
       const asSurface = surface ? colorDistance(brand, surface) : Infinity;
-      const asEngraving = engraving ? colorDistance(brand, engraving) + ENGRAVING_MATCH_PENALTY : Infinity;
+      const asEngraving =
+        engraving && !surfaceOnly ? colorDistance(brand, engraving) + ENGRAVING_MATCH_PENALTY : Infinity;
       const score = Math.min(asSurface, asEngraving) + rank * 8;
       if (score <= MAX_COLOR_DISTANCE && (!best || score < best.score)) best = { id: combo.id, score };
     }
   }
   return best?.id ?? null;
+}
+
+/** En färg som bär ett varumärke: inte svart, vitt eller grått. */
+function carriesBrand(hex: string): boolean {
+  const rgb = parseCssColor(hex);
+  return rgb !== null && isBrandColor(rgb);
+}
+
+export interface LogoComboInput {
+  materialId: MaterialId;
+  /** Loggans avlästa färger, den som täcker mest först. */
+  logoColors: readonly string[];
+  /** Hemsidans färger, när loggan hämtades därifrån. */
+  siteColors?: readonly string[];
+  /** Loggan trycks i sina egna färger, och ska då synas mot skyltens yta. */
+  printedInColor: boolean;
+  /** Har varken loggan eller hemsidan en färg får hemsidans svarta, vita och grå välja. Så görs det när loggan hämtas. */
+  neutralSite?: boolean;
+}
+
+/**
+ * Kombinationen i materialet som ligger närmast loggans färg. Loggans egna färger styr; är
+ * loggan svart, vit eller grå får hemsidans färg säga vad som passar. `null` = ingen ligger
+ * nära nog.
+ *
+ * En logga som trycks i sina egna färger får aldrig en yta som dess huvudfärg syns dåligt
+ * mot: en röd logga ger vit skylt med röd gravyr, inte röd skylt, och en mörkblå logga ger
+ * vit skylt med blå gravyr, inte mörkblå eller grå skylt. En logga som graveras tar
+ * gravyrens färg, och då bär ytan gärna varumärkets färg, som förut.
+ */
+export function logoColorCombo({
+  materialId,
+  logoColors,
+  siteColors = [],
+  printedInColor,
+  neutralSite = false,
+}: LogoComboInput): string | null {
+  const own = logoColors.filter(carriesBrand);
+  const site = siteColors.filter(carriesBrand);
+  const basis = own.length > 0 ? own : site.length > 0 ? site : neutralSite ? siteColors : [];
+  if (basis.length === 0) return null;
+  const main = printedInColor ? logoColors[0] : undefined;
+  return matchColorCombo(basis, materialId, (combo) => !main || contrastRatio(main, combo.surface) >= GOOD_CONTRAST);
 }
