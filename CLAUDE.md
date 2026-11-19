@@ -1553,9 +1553,19 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
       rullar fram sektionen (`scroll-margin-top` ur `--panel-sticky-top`), och den man står i
       är markerad. Raden finns bara på telefon.
     - **Prisdelen är en rad** (`sections.module.css`): antal, pris och "Lägg i varukorgen",
-      med "exkl. moms och frakt" och knappen Prisdetaljer under. Prisets delar och
-      återförsäljarens ruta fälls ut med Prisdetaljer (`details` i `OrderSection`). Blir
-      summan lång, eller skärmen smal (320 px), hamnar knappen på en egen rad.
+      med "exkl. moms och frakt" och knappen Prisdetaljer under. Prisets delar fälls ut med
+      Prisdetaljer (`details` i `OrderSection`). Blir summan lång, eller skärmen smal
+      (320 px), hamnar knappen på en egen rad.
+      - **Samma täta rad gäller alla skärmar** (besked av ägaren 2026-11-19, om en bärbar
+        dator: "denna rutan tar för stor plats", och på frågan valdes "Tät rad överallt").
+        Rutan tog 330 av panelens 540 px för en återförsäljare, och är nu cirka 130 px med
+        ett namn på skylten. Den utfällda varianten med allt synligt finns inte längre.
+      - **Antalets snabbval (1, 10, 50, 101 st) ligger under Prisdetaljer**, bredvid prisets
+        delar och mängdrabatten (`.quick`). Det valde jag, så att de finns kvar.
+      - Återförsäljarens inköp, kundpris och marginal står alltid kvar i raden, på en enda
+        rad utan ruta. I kassan i varukorgen har de sin ruta som förut.
+      - Regeln från 2026-11-16 gäller fortfarande: lägg inte till rader vid priset utan att
+        ta bort andra.
     - Ytan för valen är nu cirka 240 px på en iPhone (390 × 664), 310 px på en större
       Android och 150 px på de minsta telefonerna.
   - **Kameran följer rutans storlek** (`adaptive` i `three/camera-distance.tsx`, bara i

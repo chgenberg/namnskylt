@@ -295,7 +295,7 @@ export function OrderSection({
       ? recipientOf(target, reseller.customers ?? [])
       : { label: reseller.customerName, email: "", ...(reseller.customerDemo && { demo: true }) };
   const sectionRef = useRef<HTMLElement>(null);
-  /** På telefon är prisdelen en enda rad. Prisets delar fälls ut på begäran. */
+  /** Prisdelen är en tät rad. Antalets snabbval och prisets delar fälls ut på begäran. */
   const [details, setDetails] = useState(false);
   // Formulären hör till kassan. Efter ett fel står kundens formulär kvar med det som fyllts i, så att det går att skicka igen.
   const formOpen =
@@ -522,19 +522,6 @@ export function OrderSection({
                 +
               </button>
             </div>
-            <div className={styles.chips}>
-              {quickQuantities.map((q) => (
-                <button
-                  key={q}
-                  type="button"
-                  className="chip"
-                  aria-pressed={doc.quantity === q}
-                  onClick={() => dispatch({ type: "quantity", quantity: q })}
-                >
-                  {q} st
-                </button>
-              ))}
-            </div>
           </div>
         )}
         <div className={styles.priceBlock}>
@@ -564,6 +551,22 @@ export function OrderSection({
             </motion.p>
           </AnimatePresence>
         </div>
+        {!inCart && (
+          // Snabbvalen för antal ligger under Prisdetaljer, bredvid prisets delar: de visar hur priset sjunker.
+          <div className={`${styles.chips} ${styles.quick}`}>
+            {quickQuantities.map((q) => (
+              <button
+                key={q}
+                type="button"
+                className="chip"
+                aria-pressed={doc.quantity === q}
+                onClick={() => dispatch({ type: "quantity", quantity: q })}
+              >
+                {q} st
+              </button>
+            ))}
+          </div>
+        )}
         {!inCart && (
           <div className={styles.spec}>
             <p className={styles.specTitle}>Pris per skylt</p>
@@ -638,8 +641,8 @@ export function OrderSection({
           )}
         </>
       )}
-      {/* Bara på telefon, där prisdelen är en enda rad: prisets delar och återförsäljarens ruta fälls ut här. */}
-      {(!inCart || reseller?.purchaseList) && (
+      {/* Prisdelen är en tät rad: antalets snabbval och prisets delar fälls ut här. */}
+      {!inCart && (
         <button type="button" className={styles.detailsToggle} aria-expanded={details} onClick={() => setDetails((open) => !open)}>
           {details ? "Dölj prisdetaljer" : "Prisdetaljer"}
         </button>

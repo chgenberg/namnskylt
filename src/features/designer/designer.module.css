@@ -220,8 +220,11 @@
   background: rgb(10 10 11 / 0.5) padding-box;
 }
 
-/* På låga skärmar äter den fasta prisdelen nästan hela höjden — då scrollar hela panelen i stället. */
-@media (min-width: 700px) and (max-height: 760px) {
+/*
+ * I ett mycket lågt fönster rullar hela panelen, så att prisdelen inte tar valens plats. Annars
+ * räcker det att prisdelen är en tät rad (sections.module.css).
+ */
+@media (min-width: 700px) and (max-height: 520px) {
   .panel {
     display: block;
     overflow-y: auto;

@@ -756,66 +756,20 @@
   border-top: 1px solid var(--color-line);
 }
 
-/*
- * Låga skärmar (samma brytpunkt som panelen i designer.module.css): priset står kvar
- * längst ner men tar mindre plats — stegaren räcker utan snabbvalen. Telefonen har en
- * egen, tätare prisrad längre ner.
- */
-@media (min-width: 700px) and (max-height: 760px) {
-  .order {
-    gap: var(--space-2);
-    padding: var(--space-3) var(--space-5);
-  }
-
-  .quantityRow .chips,
-  .purchase > p {
-    display: none;
-  }
-
-  .order .priceTotal {
-    font-size: 1.9rem;
-  }
-
-  .order .purchase {
-    padding: var(--space-2) var(--space-3);
-  }
-}
-
-/*
- * Antal och pris till vänster, specifikationen per skylt till höger om priset.
- * Stegaren och snabbvalen står på en egen rad ovanför.
- */
-.summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-  grid-template-areas:
-    "quantity quantity"
-    "price spec";
-  align-items: end;
-  gap: var(--space-2) var(--space-4);
-}
-
 .quantityRow {
-  grid-area: quantity;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
 }
 
 .priceBlock {
-  grid-area: price;
   min-width: 0;
 }
 
 /* Vad som ingår i priset per skylt: skylten, fästet och tillvalen. */
 .spec {
-  grid-area: spec;
   display: grid;
   gap: var(--space-1);
   min-width: 0;
-  padding-left: var(--space-4);
-  border-left: 1px solid var(--color-line);
   font-size: var(--text-xs);
 }
 
@@ -866,20 +820,6 @@
   color: var(--color-success);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-}
-
-/* Låga skärmar saknar snabbvalen: där står specifikationen bredvid både stegaren och priset. */
-@media (min-width: 700px) and (max-height: 760px) {
-  .summary {
-    grid-template-areas:
-      "quantity spec"
-      "price spec";
-    gap: var(--space-2) var(--space-4);
-  }
-
-  .spec {
-    align-self: start;
-  }
 }
 
 .stepper {
@@ -1019,128 +959,156 @@
   font-size: var(--text-sm);
 }
 
-/* Knappen som fäller ut prisets delar finns bara på telefon. */
-.detailsToggle {
+/*
+ * Prisdelen är en tät rad: antal, pris och knappen på en rad, med antalets snabbval och prisets
+ * delar bakom "Prisdetaljer". Den gällde först telefon (besked av ägaren 2026-11-19: ytan för
+ * valen var för liten), sedan lägre fönster ("denna rutan tar för stor plats" — rutan tog 330
+ * av panelens 540 px), och gäller nu överallt, på ägarens val samma dag. Blir summan lång
+ * hamnar knappen på en egen rad.
+ */
+.order {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+}
+
+.order .summary {
+  display: contents;
+}
+
+.order .quantityRow {
+  order: 1;
+  flex: none;
+}
+
+.order .purchase > p {
   display: none;
 }
 
-/*
- * Telefon: prisdelen är en enda rad som står fast nederst, med antal, pris och knappen
- * (besked av ägaren 2026-11-19: ytan för valen var för liten). Prisets delar och
- * återförsäljarens ruta fälls ut med "Prisdetaljer". Blir summan lång hamnar knappen
- * på en egen rad under.
- */
+/* Antalets snabbval och prisets delar fälls ut med "Prisdetaljer". */
+.order .quick {
+  order: 5;
+  flex: 1 1 100%;
+}
+
+.order:not([data-details="open"]) .quick {
+  display: none;
+}
+
+.order .stepper {
+  width: 116px;
+  height: 44px;
+}
+
+.order .stepper > button {
+  width: 36px;
+  height: 36px;
+}
+
+.order .priceBlock {
+  order: 2;
+  flex: 0 1 auto;
+  max-width: 34%;
+}
+
+.order .priceLabel {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order .priceTotal {
+  font-size: 1.45rem;
+  white-space: nowrap;
+}
+
+.order > :global(.btn--primary) {
+  order: 3;
+  flex: 1 1 150px;
+  width: auto;
+  min-height: 44px;
+  padding-inline: var(--space-3);
+}
+
+/* Raden under: noten om moms och frakt, och knappen för prisets delar. Bredden tvingar ner den under knappen. */
+.order .priceRow {
+  order: 4;
+  flex: 1 1 calc(100% - 140px);
+  min-width: 0;
+}
+
+.order .priceNote {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailsToggle {
+  order: 4;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-ink-2);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.order .spec {
+  order: 5;
+  flex: 1 1 100%;
+}
+
+.order:not([data-details="open"]) .spec {
+  display: none;
+}
+
+/* Återförsäljarens inköp, kundpris och marginal står alltid kvar, på en enda rad utan ruta. */
+.order .purchase {
+  order: 6;
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 2px var(--space-4);
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.order .purchase > div {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.order .purchase dt {
+  font-size: 10px;
+}
+
+.order .purchase dd {
+  font-size: var(--text-xs);
+}
+
+.order > .specTitle,
+.order > .cartNote {
+  order: 7;
+  flex: 1 1 100%;
+}
+
+/* Telefon: mindre luft i kanterna, och plats för telefonens egen list nederst. */
 @media (max-width: 699px) {
   .order {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
     padding: var(--space-2) var(--space-3) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
-  }
-
-  .order .summary {
-    display: contents;
-  }
-
-  .order .quantityRow {
-    order: 1;
-    flex: none;
-  }
-
-  .order .quantityRow .chips,
-  .order .purchase > p {
-    display: none;
-  }
-
-  .order .stepper {
-    width: 116px;
-    height: 44px;
-  }
-
-  .order .stepper > button {
-    width: 36px;
-    height: 36px;
-  }
-
-  .order .priceBlock {
-    order: 2;
-    flex: 0 1 auto;
-    max-width: 34%;
-  }
-
-  .order .priceLabel {
-    overflow: hidden;
-    font-size: var(--text-xs);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .order .priceTotal {
-    font-size: 1.45rem;
-    white-space: nowrap;
-  }
-
-  .order > :global(.btn--primary) {
-    order: 3;
-    flex: 1 1 150px;
-    width: auto;
-    min-height: 44px;
-    padding-inline: var(--space-3);
-  }
-
-  /* Raden under: noten om moms och frakt, och knappen för prisets delar. Bredden tvingar ner den under knappen. */
-  .order .priceRow {
-    order: 4;
-    flex: 1 1 calc(100% - 140px);
-    min-width: 0;
-  }
-
-  .order .priceNote {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .detailsToggle {
-    order: 4;
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: var(--space-1);
-    min-height: 24px;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--color-ink-2);
-    font: inherit;
-    font-size: var(--text-xs);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    cursor: pointer;
-  }
-
-  .order .spec {
-    order: 5;
-    flex: 1 1 100%;
-    padding-left: 0;
-    border-left: 0;
-  }
-
-  .order .purchase {
-    order: 6;
-    flex: 1 1 100%;
-  }
-
-  .order:not([data-details="open"]) .spec,
-  .order:not([data-details="open"]) .purchase {
-    display: none;
-  }
-
-  .order > .specTitle,
-  .order > .cartNote {
-    order: 7;
-    flex: 1 1 100%;
   }
 }
 
