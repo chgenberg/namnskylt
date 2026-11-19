@@ -81,7 +81,8 @@ async function resellerContext(customerId: string | undefined, quote: boolean, p
       .map((choice) => ({
         id: choice.id,
         label: choice.company ?? choice.name,
-        detail: choice.company ? `${choice.name} · ${choice.email}` : choice.email,
+        // En kund som sparats med bara företagets namn har det som namn också, och ingen e-post.
+        detail: [choice.company && choice.name !== choice.company ? choice.name : null, choice.email].filter(Boolean).join(" · "),
         email: choice.email,
         ...(choice.demo && { demo: true }),
       }));

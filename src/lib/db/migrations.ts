@@ -655,6 +655,16 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
     id: "033_quote_shots",
     sql: `alter table quotes add column shots jsonb;`,
   },
+  {
+    // En kund får sakna e-post (beslut av ägaren 2026-11-19: en offert ska gå att göra med bara
+    // företagets namn). E-posten är då tom, och flera sådana kunder får finnas hos samma säljare:
+    // regeln "samma e-post är samma kund" gäller bara kunder som har en e-post.
+    id: "034_customers_without_email",
+    sql: `
+      drop index customers_reseller_email;
+      create unique index customers_reseller_email on customers (reseller_id, email) where email <> '';
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

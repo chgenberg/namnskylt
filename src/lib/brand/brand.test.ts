@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { colorDistance, isBrandColor, parseCssColor } from "./color";
 import { isPublicAddress } from "./ip";
-import { logoColorCombo, matchColorCombo, matchFont } from "./match";
+import { logoColorCombo, matchColorCombo, matchFont, quoteColorsFromLogo } from "./match";
 import { brandColors, fontFamilies } from "./parse-css";
 import { parsePage } from "./parse-html";
 import { parsePublicUrl } from "./url";
@@ -204,5 +204,29 @@ describe("logoColorCombo", () => {
     assert.equal(logoColorCombo({ ...neutral, logoColors: ["#111111"], printedInColor: false }), "black-white");
     assert.equal(logoColorCombo({ ...neutral, logoColors: ["#111111"], printedInColor: true }), "white-black");
     assert.equal(logoColorCombo({ materialId: "plastic", logoColors: ["#111111"], siteColors: ["#111111"], printedInColor: false }), null);
+  });
+});
+
+describe("offertens färger ur loggan", () => {
+  it("huvudfärgen är loggans färgstarkaste som syns på vitt, och accenten en annan av loggans färger", () => {
+    assert.deepEqual(quoteColorsFromLogo(["#C8362D"]), { primaryColor: "#c8362d", accentColor: "#c8362d" });
+    assert.deepEqual(quoteColorsFromLogo(["#0057B8", "#E31C23", "#FFD200"]), { primaryColor: "#0057b8", accentColor: "#e31c23" });
+    // Svart text med en röd symbol: det röda bär varumärket, och det svarta blir accent.
+    assert.deepEqual(quoteColorsFromLogo(["#111111", "#C8362D"]), { primaryColor: "#c8362d", accentColor: "#111111" });
+    // Orange går att läsa som rubrik, fast det är ljusare än en textfärg brukar vara.
+    assert.equal(quoteColorsFromLogo(["#FF6A00"])?.primaryColor, "#ff6a00");
+  });
+
+  it("en färg som inte syns på vitt papper blir aldrig huvudfärg", () => {
+    // Vit botten räknas ofta som loggans största färg.
+    assert.deepEqual(quoteColorsFromLogo(["#FFFFFF", "#0057B8"]), { primaryColor: "#0057b8", accentColor: "#0057b8" });
+    assert.deepEqual(quoteColorsFromLogo(["#FFD200", "#111111"]), { primaryColor: "#111111", accentColor: "#111111" });
+    assert.equal(quoteColorsFromLogo(["#FFFFFF", "#FFF3D6"]), null);
+    assert.equal(quoteColorsFromLogo([]), null);
+  });
+
+  it("en svartvit logga ger svart, och två nästan lika färger räknas som en", () => {
+    assert.deepEqual(quoteColorsFromLogo(["#111111", "#FFFFFF"]), { primaryColor: "#111111", accentColor: "#111111" });
+    assert.deepEqual(quoteColorsFromLogo(["#0057B8", "#0A5CC2"]), { primaryColor: "#0057b8", accentColor: "#0057b8" });
   });
 });

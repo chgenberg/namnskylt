@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1334 tester, grönt 2026-11-19).
+# Kvalitetsgrinden. Kör den innan något lämnas (1341 tester, grönt 2026-11-19).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -955,6 +955,17 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
 - En återförsäljare utan ordrar möts av "Gör din första offert" med knappar för ny offert, ny
   order och inställningarna; namnskylt.com ser demodatans välkomstyta. Översikten har knapparna
   Ny offert och Ny order.
+- **Återförsäljaren har ingen översikt** (besked av ägaren 2026-11-19: "ta bort översikt på
+  återförsäljarens dashboard, så man kommer rakt in på listan över offerter"). `/admin`
+  skickar en återförsäljare till `/admin/offerter`, så inloggningen och alla länkar till
+  panelens början hamnar där, och menyn börjar med Offerter (`adminNav` i `nav.ts`). Admin
+  har kvar sin översikt.
+  - Beskeden "Nytt sedan sist" står överst på offertlistan för återförsäljaren, och antalet
+    olästa sitter på menyposten Offerter (`AdminNavItem.news`).
+  - De första stegen som stod på översikten (lägg in loggan, fyll med demodata) står i
+    offertlistans tomma läge.
+  - Borta för återförsäljaren: översiktens nyckeltal, "Kräver åtgärd" och förslagen om att
+    höra av sig till kunder. Ordrar som väntar syns som siffra på menyposten Ordrar.
 - **Logga ut är en knapp längst ner i panelens meny**, för både admin och återförsäljare
   (besked av ägaren 2026-11-18, som inte hittade den). Förut var den en liten understruken
   textrad under menyn, som hamnade under fönstrets kant när menyn var högre än fönstret, och
@@ -1562,8 +1573,10 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
         ett namn på skylten. Den utfällda varianten med allt synligt finns inte längre.
       - **Antalets snabbval (1, 10, 50, 101 st) ligger under Prisdetaljer**, bredvid prisets
         delar och mängdrabatten (`.quick`). Det valde jag, så att de finns kvar.
-      - Återförsäljarens inköp, kundpris och marginal står alltid kvar i raden, på en enda
-        rad utan ruta. I kassan i varukorgen har de sin ruta som förut.
+      - Återförsäljarens inköp, kundpris och marginal står alltid kvar vid priset, utan
+        ruta. Med en skylt ryms de på en rad. Med fler står inköpet också per styck, och då
+        bryts raden till två (sett i drift 2026-11-19). I kassan i varukorgen har de sin
+        ruta som förut.
       - Regeln från 2026-11-16 gäller fortfarande: lägg inte till rader vid priset utan att
         ta bort andra.
     - Ytan för valen är nu cirka 240 px på en iPhone (390 × 664), 310 px på en större
@@ -1638,22 +1651,67 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
 - **En 3D-film per design laddas ner med PDF:en** (besked av ägaren 2026-11-19: så att
   återförsäljaren kan skicka med filmerna i mejlet). Samma osynliga vy spelar in ett varv
   runt skylten efter bilderna, 6 sekunder i 4 Mbit/s, cirka 3 MB per film (`recordTurn`).
-  Filen heter `namnskylt-<namn>-<offertnummer>.mp4`. Spara väntar tills bilderna och filmerna
-  är klara, och knappen säger vad som pågår. Filmerna sparas inte på servern: de ligger i
+  Filen heter `namnskylt-<namn>-<offertnummer>.mp4`. Spara väntar bara på bilderna, inte på
+  filmerna (se Spara väntar inte på 3D-filmen). Filmerna sparas inte på servern: de ligger i
   webbläsarens minne, och den sparade rutan har knappar för att ladda ner dem igen.
   - Filmen är en per design, inte en per namn: fyra namn i samma design ger en film, med
     det första namnet. Ägaren sa "på respektive skylt"; en film per namn skulle ta sex
     sekunder och 3 MB per namn.
-  - Väljs "3D-film till mejlet" bort i ikonraden spelas inget in, och Spara väntar inte.
+  - Väljs "3D-film till mejlet" bort i ikonraden spelas inget in.
   - Webbläsaren kan fråga om lov när flera filer laddas ner samtidigt. Två olika skyltar tog
     14 sekunder att filma i provet.
 - **Panelens "Ny offert" öppnar skyltmotorn direkt** (besked av ägaren 2026-11-19: från
   panelen ledde vägen genom kundformuläret och varukorgen, och den snabba offerten nåddes bara
   via startsidan). `/admin/ny-offert` skickar vidare till `/skapa?offert=1`, med `?kund=` när
-  kunden är vald i förväg. Raden överst i panelen säger "Ny offert. Gör skylten och tryck på
-  Offert över skylten. Kunden väljer du där.", och knappen Offert är framhävd
-  (`data-primary`, när `reseller.mode` är `quote`). Kundformuläret (`StartOrderForm`) används
-  bara för Ny order.
+  kunden är vald i förväg. Kundformuläret (`StartOrderForm`) används bara för Ny order.
+- **Knappen vid priset är "Skapa offert" när säljaren kom in för att göra en offert**
+  (`quoteFirst` i `OrderSection`, när `reseller.mode` är `quote`; byggt 2026-11-19 på ägarens
+  fråga om vägen gick att förenkla). Den öppnar offerten rakt från skylten, utan varukorg.
+  "Lägg i varukorgen" är då en länk på raden under, för den som vill ha flera olika skyltar i
+  samma offert. Raden överst i panelen säger "Ny offert. Gör skylten och tryck på Skapa
+  offert. Kunden väljer du där." Knappen Offert över skylten finns kvar, utan framhävning.
+  Kommer säljaren in för en order (Ny order, eller rakt till `/skapa`) är knappen vid priset
+  "Lägg i varukorgen", som förut.
+  - **Vägen är nu:** logga in (offertlistan) → Skapa offert → skriv namnet → Skapa offert →
+    skriv kundens företag → Spara.
+- **En återförsäljares kund behöver bara ett företagsnamn på en offert** (beslut av ägaren
+  2026-11-19, på frågan om vad som mer gick att korta: "Båda"). Offerten mejlas inte
+  härifrån, så kontaktperson och e-post är frivilliga (`newCustomerOf` och
+  `quoteCustomerFields` i `order-customer.ts`, `minimal` i `resolveOrderCustomer`,
+  `customerOf` och `ResellerCustomer`).
+  - **Kunden sparas med tom e-post**, och med företagets namn som namn när kontaktpersonen
+    saknas. Migrering 034 gör att flera kunder utan e-post får finnas hos samma säljare: det
+    unika indexet gäller bara kunder som har en e-post, och de tre `on conflict`-satserna bär
+    samma villkor (`where email <> ''`). Regeln "samma e-post är samma kund" gäller som förut
+    för kunder med e-post.
+    - **Varje sats som sparar en kund med `on conflict (reseller_id, email)` måste bära
+      villkoret**, annars svarar Postgres att ingen unik regel matchar (42P10). Det gällde
+      också ett test med egen SQL, som föll tills det rättades.
+    - Vid driftsättningen körs migreringen när den nya versionen startar, medan den gamla
+      fortfarande svarar en kort stund. Under den stunden kan den gamla versionen inte spara
+      en kund. Sajten har inga riktiga kunder än; senare bör en sådan ändring göras i två steg.
+  - **Gäller bara återförsäljare, och bara offerter som sparas utan mejl.** Hos namnskylt.com
+    krävs företag, organisationsnummer, kontaktperson och e-post, eftersom verkstaden
+    fakturerar och aviserar kunden. En order från varukorgen kräver kontaktperson och e-post
+    som förut.
+  - **En godkänd offert blir en order på offertens kund** (`customerId` i `NewOrder`,
+    `placeOrder` och `acceptQuote`). Förut letades kunden upp på e-posten, och en kund utan
+    e-post hade då blivit en ny kundrad vid varje order.
+  - Där kunden saknar kontakt visas ingen tom rad: offertens dokument och kundens offertsida
+    hoppar över "Kontakt", kundväljaren visar bara namnet, och kundens sida i panelen säger
+    "ingen e-post sparad". Offertmejlet från panelen vägrar med ett begripligt besked.
+  - Verkstadens mottagare godtar en tom e-post för slutkunden (läst i deras kod 2026-11-19,
+    inget ändrat där): fältet är fri text, och de använder bara namnet och företaget i sin
+    anteckning. Ett test vaktar vårt anrop.
+  - Känd brist: en kund som sparats utan e-post kan inte få en i panelen efteråt, eftersom
+    det inte finns något formulär för att ändra en kund. Väljs "Ny kund" med e-post nästa
+    gång blir det en ny kundrad.
+- **Spara väntar inte på 3D-filmen** (samma beslut). Knappen går att trycka så fort bilderna
+  är tagna, cirka två sekunder efter att offerten öppnas. PDF:en laddas ner direkt, och
+  filmen när den är inspelad, några sekunder senare. Offertens designer hålls kvar efter att
+  varukorgen har tömts (`frozen` i `use-quote.ts`), så att inspelningen går klart, och den
+  sparade rutan säger att filmen spelas in (`filmsLeft`, `savedFilms`). Lämnar säljaren sidan
+  innan filmen är klar får offerten ingen film.
 - **Er marginal, bredvid summan** (besked av ägaren 2026-11-19, som ringade in den tomma
   ytan till vänster om summan: "er marginal - ska kunna ändra enligt merchin", "syns bara för
   dig"). Rutan visar säljarens inköp, kundens pris och marginalen på varorna, utan frakt, och
@@ -1712,6 +1770,15 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   organisationsnummer, som i varukorgen.
 - Statusen heter "Skickad" i panelen, fast ägaren sa "väntande". Jag lade inte till en ny
   status: en skickad offert är den som väntar på svar.
+- **Provat i drift 2026-11-19, på ägarens begäran**, med skärmbilder i mappen
+  `Namnskylt-prov-2026-11-19` på ägarens skrivbord (utanför repot):
+  - Som admin, mot demokunden: från panelens Skapa offert, fyra namn, redigering i
+    dokumentet, ikonraden, Spara med PDF och 3D-film utan mejl, och Neka i listan (14 av 15
+    kontroller; den femtonde var provets egen gräns för prisradens höjd). Offerten
+    **OF-1019** ligger kvar i drift som nekad demooffert. Godkänn trycktes aldrig.
+  - Som återförsäljare, med ett tillfälligt provkonto som skapades i driftens container
+    (`pnpm reseller:create`) och togs bort i panelen efteråt: marginalrutan vid listpris, höjd
+    till 55 %, sänkt till 25 % och återställd, utan att någon offert sparades.
 - **Flödet är provat som återförsäljare** (2026-11-19, efter att ägaren misstänkte att det
   bara gällde admin; mina första prov kördes som admin): från panelens Ny offert, fyra namn i
   samma design, ny kund utan organisationsnummer, Spara med PDF och film, och offerten i
@@ -1729,6 +1796,34 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   efteråt. Texterna i dokumentet går inte att nå med skärmläsare på ett bra sätt; projektet
   och dagen har egna fält i panelen, men hälsningen och den avslutande texten skrivs bara i
   dokumentet. Filmerna försvinner om sidan laddas om innan de har laddats ner.
+- **Offertens färger föreslås ur säljarens logga** (2026-11-19). Ägaren såg en mörkblå offert
+  bredvid en logga i helt andra färger och frågade varför. Offertens färger är Huvudfärg och
+  Accentfärg under Inställningar (`CompanyProfile.primaryColor`, `accentColor`), och ett nytt
+  konto har förvalet, mörkblått och grönt. De lästes aldrig ur loggan. På mitt förslag sa
+  ägaren "Ja, gör det".
+  - **Regeln** är `quoteColorsFromLogo` i `src/lib/brand/match.ts`: huvudfärgen är loggans
+    färgstarkaste färg som syns på vitt papper, annars dess mörkaste, eftersom den bär
+    rubriker, summan och rutan om hur offerten godkänns. Accentfärgen är en annan av loggans
+    färger, och huvudfärgen när loggan bara har en. En logga utan färg som syns på vitt, till
+    exempel en helt vit, ger inget förslag. Gränserna (`HEADING_CONTRAST`, `SAME_TONE`) valde jag.
+  - **Laddas en logga upp när färgerna aldrig har valts** (de är förvalet) tar formuläret
+    loggans färger av sig självt (`hasDefaultColors`, `upload` i `company-form.tsx`).
+    **Färger säljaren själv har valt rörs aldrig**: då står raden "Loggans färger" med koderna
+    och knappen "Använd loggans färger". Följer färgerna redan loggan står det i klartext.
+    Loggans färger står också som snabbval under de två färgfälten, före hemsidans.
+  - Ingenting sparas förrän säljaren trycker Spara uppgifter. **Ett konto som redan har en
+    logga och förvalets färger ändras inte av sig självt**: säljaren öppnar Inställningar,
+    trycker på knappen och sparar. Offerter som redan är sparade ritas med de uppgifter som
+    gäller när de visas, alltså i de nya färgerna.
+  - "Hämta från hemsidan" sätter som förut hemsidans färger. Loggans färger föreslås då med
+    knappen, de väljs inte av sig själva.
+  - Avläsningen är samma som skyltmotorns (`logoPalette`). Den ligger nu i
+    `src/hooks/use-logo-colors.ts` (`useLogoColors`, `readLogoColors`), flyttad från
+    `print-color-field.tsx`, så att panelen kan läsa den utan att importera skyltmotorn.
+  - Gäller bara återförsäljare. Hos namnskylt.com visas panelens färger aldrig för kunden.
+  - Provat lokalt 2026-11-19 som återförsäljare i Chrome (12 kontroller, och 390 och 320 px)
+    med fyra påhittade loggor: röd, tre färger på vit botten, svart med orange och helt vit.
+    Offerten i skyltmotorn ritades i loggans färger. Inte provat i drift.
 
 ## Besked — läge 2026-11-15
 

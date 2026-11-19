@@ -21,4 +21,6 @@ export interface AdminNavItem {
   icon: AdminNavIcon;
   /** Siffra bredvid namnet: något som väntar på beslut. Visas inte när den är 0. */
   badge?: number;
+  /** Menyposten bär antalet olästa besked: panelens första sida, där listan "Nytt sedan sist" står. */
+  news?: boolean;
 }

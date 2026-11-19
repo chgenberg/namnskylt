@@ -1,8 +1,11 @@
 "use client";
 
 import { useRef, useState, useTransition, type ChangeEvent } from "react";
+import { LOW_CONTRAST, contrastRatio } from "@/engine";
 import { useLightLogo } from "@/hooks/use-light-logo";
-import { isHexColor, MAX_LOGO_DATA_URL_CHARS, readableOn, type CompanyProfile } from "@/lib/company/profile";
+import { readLogoColors, useLogoColors } from "@/hooks/use-logo-colors";
+import { quoteColorsFromLogo } from "@/lib/brand/match";
+import { DEFAULT_COMPANY, isHexColor, MAX_LOGO_DATA_URL_CHARS, readableOn, type CompanyProfile } from "@/lib/company/profile";
 import { darkPlate } from "@/lib/images/logo-plate";
 import { saveCompanyProfileAction } from "./actions";
 import { scrapeCompanyAction } from "./company-actions";
@@ -34,6 +37,13 @@ async function fileToLogo(file: File): Promise<string> {
 
 type Field = Exclude<keyof CompanyProfile, "logo">;
 
+/** Färgerna har aldrig valts: de är förvalet ett nytt konto börjar med. */
+function hasDefaultColors(profile: CompanyProfile): boolean {
+  return (
+    profile.primaryColor.toLowerCase() === DEFAULT_COMPANY.primaryColor && profile.accentColor.toLowerCase() === DEFAULT_COMPANY.accentColor
+  );
+}
+
 interface CompanyFormProps {
   profile: CompanyProfile;
   /** Uppgifterna är dem kunden ser på offerten. Falskt för namnskylt.com, där Skylt & Gravyrteknik står som avsändare. */
@@ -50,6 +60,21 @@ export function CompanyForm({ profile, preview = true }: CompanyFormProps) {
   const [scraping, startScrape] = useTransition();
   const [saving, startSave] = useTransition();
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // Loggans färger läses av i webbläsaren, och offertens färger föreslås ur dem (besked av ägaren
+  // 2026-11-19, som såg en mörkblå offert bredvid en logga i helt andra färger: det blå var förvalet).
+  const logoColors = useLogoColors(draft.logo);
+  const fromLogo = quoteColorsFromLogo(logoColors);
+  const followsLogo =
+    fromLogo !== null &&
+    draft.primaryColor.toLowerCase() === fromLogo.primaryColor &&
+    draft.accentColor.toLowerCase() === fromLogo.accentColor;
+  // Loggans färger som går att se på vitt papper, före hemsidans, utan dubbletter.
+  const swatches = [
+    ...new Set(
+      [...logoColors.filter((color) => contrastRatio(color, "#FFFFFF") >= LOW_CONTRAST), ...colorOptions].map((color) => color.toLowerCase()),
+    ),
+  ];
 
   const set = (field: Field, value: string) => setDraft((d) => ({ ...d, [field]: value }));
   const input = (field: Field) => ({
@@ -106,7 +131,9 @@ export function CompanyForm({ profile, preview = true }: CompanyFormProps) {
     if (!file) return;
     try {
       const logo = await fileToLogo(file);
-      setDraft((d) => ({ ...d, logo }));
+      const colors = quoteColorsFromLogo(await readLogoColors(logo));
+      // Färger som säljaren själv har valt rörs aldrig. Har de aldrig valts tar offerten loggans.
+      setDraft((d) => ({ ...d, logo, ...(colors && hasDefaultColors(d) ? colors : {}) }));
     } catch (error) {
       setMessage({ ok: false, text: error instanceof Error ? error.message : "Loggan kunde inte läsas" });
     }
@@ -243,6 +270,26 @@ export function CompanyForm({ profile, preview = true }: CompanyFormProps) {
             </div>
           </div>
 
+          {fromLogo &&
+            (followsLogo ? (
+              <p className={styles.muted} data-logo-colors="used">
+                Offertens färger är hämtade ur loggan. Ändra dem här under om de inte stämmer.
+              </p>
+            ) : (
+              <p className={styles.logoColors} data-logo-colors="suggested">
+                <span>Loggans färger</span>
+                {[...new Set([fromLogo.primaryColor, fromLogo.accentColor])].map((color) => (
+                  <span key={color} className={styles.logoColor}>
+                    <i style={{ background: color }} aria-hidden="true" />
+                    {color.toUpperCase()}
+                  </span>
+                ))}
+                <button type="button" className={styles.ghostButton} onClick={() => setDraft((d) => ({ ...d, ...fromLogo }))}>
+                  Använd loggans färger
+                </button>
+              </p>
+            ))}
+
           <div className={styles.colorFields}>
             {(
               [
@@ -262,15 +309,15 @@ export function CompanyForm({ profile, preview = true }: CompanyFormProps) {
                   <input className={styles.input} value={draft[field]} maxLength={7} onChange={(e) => set(field, e.target.value)} aria-label={label} />
                 </div>
                 <span className={styles.muted}>{hint}</span>
-                {colorOptions.length > 0 && (
+                {swatches.length > 0 && (
                   <div className={styles.swatches}>
-                    {colorOptions.map((color) => (
+                    {swatches.map((color) => (
                       <button
                         key={color}
                         type="button"
                         style={{ background: color }}
                         aria-label={`Använd ${color} som ${label.toLowerCase()}`}
-                        aria-pressed={draft[field] === color}
+                        aria-pressed={draft[field].toLowerCase() === color}
                         onClick={() => set(field, color)}
                       />
                     ))}

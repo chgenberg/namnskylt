@@ -143,6 +143,15 @@ describe("offertens delar, bilder och redigering", () => {
     assert.ok(quoteHtml(lower, approxFonts, seller).includes("<s>"));
   });
 
+  it("en kund med bara ett företagsnamn får ingen tom kontaktrad", () => {
+    // Sparad så har kunden företagets namn som namn också, och ingen e-post.
+    const html = quoteHtml({ ...draftQuote(base), customer: { ...draftQuote(base).customer, name: "Exempel AB", company: "Exempel AB", email: "", phone: null } }, approxFonts, seller);
+    assert.ok(html.includes('<p class="k">Kund</p><p class="v">Exempel AB</p>'));
+    assert.ok(!html.includes('<p class="k">Kontakt</p>'));
+    // Med kontaktperson och e-post står raden kvar.
+    assert.ok(quoteHtml(draftQuote(base), approxFonts, seller).includes('<p class="k">Kontakt</p><p class="v">Kim Ek · kim@exempel.se</p>'));
+  });
+
   it("en avslutande text står under summan", () => {
     const html = quoteHtml(draftQuote({ ...base, options: { closing: "Vi hörs <snart>." } }), approxFonts, seller);
     assert.ok(html.includes('<p class="closing">Vi hörs &lt;snart&gt;.</p>'));

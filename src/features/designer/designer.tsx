@@ -492,8 +492,9 @@ export function Designer({
     onOpen: () => setCartOpen(true),
     // Varukorgens knapp Offert: offerten visas på skyltens plats, med kunden som valdes i varukorgen.
     onQuote: reseller?.quoteSeller
-      ? (target: CustomerTarget) => {
-          if (!reseller.customerId) quote.setTarget(target);
+      ? (target?: CustomerTarget) => {
+          // Från varukorgen följer kunden som valdes där med. Från knappen vid priset väljs kunden i offerten.
+          if (target && !reseller.customerId) quote.setTarget(target);
           setCartOpen(false);
           openQuote();
         }
@@ -543,8 +544,6 @@ export function Designer({
                   type="button"
                   className={`chip ${styles.stageChip}`}
                   title="Se offerten som den ser ut, välj kund och spara den som PDF"
-                  // Kom säljaren hit för att göra en offert är knappen nästa steg, och framhävd.
-                  data-primary={reseller.mode === "quote" || undefined}
                   disabled={recording}
                   onClick={openQuote}
                 >
@@ -684,7 +683,7 @@ export function Designer({
                   {/* Från panelens Ny offert: vägen är skylten, knappen Offert och kunden där. Annars väljs kunden i varukorgen. */}
                   <span>
                     {reseller.mode === "quote" && reseller.quoteSeller
-                      ? "Ny offert. Gör skylten och tryck på Offert över skylten. Kunden väljer du där."
+                      ? "Ny offert. Gör skylten och tryck på Skapa offert. Kunden väljer du där."
                       : "Order eller offert åt en kund. Kunden väljer du i varukorgen."}
                   </span>
                   <a href="/admin" className={styles.resellerLink}>

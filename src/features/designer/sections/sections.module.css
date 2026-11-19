@@ -1064,6 +1064,34 @@
   cursor: pointer;
 }
 
+/*
+ * Sidospåret till varukorgen, när knappen vid priset är Skapa offert: en länk på raden under,
+ * bredvid Prisdetaljer. Noten om moms och frakt får då mindre plats.
+ */
+.cartLink {
+  order: 4;
+  flex: none;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-ink-2);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.cartLink:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.order[data-quote-first] .priceRow {
+  flex-basis: calc(100% - 270px);
+}
+
 .order .spec {
   order: 5;
   flex: 1 1 100%;

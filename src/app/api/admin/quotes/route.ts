@@ -4,7 +4,7 @@ import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
 import { defaultQuoteDelivery } from "@/lib/orders/delivery-options";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
-import { orderCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-customer";
+import { quoteCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-customer";
 import { DIRECT_PRICING_ERROR, isLineInvoiceable, pricingSchema } from "@/lib/orders/pricing";
 import { isOwner } from "@/lib/tenants/model";
 import { databaseConfigured } from "@/lib/orders/repository";
@@ -38,8 +38,8 @@ async function normalizeShots(shots: { main: string; angles: string[] }[] | (nul
 }
 
 const requestSchema = z.object({
-  /** Kunden offerten gäller: en befintlig, eller en ny som fylls i i varukorgen. */
-  ...orderCustomerFields,
+  /** Kunden offerten gäller: en befintlig, eller en ny. Vad en ny kund ska ha avgörs när kunden slås upp. */
+  ...quoteCustomerFields,
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
   badgeShot: badgeShotUploadSchema,
   project: z.string().trim().max(120).optional(),
@@ -97,7 +97,8 @@ export async function POST(request: Request) {
   const pricing = parsed.data.pricing ?? null;
   if (pricing && pricing.unitOverrides.length > parsed.data.badges.length) return NextResponse.json({ error: "Ogiltig offert" }, { status: 400 });
 
-  const found = await resolveOrderCustomer(tenant, parsed.data);
+  // En offert som säljaren skickar själv behöver ingen e-post till kunden: då räcker ett företagsnamn.
+  const found = await resolveOrderCustomer(tenant, parsed.data, { minimal: manual });
   if (!found.ok) return NextResponse.json({ error: found.error }, { status: found.status });
   const { customer } = found;
   // En offert hos namnskylt.com blir en direktorder, som verkstaden fakturerar kunden rad för rad.

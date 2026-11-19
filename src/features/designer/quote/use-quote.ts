@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { isBlankBadge, lineUnitPrices, orderDesigns, resellerOrder, type BadgeDocument, type FontEngine, type PriceTable } from "@/engine";
 import { useOrderShipping } from "@/hooks/use-order-shipping";
 import { formattedOrgNumber } from "@/lib/company/org-number";
@@ -32,11 +32,10 @@ interface QuoteFilm {
   url: string;
 }
 
-/** En sparad offert: numret, var PDF:en hämtas, och filmerna som följer med. */
+/** En sparad offert: numret och var PDF:en hämtas. Filmerna kommer för sig, när de är inspelade. */
 interface SavedQuote {
   quoteNo: string;
   pdfPath: string;
-  films: QuoteFilm[];
 }
 
 export type QuoteSaveState = { status: "idle" } | { status: "saving" } | { status: "error"; message: string } | { status: "saved"; quote: SavedQuote };
@@ -122,7 +121,13 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
 
   // Bilderna ur 3D-vyn, per design. De tas en gång och finns kvar om vyn stängs och öppnas igen.
   const [shots, setShots] = useState<Record<string, QuoteShot | null>>({});
-  const designs = useMemo(() => orderDesigns(badges).slice(0, QUOTE_SHOT_DESIGNS).map(({ doc }) => ({ key: shotKey(doc), doc })), [badges]);
+  const live = useMemo(() => orderDesigns(badges).slice(0, QUOTE_SHOT_DESIGNS).map(({ doc }) => ({ key: shotKey(doc), doc })), [badges]);
+  /**
+   * Offertens designer som de var när offerten sparades. Varukorgen töms då, men filmerna ska spelas
+   * in klart: Spara väntar inte på dem (beslut av ägaren 2026-11-19), de laddas ner när de är klara.
+   */
+  const [frozen, setFrozen] = useState<typeof live | null>(null);
+  const designs = frozen ?? live;
   /** 3D-filmerna, en per design: ett varv runt skylten, som laddas ner med offerten (besked av ägaren 2026-11-19). */
   const [films, setFilms] = useState<Record<string, VideoClip | null>>({});
   const filming = elements.film;
@@ -193,15 +198,32 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
   const markup = useDeferredValue(kept);
 
   const customers = reseller?.customers ?? [];
+  /**
+   * En återförsäljares kund behöver bara ett företagsnamn på offerten (beslut av ägaren 2026-11-19):
+   * offerten mejlas inte härifrån. Hos namnskylt.com fakturerar verkstaden kunden, och där krävs allt.
+   */
+  const minimal = Boolean(reseller) && !(reseller?.needsInvoiceDetails ?? false);
   const recipient = reseller?.customerId
     ? { label: reseller.customerName, email: "", ...(reseller.customerDemo && { demo: true }) }
-    : recipientOf(target, customers);
+    : recipientOf(target, customers, minimal);
   const blank = badges.length === 0 || badges.some((badge) => isBlankBadge(badge));
   /** Bilderna tas just nu. Offerten sparas när de är klara, så att PDF:en får dem. */
   const capturing = elements.pictures && jobs.some((job) => job.kind === "shot");
-  /** Filmerna spelas in just nu: hur många som är klara av hur många. `null` när ingen återstår. */
+  /** Så många filmer återstår att spela in. Spara väntar inte på dem. */
   const filmsLeft = jobs.filter((job) => job.kind === "film").length;
-  const recording = !capturing && filmsLeft > 0 ? { done: designs.length - filmsLeft, total: designs.length } : null;
+  // Filmerna som hör till den sparade offerten, med offertens nummer i namnet. De fylls på när de blir klara.
+  const urls = useRef(new Map<string, string>());
+  const savedFilms = useMemo<QuoteFilm[]>(() => {
+    if (save.status !== "saved" || !filming) return [];
+    const number = save.quote.quoteNo.toLowerCase();
+    return designs.flatMap((design, index) => {
+      const clip = films[design.key];
+      if (!clip) return [];
+      const url = urls.current.get(design.key) ?? URL.createObjectURL(clip.blob);
+      urls.current.set(design.key, url);
+      return [{ name: videoFileName(design.doc, clip.extension, index === 0 ? number : `${number}-${index + 1}`), url }];
+    });
+  }, [save, filming, designs, films]);
 
   const toggle = useCallback((key: QuoteToggle) => setElements((shown) => ({ ...shown, [key]: !shown[key] })), []);
 
@@ -245,9 +267,9 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
   }, []);
 
   const submit = async () => {
-    if (!reseller || save.status === "saving" || capturing || recording) return;
+    if (!reseller || save.status === "saving" || capturing) return;
     if (blank) return setSave({ status: "error", message: "Skylten är tom. Skriv ett namn eller lägg in en logga först." });
-    const chosen = reseller.customerId ? ({ ok: true, body: { customerId: reseller.customerId } } as const) : customerOf(target, customers, reseller.needsInvoiceDetails ?? false);
+    const chosen = reseller.customerId ? ({ ok: true, body: { customerId: reseller.customerId } } as const) : customerOf(target, customers, reseller.needsInvoiceDetails ?? false, minimal);
     if (!chosen.ok) return setSave({ status: "error", message: chosen.error });
     if (!isValidUntil(validUntil, swedishDay(new Date()))) {
       return setSave({ status: "error", message: "Välj en dag som offerten gäller till, från i dag och högst ett år fram." });
@@ -273,14 +295,9 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
       });
       const body = (await response.json().catch(() => null)) as { quoteNo?: string; pdfPath?: string; error?: string } | null;
       if (!response.ok || !body?.quoteNo || !body.pdfPath) throw new Error(body?.error ?? "Offerten kunde inte sparas");
-      // Filmerna ligger i webbläsarens minne och laddas ner bredvid PDF:en, med offertens nummer i namnet.
-      const number = body.quoteNo.toLowerCase();
-      const saved: QuoteFilm[] = [];
-      for (const design of designs) {
-        const clip = filming ? films[design.key] : null;
-        if (clip) saved.push({ name: videoFileName(design.doc, clip.extension, saved.length === 0 ? number : `${number}-${saved.length + 1}`), url: URL.createObjectURL(clip.blob) });
-      }
-      setSave({ status: "saved", quote: { quoteNo: body.quoteNo, pdfPath: body.pdfPath, films: saved } });
+      // Designerna hålls kvar, så att filmerna som inte är klara än spelas in fast varukorgen töms.
+      setFrozen(designs);
+      setSave({ status: "saved", quote: { quoteNo: body.quoteNo, pdfPath: body.pdfPath } });
       onSaved();
     } catch (error) {
       setSave({ status: "error", message: error instanceof Error ? error.message : "Offerten kunde inte sparas" });
@@ -289,7 +306,9 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
 
   /** En ny offert efter en sparad: formuläret börjar om, med samma kund vald. */
   const reset = () => {
-    if (save.status === "saved") save.quote.films.forEach((film) => URL.revokeObjectURL(film.url));
+    urls.current.forEach((url) => URL.revokeObjectURL(url));
+    urls.current.clear();
+    setFrozen(null);
     setFilms({});
     setMarginPercent(null);
     setProject(reseller?.project ?? "");
@@ -319,8 +338,11 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
     onShot,
     onFilm,
     capturing,
-    recording,
+    /** Filmerna som hör till den sparade offerten och är klara, och hur många som ännu spelas in. */
+    savedFilms,
+    filmsLeft: filming ? filmsLeft : 0,
     recipient,
+    minimal,
     blank,
     save,
     submit,

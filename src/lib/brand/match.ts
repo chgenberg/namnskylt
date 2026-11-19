@@ -1,5 +1,6 @@
 import {
   GOOD_CONTRAST,
+  LOW_CONTRAST,
   contrastRatio,
   getMaterial,
   isPrintOnly,
@@ -183,4 +184,29 @@ export function logoColorCombo({
   if (basis.length === 0) return null;
   const main = printedInColor ? logoColors[0] : undefined;
   return matchColorCombo(basis, materialId, (combo) => !main || contrastRatio(main, combo.surface) >= GOOD_CONTRAST);
+}
+
+/** Från den här kontrasten mot vitt papper går en varumärkesfärg att använda till rubriker och knappar. */
+const HEADING_CONTRAST = 2.5;
+/** Så nära (kontrast) räknas två färger som samma, och då är den andra ingen accent. */
+const SAME_TONE = 1.25;
+
+/**
+ * Offertens färger ur loggans avlästa färger (besked av ägaren 2026-11-19, som såg en mörkblå
+ * offert bredvid en logga i andra färger: huvudfärgen var förvalet, inte loggans). Huvudfärgen
+ * bär rubriker, summan och rutan om hur offerten godkänns, och ska därför synas på vitt papper:
+ * loggans färgstarkaste färg som gör det, annars dess mörkaste. Accentfärgen är en annan av
+ * loggans färger, och huvudfärgen när loggan bara har en. `null` när ingen av färgerna syns
+ * på vitt, till exempel en helt vit eller ljusgul logga.
+ */
+export function quoteColorsFromLogo(logoColors: readonly string[]): { primaryColor: string; accentColor: string } | null {
+  const WHITE = "#FFFFFF";
+  const usable = logoColors.filter((color) => parseCssColor(color) !== null);
+  const primary =
+    usable.find((color) => carriesBrand(color) && contrastRatio(color, WHITE) >= HEADING_CONTRAST) ??
+    usable.find((color) => contrastRatio(color, WHITE) >= GOOD_CONTRAST);
+  if (!primary) return null;
+  const others = usable.filter((color) => color !== primary && contrastRatio(color, WHITE) >= LOW_CONTRAST && contrastRatio(color, primary) >= SAME_TONE);
+  const accent = others.find(carriesBrand) ?? others[0] ?? primary;
+  return { primaryColor: primary.toLowerCase(), accentColor: accent.toLowerCase() };
 }

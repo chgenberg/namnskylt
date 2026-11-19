@@ -19,10 +19,8 @@ export function adminNav({
   /** Ansökningar som väntar på beslut. Bara admin har sidan. */
   pendingApplications?: number;
 }): AdminNavItem[] {
-  const first: AdminNavItem[] = [
-    { href: "/admin", label: "Översikt", icon: "overview" },
-    { href: "/admin/ordrar", label: "Ordrar", icon: "orders", badge: pendingOrders },
-    { href: "/admin/offerter", label: "Offerter", icon: "quotes" },
+  const orders: AdminNavItem = { href: "/admin/ordrar", label: "Ordrar", icon: "orders", badge: pendingOrders };
+  const rest: AdminNavItem[] = [
     { href: "/admin/kunder", label: "Kunder", icon: "customers" },
     { href: "/admin/statistik", label: "Statistik", icon: "stats" },
   ];
@@ -32,7 +30,10 @@ export function adminNav({
   ];
   if (owner) {
     return [
-      ...first,
+      { href: "/admin", label: "Översikt", icon: "overview", news: true },
+      orders,
+      { href: "/admin/offerter", label: "Offerter", icon: "quotes" },
+      ...rest,
       { href: "/admin/tillverkning", label: "Tillverkning", icon: "workshop" },
       { href: "/admin/aterforsaljare", label: "Återförsäljare", icon: "resellers", badge: pendingApplications },
       { href: "/admin/butiker", label: "Butiker", icon: "shops" },
@@ -43,8 +44,12 @@ export function adminNav({
       ...last,
     ];
   }
+  // Återförsäljaren har ingen översikt (besked av ägaren 2026-11-19): panelen börjar på offertlistan,
+  // som står först i menyn och bär antalet olästa besked.
   return [
-    ...first,
+    { href: "/admin/offerter", label: "Offerter", icon: "quotes", news: true },
+    orders,
+    ...rest,
     { href: "/admin/inkopspriser", label: "Inköpspriser", icon: "purchase" },
     ...last,
     // Butiken återförsäljaren har tagit över.

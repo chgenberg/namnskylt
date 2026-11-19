@@ -24,24 +24,37 @@ type TargetResult = { ok: true; body: { customerId: string } | { customer: Recor
  * kunden och adressen offerten mejlas till. `null` innan någon kund är vald.
  * Raden står alltid kvar, också när sökningen har gömt den valda kunden i listan.
  */
-export function recipientOf(target: CustomerTarget, customers: readonly CustomerChoice[]): { label: string; email: string; demo?: boolean } | null {
+export function recipientOf(
+  target: CustomerTarget,
+  customers: readonly CustomerChoice[],
+  /** På en offert som säljaren skickar själv räcker ett företagsnamn eller ett namn, utan e-post. */
+  minimal = false,
+): { label: string; email: string; demo?: boolean } | null {
   if (target.kind === "existing") {
     const chosen = customers.find((customer) => customer.id === target.id);
     return chosen ? { label: chosen.label, email: chosen.email, ...(chosen.demo && { demo: true }) } : null;
   }
   const label = target.company.trim() || target.name.trim();
-  return label && target.email.trim() ? { label, email: target.email.trim() } : null;
+  return label && (minimal || target.email.trim()) ? { label, email: target.email.trim() } : null;
 }
 
 /** Det som skickas med ordern eller offerten, eller felet som ska visas. */
-export function customerOf(target: CustomerTarget, customers: readonly CustomerChoice[], needsInvoiceDetails: boolean): TargetResult {
+export function customerOf(
+  target: CustomerTarget,
+  customers: readonly CustomerChoice[],
+  needsInvoiceDetails: boolean,
+  /** En offert som säljaren skickar själv: kunden får sakna kontaktperson och e-post. Servern prövar samma regel. */
+  minimal = false,
+): TargetResult {
   if (target.kind === "existing") {
     const chosen = customers.find((customer) => customer.id === target.id);
     return chosen ? { ok: true, body: { customerId: chosen.id } } : { ok: false, error: "Välj en kund, eller fyll i en ny." };
   }
   const name = target.name.trim();
   const email = target.email.trim();
-  if (!name || !email) return { ok: false, error: "Fyll i kundens kontaktperson och e-post." };
+  if (minimal) {
+    if (!name && !target.company.trim()) return { ok: false, error: "Fyll i kundens företag eller namn." };
+  } else if (!name || !email) return { ok: false, error: "Fyll i kundens kontaktperson och e-post." };
   if (needsInvoiceDetails && !(target.company.trim() && target.orgNumber.trim())) {
     return { ok: false, error: "Fyll i kundens företag och organisationsnummer. Skylt & Gravyrteknik fakturerar kunden." };
   }
@@ -50,7 +63,8 @@ export function customerOf(target: CustomerTarget, customers: readonly CustomerC
       .map(([key, value]) => [key, value.trim()] as const)
       .filter(([, value]) => value !== ""),
   );
-  return { ok: true, body: { customer: { name, email, ...optional } } };
+  // Tomma fält skickas inte: servern sätter företagets namn som namn när kontaktpersonen saknas.
+  return { ok: true, body: { customer: { ...(name && { name }), ...(email && { email }), ...optional } } };
 }
 
 const KIND_OPTIONS = [
@@ -70,6 +84,8 @@ interface ResellerCustomerProps {
   disabled?: boolean;
   /** Raden under organisationsnumret: att företagets uppgifter hämtas, är hämtade eller inte fanns. */
   note?: string | null;
+  /** En offert som säljaren skickar själv: det räcker med företagets namn, och e-posten är frivillig. */
+  minimal?: boolean;
 }
 
 /**
@@ -77,7 +93,7 @@ interface ResellerCustomerProps {
  * gamla kunder ur listan, eller en ny som fylls i här (besked av ägaren
  * 2026-11-17). Från panelen är kunden redan vald, och då visas inte valet.
  */
-export function ResellerCustomer({ customers, value, onChange, needsInvoiceDetails, disabled, note }: ResellerCustomerProps) {
+export function ResellerCustomer({ customers, value, onChange, needsInvoiceDetails, disabled, note, minimal = false }: ResellerCustomerProps) {
   const [query, setQuery] = useState("");
   const selectedId = value.kind === "existing" ? value.id : "";
   const matches = useMemo(() => {
@@ -153,10 +169,11 @@ export function ResellerCustomer({ customers, value, onChange, needsInvoiceDetai
               {note}
             </p>
           )}
-          {field("company", "Företag", { required: needsInvoiceDetails, autoComplete: "off" })}
-          {field("name", "Kontaktperson", { required: true, autoComplete: "off" })}
-          {field("email", "E-post", { required: true, type: "email", autoComplete: "off" })}
+          {field("company", "Företag", { required: needsInvoiceDetails || minimal, autoComplete: "off" })}
+          {field("name", "Kontaktperson", { required: !minimal, autoComplete: "off" })}
+          {field("email", "E-post", { required: !minimal, type: "email", autoComplete: "off" })}
           {field("phone", "Telefon", { type: "tel", autoComplete: "off" })}
+          {minimal && <p className={styles.cartNote}>Det räcker med företagets namn. Resten är frivilligt.</p>}
         </>
       )}
     </div>

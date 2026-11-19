@@ -83,6 +83,8 @@ export async function acceptQuote(
   try {
     const placed = await placeOrder({
       customer: quote.customer,
+      // Ordern hör till offertens kund, också när kunden saknar e-post.
+      customerId: quote.customer.id,
       badges: quote.badges,
       pricing: quote.pricing,
       // Ordern får det pris kunden godkände, även om prismodellen ändrats sedan dess.

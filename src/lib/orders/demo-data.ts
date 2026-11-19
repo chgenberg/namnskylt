@@ -61,7 +61,7 @@ export async function insertDemoData(sql: Sql, tenant: string, model: PriceModel
       const [customer] = await tx<{ id: string }[]>`
         insert into customers (reseller_id, email, name, company, is_demo)
         values (${tenant}, ${order.email}, ${order.customer}, ${order.company}, true)
-        on conflict (reseller_id, email) do update set name = excluded.name
+        on conflict (reseller_id, email) where email <> '' do update set name = excluded.name
         returning id`;
       if (!customer) continue;
       const shipped = order.status === "shipped" || order.status === "delivered";

@@ -16,6 +16,8 @@ import { createOrder, databaseConfigured } from "./repository";
 
 export interface PlaceOrderInput {
   customer: { name: string; email: string; company?: string | null; orgNumber?: string | null };
+  /** Kunden som redan finns, till exempel offertens kund: ordern hör då till den, också utan e-post. */
+  customerId?: string | null;
   badges: BadgeDocument[];
   source: OrderSource;
   repeatOf?: string | null;
@@ -83,6 +85,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
 
   const saved = await createOrder({
     customer: input.customer,
+    customerId: input.customerId ?? null,
     badges: input.badges,
     status: "received",
     source: input.source,

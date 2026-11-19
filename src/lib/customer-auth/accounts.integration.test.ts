@@ -55,7 +55,7 @@ describe("kundkonton i databasen", { skip: !url }, () => {
   async function order(sql: Sql, tenant: string, customerEmail: string, accountId: string | null, status = "received", sent = false): Promise<string> {
     const [customer] = await sql<{ id: string }[]>`
       insert into customers (reseller_id, email, name, company) values (${tenant}, ${customerEmail}, 'Anna Lind', 'Exempel AB')
-      on conflict (reseller_id, email) do update set name = excluded.name returning id`;
+      on conflict (reseller_id, email) where email <> '' do update set name = excluded.name returning id`;
     assert.ok(customer);
     const [row] = await sql<{ order_no: string }[]>`
       insert into orders (customer_id, status, badges, total_sek, total_incl_vat_sek, reseller_id, account_id, supplier_sent_at)

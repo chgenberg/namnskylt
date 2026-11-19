@@ -193,9 +193,9 @@ interface DesignerCart {
   /**
    * Öppnar offerten på skyltens plats, med kunden som är vald i varukorgen (beslut av ägaren
    * 2026-11-19: varukorgens knapp öppnar den nya offerten i stället för att mejla en direkt).
-   * Saknas den finns ingen offertknapp.
+   * Vid priset anropas den utan kund: kunden väljs då i offerten. Saknas den finns ingen offertknapp.
    */
-  onQuote?: (target: CustomerTarget) => void;
+  onQuote?: (target?: CustomerTarget) => void;
 }
 
 const designCount = (count: number) => (count === 1 ? "1 design" : `${count} designer`);
@@ -302,6 +302,8 @@ export function OrderSection({
   const sectionRef = useRef<HTMLElement>(null);
   /** Prisdelen är en tät rad. Antalets snabbval och prisets delar fälls ut på begäran. */
   const [details, setDetails] = useState(false);
+  /** Säljaren kom hit för att göra en offert: då är Skapa offert knappen vid priset, och varukorgen ett sidospår. */
+  const quoteFirst = !checkout && reseller?.mode === "quote" && Boolean(cart.onQuote);
   // Formulären hör till kassan. Efter ett fel står kundens formulär kvar med det som fyllts i, så att det går att skicka igen.
   const formOpen =
     checkout && badges.length > 0 && (order.status === "form" || order.status === "sending" || (!reseller && order.status === "error"));
@@ -500,6 +502,7 @@ export function OrderSection({
       className={checkout ? styles.checkout : styles.order}
       aria-label={checkout ? "Kassa" : "Antal och pris"}
       data-details={details ? "open" : undefined}
+      data-quote-first={quoteFirst || undefined}
     >
       {!checkout && (
       <>
@@ -613,22 +616,50 @@ export function OrderSection({
           <p className={styles.specTitle}>
             I varukorgen · {designCount(cart.designs)} · {price.quantity} st
           </p>
-          <button type="button" className="btn btn--primary btn--block" onClick={cart.onOpen}>
-            Öppna varukorgen
-          </button>
+          {quoteFirst ? (
+            <>
+              <button type="button" className="btn btn--primary btn--block" data-quote-button onClick={() => cart.onQuote?.()}>
+                Skapa offert
+              </button>
+              <button type="button" className={styles.cartLink} onClick={cart.onOpen}>
+                Öppna varukorgen
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn btn--primary btn--block" onClick={cart.onOpen}>
+              Öppna varukorgen
+            </button>
+          )}
           <p className={styles.cartNote}>Skriv ett nytt namn i editorn för att lägga till en design till.</p>
         </>
       ) : (
         <>
-          {/* Skylten i editorn ligger inte i varukorgen än. Order och offert görs därifrån. */}
-          <button type="button" className="btn btn--primary btn--block" disabled={!valid || !cart.canAdd} onClick={cart.onAdd}>
-            Lägg i varukorgen
-          </button>
+          {quoteFirst ? (
+            <>
+              {/*
+                Säljaren kom hit för att göra en offert (panelens Skapa offert): då är offerten nästa steg, rakt
+                från skylten. Varukorgen behövs bara för den som vill ha flera olika skyltar i samma offert.
+              */}
+              <button type="button" className="btn btn--primary btn--block" data-quote-button disabled={!valid} onClick={() => cart.onQuote?.()}>
+                Skapa offert
+              </button>
+              <button type="button" className={styles.cartLink} disabled={!valid || !cart.canAdd} onClick={cart.onAdd}>
+                Lägg i varukorgen
+              </button>
+            </>
+          ) : (
+            // Skylten i editorn ligger inte i varukorgen än. Order och offert görs därifrån.
+            <button type="button" className="btn btn--primary btn--block" disabled={!valid || !cart.canAdd} onClick={cart.onAdd}>
+              Lägg i varukorgen
+            </button>
+          )}
           {!cart.canAdd && <p className={styles.cartNote}>Varukorgen är full. Lägg resten i en ny order.</p>}
           {/* En skylt ska ha text eller logga. Är den helt tom är knappen avstängd, och skälet sägs här. */}
           {blank && (
             <p className={styles.cartNote} data-missing-text>
-              Skylten är tom. Skriv ett namn eller lägg in en logga, så går den att lägga i varukorgen.
+              {quoteFirst
+                ? "Skylten är tom. Skriv ett namn eller lägg in en logga, så går offerten att skapa."
+                : "Skylten är tom. Skriv ett namn eller lägg in en logga, så går den att lägga i varukorgen."}
             </p>
           )}
           {cart.designs > 0 && (

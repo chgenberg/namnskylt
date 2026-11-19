@@ -39,14 +39,23 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
   const saving = save.status === "saving";
   const saved = save.status === "saved" ? save.quote : null;
 
-  // PDF:en och filmerna laddas ner en gång, när offerten just har sparats.
-  const downloaded = useRef<string | null>(null);
+  // PDF:en laddas ner när offerten just har sparats, och varje film en gång, när den är inspelad.
+  const downloaded = useRef(new Set<string>());
+  const films = quote.savedFilms;
   useEffect(() => {
-    if (!saved || downloaded.current === saved.quoteNo) return;
-    downloaded.current = saved.quoteNo;
-    download(saved.pdfPath);
-    saved.films.forEach((film, index) => window.setTimeout(() => download(film.url, film.name), DOWNLOAD_GAP_MS * (index + 1)));
-  }, [saved]);
+    if (!saved) return;
+    if (!downloaded.current.has(saved.pdfPath)) {
+      downloaded.current.add(saved.pdfPath);
+      download(saved.pdfPath);
+    }
+    let waiting = 0;
+    for (const film of films) {
+      if (downloaded.current.has(film.url)) continue;
+      downloaded.current.add(film.url);
+      waiting += 1;
+      window.setTimeout(() => download(film.url, film.name), DOWNLOAD_GAP_MS * waiting);
+    }
+  }, [saved, films]);
 
   if (saved) {
     return (
@@ -57,8 +66,8 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
             <h1 className={styles.title}>Offert {saved.quoteNo} är sparad</h1>
           </header>
           <p className={styles.lead} role="status">
-            {saved.films.length > 0
-              ? `PDF:en och ${saved.films.length === 1 ? "en 3D-film av skylten" : `${saved.films.length} 3D-filmer av skyltarna`} laddas ner till din enhet. Bifoga dem i ditt mejl till kunden.`
+            {films.length > 0 || quote.filmsLeft > 0
+              ? "PDF:en laddas ner till din enhet, och en 3D-film av varje skylt. Bifoga dem i ditt mejl till kunden."
               : "PDF:en laddas ner till din enhet. Skicka den till kunden."}{" "}
             När kunden har svarat godkänner eller nekar du offerten under Offerter i panelen. Godkänner du blir den en
             order som går till tillverkningen.
@@ -71,12 +80,19 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
               Ladda ner PDF:en igen
             </a>
             {/* Frågar webbläsaren om lov för flera filer kan en film utebli. Då hämtas den här. */}
-            {saved.films.map((film, index) => (
+            {films.map((film, index) => (
               <a key={film.url} className="btn" href={film.url} download={film.name} data-quote-film={film.name}>
-                Ladda ner 3D-filmen igen{saved.films.length > 1 ? ` (${index + 1})` : ""}
+                Ladda ner 3D-filmen igen{films.length > 1 ? ` (${index + 1})` : ""}
               </a>
             ))}
           </div>
+          {/* Spara väntar inte på filmerna: de spelas in klart här och laddas ner när de är klara. */}
+          {quote.filmsLeft > 0 && (
+            <p className={sections.cartNote} role="status" data-films-left={quote.filmsLeft}>
+              {quote.filmsLeft === 1 ? "3D-filmen spelas in" : `${quote.filmsLeft} 3D-filmer spelas in`} och laddas ner när{" "}
+              {quote.filmsLeft === 1 ? "den" : "de"} är klar{quote.filmsLeft === 1 ? "" : "a"}. Stanna kvar på sidan en stund.
+            </p>
+          )}
         </div>
         <footer className={styles.foot}>
           <button
@@ -122,6 +138,7 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
               value={quote.target}
               onChange={quote.setTarget}
               needsInvoiceDetails={reseller.needsInvoiceDetails ?? false}
+              minimal={quote.minimal}
               disabled={saving}
             />
           )}
@@ -188,16 +205,10 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
           <button
             type="button"
             className="btn btn--primary"
-            disabled={saving || quote.blank || quote.capturing || quote.recording !== null}
+            disabled={saving || quote.blank || quote.capturing}
             onClick={() => void quote.submit()}
           >
-            {saving
-              ? "Sparar…"
-              : quote.capturing
-                ? "Tar bilder…"
-                : quote.recording
-                  ? `Spelar in film ${quote.recording.done + 1}/${quote.recording.total}…`
-                  : "Spara"}
+            {saving ? "Sparar…" : quote.capturing ? "Tar bilder…" : "Spara"}
           </button>
         </div>
         {quote.blank && <p className={sections.cartNote}>Skylten är tom. Skriv ett namn eller lägg in en logga först.</p>}

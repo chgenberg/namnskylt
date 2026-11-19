@@ -107,8 +107,8 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
             <span>
               <strong>{quote.customer.company ?? quote.customer.name}</strong>
             </span>
-            <span>{quote.customer.name}</span>
-            <span>{quote.customer.email}</span>
+            {quote.customer.name !== quote.customer.company && <span>{quote.customer.name}</span>}
+            {quote.customer.email && <span>{quote.customer.email}</span>}
           </div>
           <ul className={styles.lines}>
             {quote.badges.map((badge, i) => {

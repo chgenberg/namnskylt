@@ -132,7 +132,7 @@ export function AdminShell({ nav, unread = 0, demoCount = 0, companyName = "namn
             >
               <NavIcon name={item.icon} />
               {item.label}
-              {item.icon === "overview" && unreadNow > 0 && (
+              {item.news && unreadNow > 0 && (
                 <span className={styles.navBadge} data-tone="news" aria-label={`${unreadNow} nya besked`}>
                   {unreadNow}
                 </span>

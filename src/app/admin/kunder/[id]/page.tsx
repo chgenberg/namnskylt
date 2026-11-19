@@ -54,10 +54,18 @@ export default async function CustomerPage({ params }: CustomerPageProps) {
             </p>
           ) : (
             <p className={styles.pageLead}>
-              {customer.name} ·{" "}
-              <a href={`mailto:${customer.email}`} className={styles.link}>
-                {customer.email}
-              </a>
+              {customer.name}
+              {/* En kund som sparats med bara företagets namn, från en offert, har ingen e-post. */}
+              {customer.email ? (
+                <>
+                  {" · "}
+                  <a href={`mailto:${customer.email}`} className={styles.link}>
+                    {customer.email}
+                  </a>
+                </>
+              ) : (
+                " · ingen e-post sparad"
+              )}
             </p>
           )}
         </div>

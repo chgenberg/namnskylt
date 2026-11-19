@@ -127,10 +127,12 @@ export function quoteDocument(
   const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceList, quote.shippingSek);
   const shipping = shippingNote(shippingMethodOf(quote.delivery));
   const customer = quote.customer;
+  const contact = [customer.name !== customer.company ? customer.name : "", customer.email, customer.phone].filter(Boolean).join(" · ");
   const info: [string, string, string?][] = [
     ["Kund", customer.company ?? customer.name, "customer"],
     ...(customer.orgNumber ? ([["Org.nr", customer.orgNumber]] as [string, string][]) : []),
-    ["Kontakt", [customer.name, customer.email, customer.phone].filter(Boolean).join(" · ")],
+    // En kund som sparats med bara företagets namn har det som namn också, och ingen e-post: då finns ingen kontakt att visa.
+    ...(contact ? ([["Kontakt", contact]] as [string, string][]) : []),
     ...(customer.address ? ([["Adress", customer.address]] as [string, string][]) : []),
     // Vart skyltarna skickas. Återförsäljarens egen adress står inte på kundens offert.
     ...(quote.delivery.to === "reseller"

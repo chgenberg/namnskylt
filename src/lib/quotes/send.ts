@@ -55,6 +55,8 @@ export async function sendQuote(tenant: string, quoteNo: string, fetchImpl?: Fet
   const off = (emailError: string | null = null): QuoteSendResult => ({ quote, emailOn: settings !== null, emailed: false, emailError });
   // En demooffert går aldrig till en riktig brevlåda.
   if (!settings || quote.demo || isErasedCustomer(quote.customer)) return off();
+  // En kund som sparats med bara företagets namn har ingen adress att mejla till.
+  if (!quote.customer.email.trim()) return off("Kunden har ingen e-postadress sparad. Skicka PDF:en eller länken själv.");
   // Knapparna i mejlet skulle leda till en offert som inte går att svara på.
   if (displayStatus(quote) === "expired") return off("Offerten har gått ut. Förläng giltigheten och mejla den sedan igen.");
   const allowed = perSeller.take(tenant) && perRecipient.take(quote.customer.email) && perDay.take("alla");

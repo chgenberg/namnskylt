@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
+import { useLogoColors } from "@/hooks/use-logo-colors";
 import { Segmented } from "@/components/ui/segmented";
 import {
   FONTS,
@@ -20,7 +21,7 @@ import {
 } from "@/engine";
 import { formatMm } from "@/lib/format";
 import type { DesignerAction } from "../state";
-import { TextColorField, useLogoColors } from "./print-color-field";
+import { TextColorField } from "./print-color-field";
 import styles from "./sections.module.css";
 
 const ROW_PLACEHOLDERS = ["Namn", "Titel", "Avdelning"];

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { FillDemoButton } from "@/features/admin/demo-data-controls";
 import { adminTenant } from "@/features/admin/guard";
 import { NoticeList } from "@/features/admin/notice-list";
@@ -32,11 +33,13 @@ function changesRequested(order: StoredOrder): boolean {
 export default async function AdminOverviewPage() {
   const tenant = await adminTenant();
   if (!tenant) return null;
+  // Återförsäljaren har ingen översikt (besked av ägaren 2026-11-19: "så man kommer rakt in på listan
+  // över offerter"). Inloggningen och alla länkar till panelens början hamnar på offertlistan.
+  if (!isOwner(tenant)) redirect("/admin/offerter");
   const [orders, notices] = await Promise.all([listOrders(tenant), listUnreadNotices(tenant)]);
   const now = new Date();
   if (orders.length === 0) {
-    // En återförsäljare börjar med att göra en offert eller order åt en kund. namnskylt.com får sina ordrar från sajten.
-    const welcome = isOwner(tenant) ? (
+    const welcome = (
       <section className={styles.welcome}>
         <p className={styles.eyebrow}>Välkommen</p>
         <h1 className={styles.welcomeTitle}>Här hamnar alla ordrar från namnskylt.com</h1>
@@ -45,31 +48,6 @@ export default async function AdminOverviewPage() {
           tydligt, skickas aldrig till tillverkningen och tas bort med ett klick.
         </p>
         <FillDemoButton onDark />
-      </section>
-    ) : (
-      <section className={styles.welcome}>
-        <p className={styles.eyebrow}>Välkommen</p>
-        <h1 className={styles.welcomeTitle}>Gör din första offert</h1>
-        <p className={styles.muted}>
-          Ny offert öppnar skyltmotorn. Gör skylten, tryck på Offert och välj kund: offerten laddas ner som PDF med en
-          3D-film av skylten, som ni själva skickar till kunden. När kunden har svarat godkänner eller nekar ni offerten
-          här i panelen, och en godkänd offert blir en order som går rakt till tillverkningen. Lägg först in er logga under
-          Inställningar, så står den på offerten tillsammans med företagets uppgifter.
-        </p>
-        <div className={styles.welcomeActions}>
-          <Link href="/admin/ny-offert" className={`btn btn--lg ${styles.onDarkButton}`}>
-            Ny offert
-          </Link>
-          <Link href="/admin/ny-order" className={`btn btn--lg ${styles.onDarkGhost}`}>
-            Ny order
-          </Link>
-          <Link href="/admin/installningar" className={`btn btn--lg ${styles.onDarkGhost}`}>
-            Logga och uppgifter
-          </Link>
-        </div>
-        <p className={styles.muted}>
-          Vill du bara se hur panelen fungerar? <FillDemoButton label="Fyll den med demodata" onDark quiet />
-        </p>
       </section>
     );
     // Ett nej till en offert, eller en ny ansökan, kan komma innan första ordern finns.

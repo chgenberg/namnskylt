@@ -64,6 +64,17 @@ describe("ordern till verkstaden", () => {
     assert.deepEqual(request.customer, { name: "Anna Lind", email: "anna@example.se", company: "Hotell Exempel AB" });
   });
 
+  it("en återförsäljares kund får sakna e-post: ordern går att skicka, med kunden som referens", () => {
+    // En offert kan sparas med bara företagets namn (beslut av ägaren 2026-11-19). Verkstadens mottagare
+    // godtar en tom e-post för slutkunden och använder bara namnet och företaget i sin anteckning.
+    const order = input([named("Anna Lind", 10)], { customer: { name: "Hotell Exempel AB", email: "", company: "Hotell Exempel AB" } });
+    const request = buildSupplierRequest(order);
+    assert.deepEqual(request.customer, { name: "Hotell Exempel AB", email: "", company: "Hotell Exempel AB" });
+    assert.deepEqual(dispatchProblems({ badges: order.badges, delivery: DELIVERY }, BUYER), []);
+    // Aviseringen går till återförsäljaren, som för alla återförsäljares ordrar.
+    assert.ok(!JSON.stringify(request.shipping.address).includes('"email":""'));
+  });
+
   it("raderna har återförsäljarens pris per skylt med startkostnaden inräknad, och summerar till varuvärdet", () => {
     const request = buildSupplierRequest(input([named("Anna Lind", 6), named("Bo Ek", 4)]));
     // Premium med nål på första trappsteget: 73 + 5 kr, plus 200 kr startkostnad delad på 10 skyltar.

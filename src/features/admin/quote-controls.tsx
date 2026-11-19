@@ -124,7 +124,8 @@ export function QuoteSendPanel({ quoteNo, customerName, email, totalSek, link: i
       router.refresh();
     });
   };
-  const sendLabel = emailOn ? `Mejla offerten till ${email}` : "Skicka offerten";
+  // En kund som sparats med bara företagets namn har ingen e-post: då skickar säljaren offerten själv.
+  const sendLabel = emailOn && email ? `Mejla offerten till ${email}` : "Skicka offerten";
 
   const mailto = link
     ? `mailto:${email}?subject=${encodeURIComponent(`Offert ${quoteNo} – namnskyltar`)}&body=${encodeURIComponent(

@@ -270,6 +270,11 @@ export async function attachOrderToAccount(accountId: string, orderNo: string): 
 
 export interface NewOrder {
   customer: { name: string; email: string; company?: string | null; orgNumber?: string | null };
+  /**
+   * Kunden som redan finns, till exempel offertens kund. Då hör ordern till just den kunden,
+   * också när kunden saknar e-post. Utan den gäller regeln att samma e-post är samma kund.
+   */
+  customerId?: string | null;
   badges: BadgeDocument[];
   status: OrderStatus;
   source: OrderSource;
@@ -307,10 +312,16 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
   const placedAt = order.placedAt ? new Date(order.placedAt) : new Date();
   const tenant = order.tenant;
   return sql.begin(async (tx) => {
-    const [customer] = await tx<{ id: string }[]>`
+    const [known] = order.customerId
+      ? await tx<{ id: string }[]>`select id from customers where id = ${order.customerId} and reseller_id = ${tenant}`
+      : [];
+    // Samma e-post är samma kund. En kund utan e-post har ingen att känna igen på, och blir en egen rad.
+    const [customer] = known
+      ? [known]
+      : await tx<{ id: string }[]>`
       insert into customers (reseller_id, email, name, company, org_number, is_demo)
       values (${tenant}, ${email}, ${order.customer.name}, ${order.customer.company ?? null}, ${order.customer.orgNumber ?? null}, ${order.demo ?? false})
-      on conflict (reseller_id, email) do update
+      on conflict (reseller_id, email) where email <> '' do update
         set name = excluded.name, company = coalesce(excluded.company, customers.company),
             org_number = coalesce(excluded.org_number, customers.org_number)
       returning id`;
@@ -648,14 +659,17 @@ export interface CustomerInput {
   address?: string | null;
 }
 
-/** Ny kund, eller samma kund om e-posten redan finns — ifyllda uppgifter skriver över, tomma behåller det gamla. */
+/**
+ * Ny kund, eller samma kund om e-posten redan finns — ifyllda uppgifter skriver över, tomma behåller det gamla.
+ * En kund utan e-post (tom) blir alltid en ny rad: det finns ingen e-post att känna igen den på.
+ */
 export async function upsertCustomer(tenant: string, input: CustomerInput): Promise<Customer> {
   const sql = requireDb();
   const [row] = await sql<Customer[]>`
     insert into customers (reseller_id, email, name, company, phone, org_number, address)
     values (${tenant}, ${input.email.trim().toLowerCase()}, ${input.name}, ${input.company || null},
             ${input.phone || null}, ${input.orgNumber || null}, ${input.address || null})
-    on conflict (reseller_id, email) do update
+    on conflict (reseller_id, email) where email <> '' do update
       set name = excluded.name,
           company = coalesce(excluded.company, customers.company),
           phone = coalesce(excluded.phone, customers.phone),

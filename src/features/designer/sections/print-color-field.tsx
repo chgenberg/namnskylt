@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { LOW_CONTRAST, PRINT_PALETTE, bestTextColor, contrastRatio, logoPalette, printColorName, printHex } from "@/engine";
+import { useState } from "react";
+import { LOW_CONTRAST, PRINT_PALETTE, bestTextColor, contrastRatio, printColorName, printHex } from "@/engine";
 import styles from "./sections.module.css";
 
 /**
@@ -14,49 +14,6 @@ import styles from "./sections.module.css";
  * under Märkningsmetod som "andra val" och såg att inget hände när raderna
  * redan hade egna färger). Den färg som gäller är alltid markerad.
  */
-
-/** Loggans färger hålls kvar per bild, så att de inte läses om varje gång panelen ritas. */
-const known = new Map<string, string[]>();
-/** Längsta sidan när loggan läses. Färgerna syns lika bra i en liten bild. */
-const READ_SIZE = 128;
-
-/**
- * Loggans färger, lästa ur dess bild i webbläsaren, den som täcker mest först
- * (besked av ägaren 2026-11-19: systemet ska läsa av loggans färger när en
- * logga läggs in). En svartvit logga har ingen bild, och då inga färger.
- */
-export function useLogoColors(src: string | null): string[] {
-  const [read, setRead] = useState<{ src: string; colors: string[] } | null>(null);
-  useEffect(() => {
-    if (!src || known.has(src)) return;
-    let current = true;
-    const image = new Image();
-    image.onload = () => {
-      const scale = Math.min(1, READ_SIZE / Math.max(image.naturalWidth, image.naturalHeight, 1));
-      const width = Math.max(1, Math.round(image.naturalWidth * scale));
-      const height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const context = canvas.getContext("2d", { willReadFrequently: true });
-      if (!context) return;
-      context.drawImage(image, 0, 0, width, height);
-      try {
-        const colors = logoPalette({ data: context.getImageData(0, 0, width, height).data, width, height });
-        known.set(src, colors);
-        if (current) setRead({ src, colors });
-      } catch {
-        // Bilden går inte att läsa. Då visas inga förslag, och färgvalet fungerar som vanligt.
-      }
-    };
-    image.src = src;
-    return () => {
-      current = false;
-    };
-  }, [src]);
-  if (!src) return [];
-  return known.get(src) ?? (read?.src === src ? read.colors : []);
-}
 
 /** Pricken på knappen Egen färg: palettens färger i en ring, för "vilken färg som helst". */
 const ANY_COLOR = `conic-gradient(${["Röd", "Gul", "Grön", "Blå", "Röd"].map((name) => PRINT_PALETTE.find((color) => color.name === name)?.hex).join(", ")})`;
