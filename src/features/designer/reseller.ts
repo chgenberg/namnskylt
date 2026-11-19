@@ -18,6 +18,8 @@ export interface ShopContext {
 /** En tidigare order som öppnas i skyltmotorn för att beställas igen, med ändringar. */
 export interface OrderCopy {
   orderNo: string;
+  /** Numret som kunden känner ordern under, när det är verkstadens och inte vårt. */
+  label?: string;
   groups: BadgeGroup[];
 }
 

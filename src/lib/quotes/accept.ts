@@ -20,7 +20,8 @@ import {
 } from "./repository";
 
 /** `orderPath` är kundens egen ordersida, när ordern har en. */
-export type AcceptResult = { ok: true; orderNo: string; orderPath: string | null } | { ok: false; error: string };
+/** `customerNumber` är numret kunden ser: verkstadens när de har tagit emot en order de själva säljer, annars vårt. */
+export type AcceptResult = { ok: true; orderNo: string; customerNumber: string; orderPath: string | null } | { ok: false; error: string };
 
 export const MISSING_DELIVERY_ERROR = "Fyll i leveransadressen innan offerten godkänns.";
 export const MISSING_PHONE_ERROR = "Fyll i telefon på leveransen innan offerten godkänns. Transportören aviserar på den.";
@@ -108,7 +109,13 @@ export async function acceptQuote(
         orderNo: placed.orderNumber,
       });
     }
-    return { ok: true, orderNo: placed.orderNumber, orderPath: placed.customerToken ? `/order/${placed.customerToken}` : null };
+    const theirs = isOwner(tenant) && !quote.demo && placed.status === "received" ? placed.supplierOrderNumber : undefined;
+    return {
+      ok: true,
+      orderNo: placed.orderNumber,
+      customerNumber: theirs || placed.orderNumber,
+      orderPath: placed.customerToken ? `/order/${placed.customerToken}` : null,
+    };
   } catch (error) {
     await releaseAcceptance(quote.id, before.status);
     console.error(`Offert ${quoteNo} kunde inte bli order`, error);

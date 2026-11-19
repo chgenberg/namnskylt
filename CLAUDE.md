@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1302 tester, grönt 2026-11-19).
+# Kvalitetsgrinden. Kör den innan något lämnas (1306 tester, grönt 2026-11-19).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -1095,6 +1095,28 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
     företag innan omförsöket, skickas den första ordern med det nya företagets namn och
     organisationsnummer. En kopia av beställaren på ordern (ny migrering) löser det.
 
+- **Kunden ser Skylt & Gravyrtekniks ordernummer på en direktorder** (beslut av ägaren
+  2026-11-19: ordrarna "måste ju följa deras orderflöde, så att ordernumret följer deras
+  ordernummerserie", och på frågan valdes deras nummer framför båda eller ingen ändring).
+  Regeln ligger på ett ställe, `customerOrderNumber` i `src/lib/orders/model.ts`.
+  - Verkstaden ger ordern ett nummer ur sin egen serie när den tas emot. Det är det numret
+    som står i deras orderbekräftelse och på fakturan, och nu också hos oss: på kvittot i
+    varukorgen ("Order 48213 mottagen. … Referens NS-1200."), på kundens ordersida, i Mitt
+    konto, i rubriken när ordern kopieras och i tacket när kunden godkänner en offert från
+    namnskylt.com. Vårt eget nummer, NS-…, står kvar som referens. Det är IO-numret hos dem.
+  - Innan verkstaden har tagit emot ordern finns deras nummer inte, och då visas vårt.
+    Sidorna byter nummer av sig själva när ordern har gått iväg.
+  - **En återförsäljares kund ser alltid vårt nummer**, också i en återförsäljares butik:
+    kunden ska inte möta verkstaden. `POST /api/orders` lämnar därför bara ut verkstadens
+    nummer där verkstaden själv säljer. En demoorder och en order betald med kort visar
+    också vårt.
+  - **Panelen har kvar NS-numret som ordernummer**, i listor, adresser och besked, och
+    visar verkstadens under Tidslinje och Detaljer ("Tillverkarens nr"). Ordern sparas och
+    numreras hos oss innan den skickas, så vårt nummer behövs som referens och i
+    `Idempotency-Key`.
+  - Provat lokalt 2026-11-19 mot en låtsasverkstad, i hela kundflödet: numret på kvittot är
+    det verkstaden svarade med. Inte provat i drift, där ingen riktig order har lagts.
+  - Inte ändrat: sajtens egna mejl, som är avstängda, säger fortfarande NS-numret.
 - **Kopplingen är påslagen i Namnskylts drift sedan 2026-11-17** (ägaren satte variablerna på
   Railway). Strömbrytaren är `SUPPLIER_API_URL` och `SUPPLIER_API_KEY`
   (`supplierApiConfigured`). Utan dem sparas ordrar och väntar. Värdena stämmer med

@@ -72,7 +72,17 @@ type OrderState =
   | { status: "idle" }
   | { status: "form"; message?: string }
   | { status: "sending" }
-  | { status: "done"; orderNumber: string; shipDate: string; orderPath: string | null; atWorkshop: boolean; account: AccountNote }
+  | {
+      status: "done";
+      /** Numret kunden ser: verkstadens när de har tagit emot en order de själva säljer, annars vårt. */
+      orderNumber: string;
+      /** Vårt eget nummer, när kunden ser verkstadens. */
+      reference: string | null;
+      shipDate: string;
+      orderPath: string | null;
+      atWorkshop: boolean;
+      account: AccountNote;
+    }
   | { status: "requested"; requestNumber: string }
   | { status: "error"; message: string };
 
@@ -468,7 +478,8 @@ export function OrderSection({
       }
       setOrder({
         status: "done",
-        orderNumber: body.orderNumber,
+        orderNumber: typeof body.supplierOrderNumber === "string" && body.supplierOrderNumber ? body.supplierOrderNumber : body.orderNumber,
+        reference: typeof body.supplierOrderNumber === "string" && body.supplierOrderNumber ? body.orderNumber : null,
         shipDate: body.estimatedShipDate,
         orderPath: typeof body.customerToken === "string" ? `/order/${body.customerToken}` : null,
         // Bara en order som verkstaden har tagit emot får deras bekräftelse.
@@ -873,6 +884,7 @@ export function OrderSection({
       {order.status === "done" && (
         <motion.div className={styles.receipt} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} role="status">
           <strong>Order {order.orderNumber} mottagen.</strong> Beräknat skickdatum {order.shipDate}.
+          {order.reference && ` Referens ${order.reference}.`}
           {/* En återförsäljares butik bekräftar själv. Annars sköter verkstaden ordern mot kunden. */}
           {shop && !shop.direct
             ? ` ${shop.name} hör av sig med orderbekräftelse.`

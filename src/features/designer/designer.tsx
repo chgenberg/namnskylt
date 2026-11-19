@@ -736,7 +736,7 @@ export function Designer({
             // Kunden ska se att det är en ny order: den gamla står kvar som den lades.
             <p className={styles.restored} role="status" data-copy-of={copy.orderNo}>
               <span>
-                Kopia av {copy.orderNo}. Du skapar en ny {reseller ? "order eller offert" : "order"}, och den gamla ändras inte.
+                Kopia av {copy.label ?? copy.orderNo}. Du skapar en ny {reseller ? "order eller offert" : "order"}, och den gamla ändras inte.
               </span>
             </p>
           )}

@@ -6,6 +6,7 @@ import { getAccountOrder } from "@/lib/orders/repository";
 import { accountView } from "./accounts";
 import type { CustomerAccountView } from "./model";
 import { currentCustomer } from "./session";
+import { customerOrderNumber } from "@/lib/orders/model";
 
 const ORDER_NO = /^NS-\d{1,9}$/;
 
@@ -31,7 +32,7 @@ export async function customerDesignerContext(shop: string | null, reorderNo: st
   const reorder =
     order && order.badges.length > 0 && !isErasedCustomer(order.customer)
       ? // Äldre skyltar flyttas till dagens sortiment, som när en delad skylt öppnas.
-        { orderNo: order.orderNo, groups: badgeGroups(order.badges.map(toOfferedDocument)) }
+        { orderNo: order.orderNo, label: customerOrderNumber(order).number, groups: badgeGroups(order.badges.map(toOfferedDocument)) }
       : undefined;
   return { accounts: true, customer: accountView(account), reorder };
 }

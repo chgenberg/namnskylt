@@ -38,7 +38,8 @@ export async function decideQuoteAction(
     const phoneIssue = deliveryPhoneIssue(delivery, method ?? shippingMethodOf(quote.delivery));
     if (phoneIssue) return { ok: false, error: phoneIssue };
     const result = await acceptQuote(quote.resellerId, quote.quoteNo, false, delivery ?? null, method ?? null);
-    return result.ok ? { ok: true, orderNo: result.orderNo, orderPath: result.orderPath } : { ok: false, error: result.error };
+    // Kunden får numret den ser på sin order: verkstadens när de själva säljer, annars säljarens.
+    return result.ok ? { ok: true, orderNo: result.customerNumber, orderPath: result.orderPath } : { ok: false, error: result.error };
   } catch (error) {
     console.error("Offertsvaret kunde inte sparas", error);
     return { ok: false, error: "Något gick fel. Försök igen." };

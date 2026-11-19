@@ -4,7 +4,7 @@ import { CopyOrderLink } from "@/components/copy-order-link";
 import { engravedRows, type BadgeDocument } from "@/engine";
 import { accountPaths } from "@/lib/customer-auth/model";
 import { formatDay, formatSek } from "@/lib/format";
-import { badgeCount, ORDER_STATUS_LABEL, type StoredOrder } from "@/lib/orders/model";
+import { badgeCount, customerOrderNumber, ORDER_STATUS_LABEL, type StoredOrder } from "@/lib/orders/model";
 import styles from "./account.module.css";
 
 interface AccountOrdersProps {
@@ -52,7 +52,8 @@ export function AccountOrders({ orders, shop }: AccountOrdersProps) {
             {first && <BadgePreview doc={first} className={styles.orderBadge} label={`Skylt: ${badgeText(first)}`} />}
             <div className={styles.orderBody}>
               <p className={styles.orderHead}>
-                <span className="mono">{order.orderNo}</span>
+                {/* Verkstadens ordernummer när de har tagit emot ordern: samma som i deras mejl och på fakturan. */}
+                <span className="mono">{customerOrderNumber(order).number}</span>
                 <span>{formatDay(order.placedAt)}</span>
                 <span className={styles.status} data-status={order.status}>
                   {ORDER_STATUS_LABEL[order.status]}

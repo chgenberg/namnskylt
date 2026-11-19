@@ -20,7 +20,7 @@ import { startCheckout } from "@/lib/payments/checkout";
 import { CUSTOMER_TYPES } from "@/lib/payments/model";
 import { paymentsConfigured } from "@/lib/payments/stripe";
 import { SHOP_SLUG } from "@/lib/shops/model";
-import { OWNER_TENANT } from "@/lib/tenants/model";
+import { OWNER_TENANT, isOwner } from "@/lib/tenants/model";
 import { getShop } from "@/lib/shops/repository";
 import { requireDb } from "@/lib/db/client";
 import { isOutreachPreviewShop, OUTREACH_PREVIEW_ORDER_ERROR } from "@/lib/outreach/demo-source";
@@ -188,7 +188,14 @@ export async function POST(request: Request) {
     } catch (error) {
       console.error("Kundkontot kunde inte sparas efter ordern", error);
     }
-    const response = NextResponse.json({ ...receipt, ...(account && { account }), ...(accountStatus && { accountStatus }) }, { status: 201 });
+    // Verkstadens ordernummer är kundens ordernummer där verkstaden själv säljer: på namnskylt.com och i en butik
+    // utan ägare. I en återförsäljares butik ska kunden inte möta verkstaden, så där följer numret inte med.
+    const { supplierOrderNumber, ...shown } = receipt;
+    const theirs = isOwner(owner ?? OWNER_TENANT) && receipt.status === "received" ? supplierOrderNumber : undefined;
+    const response = NextResponse.json(
+      { ...shown, ...(theirs && { supplierOrderNumber: theirs }), ...(account && { account }), ...(accountStatus && { accountStatus }) },
+      { status: 201 },
+    );
     if (cookie) response.cookies.set(cookie.name, cookie.value, cookie.options);
     return response;
   } catch (error) {

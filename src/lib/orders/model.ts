@@ -163,3 +163,31 @@ export function stepTimes(events: readonly OrderEvent[]): Partial<Record<OrderSt
 export function isDirectOrder(order: { resellerId: string; payment?: unknown }): boolean {
   return isOwner(order.resellerId) && !order.payment;
 }
+
+/** Ordernumret kunden ser, och vårt eget som referens när de skiljer sig. */
+export interface CustomerOrderNumber {
+  number: string;
+  reference: string | null;
+}
+
+/**
+ * Numret kunden ser på sin order (beslut av ägaren 2026-11-19: ordrarna ska följa Skylt &
+ * Gravyrtekniks ordernummer). På en direktorder som verkstaden har tagit emot är det
+ * verkstadens nummer, ur deras egen serie: samma nummer som står i deras orderbekräftelse
+ * och på fakturan. Vårt eget nummer, NS-…, står då kvar som referens. Det är IO-numret hos dem.
+ *
+ * Innan verkstaden har tagit emot ordern är numret vårt eget, eftersom deras inte finns än.
+ * En återförsäljares order visar alltid vårt nummer: återförsäljarens kund ska inte möta
+ * verkstaden. En demoorder går aldrig dit och har inget nummer där.
+ */
+export function customerOrderNumber(order: {
+  orderNo: string;
+  resellerId: string;
+  payment?: unknown;
+  demo: boolean;
+  supplierOrderNo: string | null;
+  supplierSentAt: string | null;
+}): CustomerOrderNumber {
+  const theirs = isDirectOrder(order) && !order.demo && order.supplierSentAt ? order.supplierOrderNo?.trim() : null;
+  return theirs ? { number: theirs, reference: order.orderNo } : { number: order.orderNo, reference: null };
+}

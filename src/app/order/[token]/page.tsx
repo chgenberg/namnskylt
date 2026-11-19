@@ -17,6 +17,7 @@ import { databaseConfigured, getOrderByCustomerToken, getSellerProfile } from "@
 import { paymentLabel } from "@/lib/payments/model";
 import { reorderMode } from "@/lib/quotes/reorder-model";
 import { encodeShareCode } from "@/lib/share/share-link";
+import { customerOrderNumber } from "@/lib/orders/model";
 
 export const metadata: Metadata = {
   title: "Din order",
@@ -51,6 +52,8 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
   const mode = reorderMode({ status: order.status, badges: order.badges, paid: order.payment !== null, erased: false });
   const template = order.badges[0];
   const designerBase = order.shopSlug ? `/butik/${order.shopSlug}/skapa` : "/skapa";
+  // Kunden ser verkstadens ordernummer när de har tagit emot en order de själva säljer, med vårt som referens.
+  const shownNumber = customerOrderNumber(order);
   const share = mode === "designer" && template ? await encodeShareCode(template).catch(() => null) : null;
 
   return (
@@ -59,7 +62,13 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
         <SellerLogo company={company} plate={plate} />
         <header className={styles.head}>
           <p className={styles.eyebrow}>
-            Order · <span className="mono">{order.orderNo}</span>
+            Order · <span className="mono">{shownNumber.number}</span>
+            {shownNumber.reference && (
+              <>
+                {" "}
+                · referens <span className="mono">{shownNumber.reference}</span>
+              </>
+            )}
           </p>
           <h1 className={styles.title}>{head.title}</h1>
           <p className={styles.lead}>{head.text}</p>
