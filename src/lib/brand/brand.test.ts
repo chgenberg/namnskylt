@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { colorDistance, isBrandColor, parseCssColor } from "./color";
 import { isPublicAddress } from "./ip";
-import { logoColorCombo, matchColorCombo, matchFont, quoteColorsFromLogo } from "./match";
+import { logoColorCombo, matchColorCombo, matchFont, pickedColorCombo, quoteColorsFromLogo } from "./match";
 import { brandColors, fontFamilies } from "./parse-css";
 import { parsePage } from "./parse-html";
 import { parsePublicUrl } from "./url";
@@ -173,6 +173,29 @@ describe("matchColorCombo", () => {
     assert.equal(matchColorCombo(["#003366"], "metal"), null);
     assert.equal(matchColorCombo(["#111111"], "metal"), null);
     assert.equal(matchColorCombo(["#C9A53C"], "metal"), "metal-gold");
+  });
+});
+
+describe("pickedColorCombo", () => {
+  it("färgen kunden själv har valt ger skylten som liknar den mest", () => {
+    // Mats på verkstaden bytte en av loggans färger till ljusgrönt och väntade sig en grön skylt.
+    assert.match(pickedColorCombo("plastic", "#7ED957") ?? "", /^green-/);
+    assert.match(pickedColorCombo("plastic", "#1E9E4A") ?? "", /^green-/);
+    assert.equal(pickedColorCombo("plastic", "#FFD000"), "yellow-black");
+    assert.match(pickedColorCombo("plastic", "#0058A3") ?? "", /^blue-/);
+    assert.match(pickedColorCombo("plastic", "#D3171E") ?? "", /^red-/);
+    // Det finns inget tak för avståndet: också en färg långt från sortimentet ger ett svar.
+    assert.ok(pickedColorCombo("plastic", "#FF4FD8"));
+    // Har flera kombinationer samma yta gäller den första i sortimentet, och bara det som säljs kan väljas.
+    assert.equal(pickedColorCombo("plastic", "#FFFFFF"), "white-black");
+    assert.notEqual(pickedColorCombo("plastic", "#FFE100"), "yellow-red");
+    assert.equal(pickedColorCombo("plastic", "ingen färg"), null);
+  });
+
+  it("loggans egna färger hade gett en annan skylt, eller ingen alls", () => {
+    // Det var felet: med en ändrad färg räknade förslaget fortfarande på loggans övriga färger.
+    assert.equal(logoColorCombo({ materialId: "plastic", logoColors: ["#7ED957", "#FFDA1A"], printedInColor: true }), null);
+    assert.equal(logoColorCombo({ materialId: "plastic", logoColors: ["#0058A3", "#7ED957"], printedInColor: true }), "white-blue");
   });
 });
 

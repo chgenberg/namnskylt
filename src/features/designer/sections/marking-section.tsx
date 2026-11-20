@@ -62,13 +62,11 @@ export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps
               <span className={styles.markingRadio} aria-hidden="true" />
               <span className={styles.markingText}>
                 <span className={styles.markingName}>{method.name}</span>
-                <span className={styles.markingNote}>
-                  {available
-                    ? method.description
-                    : printOnly
-                      ? `${method.description}. Gravyr finns bara på plastskyltar.`
-                      : `${method.description}. Lägg till en logotyp nedan för att välja.`}
-                </span>
+                <span className={styles.markingNote}>{method.description}</span>
+                {/* Skälet står för sig, i rött: annars läses raden som en del av beskrivningen (besked från verkstaden via ägaren 2026-11-20). */}
+                {!available && (
+                  <span className={styles.markingWhy}>{printOnly ? "Gravyr finns bara på plastskyltar." : "Lägg till en logotyp nedan för att välja."}</span>
+                )}
               </span>
               {/* Ett val som inte finns på materialet har inget pris här. */}
               {(available || !printOnly) && <span className={styles.markingPrice}>{fromPriceLabel(markingFrom(method.id, doc.materialId))}</span>}

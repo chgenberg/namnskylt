@@ -1,14 +1,17 @@
 "use client";
 
-import { getColor, getMaterial, logoMarking, offeredColors, type BadgeDocument } from "@/engine";
-import { logoColorCombo } from "@/lib/brand/match";
+import { useState } from "react";
+import { getColor, getMaterial, isPrintOnly, logoMarking, offeredColors, type BadgeDocument } from "@/engine";
+import { logoColorCombo, pickedColorCombo } from "@/lib/brand/match";
 import { HexInput } from "./print-color-field";
 import styles from "./sections.module.css";
 
 interface LogoColorsProps {
   doc: BadgeDocument;
-  /** Loggans avlästa färger, den som täcker mest först. */
+  /** Loggans avlästa färger, den som täcker mest först. Kunden kan ha ändrat dem. */
   colors: readonly string[];
+  /** Färgerna som de lästes av från början, när kunden har ändrat någon av dem. */
+  readColors?: readonly string[];
   /** Hemsidans färger, när loggan hämtades därifrån. De räknas bara när loggan saknar egen färg. */
   siteColors?: readonly string[];
   /** Kunden har rättat en färg. */
@@ -25,20 +28,37 @@ interface LogoColorsProps {
  * Under färgerna står vad de leder till: kombinationen i materialet som ligger
  * närmast loggans färg (`logoColorCombo`), med en knapp för att välja den. Förut
  * stod bara hemsidans färg som en prick utan kod, också när valet gjordes på loggans.
+ *
+ * **En färg kunden själv har ändrat styr förslaget** (besked från verkstaden via
+ * ägaren 2026-11-20: Mats bytte en färg till grönt, tryckte Välj och fick en vit
+ * skylt). Förslaget är då plastfärgen som ligger närmast just den färgen
+ * (`pickedColorCombo`), inte den som passar loggans övriga färger. De avlästa
+ * färgerna står kvar bredvid knappen Återställ.
  */
-export function LogoColors({ doc, colors, siteColors = [], onColors, onPickCombo }: LogoColorsProps) {
+export function LogoColors({ doc, colors, readColors, siteColors = [], onColors, onPickCombo }: LogoColorsProps) {
   const material = getMaterial(doc.materialId);
+  /** Färgen kunden ändrade senast. Den glöms när sektionen stängs: då gäller den första ändrade färgen. */
+  const [lastPicked, setLastPicked] = useState<string | null>(null);
+  const changed = readColors ? colors.filter((color) => !readColors.includes(color)) : [];
+  const wish = changed.length > 0 ? (lastPicked && changed.includes(lastPicked) ? lastPicked : changed[0]!) : null;
+  // På metall finns bara tre ytor, och ingen av dem bär en vald färg: där gäller loggans färger som förut.
+  const picked = wish !== null && !isPrintOnly(doc.materialId);
   const suggestedId =
     offeredColors(material).length > 1
-      ? logoColorCombo({
-          materialId: doc.materialId,
-          logoColors: colors,
-          siteColors,
-          printedInColor: Boolean(doc.logo?.image) && logoMarking(doc) === "print",
-        })
+      ? picked
+        ? pickedColorCombo(doc.materialId, wish)
+        : logoColorCombo({
+            materialId: doc.materialId,
+            logoColors: colors,
+            siteColors,
+            printedInColor: Boolean(doc.logo?.image) && logoMarking(doc) === "print",
+          })
       : null;
   const suggested = suggestedId ? getColor(doc.materialId, suggestedId) : null;
-  const replace = (index: number, color: string) => onColors(colors.map((current, i) => (i === index ? color : current)));
+  const replace = (index: number, color: string) => {
+    setLastPicked(color.toUpperCase());
+    onColors(colors.map((current, i) => (i === index ? color : current)));
+  };
   return (
     <div className={styles.readColors}>
       <span className={styles.paletteCaption}>Avlästa färger ur loggan</span>
@@ -63,10 +83,30 @@ export function LogoColors({ doc, colors, siteColors = [], onColors, onPickCombo
         Stämmer inte en färg? Klicka på rutan eller skriv rätt kod. Färgerna styr förslagen på textfärg och färg på
         skylten. Loggan själv ändras inte.
       </p>
+      {readColors && readColors.length > 0 && (
+        <p className={styles.readResult}>
+          <span className={styles.readOriginal}>
+            Avläst från början:
+            {readColors.map((hex) => (
+              <span key={hex} className={styles.readDot} style={{ "--dot": hex } as React.CSSProperties} title={hex} />
+            ))}
+          </span>
+          <button
+            type="button"
+            className={styles.textButton}
+            onClick={() => {
+              setLastPicked(null);
+              onColors([...readColors]);
+            }}
+          >
+            Återställ
+          </button>
+        </p>
+      )}
       {suggested && suggestedId && (
         <p className={styles.readResult} data-suggested-combo={suggestedId}>
           <span>
-            Närmast i {material.name.toLowerCase()}: <strong>{suggested.name}</strong>
+            {picked ? "Närmast din färg" : "Närmast"} i {material.name.toLowerCase()}: <strong>{suggested.name}</strong>
           </span>
           {suggestedId === doc.colorId ? (
             <span className={styles.readChosen}>Vald</span>

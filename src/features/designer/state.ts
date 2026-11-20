@@ -3,7 +3,7 @@ import {
   LOGO_LIMITS,
   TEXT_LIMITS,
   blankFits,
-  cleanLogoColors,
+  withLogoColors,
   clipOrientations,
   createRow,
   getBlank,
@@ -257,13 +257,9 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
     case "print/color":
       // Textfärgen gäller alla rader: radernas egna färger tas bort, så att valet alltid syns.
       return withTextColor(doc, action.color);
-    case "logo/colors": {
-      if (!doc.logo) return doc;
-      const colors = cleanLogoColors(action.colors);
-      const logo = { ...doc.logo };
-      delete logo.colors;
-      return { ...doc, logo: colors.length > 0 ? { ...logo, colors } : logo };
-    }
+    case "logo/colors":
+      // Färgerna som lästes av från början sparas vid den första ändringen, så att de går att återställa.
+      return doc.logo ? { ...doc, logo: withLogoColors(doc.logo, action.colors) } : doc;
     case "logo/engraving":
       // Svaret kommer i efterhand: gäller bara om samma logga ligger kvar och fortfarande saknar gravyrform.
       return doc.logo && doc.logo.d === action.d && !doc.logo.engraveD

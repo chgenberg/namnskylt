@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { getMaterial } from "./catalog";
 import { INVISIBLE_CONTRAST, PRINT_PALETTE, bestTextColor, contrastRatio, pigmentCodeText, pigmentCodes, printColorName } from "./color-choice";
-import { LOGO_COLORS_MAX, cleanLogoColors, inkPalette, logoPalette } from "./logo-color";
+import { LOGO_COLORS_MAX, cleanLogoColors, inkPalette, logoPalette, withLogoColors } from "./logo-color";
 import { PRINT_STANDARD_COLORS, cmykHex, cmykOf, cmykText, isPrintHex, printColorHex, printColorText, printHex } from "./color-code";
 import { createBadgeDocument, isOfferedDocument, toOfferedDocument } from "./document";
 import { engravedBadge, plasticBadge } from "./testing";
@@ -670,6 +670,23 @@ describe("loggans avlästa färger följer med skylten", () => {
     assert.deepEqual(cleanLogoColors(["#C8362D", "#c8362d"]), ["#C8362D"]);
     assert.deepEqual(cleanLogoColors(["PMS 186 C", "100/60/0/20", "#C83", ""]), []);
     assert.equal(cleanLogoColors(["#111111", "#222222", "#333333", "#444444", "#555555"]).length, LOGO_COLORS_MAX);
+  });
+
+  it("de avlästa färgerna sparas när kunden ändrar en, så att de går att återställa", () => {
+    const logo = { d: "M0 0", colors: ["#0058A3", "#FFDA1A"] };
+    // Första ändringen sparar det som lästes av.
+    const once = withLogoColors(logo, ["#0058A3", "#7ed957"]);
+    assert.deepEqual(once, { d: "M0 0", colors: ["#0058A3", "#7ED957"], readColors: ["#0058A3", "#FFDA1A"] });
+    // Fler ändringar rör inte det sparade.
+    const twice = withLogoColors(once, ["#00A33A", "#7ED957"]);
+    assert.deepEqual(twice.readColors, ["#0058A3", "#FFDA1A"]);
+    // Återställ, eller att skriva tillbaka samma koder, tar bort det sparade: då finns inget att återställa.
+    assert.deepEqual(withLogoColors(twice, twice.readColors!), logo);
+    assert.deepEqual(withLogoColors(once, ["#0058a3", "#ffda1a"]), logo);
+    // Samma färger som förut ändrar ingenting, och en logga utan avlästa färger får inget sparat.
+    assert.deepEqual(withLogoColors(logo, logo.colors), logo);
+    const bare: { d: string; colors?: string[] } = { d: "M0 0" };
+    assert.deepEqual(withLogoColors(bare, ["#112233"]), { d: "M0 0", colors: ["#112233"] });
   });
 
   it("godtas av schemat som skärmfärger, och bara inom taket", () => {

@@ -410,6 +410,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
             <LogoColors
               doc={doc}
               colors={doc.logo.colors}
+              readColors={doc.logo.readColors}
               siteColors={profile?.colors}
               onColors={(colors) => dispatch({ type: "logo/colors", colors })}
               onPickCombo={(colorId) => dispatch({ type: "color", colorId })}

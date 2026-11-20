@@ -333,3 +333,18 @@ export function cleanLogoColors(colors: readonly string[]): string[] {
   return kept.slice(0, LOGO_COLORS_MAX);
 }
 
+/**
+ * Loggans färger efter att kunden har ändrat dem. Färgerna som lästes av från början sparas vid
+ * den första ändringen (`readColors`), så att de går att återställa. Är färgerna tillbaka på de
+ * avlästa finns inget att återställa, och fältet tas bort.
+ */
+export function withLogoColors<T extends { colors?: string[]; readColors?: string[] }>(logo: T, colors: readonly string[]): T {
+  const next = cleanLogoColors(colors);
+  const read = logo.readColors ?? logo.colors ?? [];
+  const changed = next.length !== read.length || next.some((color, index) => color !== read[index]);
+  const rest = { ...logo };
+  delete rest.colors;
+  delete rest.readColors;
+  return { ...rest, ...(next.length > 0 && { colors: next }), ...(changed && read.length > 0 && { readColors: read }) };
+}
+

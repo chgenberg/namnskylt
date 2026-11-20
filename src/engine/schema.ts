@@ -84,6 +84,7 @@ export const badgeDocumentSchema = z
         originalId: z.string().regex(LOGO_ORIGINAL_ID_PATTERN).optional(),
         // Loggans avlästa färger, som kunden kan rätta: skärmfärger, `#RRGGBB`.
         colors: z.array(z.string().regex(/^#[0-9A-Fa-f]{6}$/)).max(LOGO_COLORS_MAX).optional(),
+        readColors: z.array(z.string().regex(/^#[0-9A-Fa-f]{6}$/)).max(LOGO_COLORS_MAX).optional(),
         // Kundens färgkoder för loggans tryck: fritext utan styrtecken.
         printColor: printColorSchema(LOGO_PRINT_COLOR_MAX),
       })

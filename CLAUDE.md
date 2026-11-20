@@ -68,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1407 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1410 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -864,6 +864,11 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
     - Provat lokalt 2026-11-20 i kundens kassa i Chrome: en skylt ger Varubrev 75 kr förvalt
       och Paket 159 kr, och summan följer valet. Offertens val och panelen är bara provade i
       tester.
+    - **I drift visas paketet inte, eftersom det kostar lika mycket som varubrevet där.**
+      Prismodellen i drift har sedan 2026-11-16 varubrev 75 kr, paket 75 kr och gränsen
+      3 000 kr (läst 2026-11-20, bara fraktens fält; vem som ändrade den vet jag inte). All
+      frakt är alltså 75 kr där, också för tio skyltar. Valet visas av sig självt när paketet
+      får ett högre pris i `/admin/prismodell`. Jag har inte ändrat priserna.
   - **Leveranssättet väljs i kassan** (beslut av ägaren 2026-11-15, samma val som i verkstadens
     egen kassa): `standard` följer fraktregeln, `pickup` är "Hämta i Högsbo" utan frakt och
     `express` är PostNord Express, där verkstaden sätter priset i efterhand, så ordern har ingen
@@ -2459,9 +2464,15 @@ via en länk, eftersom det inte kräver någon ändring hos dem).
 - Kända brister och det som inte är gjort:
   - Länken på orderpappret är text, inte klickbar: personalen kopierar eller skriver av den.
     En klickbar länk kräver en ändring i deras orderpapper.
-  - **Verkstadens egen följesedel skrivs fortfarande ut av deras system**, med deras logga.
-    Mats bad om att den inte ska vara förvald för ordrar från namnskylt.com. Det är en ändring
-    i skyltmotor som väntar på ägarens ja.
+  - **Verkstadens egen fraktsedel skrivs inte ut för våra ordrar**, när ändringen där är
+    utrullad (ägarens ja 2026-11-20, efter Mats önskemål). Hos dem öppnas och skrivs en
+    fraktsedel med deras logga ut av sig själv när en order sätts till Skickad
+    (`/admin/ordrar/[id]/fraktsedel`). För en order från namnskylt.com visar den sidan i
+    stället raden Packning, en knapp till vår följesedel och fraktetiketten, utan utskrift.
+    Länken läses ur raderna vi skickar och godtas bara på `namnskylt.com/f/<kod>`
+    (`partnerPacking` i deras `lib/partner-orders.ts`). **Byggt lokalt hos dem och inte
+    deployat**, och sidan är inte sedd i en webbläsare. Deras egna ordrar är orörda, liksom
+    Fortnox-följesedeln och fakturan.
   - Fraktsedeln och transportörens avisering anger fortfarande verkstaden som avsändare.
   - Följesedeln gäller hela ordern. Delleveranser finns inte.
 
@@ -2477,15 +2488,41 @@ avsnitt: typsnitten, följesedeln, paketvalet i frakten (Prismodellen), klämman
   Köpvillkoren har ett eget stycke, "Färger i tryck", både under verkstadens villkor och i
   återförsäljarnas butiker. Meningen om att en mindre skillnad i nyans inte räknas som ett fel
   skrev jag, och ingen jurist har läst den.
+- **Kontrollerat i drift 2026-11-20 efter pushen (`1ca7dd0`), bara läsning:** migrering 036 är
+  tillämpad och varje order har sin kod, en följesedel för en demoorder kommer som PDF och en
+  felaktig kod ger 404, typsnittens filer och licenser nås, väljaren visar 186 typsnitt och
+  hämtar Pacifico när det väljs, friskrivningen står vid textfärgen och stycket "Färger i
+  tryck" i köpvillkoren. Ingen order lades. Paketvalet syns inte i drift, se Prismodellen.
+- **En riktig order finns i drift och har gått till verkstaden** (räknat 2026-11-20, inte
+  läst). Det stämmer med att Mats på mötet hade fått filer från en testskylt. Det som på
+  andra ställen i den här filen står om att ingen riktig order har gått genom kopplingen
+  gäller alltså inte längre.
 - **Väntar på Mats:** om CMYK ska stå som text på orderpappret eller ligga i tryckfilen (i dag
   väljs en skärmfärg, se Märkningsmetod), hur många skyltar som ryms i ett varubrev, om
   fraktsedeln kan få en neutral avsändare, och vilket format klistermärkena ska ha.
 - **Väntar på ägaren:** ja till att läsa och ändra hur verkstadens egen följesedel skrivs ut,
   bokningslänken för demo vid ansökan, när sajtlösenordet ska bort, och när den skarpa
   testordern ska läggas.
-- **Inte påbörjat**, fast det inte kräver några svar: den röda förklaringen under
-  Märkningsmetod när ett val inte går att välja, knappen Återställ för loggans avlästa
-  färger, och felet Mats såg när en avläst färg byttes och Välj trycktes.
+- **Tre småsaker ur mötet är byggda 2026-11-20** (ägarens "Ja, kör"), inte pushade än:
+  - **Skälet under Märkningsmetod står i rött**, på en egen rad: "Lägg till en logotyp nedan
+    för att välja." eller "Gravyr finns bara på plastskyltar." (`.markingWhy`). Förut stod
+    det i grått som en del av beskrivningen, och Mats missade det.
+  - **Återställ för loggans avlästa färger.** Första gången kunden ändrar en färg sparas de
+    avlästa (`BadgeLogo.readColors`, `withLogoColors` i `logo-color.ts`). Rutan visar då
+    "Avläst från början:" med färgerna som prickar och knappen Återställ. Är färgerna
+    tillbaka på de avlästa finns inget sparat.
+  - **En färg kunden själv har ändrat styr förslaget på skyltfärg.** Mats bytte en av
+    loggans färger till grönt, tryckte Välj och fick en vit skylt med blå gravyr: förslaget
+    räknade fortfarande på loggans övriga färger, och regeln om att loggan ska synas mot
+    ytan valde bort det gröna. Återskapat i kod: med den blå bytt mot ljusgrönt fanns inget
+    förslag alls, och med den gula bytt blev det "Vit / Blå". Nu är förslaget plastfärgen
+    vars yta ligger närmast just den ändrade färgen (`pickedColorCombo` i
+    `src/lib/brand/match.ts`), utan tak för avståndet, och raden heter "Närmast din färg i
+    plast". **Regeln om att en tryckt logga ska synas mot ytan gäller inte ett sådant val**:
+    kunden har pekat ut färgen. Det valde jag; regeln gäller fortfarande förslaget ur
+    loggans egna färger. På metall, som bara har tre ytor, gäller loggans färger som förut.
+  - Provat lokalt i Chrome på dator och 390 px (24 kontroller), med en påhittad logga i
+    blått och gult.
 - **Bestämt att inte göra nu:** ramen kostar inte extra, fast den tar lika lång tid att
   gravera som hela skylten. Ett tillägg kan komma senare.
 

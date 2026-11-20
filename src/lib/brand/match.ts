@@ -186,6 +186,26 @@ export function logoColorCombo({
   return matchColorCombo(basis, materialId, (combo) => !main || contrastRatio(main, combo.surface) >= GOOD_CONTRAST);
 }
 
+/**
+ * Kombinationen vars yta ligger närmast en färg kunden själv har valt, bland dem som säljs.
+ * Här finns inget tak för avståndet och ingen kontroll av att loggan syns: kunden har pekat ut
+ * en färg och ska få den skylt som liknar den mest (besked från verkstaden via ägaren
+ * 2026-11-20: den som väljer ljusgrönt väntar sig en grön skylt). Har flera kombinationer
+ * samma yta gäller den första i sortimentet. `null` när färgen inte går att läsa.
+ */
+export function pickedColorCombo(materialId: MaterialId, color: string): string | null {
+  const wanted = parseCssColor(color);
+  if (!wanted) return null;
+  let best: { id: string; distance: number } | null = null;
+  for (const combo of offeredColors(getMaterial(materialId))) {
+    const surface = parseCssColor(combo.surface);
+    if (!surface) continue;
+    const distance = colorDistance(wanted, surface);
+    if (!best || distance < best.distance) best = { id: combo.id, distance };
+  }
+  return best?.id ?? null;
+}
+
 /** Från den här kontrasten mot vitt papper går en varumärkesfärg att använda till rubriker och knappar. */
 const HEADING_CONTRAST = 2.5;
 /** Så nära (kontrast) räknas två färger som samma, och då är den andra ingen accent. */

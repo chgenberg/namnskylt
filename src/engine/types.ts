@@ -136,6 +136,12 @@ export interface BadgeLogo {
    */
   colors?: string[];
   /**
+   * Färgerna som de lästes av från början, sparade första gången kunden ändrar en av dem, så att
+   * de går att återställa (besked från verkstaden via ägaren 2026-11-20). Saknas fältet är
+   * `colors` de avlästa. Läses bara av rutan med loggans färger.
+   */
+  readColors?: string[];
+  /**
    * Bara på äldre skyltar: kundens färgkoder för loggans tryck, i fritext. I dag
    * har loggan ingen egen färg (`hasScreenPrintColors`). Förut CMYK, även PMS
    * eller hex. Gäller bara när loggan printas: läs med `logoPrintColorOf` och
