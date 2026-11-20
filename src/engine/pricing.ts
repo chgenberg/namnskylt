@@ -23,12 +23,14 @@ export function toOre(sek: number): number {
 /**
  * Tillbehör och tillval som läggs på skyltpriset:
  * `customShape` är egen form upp till 12 × 12 cm, `extraEngraving` extra
- * gravyr eller print (i dag loggan), fästena, och de fyra märkningsmetoderna
- * (`marking…`), där en skylt alltid har exakt en.
+ * gravyr eller print (i dag loggan), `frame` ramen (enkel eller dubbel, samma
+ * pris), fästena, och de fyra märkningsmetoderna (`marking…`), där en skylt
+ * alltid har exakt en.
  */
 export type PriceOptionId =
   | "customShape"
   | "extraEngraving"
+  | "frame"
   | "pin"
   | "clip"
   | "magnet"
@@ -167,6 +169,8 @@ export interface PriceItem {
   customShape: boolean;
   /** Märkningsmetoden. Utan den räknas ingen märkning in, som för rader från före valet fanns. */
   marking?: MarkingMethod;
+  /** Skylten har en ram, enkel eller dubbel. */
+  frame?: boolean;
   quantity: number;
 }
 
@@ -197,6 +201,8 @@ function priceItemOf(doc: BadgeDocument): PriceItem {
     extraEngraving: Boolean(doc.logo),
     customShape: doc.shape === "custom",
     marking: markingOf(doc),
+    // Fältet finns bara med en ram, så att en skylt utan ram räknas och jämförs som förut.
+    ...(doc.frame.style !== "none" && { frame: true }),
     quantity: doc.quantity,
   };
 }
@@ -258,7 +264,7 @@ export function withoutStartCost(table: PriceTable): PriceTable {
 }
 
 /** En del av skyltens pris: själva skylten, fästet, ett tillval, märkningsmetoden eller skyltens del av startkostnaden. */
-export type PricePart = "sign" | "mounting" | "extraEngraving" | "customShape" | "marking" | "start";
+export type PricePart = "sign" | "mounting" | "extraEngraving" | "customShape" | "marking" | "frame" | "start";
 
 export interface UnitPricePart {
   part: PricePart;
@@ -276,6 +282,9 @@ function listPriceParts(item: PriceItem, tierIndex: number, table: PriceTable): 
   // En metod som ingår i skylten har ingen egen del; bara en metod med pris läggs på.
   const markingSek = item.marking ? markingPriceSek(item.marking, table, tierIndex) : 0;
   if (markingSek > 0) parts.push({ part: "marking", sek: markingSek });
+  // Ramen kostar extra (beslut av ägaren 2026-11-20). En modell från före dess saknar raden: då ingår ramen.
+  const frameSek = item.frame ? optionPriceSek("frame", table, tierIndex) : 0;
+  if (frameSek > 0) parts.push({ part: "frame", sek: frameSek });
   return parts;
 }
 

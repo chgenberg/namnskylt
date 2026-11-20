@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type CSSProperties, type Dispatch, type FormEvent } from "react";
+import { useMemo, useRef, useState, type CSSProperties, type Dispatch, type DragEvent } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { ProgressBanner } from "@/components/ui/progress-banner";
 import { Segmented } from "@/components/ui/segmented";
@@ -19,9 +19,8 @@ import {
   type BadgeDocument,
   type LogoPlacement,
 } from "@/engine";
-import { requestBrand, type BrandProfile } from "../logo/brand-api";
 import { storeLogoImage } from "../logo/store-image";
-import { FETCHED_LOGO_NAME, dataUrlFile, storeLogoOriginal } from "../logo/store-original";
+import { storeLogoOriginal } from "../logo/store-original";
 import { traceImage, type LogoTrace } from "../logo/trace-image";
 import { useLogoEngraving } from "../logo/use-logo-engraving";
 import type { DesignerAction } from "../state";
@@ -30,25 +29,17 @@ import { PRINT_COLOR_NOTE, TextColorField } from "./print-color-field";
 import styles from "./sections.module.css";
 
 const ACCEPTED_TYPES = "image/png,image/jpeg,image/webp,image/svg+xml,image/gif";
+const ACCEPTED = new Set(ACCEPTED_TYPES.split(","));
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 /** Breda loggor (ordbilder) passar bäst ovanför texten, och då lägre. */
 const WIDE_LOGO_ASPECT = 2.6;
 const TOP_LOGO_HEIGHT_MM = 7;
 
-const SCRAPE_EXPECTED_MS = 16_000;
-const SCRAPE_STEPS = [
-  [0, "Öppnar er hemsida…"],
-  [14, "Letar upp loggan…"],
-  [46, "Hämtar loggan i full storlek…"],
-  [82, "Lägger loggan på skylten…"],
-] as const;
 const UPLOAD_EXPECTED_MS = 1_500;
 const UPLOAD_STEPS = [
   [0, "Läser bilden…"],
   [35, "Lägger loggan på skylten…"],
 ] as const;
-
-type Job = "scrape" | "upload";
 
 /**
  * Hur loggan hamnar på skylten: graverad, graverad ur en logga i färg (då görs
@@ -78,16 +69,11 @@ interface LogoOrigin {
   originalId: string | null;
 }
 
-type Status =
-  | { kind: "idle" }
-  | { kind: "working"; job: Job }
-  | { kind: "error"; message: string };
+type Status = { kind: "idle" } | { kind: "working" } | { kind: "error"; message: string };
 
 interface LogoSectionProps {
   doc: BadgeDocument;
   dispatch: Dispatch<DesignerAction>;
-  /** Företagets miljö till "Din skylt på en person". */
-  onWorkplace: (workplace: string) => void;
 }
 
 function readFile(file: File): Promise<string> {
@@ -99,27 +85,19 @@ function readFile(file: File): Promise<string> {
   });
 }
 
-export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
-  const [url, setUrl] = useState("");
+/**
+ * Loggan på skylten. Kunden laddar upp sin logga eller en bild: filen dras till
+ * rutan eller väljs med ett klick (besked av ägaren 2026-11-20: hämtningen från en
+ * hemsida togs bort helt, "istället bara behålla ladda upp logo/bild på ett snyggt
+ * sätt"). Förut gick loggan också att hämta från företagets hemsida.
+ */
+export function LogoSection({ doc, dispatch }: LogoSectionProps) {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
-  const [profile, setProfile] = useState<BrandProfile | null>(null);
   const [source, setSource] = useState<{ src: string; invert: boolean } | null>(null);
-  const [job, setJob] = useState<Job>("scrape");
-  const abortRef = useRef<AbortController | null>(null);
+  const [dragging, setDragging] = useState(false);
   const originRef = useRef<LogoOrigin | null>(null);
   const color = getColor(doc.materialId, doc.colorId);
   const working = status.kind === "working";
-
-  const start = (next: Job) => {
-    setJob(next);
-    setStatus({ kind: "working", job: next });
-  };
-
-  const cancelScrape = () => {
-    abortRef.current?.abort();
-    abortRef.current = null;
-    setStatus({ kind: "error", message: "Hämtningen avbröts." });
-  };
 
   // En logga i färg som sparades innan gravyrformen fanns får den i efterhand, när den graveras.
   useLogoEngraving(doc, dispatch);
@@ -149,8 +127,8 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
 
   /**
    * Läser en bild till loggan på skylten. `file` är filen kunden laddade upp;
-   * utan den är `src` en bild som hämtats från hemsidan. Filen sparas på
-   * servern i bakgrunden, så att verkstaden kan få originalet.
+   * utan den läses samma fil en gång till, i ny form ("Invertera"). Filen sparas
+   * på servern i bakgrunden, så att verkstaden kan få originalet.
    */
   const adoptImage = async (src: string, invert = false, file?: File): Promise<LogoTrace | null> => {
     const read = await traceImage(src, invert);
@@ -164,55 +142,29 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
     origin.d = trace.d;
     originRef.current = origin;
     applyTrace(trace, doc.logo?.placement, origin.originalId, known !== null);
-    if (!known) {
-      const original = file ?? dataUrlFile(src);
-      if (original) {
-        void storeLogoOriginal(original, file?.name ?? FETCHED_LOGO_NAME).then((originalId) => {
-          if (!originalId) return;
-          origin.originalId = originalId;
-          // Bara om loggan ur den här filen fortfarande är den som ligger på skylten.
-          if (originRef.current === origin) dispatch({ type: "logo/original", d: origin.d, originalId });
-        });
-      }
+    if (!known && file) {
+      void storeLogoOriginal(file, file.name).then((originalId) => {
+        if (!originalId) return;
+        origin.originalId = originalId;
+        // Bara om loggan ur den här filen fortfarande är den som ligger på skylten.
+        if (originRef.current === origin) dispatch({ type: "logo/original", d: origin.d, originalId });
+      });
     }
     return trace;
   };
 
-  const fetchBrand = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!url.trim() || working) return;
-    const controller = new AbortController();
-    abortRef.current = controller;
-    start("scrape");
-    try {
-      const found = await requestBrand(url.trim(), controller.signal);
-      if (controller.signal.aborted) return;
-      setProfile(found);
-      // Hämtningen lägger bara loggan på skylten (besked av ägaren 2026-11-20: "Den ska bara hämta logo.
-      // Inget annat."). Förut bytte den också typsnitt och skyltens färg, så att en ny hämtning ändrade
-      // det kunden redan hade valt. Färgen som passar loggan föreslås under loggans avlästa färger.
-      const trace = found.logo ? await adoptImage(found.logo).catch(() => null) : null;
-      if (found.company?.workplace) onWorkplace(found.company.workplace);
-      setStatus(
-        trace
-          ? { kind: "idle" }
-          : { kind: "error", message: "Vi hittade ingen logga på sidan — ladda gärna upp den själv." },
-      );
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      setStatus({ kind: "error", message: error instanceof Error ? error.message : "Något gick fel." });
-    } finally {
-      if (abortRef.current === controller) abortRef.current = null;
-    }
-  };
-
   const upload = async (file: File | undefined) => {
-    if (!file) return;
+    if (!file || working) return;
+    // En fil som dras till rutan har inte gått genom filväljarens filter.
+    if (!ACCEPTED.has(file.type)) {
+      setStatus({ kind: "error", message: "Filen är ingen bild vi kan läsa. Prova PNG, JPG eller SVG." });
+      return;
+    }
     if (file.size > MAX_UPLOAD_BYTES) {
       setStatus({ kind: "error", message: "Bilden är för stor — max 8 MB." });
       return;
     }
-    start("upload");
+    setStatus({ kind: "working" });
     try {
       const trace = await adoptImage(await readFile(file), false, file);
       setStatus(trace ? { kind: "idle" } : { kind: "error", message: "Vi hittade ingen logga i bilden." });
@@ -221,11 +173,10 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
     }
   };
 
-  const pickOption = async (option: string) => {
-    if (working || source?.src === option) return;
-    start("upload");
-    const trace = await adoptImage(option).catch(() => null);
-    setStatus(trace ? { kind: "idle" } : { kind: "error", message: "Den loggan gick inte att använda — prova en annan." });
+  const drop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    void upload(event.dataTransfer.files[0]);
   };
 
   const invert = async () => {
@@ -251,122 +202,58 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
   const logoHeight = Math.min(logoMax, Math.max(LOGO_LIMITS.minHeightMm, Math.round((limits?.drawnMm ?? LOGO_LIMITS.defaultHeightMm) * 2) / 2));
 
   return (
-    <PanelSection
-      step={3}
-      title="Logga & varumärke"
-      aside={doc.logo ? LOGO_ASIDE[logoLook] : "Valfritt"}
-    >
-      <p className={styles.batchLead}>
-        Skriv in er hemsida, så hämtar vi loggan och lägger den på skylten.
-      </p>
-      <form className={styles.brandForm} onSubmit={fetchBrand}>
-        <label className="field">
-          <input
-            type="text"
-            inputMode="url"
-            autoComplete="url"
-            placeholder="foretaget.se"
-            aria-label="Företagets hemsida"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-        </label>
-        <button type="submit" className="btn btn--primary" disabled={working || url.trim().length < 4}>
-          Hämta
-        </button>
-      </form>
+    <PanelSection step={3} title="Logga" aside={doc.logo ? LOGO_ASIDE[logoLook] : "Valfritt"}>
+      {/* Rutan tar emot en fil som dras dit, och öppnar filväljaren vid ett klick eller med tangentbordet. */}
+      <label
+        className={styles.logoDrop}
+        data-dragging={dragging || undefined}
+        data-filled={doc.logo ? true : undefined}
+        aria-busy={working}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={drop}
+      >
+        <span className={styles.logoDropIcon} aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 15.5V5M7.5 9.5 12 5l4.5 4.5" />
+            <path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" />
+          </svg>
+        </span>
+        <span className={styles.logoDropText}>
+          <span className={styles.logoDropTitle}>
+            {working ? "Läser bilden…" : doc.logo ? "Byt logga eller bild" : "Ladda upp logga eller bild"}
+          </span>
+          <span className={styles.logoDropNote}>Dra hit filen eller klicka för att välja</span>
+          <span className={styles.logoDropFormats}>PNG, JPG, SVG, WebP eller GIF · högst 8 MB</span>
+        </span>
+        <input
+          type="file"
+          accept={ACCEPTED_TYPES}
+          className="visually-hidden"
+          disabled={working}
+          onChange={(e) => {
+            void upload(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+      </label>
 
       <ProgressBanner
         active={working}
         failed={status.kind === "error"}
-        title={job === "scrape" ? "Hämtar från hemsidan" : "Läser in loggan"}
-        expectedMs={job === "scrape" ? SCRAPE_EXPECTED_MS : UPLOAD_EXPECTED_MS}
-        steps={job === "scrape" ? SCRAPE_STEPS : UPLOAD_STEPS}
+        title="Läser in loggan"
+        expectedMs={UPLOAD_EXPECTED_MS}
+        steps={UPLOAD_STEPS}
         doneLabel="Klart — loggan är på plats"
-        onCancel={job === "scrape" ? cancelScrape : undefined}
       />
       {status.kind === "error" && (
         <p className={styles.issue} role="status" data-severity="error">
           {status.message}
         </p>
       )}
-
-      {profile && status.kind !== "working" && (
-        <dl className={styles.brandSummary}>
-          <div>
-            <dt>Företag</dt>
-            <dd>{profile.siteName}</dd>
-          </div>
-          {/* Hemsidans egna färger, med kod. Vad loggans färg ledde till står under loggan, vid Avlästa färger. */}
-          {profile.colors.length > 0 && (
-            <div>
-              <dt>Hemsidan</dt>
-              <dd className={styles.brandColors}>
-                {profile.colors.slice(0, 3).map((hex) => (
-                  <span key={hex} className={styles.brandCode}>
-                    <span className={styles.brandColor} style={{ "--swatch": hex } as CSSProperties} aria-hidden="true" />
-                    {hex.toUpperCase()}
-                  </span>
-                ))}
-              </dd>
-            </div>
-          )}
-          {profile.company && (
-            <div>
-              <dt>Bransch</dt>
-              <dd>{profile.company.industry}</dd>
-            </div>
-          )}
-        </dl>
-      )}
-
-      {profile && profile.logoOptions.length > 1 && status.kind !== "working" && (
-        <div className={styles.logoOptions} role="group" aria-label="Loggor från hemsidan">
-          <span className={styles.logoOptionsLabel}>Fel logga? Välj en annan från sidan</span>
-          <div className={styles.logoOptionRow}>
-            {profile.logoOptions.map((option, i) => (
-              <button
-                key={option.slice(-48)}
-                type="button"
-                className={styles.logoOption}
-                aria-pressed={source?.src === option}
-                aria-label={`Logga ${i + 1}`}
-                onClick={() => void pickOption(option)}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element -- data-URL från skrapningen */}
-                <img src={option} alt="" />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className={styles.chips}>
-        <label className="chip" aria-disabled={working}>
-          {doc.logo ? "Ladda upp egen logga" : "Ladda upp logga"}
-          <input
-            type="file"
-            accept={ACCEPTED_TYPES}
-            className="visually-hidden"
-            disabled={working}
-            onChange={(e) => {
-              void upload(e.target.files?.[0]);
-              e.target.value = "";
-            }}
-          />
-        </label>
-        {/* Invertera vänder bläck och botten, och gäller allt utom en logga som printas i sina egna färger. */}
-        {doc.logo && logoLook !== "print-color" && source && (
-          <button type="button" className="chip" aria-pressed={source.invert} disabled={working} onClick={() => void invert()}>
-            Invertera
-          </button>
-        )}
-        {doc.logo && (
-          <button type="button" className="chip" onClick={remove}>
-            Ta bort
-          </button>
-        )}
-      </div>
 
       {doc.logo && (
         <>
@@ -389,12 +276,22 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
               </svg>
             )}
           </div>
+          <div className={styles.chips}>
+            {/* Invertera vänder bläck och botten, och gäller allt utom en logga som printas i sina egna färger. */}
+            {logoLook !== "print-color" && source && (
+              <button type="button" className="chip" aria-pressed={source.invert} disabled={working} onClick={() => void invert()}>
+                Invertera
+              </button>
+            )}
+            <button type="button" className="chip" onClick={remove}>
+              Ta bort loggan
+            </button>
+          </div>
           {doc.logo.colors && doc.logo.colors.length > 0 && (
             <LogoColors
               doc={doc}
               colors={doc.logo.colors}
               readColors={doc.logo.readColors}
-              siteColors={profile?.colors}
               onColors={(colors) => dispatch({ type: "logo/colors", colors })}
               onPickCombo={(colorId) => dispatch({ type: "color", colorId })}
             />

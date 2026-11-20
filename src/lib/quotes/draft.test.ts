@@ -37,6 +37,22 @@ describe("offertens förhandsvisning i skyltmotorn", () => {
     }
   });
 
+  it("visar länken där offerten godkänns när kunden har gjort den själv", () => {
+    const own = draftQuote({ ...base, byCustomer: true });
+    assert.equal(own.byCustomer, true);
+    // I förhandsvisningen finns ingen länk än: offerten är inte sparad.
+    const preview = quoteHtml(own, approxFonts, seller);
+    assert.ok(preview.includes("länken står här i den nedladdade offerten"));
+    assert.ok(!preview.includes("svara Säljaren AB"));
+    // Den nedladdade PDF:en bär länken, klickbar och visad utan protokollet.
+    const pdf = quoteHtml(own, approxFonts, seller, null, { acceptUrl: "https://www.namnskylt.com/offert/abc123DEF456ghi789JKL012" });
+    assert.ok(pdf.includes('<a href="https://www.namnskylt.com/offert/abc123DEF456ghi789JKL012">www.namnskylt.com/offert/abc123DEF456ghi789JKL012</a>'));
+    assert.ok(pdf.includes("klicka ”Godkänn”"));
+    // En offert som säljaren har gjort får aldrig länken, också om adressen skickas med.
+    const sellers = quoteHtml(draftQuote(base), approxFonts, seller, null, { acceptUrl: "https://www.namnskylt.com/offert/x" });
+    assert.ok(!sellers.includes("namnskylt.com/offert/x"));
+  });
+
   it("säger att kunden svarar säljaren, eftersom offerten inte mejlas härifrån", () => {
     const html = quoteHtml(draftQuote(base), approxFonts, seller);
     assert.ok(html.includes("svara Säljaren AB att ni godkänner"));

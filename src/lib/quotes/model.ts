@@ -137,6 +137,12 @@ export interface StoredQuote {
    * då tomma, och säljaren väljer kund i panelen innan offerten skickas eller godkänns.
    */
   noCustomer?: boolean;
+  /**
+   * Kunden gjorde offerten själv i skyltmotorn och laddade ner den (besked av ägaren 2026-11-20).
+   * Dokumentet visar då länken där offerten godkänns, och kundens sparade telefon och adress visas
+   * inte för den som har länken: den som gjorde offerten har inte bekräftat sin e-postadress.
+   */
+  byCustomer?: boolean;
   status: QuoteStatus;
   badges: BadgeDocument[];
   pricing: Pricing | null;

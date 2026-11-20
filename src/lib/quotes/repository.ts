@@ -65,11 +65,16 @@ interface QuoteRow {
   delivery: unknown;
   options: unknown;
   shots: unknown;
+  by_customer: boolean | null;
 }
 
 function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudience): StoredQuote {
   // Ett utkast utan kund pekar på säljarens platshållare. Dess uppgifter visas aldrig, och går aldrig att mejla till.
   const noCustomer = isUnassignedCustomer({ email: row.customer_email });
+  const byCustomer = row.by_customer === true;
+  // Den som gjorde offerten själv har inte bekräftat sin e-postadress. Det kundregistret redan visste
+  // om adressen, alltså telefon och adress, följer därför inte med till den som har offertens länk.
+  const guarded = byCustomer && audience === "customer";
   const badges = badgesSchema.safeParse(row.badges);
   if (!badges.success) console.error(`Ogiltiga skyltar i offert ${row.quote_no}`);
   const events: QuoteEvent[] = (row.events ?? [])
@@ -89,12 +94,13 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
           name: row.customer_name,
           company: row.customer_company,
           email: row.customer_email,
-          phone: row.customer_phone,
+          phone: guarded ? null : row.customer_phone,
           orgNumber: row.customer_org_number,
-          address: row.customer_address,
+          address: guarded ? null : row.customer_address,
           demo: row.customer_demo,
         },
     ...(noCustomer && { noCustomer }),
+    ...(byCustomer && { byCustomer }),
     status: isQuoteStatus(row.status) ? row.status : "draft",
     badges: badges.success ? badges.data : [],
     pricing: parsePricing(row.pricing),
@@ -121,7 +127,7 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
 /** Stillbilden är den tunga kolumnen — listan klarar sig utan. */
 function selectQuotes(sql: Sql, withShot = false) {
   return sql`
-    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, ${withShot ? sql`q.shots` : sql`null::jsonb`} as shots, q.project, q.customer_po, q.reseller_id, q.delivery, q.options, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
+    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, ${withShot ? sql`q.shots` : sql`null::jsonb`} as shots, q.project, q.customer_po, q.reseller_id, q.delivery, q.options, q.by_customer, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
            to_char(q.valid_until, 'YYYY-MM-DD') as valid_until, q.token, q.decline_reason, q.is_demo,
            q.created_at, q.sent_at, q.emailed_at, q.decided_at, o.order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email,
@@ -207,6 +213,11 @@ export async function createQuote(input: {
    * platshållare (`unassignedCustomerId`), och kunden väljs i panelen innan offerten skickas eller godkänns.
    */
   unassigned?: boolean;
+  /**
+   * Kunden gör offerten själv i skyltmotorn och laddar ner den (besked av ägaren 2026-11-20). Offerten
+   * väntar på svar direkt, som en som säljaren skickar själv, och kunden godkänner den via sin länk.
+   */
+  byCustomer?: boolean;
 }): Promise<{ quoteNo: string; token: string }> {
   const sql = requireDb();
   const model = await getPriceModel();
@@ -220,20 +231,20 @@ export async function createQuote(input: {
   const shots = input.shots?.some(Boolean) ? input.shots : null;
   // En offert som kunden bad om, eller som säljaren skickar själv, väntar på svar från början.
   // Ett utkast utan kund väntar inte på svar: det har ingen kund som kan svara.
-  const waiting = !input.unassigned && (Boolean(input.reorderOf) || Boolean(input.manual));
+  const waiting = !input.unassigned && (Boolean(input.reorderOf) || Boolean(input.manual) || Boolean(input.byCustomer));
   const token = randomBytes(18).toString("base64url");
   return sql.begin(async (tx) => {
     // Kunden måste tillhöra samma återförsäljare — annars skapas ingen offert.
     const [row] = await tx<{ id: string; quote_no: string }[]>`
       insert into quotes (reseller_id, customer_id, badges, price_model, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project,
-                          delivery, pricing, reorder_of, status, sent_at, message, options, shots, customer_po)
+                          delivery, pricing, reorder_of, status, sent_at, message, options, shots, customer_po, by_customer)
       select ${input.tenant}, ${input.customerId}, ${tx.json(badges as unknown as Json)}, ${tx.json(model as unknown as Json)}, ${price.totalSek},
              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null}, ${input.project ?? null},
              ${input.delivery ? tx.json(input.delivery as unknown as Json) : null},
              ${pricing ? tx.json(pricing as unknown as Json) : null}, ${input.reorderOf?.orderId ?? null},
              ${waiting ? "sent" : "draft"}, ${waiting ? tx`now()` : null}, ${input.message || null},
              ${options ? tx.json(options as unknown as Json) : null}, ${shots ? tx.json(shots as unknown as Json) : null},
-             ${cleanCustomerPo(input.customerPo)}
+             ${cleanCustomerPo(input.customerPo)}, ${input.byCustomer === true}
        where exists (select 1 from customers where id = ${input.customerId} and reseller_id = ${input.tenant})
       returning id, quote_no`;
     if (!row) throw new Error("Offerten kunde inte sparas");
@@ -244,6 +255,9 @@ export async function createQuote(input: {
     } else if (input.unassigned) {
       await tx`insert into quote_events (quote_id, status, note)
                values (${row.id}, 'draft', 'Utkast sparat i skyltmotorn, utan kund. Kunden väljs innan offerten godkänns.')`;
+    } else if (input.byCustomer) {
+      await tx`insert into quote_events (quote_id, status, note)
+               values (${row.id}, 'sent', 'Kunden gjorde offerten själv i skyltmotorn och laddade ner den. Kunden godkänner via sin länk.')`;
     } else if (input.manual) {
       await tx`insert into quote_events (quote_id, status, note)
                values (${row.id}, 'sent', 'Offert sparad i skyltmotorn. Säljaren skickar PDF:en själv och svarar åt kunden.')`;

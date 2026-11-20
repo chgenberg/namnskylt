@@ -44,6 +44,7 @@ const OPTION_ROWS: readonly { id: PriceOptionId; name: string; note: string }[] 
   { id: "magnet", name: "Magnet", note: "Fäste" },
   { id: "extraEngraving", name: "Logga på skylten", note: "Med 0 kr ingår loggan. Kombinerad märkning har egna priser nedan." },
   { id: "customShape", name: "Egen design, max 12 × 12 cm", note: "Plast i egen form" },
+  { id: "frame", name: "Ram", note: "Enkel eller dubbel, bara plast. Med 0 kr ingår ramen." },
 ];
 
 /** De fyra märkningsmetoderna, i samma ordning och med samma namn som i skyltmotorn. 0 kr betyder att metoden ingår. */

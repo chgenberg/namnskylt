@@ -40,6 +40,7 @@ import { CartAccount } from "./cart-account";
 import { CartButton } from "./cart-button";
 import { CartDrawer } from "./cart-drawer";
 import cartStyles from "./cart.module.css";
+import { CustomerQuotePanel } from "./quote/customer-quote-panel";
 import { QuotePanel } from "./quote/quote-panel";
 import { QuoteRail } from "./quote/quote-rail";
 import { QuoteSheet } from "./quote/quote-sheet";
@@ -150,6 +151,11 @@ interface DesignerProps {
   reorder?: OrderCopy;
   /** Kopians märke ur adressen (`copyMarkOf`): varje klick på "Kopiera order" är en egen öppning. */
   copyMark?: string;
+  /**
+   * En slutkund kan göra en offert själv och ladda ner den, med knappen Offert (besked av ägaren
+   * 2026-11-20). Av utan databas, och i en butik som bara är en förhandsvisning.
+   */
+  customerQuote?: boolean;
 }
 
 export function Designer({
@@ -164,6 +170,7 @@ export function Designer({
   customer = null,
   reorder,
   copyMark,
+  customerQuote = false,
 }: DesignerProps) {
   /**
    * En tidigare order som kopieras till en ny, av återförsäljaren åt en kund eller av kunden själv
@@ -292,8 +299,13 @@ export function Designer({
     setPending(true);
     saved.finish();
   };
+  /** Kunden gör sin egen offert. Den som är inloggad i panelen gör den åt en kund, som förut. */
+  const selfQuote = customerQuote && !reseller;
   const quote = useQuote({
     reseller,
+    self: selfQuote,
+    shop,
+    account,
     badges: orderBadges,
     priceList,
     fonts,
@@ -562,12 +574,12 @@ export function Designer({
                 </svg>
                 {recording ? "Spelar in…" : "Video"}
               </button>
-              {/* Bara för den som är inloggad i panelen: offerten visas på skyltens plats och sparas som PDF. */}
-              {reseller?.quoteSeller && (
+              {/* Offerten visas på skyltens plats och laddas ner som PDF: säljarens åt en kund, eller kundens egen. */}
+              {(reseller?.quoteSeller || selfQuote) && (
                 <button
                   type="button"
                   className={`chip ${styles.stageChip}`}
-                  title="Se offerten som den ser ut, välj kund och spara den som PDF"
+                  title={selfQuote ? "Se offerten med era priser och ladda ner den som PDF" : "Se offerten som den ser ut, välj kund och spara den som PDF"}
                   disabled={recording}
                   onClick={openQuote}
                 >
@@ -619,13 +631,20 @@ export function Designer({
               </div>
             ) : view === "quote" ? (
               quote.markup ? (
-                // Ikonraden står till vänster om offerten och lägger till eller tar bort dess delar.
-                <div className={styles.quoteView}>
-                  <QuoteRail elements={quote.elements} onToggle={quote.toggle} disabled={quote.save.status === "saving" || quote.save.status === "saved"} />
-                  <QuoteSheet markup={quote.markup} onEdit={quote.edit} onJump={quote.jump} locked={quote.save.status === "saved"} />
-                </div>
+                selfQuote ? (
+                  // Kundens egen offert är säljarens dokument: kunden ser det, men ändrar inget i det.
+                  <QuoteSheet markup={quote.markup} onEdit={quote.edit} onJump={quote.jump} locked />
+                ) : (
+                  // Ikonraden står till vänster om offerten och lägger till eller tar bort dess delar.
+                  <div className={styles.quoteView}>
+                    <QuoteRail elements={quote.elements} onToggle={quote.toggle} disabled={quote.save.status === "saving" || quote.save.status === "saved"} />
+                    <QuoteSheet markup={quote.markup} onEdit={quote.edit} onJump={quote.jump} locked={quote.save.status === "saved"} />
+                  </div>
+                )
               ) : (
-                <p className={styles.quoteEmpty}>Skriv ett namn eller lägg in en logga på skylten, så visas offerten här.</p>
+                <p className={styles.quoteEmpty}>
+                  {quote.loading ? "Hämtar offerten…" : "Skriv ett namn eller lägg in en logga på skylten, så visas offerten här."}
+                </p>
               )
             ) : (
               <VisualizeView state={visualize} />
@@ -751,7 +770,7 @@ export function Designer({
           />
           {/* Metoden väljs före loggan (besked via ägaren 2026-11-16): den avgör hur loggan sedan märks. */}
           <MarkingSection doc={doc} dispatch={update} tierIndex={tierIndex} />
-          <LogoSection doc={doc} dispatch={update} onWorkplace={visualize.setWorkplace} />
+          <LogoSection doc={doc} dispatch={update} />
           <MaterialSection doc={doc} dispatch={update} />
           <FormatSection doc={doc} dispatch={update} />
           <MountingSection doc={doc} dispatch={update} />
@@ -771,6 +790,7 @@ export function Designer({
         {/* Vid priset läggs skylten i varukorgen. Order och offert skickas från varukorgen, inte härifrån. */}
         {/* Offertens uppgifter tar panelens plats medan offerten visas. Skyltens val står kvar under, dolda. */}
         {view === "quote" && reseller?.quoteSeller && <QuotePanel reseller={reseller} quote={quote} onBack={() => setView("3d")} />}
+        {view === "quote" && selfQuote && <CustomerQuotePanel quote={quote} onBack={() => setView("3d")} />}
         <OrderSection
           mode="price"
           doc={doc}

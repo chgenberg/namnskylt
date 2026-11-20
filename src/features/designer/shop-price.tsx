@@ -42,6 +42,8 @@ export function useShopPrices(tierIndex = 0): {
   markingFrom: (method: MarkingMethod, materialId: MaterialId) => number;
   /** Lägsta priset för det en egen form lägger på skyltpriset. */
   customShapeFrom: (materialId: MaterialId) => number;
+  /** Lägsta priset för en ram, enkel eller dubbel. */
+  frameFrom: (materialId: MaterialId) => number;
   /** Lägsta priset för ett fäste. */
   mountingFrom: (mounting: MountingId, materialId: MaterialId) => number;
 } {
@@ -54,6 +56,7 @@ export function useShopPrices(tierIndex = 0): {
     markingPrice: (method, materialId) => adjust(markingPriceSek(method, priceList, tierIndex), materialId),
     markingFrom: (method, materialId) => adjust(markingPriceSek(method, priceList, lowest), materialId),
     customShapeFrom: (materialId) => adjust(optionPriceSek("customShape", priceList, lowest), materialId),
+    frameFrom: (materialId) => adjust(optionPriceSek("frame", priceList, lowest), materialId),
     mountingFrom: (mounting, materialId) => adjust(mountingPriceSek(mounting, priceList, lowest), materialId),
   };
 }

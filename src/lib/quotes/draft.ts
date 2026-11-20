@@ -31,8 +31,10 @@ export interface QuoteDraftInput {
   badgeShot: string | null;
   /** Bilderna ur 3D-vyn, en plats per design. `null` där bilderna inte är tagna än. */
   shots?: (QuoteShot | null)[];
-  /** Säljarens egna à-priser, satta med marginalen. Utelämnad = listpris. */
+  /** Säljarens egna à-priser, satta med marginalen, eller butikens priser. Utelämnad = listpris. */
   pricing?: Pricing | null;
+  /** Kunden gör offerten själv: dokumentet säger att den godkänns via länken i PDF:en. */
+  byCustomer?: boolean;
   /** Dagen offerten görs. */
   now: Date;
 }
@@ -75,6 +77,7 @@ export function draftQuote(input: QuoteDraftInput): StoredQuote {
       demo: false,
     },
     ...(input.noCustomer && { noCustomer: true }),
+    ...(input.byCustomer && { byCustomer: true }),
     status: "draft",
     badges,
     pricing,

@@ -123,6 +123,8 @@ function partLabel(part: ShownPricePart, doc: BadgeDocument): string {
       return "Egen form";
     case "marking":
       return `Märkning, ${getMarkingMethod(markingOf(doc)).name.toLowerCase()}`;
+    case "frame":
+      return doc.frame.style === "double" ? "Ram, dubbel" : "Ram";
   }
 }
 

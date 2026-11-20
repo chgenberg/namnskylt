@@ -9,34 +9,13 @@ import { quoteCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-cu
 import { DIRECT_PRICING_ERROR, isLineInvoiceable, pricingSchema } from "@/lib/orders/pricing";
 import { isOwner } from "@/lib/tenants/model";
 import { databaseConfigured, unassignedCustomerId } from "@/lib/orders/repository";
-import { isValidUntil, parseQuoteOptions, QUOTE_SHOT_ANGLES, QUOTE_SHOT_DESIGNS, swedishDay, type QuoteShot } from "@/lib/quotes/model";
+import { isValidUntil, parseQuoteOptions, swedishDay } from "@/lib/quotes/model";
 import { createQuote } from "@/lib/quotes/repository";
+import { normalizeQuoteShots, quoteShotsUploadSchema } from "@/lib/quotes/shots";
 import { quoteEmailOn, sendQuote } from "@/lib/quotes/send";
 import { currentTenant } from "@/lib/reseller-auth/session";
 
 export const runtime = "nodejs";
-
-const shotSchema = badgeShotUploadSchema.unwrap();
-
-/** Bilderna kommer från klienten: var och en avkodas och kodas om, så att inget annat än pixlar sparas. */
-async function normalizeShots(shots: { main: string; angles: string[] }[] | (null | { main: string; angles: string[] })[] | undefined): Promise<(QuoteShot | null)[] | null> {
-  if (!shots) return null;
-  const normalized: (QuoteShot | null)[] = [];
-  for (const shot of shots) {
-    const main = shot ? await normalizeBadgeShot(shot.main) : null;
-    if (!shot || !main) {
-      normalized.push(null);
-      continue;
-    }
-    const angles: string[] = [];
-    for (const angle of shot.angles) {
-      const image = await normalizeBadgeShot(angle);
-      if (image) angles.push(image);
-    }
-    normalized.push({ main, angles });
-  }
-  return normalized;
-}
 
 const requestSchema = z.object({
   /** Kunden offerten gäller: en befintlig, eller en ny. Vad en ny kund ska ha avgörs när kunden slås upp. */
@@ -53,10 +32,7 @@ const requestSchema = z.object({
   /** Hur dokumentet ska se ut: vilka delar som visas, och en avslutande text. Läses med `parseQuoteOptions`. */
   options: z.record(z.string(), z.unknown()).optional(),
   /** Bilderna ur 3D-vyn, en plats per design: en stor och små ur andra vinklar. `null` = designen ritas som ritning. */
-  shots: z
-    .array(z.object({ main: shotSchema, angles: z.array(shotSchema).max(QUOTE_SHOT_ANGLES) }).nullable())
-    .max(QUOTE_SHOT_DESIGNS)
-    .optional(),
+  shots: quoteShotsUploadSchema,
   /** Säljarens egna à-priser, satta med marginalen i offertvyn. Utelämnad = listpris. */
   pricing: pricingSchema.optional(),
   /**
@@ -130,7 +106,7 @@ export async function POST(request: Request) {
       validUntil: validUntil ?? null,
       pricing,
       options: parseQuoteOptions(parsed.data.options),
-      shots: await normalizeShots(parsed.data.shots),
+      shots: await normalizeQuoteShots(parsed.data.shots),
       manual,
       unassigned,
     });

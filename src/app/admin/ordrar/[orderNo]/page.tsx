@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Fragment } from "react";
 import { BadgePreview } from "@/components/badge-preview";
-import { engravedRows, getColor, getMaterial, mountingLabel, orderDesigns, printColorLabel, shapeLabel, type BadgeDocument } from "@/engine";
+import { engravedRows, getColor, getMaterial, frameLabel, mountingLabel, orderDesigns, printColorLabel, shapeLabel, type BadgeDocument } from "@/engine";
 import { shippingMethodOf } from "@/lib/orders/delivery";
 import { staffOrderAction, updateOrderPricingAction } from "@/features/admin/actions";
 import { PricingEditor } from "@/features/admin/pricing-editor";
@@ -50,7 +50,8 @@ function materialText(badge: BadgeDocument): string {
 /** "Rektangel · Magnet · Tryckfärg #0057B8": formen, fästet och tryckets färg när den gäller. */
 function shapeText(badge: BadgeDocument): string {
   const print = printColorLabel(badge);
-  return `${shapeLabel(badge)} · ${mountingLabel(badge)}${print ? ` · ${print}` : ""}`;
+  const frame = frameLabel(badge);
+  return `${shapeLabel(badge)} · ${mountingLabel(badge)}${frame ? ` · ${frame}` : ""}${print ? ` · ${print}` : ""}`;
 }
 
 export default async function OrderPage({ params }: OrderPageProps) {

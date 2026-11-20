@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
-import { engravedRows, getColor, getMaterial, mountingLabel, printColorLabel, shapeLabel } from "@/engine";
+import { engravedRows, getColor, getMaterial, frameLabel, mountingLabel, printColorLabel, shapeLabel } from "@/engine";
 import { formatSek } from "@/lib/format";
 import { QuoteDecision, type QuoteShippingOption } from "@/features/quote-public/quote-decision";
 import { SellerLogo } from "@/features/quote-public/seller-logo";
@@ -172,6 +172,7 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
                       {getMaterial(badge.materialId).name} · {getColor(badge.materialId, badge.colorId).name} ·{" "}
                       {shapeLabel(badge)} {badge.size.widthMm}×{badge.size.heightMm} mm ·{" "}
                       {mountingLabel(badge)}
+                      {frameLabel(badge) && ` · ${frameLabel(badge)}`}
                       {printColorLabel(badge) && ` · ${printColorLabel(badge)}`}
                     </div>
                   </div>

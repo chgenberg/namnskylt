@@ -68,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1426 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1436 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -405,7 +405,7 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       går att räkna om (en logga med trasig bana): ordern stoppas aldrig av trycklagret.
     - En logga i färg som printas är fortfarande en bild.
   - En logga i färg som graveras behåller sina banor i en delad länk; ryms de inte tappas loggan.
-  - Sektionen ligger som nummer 02 i panelen, före Logga & varumärke (03), eftersom metoden
+  - Sektionen ligger som nummer 02 i panelen, före Logga (03, hette Logga & varumärke till 2026-11-20), eftersom metoden
     avgör hur loggan sedan märks (besked via ägaren 2026-11-16). Därefter Material 04, Form 05,
     Fäste 06 och Fler namn 07. Varukorgen är ingen sektion i panelen längre, se Ordern till
     verkstaden.
@@ -657,7 +657,27 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Känd brist: utan AI-modellen (lokalt, eller när den inte svarar) kom också sidans runda
     språkflagga och kontoikon med som alternativ. `flagLike` känner inte igen en rund flagga
     på vit botten. I drift väljer modellen bort dem.
-- **Hämtningen från en hemsida lägger bara loggan på skylten** (besked av ägaren 2026-11-20: "Dessutom
+- **Loggan laddas upp. Hämtningen från en hemsida är borttagen ur skyltmotorn** (besked av ägaren
+  2026-11-20, senare samma dag som punkten under: "Du kan ta bort hämta logo från URL helt och istället
+  bara behålla ladda upp logo/bild på ett snyggt sätt").
+  - Sektionen heter **Logga** och har en släppyta (`.logoDrop` i `sections.module.css`,
+    `LogoSection`): "Ladda upp logga eller bild", med "Dra hit filen eller klicka för att välja" och
+    formaten under. Filen dras dit eller väljs med ett klick eller tangentbordet. Med en logga på
+    skylten blir rutan en låg rad, "Byt logga eller bild", och under loggans bild står Invertera
+    och "Ta bort loggan". En fil som släpps i rutan har inte gått genom filväljarens filter, så
+    typen prövas (`ACCEPTED`).
+  - Borta: rutan för hemsidan, sammanfattningen (Företag, Hemsidan, Bransch), "Fel logga? Välj en
+    annan från sidan", `brand-api.ts`, vägen `POST /api/brand` och `onWorkplace`. Miljön till
+    personbilden skriver kunden själv i fältet Miljö under På person.
+  - **Koden som läser hemsidor ligger kvar** (`src/lib/brand/`, `scrapeBrand`): panelens
+    "Hämta från hemsidan" under Inställningar, butikerna och utskicket använder den. Det som står
+    om den i punkterna här under gäller alltså dem, inte skyltmotorn.
+  - Förslaget på skyltfärg under loggans avlästa färger räknar bara på loggans egna färger
+    (`siteColors` skickas tom).
+  - Provat lokalt 2026-11-20 i Chrome på dator och 390 px (14 kontroller): uppladdning, byte och
+    borttagning. Att dra en fil till rutan är inte provat i en webbläsare.
+- **Hämtningen från en hemsida lägger bara loggan på skylten** (gällde några timmar 2026-11-20, tills
+  hämtningen togs bort ur skyltmotorn, se punkten över; besked av ägaren: "Dessutom
   så ändrar skylten färg om man hämtar en ny URL. Den ska bara hämta logo. Inget annat."). Förut
   bytte den också typsnitt och skyltens färg (`fetchBrand` i `logo-section.tsx`), så att en ny
   hämtning ändrade det kunden redan hade valt. Märkningsmetodens förslag och loggans plats
@@ -703,6 +723,10 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     plast och tryckt på blå (ritning och 3D), och fyra påhittade loggor, varav två små JPEG.
     **Ägarens egen hemsida är inte provad**: adressen stod inte i beskedet, och provet gjordes
     med en sida som gav samma ord i loggan. Inte provat i Safari eller på en telefon.
+  - Kontrollerat i drift 2026-11-20 efter pushen (`05f7779`), bara läsning, med uppladdningen
+    av loggan stoppad i webbläsaren: en hämtning i skyltmotorn lämnar skyltens färg och
+    typsnitt orörda, loggans ruta är 994 bred och raden Typsnitt är borta. Loggans vita text
+    syntes inte på den vita skylten, som väntat.
   - Kända brister: i en mycket liten bild (110 px bred i provet) kan två bokstäver som står
     tätt flyta ihop. Kanten mellan två färger inuti en logga förfinas bara när den ena är
     ljus och den andra bläck. Loggor som spåras på servern (utskicket) får inget av detta.
@@ -969,8 +993,30 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
 - **Trappsteg** på orderns totala antal: 1–100, 101–300, 301–500 och 501 eller fler.
 - **Per skylt:** skylttypens pris (Premium = metall, Standard = plast, `priceClass` i katalogen),
   ett fäste (nål, klämma eller magnet), märkningsmetoden när den har ett pris och skyltens del av
-  startkostnaden. Textrader, ram och logga ingår. Slutkundens delar avrundas var för sig till hela
+  startkostnaden, och ramen när skylten har en (se nedan). Textrader och logga ingår. Slutkundens delar avrundas var för sig till hela
   kronor.
+- **Ramen kostar extra** (beslut av ägaren 2026-11-20: "Ram (enkel eller dubbel) kostar 10 kr extra").
+  Prisraden heter `frame` (`PriceOptionId`, `PriceItem.frame`, delen `frame` i `PricePart`), med ett
+  pris per trappsteg som övriga tillval. Enkel och dubbel ram kostar lika.
+  - **10 kr är det som står i prismodellen, alltså det återförsäljaren betalar**, som alla andra
+    belopp där. Slutkunden betalar det med marginalen: 17 kr vid 40 %. Provisionen gäller ramen
+    som övriga delar. **Att 10 kr är modellens pris och inte slutkundens är min tolkning**: ägaren
+    sa bara "10 kr extra". Jag valde det för att ett fel åt det hållet syns direkt i skyltmotorn
+    (17 kr), medan 6 kr i modellen hade gett kunden 10 kr och verkstaden för lite utan att någon
+    märkte det. Ska kunden betala 10 kr sätts raden Ram till 6 kr i `/admin/prismodell`.
+  - Kalkylen har 10 kr på alla trappsteg, och **migrering 038 lägger samma rad i den sparade
+    prismodellen**. Ordrar och offerter har sin egen sparade modell utan raden: den läses som
+    0 kr (`LATER_OPTION_IDS`, `upgradeStoredModel`), så redan lagda ordrar och offerter med ram
+    behåller sitt pris.
+  - **I skyltmotorn** står "Pris från: 17 kr" vid ramens val i sektionen Form (`frameFrom`,
+    `.frameHead`), och specifikationen vid priset har raden "Ram" eller "Ram, dubbel". På metall
+    finns ingen ram och inget pris. Ramen står också i skyltens rad på offerten, offertsidan,
+    kundens ordersida och orderns sida i panelen (`frameLabel` i `marking.ts`).
+  - Raden "Ram" finns i `/admin/prismodell` (Tillbehör och tillval, och som tillval i kalkylen Vid
+    order) och i `/admin/inkopspriser`. Fraktfrågan bär `frame`, eftersom ramen ändrar varuvärdet.
+  - Butikens påslag gäller ramen som övriga delar. Butikernas prisinställning har ingen egen rad.
+  - Provat lokalt 2026-11-20 i Chrome på dator och 390 px: priset per skylt går från 431 till
+    448 kr med ram, och dubbel kostar lika.
 - **Tillvalen visar "Pris från: X kr"** (beslut av ägaren 2026-11-17): fästena, "Egen form"
   och märkningsmetoderna visar sitt lägsta pris, alltså priset på sista trappsteget, 501 eller
   fler (`lastTierIndex` i `pricing.ts`, `fromPriceLabel` och `markingFrom`, `customShapeFrom`,
@@ -2056,6 +2102,64 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   bara kunder med e-post. **Spara trycktes aldrig**, varken på offerten eller under
   Inställningar, så ingen offert utan e-post har sparats i drift än.
 
+## Kundens egen offert — läge 2026-11-20
+
+En slutkund kan själv göra en offert i skyltmotorn och ladda ner den (besked av ägaren 2026-11-20:
+"Även en slutkund som kommer in (inloggad eller icke inloggad) ska kunna ladda hem en offert exakt
+som en återförsäljare men då med sina slutpriser osv med samma knapp som en återförsäljare har upp
+till höger"). Koden ligger i `src/app/api/quotes/`, `src/features/designer/quote/` och
+`src/lib/quotes/`.
+
+- **Knappen Offert över skylten visas för alla** (`customerQuote` på `Designer`, `selfQuote`): för
+  den som är inloggad i panelen är den säljarens offertvy som förut, för alla andra kundens egen.
+  Den finns på namnskylt.com och i butikerna, men inte i en butik som bara är en förhandsvisning
+  för utskicket (`isOutreachPreviewShop`), och inte utan databas.
+- **Vyn:** samma dokument som säljaren ser, till kundens pris (butikens priser i en butik,
+  `shopOrderPricing`), med säljarens uppgifter: Skylt & Gravyrteknik på namnskylt.com, butikens
+  ägare i en återförsäljares butik. Kunden ändrar inga texter i dokumentet, och ikonraden och
+  marginalrutan finns inte. Panelen bredvid (`CustomerQuotePanel`) har samma uppgifter som kassan:
+  organisationsnummer med uppslag, företag, namn och e-post, och valfritt projekt och inköpsnummer.
+  En inloggad kund får dem ifyllda ur kontot.
+- **"Ladda ner offert" sparar offerten och laddar ner PDF:en** (`POST /api/quotes`,
+  `submitSelf` i `use-quote.ts`). Offerten sparas hos säljaren som **Skickad**, märkt
+  `quotes.by_customer` (migrering 039, `StoredQuote.byCustomer`), och syns under Offerter i
+  panelen med noten "Kunden gjorde offerten själv…". Inget mejlas, och panelens ägare får inget
+  besked. En 3D-film per design spelas in efteråt och hämtas med en knapp, inte av sig själv.
+  - **Varukorgen står kvar.** Kunden kan beställa direkt i stället. Varje nedladdning är en ny
+    offert med eget nummer.
+  - **Kunden godkänner på sin offertsida**, dit länken står i PDF:ens ruta "Godkänn offerten —
+    öppna www.namnskylt.com/offert/<kod>…" (`QuoteRenderOptions.acceptUrl`, satt i PDF-vägen med
+    `publicOrigin()`). I förhandsvisningen står att länken kommer med den nedladdade offerten.
+    Godkännandet är det vanliga: leveransadress och telefon fylls i där, och offerten blir en
+    order som går till tillverkningen.
+  - Säljarens uppgifter hämtas först när offerten öppnas (`GET /api/quotes/seller`), så att loggan
+    inte följer med varje besök i skyltmotorn. Fakturabrevlådan lämnar inte servern.
+- **Kunden har inte bekräftat sin e-postadress, och får därför aldrig se kundregistrets uppgifter.**
+  Offerten sparas på kunden med samma e-post hos säljaren (`upsertCustomer`, som när kunden
+  beställer själv): det som fylls i skriver över namn, företag och organisationsnummer. Men
+  telefon och adress som redan låg på kunden visas aldrig på en sådan offert för den som har
+  länken (`guarded` i `toQuote`: de töms när offerten läses åt kunden), och leveransen sparas
+  alltid utan adress. Annars hade den som känner någons e-post fått ut dess adress i PDF:en och i
+  leveransformuläret. Säljaren ser kunden som vanligt i panelen. **Ta inte bort det skyddet.**
+- Kraven är kassans: företag och organisationsnummer med tio siffror, namn och e-post, eftersom
+  en godkänd offert blir en order som faktureras. En privatperson kan alltså inte ladda ner en
+  offert. Gränser i processens minne: 12 offerter per klient och timme och 600 per dygn för hela
+  sajten.
+- Integritetssidan säger att en nedladdad offert sparas med kundens uppgifter.
+- Bildernas kod delas nu av de två vägarna som sparar en offert (`src/lib/quotes/shots.ts`).
+- Provat lokalt 2026-11-20 i Chrome som utloggad besökare, på dator och 390 px (21 kontroller
+  var): knappen, dokumentet, uppgifterna, nedladdad PDF med klickbar länk, den sparade rutan med
+  filmens knapp, kundens offertsida med Godkänn, och att skylten står kvar. Säljarens offertvy är
+  kontrollerad som admin och är oförändrad. **Godkänn trycktes aldrig**, butikernas skyltmotor är
+  inte provad i webbläsaren, och inget är provat i Safari.
+- Det jag valde själv: att offerten sparas (ägaren sa "ladda hem"), att kassans uppgifter krävs,
+  att varukorgen står kvar, att filmen hämtas med en knapp, att butikerna är med, och att
+  panelens ägare inte får något besked.
+- Kända brister: offerten på skärmen bär numret "Utkast" också efter att den har sparats. En
+  offert som kunden har gjort själv hamnar inte på kundens konto när den blir en order. Admin
+  får inget besked eller mejl om en ny offert. Den som känner en kunds e-post kan skriva över
+  kundens namn, företag och organisationsnummer hos säljaren, som i kassan.
+
 ## Panelens listor — läge 2026-11-20
 
 - **Offerter, ordrar och kunder står som rader, inte kort** (besked via ägaren 2026-11-20:
@@ -2646,8 +2750,9 @@ avsnitt: typsnitten, följesedeln, paketvalet i frakten (Prismodellen), klämman
     loggans egna färger. På metall, som bara har tre ytor, gäller loggans färger som förut.
   - Provat lokalt i Chrome på dator och 390 px (24 kontroller), med en påhittad logga i
     blått och gult.
-- **Bestämt att inte göra nu:** ramen kostar inte extra, fast den tar lika lång tid att
-  gravera som hela skylten. Ett tillägg kan komma senare.
+- **Ramen kostar extra sedan senare samma dag** (ägarens beslut 2026-11-20, 10 kr, se Prismodellen).
+  På mötet bestämdes först att den inte skulle kosta extra, fast den tar lika lång tid att
+  gravera som hela skylten.
 
 ## Inköpsnummer — läge 2026-11-20
 

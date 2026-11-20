@@ -696,6 +696,32 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
        where key = 'price_model';
     `,
   },
+  {
+    // Ramen kostar extra (beslut av ägaren 2026-11-20: "Ram (enkel eller dubbel) kostar 10 kr extra").
+    // Kalkylen har raden, och här får den sparade prismodellen samma: 10 kr på varje trappsteg,
+    // det återförsäljaren betalar. Ordrar och offerter har sin egen sparade modell utan raden och
+    // behåller sina priser, eftersom en saknad rad läses som 0 kr.
+    id: "038_price_model_frame",
+    sql: `
+      update settings
+         set value = jsonb_set(
+               value,
+               '{options,frame}',
+               (select coalesce(jsonb_agg(10), '[10, 10, 10, 10]'::jsonb) from jsonb_array_elements(value->'options'->'pin'))
+             ),
+             updated_at = now()
+       where key = 'price_model'
+         and jsonb_typeof(value->'options') = 'object'
+         and not (value->'options' ? 'frame');
+    `,
+  },
+  {
+    // En slutkund kan själv göra en offert i skyltmotorn och ladda ner den (besked av ägaren 2026-11-20).
+    // Offerten är då gjord av någon som inte är inloggad i panelen och inte har bekräftat sin e-post:
+    // kundens sparade telefon och adress visas därför aldrig på en sådan offert (`toQuote`).
+    id: "039_quotes_by_customer",
+    sql: `alter table quotes add column if not exists by_customer boolean not null default false;`,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

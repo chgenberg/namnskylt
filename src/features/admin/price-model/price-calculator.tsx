@@ -64,6 +64,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
   const [mounting, setMounting] = useState<CalculatorMounting>("pin");
   const [logo, setLogo] = useState(false);
   const [customShape, setCustomShape] = useState(false);
+  const [frame, setFrame] = useState(false);
   const [chosenMarking, setMarking] = useState<MarkingMethod>("engrave");
   // En kombinerad metod kräver en logga, som i skyltmotorn: utan logga gäller namnets metod.
   const marking = logo ? chosenMarking : getMarkingMethod(chosenMarking).nameMode;
@@ -74,6 +75,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
     extraEngraving: logo,
     customShape,
     marking,
+    ...(frame && { frame: true }),
     quantity: Math.max(1, quantity),
   };
   const purchase = resellerPriceTable(model);
@@ -99,6 +101,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
     extraEngraving: "Logga",
     customShape: "Egen design",
     marking: `Märkning: ${getMarkingMethod(marking).name}`,
+    frame: "Ram",
     start: `Startkostnad, ${formatSek(model.startSek)} delat på ${reseller.quantity} st`,
   };
 
@@ -122,6 +125,7 @@ export function PriceCalculator({ model, onMarginChange }: PriceCalculatorProps)
           <div className={styles.chips}>
             <OptionChip label="Logga" checked={logo} onChange={setLogo} />
             <OptionChip label="Egen design" checked={customShape} onChange={setCustomShape} />
+            <OptionChip label="Ram" checked={frame} onChange={setFrame} />
           </div>
         </div>
         <div className={styles.control}>

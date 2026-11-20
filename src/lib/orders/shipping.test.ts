@@ -40,6 +40,23 @@ describe("frågan om frakt", () => {
     assert.equal(shippingRequestSchema.safeParse({ items: older }).success, true);
   });
 
+  it("håller isär skyltar med och utan ram, eftersom ramen kostar extra", () => {
+    const framed: BadgeDocument = { ...plastic, frame: { ...plastic.frame, style: "double" } };
+    const items = shippingItems([
+      { ...plastic, quantity: 2 },
+      { ...framed, quantity: 3 },
+      { ...withTexts(framed, ["Bo Ek"]), frame: { ...framed.frame, style: "solid" }, quantity: 1 },
+    ]);
+    assert.deepEqual(
+      items.map((item) => [item.frame ?? false, item.quantity]),
+      [
+        [false, 2],
+        [true, 4],
+      ],
+    );
+    assert.equal(shippingRequestSchema.safeParse({ items }).success, true);
+  });
+
   it("håller isär skylttyp, fäste och logga", () => {
     const items = shippingItems([
       { ...metal, quantity: 2 },

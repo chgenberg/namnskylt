@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { createBadgeDocument, withBlank, withShapePreset } from "./document";
 import { BLANKS } from "./catalog";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
-import { TIERED_SHIPPING } from "./testing";
+import { TIERED_SHIPPING, plasticBadge } from "./testing";
 import {
   LETTER_ALWAYS_SEK,
   NO_SHIPPING,
@@ -22,6 +22,7 @@ import {
   startShareSek,
   tierIndexFor,
   tierRangeLabel,
+  unitPriceParts,
   withoutStartCost,
   withShippingMethod,
   withStartInSign,
@@ -538,7 +539,8 @@ describe("en modell sparad i det äldre formatet", () => {
 
   it("läses som samma pris på alla trappsteg och ingen startkostnad, så att priserna står kvar", () => {
     const model = parseStoredPriceModel(JSON.parse(JSON.stringify(older)));
-    assert.deepEqual(model, M);
+    // Ramens rad kom till 2026-11-20: en äldre modell saknar den, och då ingår ramen.
+    assert.deepEqual(model, { ...M, options: { ...M.options, frame: [0, 0, 0, 0] } });
     assert.equal(model?.startSek, 0);
     assert.deepEqual(model?.options.pin, [5, 5, 5, 5]);
   });
@@ -559,6 +561,62 @@ describe("en modell sparad i det äldre formatet", () => {
     for (const value of [null, undefined, "x", 7, [], {}, { ...older, tiers: [] }]) {
       assert.equal(parseStoredPriceModel(value), null);
     }
+  });
+});
+
+describe("ramen kostar extra", () => {
+  const standard = (quantity: number, patch: Partial<PriceItem> = {}): PriceItem => premium(quantity, { signClass: "standard", ...patch });
+
+  it("lägger 10 kr på det återförsäljaren betalar och 17 kr på slutkundens pris, på alla trappsteg", () => {
+    // Från tio skyltar: en ensam skylt ligger under minsta ordervärde, och då syns inte skillnaden.
+    for (const quantity of [10, 101, 301, 501]) {
+      const plain = priceItems([standard(quantity)], PURCHASE);
+      const framed = priceItems([standard(quantity, { frame: true })], PURCHASE);
+      assert.equal(framed.goodsSek - plain.goodsSek, 10 * quantity, `återförsäljaren, ${quantity} st`);
+      const endPlain = priceItems([standard(quantity)], LIST);
+      const endFramed = priceItems([standard(quantity, { frame: true })], LIST);
+      assert.equal(endFramed.goodsSek - endPlain.goodsSek, endPriceSek(10, M) * quantity, `slutkunden, ${quantity} st`);
+    }
+    assert.equal(endPriceSek(10, M), 17);
+    assert.equal(optionPriceSek("frame", LIST, lastTierIndex(LIST)), 17);
+  });
+
+  it("har en egen del i specifikationen, och bara med en ram", () => {
+    const framed = unitPriceParts(standard(10, { frame: true }), 10, LIST);
+    assert.deepEqual(framed.find((part) => part.part === "frame"), { part: "frame", sek: 17 });
+    assert.equal(unitPriceParts(standard(10), 10, LIST).some((part) => part.part === "frame"), false);
+  });
+
+  it("gäller enkel som dubbel ram, och läses ur skylten", () => {
+    const base = plasticBadge(["Anna Lind"]);
+    const priceOf = (style: BadgeDocument["frame"]["style"]) =>
+      priceOrder([{ ...base, quantity: 10, frame: { ...base.frame, style } }], LIST, 0).totalSek;
+    assert.equal(priceOf("solid") - priceOf("none"), 170);
+    assert.equal(priceOf("double"), priceOf("solid"));
+  });
+
+  it("ingår i en order vars sparade modell saknar raden, så att äldre ordrar behåller sitt pris", () => {
+    const saved: Record<string, unknown> = JSON.parse(JSON.stringify(KALKYL));
+    delete (saved.options as Record<string, unknown>).frame;
+    const model = parseStoredPriceModel(saved);
+    assert.ok(model);
+    assert.deepEqual(model.options.frame, [0, 0, 0, 0]);
+    const table = endPriceTable(model);
+    assert.equal(
+      priceItems([standard(10, { frame: true })], table).goodsSek,
+      priceItems([standard(10)], table).goodsSek,
+    );
+    assert.equal(unitPriceParts(standard(10, { frame: true }), 10, table).some((part) => part.part === "frame"), false);
+  });
+
+  it("följer med i delningen per part: provisionen gäller ramen som övriga delar", () => {
+    const item = standard(100, { frame: true });
+    const reseller = priceItems([item], PURCHASE);
+    const without = priceItems([standard(100)], PURCHASE);
+    const split = provisionSplit(M, reseller.goodsSek, reseller.quantity);
+    const base = provisionSplit(M, without.goodsSek, without.quantity);
+    // 100 skyltar ligger på första trappsteget: 15 % av ramens 1 000 kr.
+    assert.equal(Math.round((split.provisionSek - base.provisionSek) * 100) / 100, 150);
   });
 });
 

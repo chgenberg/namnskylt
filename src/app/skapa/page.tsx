@@ -122,6 +122,8 @@ export default async function SkapaPage({ searchParams }: SkapaPageProps) {
         cardPayments={paymentsConfigured() && databaseConfigured()}
         {...customer}
         copyMark={copyMarkOf(first(params.ny))}
+        // En besökare kan ladda ner en offert själv. Offerten sparas, så det kräver databasen.
+        customerQuote={!reseller && databaseConfigured()}
         // Startsidans ruta skickar alltid med `t`, även tomt: då visas startrutan utan namn också.
         fromStart={first(params.t) !== undefined}
       />

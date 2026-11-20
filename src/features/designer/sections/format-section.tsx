@@ -8,6 +8,7 @@ import { FRAME_STYLES, blankOf, frameFits, nameMarking, type BadgeDocument } fro
 import { useCustomShapeChoice } from "../custom-shape-choice";
 import { CustomShapeEditor } from "../custom-shape/custom-shape-editor";
 import { BlankPicker } from "../pickers";
+import { fromPriceLabel, useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
 
@@ -28,6 +29,7 @@ export function FormatSection({ doc, dispatch }: FormatSectionProps) {
   const custom = doc.shape === "custom";
   // Ramen finns bara på plast. På metall syns valet ändå, men går inte att välja.
   const framed = frameFits(doc.materialId);
+  const { frameFrom } = useShopPrices();
 
   return (
     <PanelSection step={5} title="Form" aside={`${widthMm} × ${heightMm} mm`}>
@@ -55,7 +57,11 @@ export function FormatSection({ doc, dispatch }: FormatSectionProps) {
 
       <div className={styles.labelled}>
         {/* Ramen märks som namnet: graverad, eller tryckt när namnet printas på en plastskylt. */}
-        <span className={styles.sliderLabel}>{framed && nameMarking(doc) === "print" ? "Tryckt ram" : "Graverad ram"}</span>
+        <span className={styles.frameHead}>
+          <span className={styles.sliderLabel}>{framed && nameMarking(doc) === "print" ? "Tryckt ram" : "Graverad ram"}</span>
+          {/* Ramen är ett tillval med eget pris, som fästena och egen form (beslut av ägaren 2026-11-20). */}
+          {framed && <span className={styles.framePrice}>{fromPriceLabel(frameFrom(doc.materialId))}</span>}
+        </span>
         <Segmented
           label="Ram"
           value={framed ? doc.frame.style : "none"}

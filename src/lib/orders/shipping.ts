@@ -14,17 +14,18 @@ const itemSchema = z.strictObject({
   extraEngraving: z.boolean(),
   customShape: z.boolean(),
   marking: z.enum(MARKING_METHOD_IDS).optional(),
+  frame: z.boolean().optional(),
   quantity: z.number().int().min(1).max(10_000_000),
 });
 
 /**
- * Två skylttyper, fyra fästen, med eller utan egen form, och två märkningsmetoder
- * utan logga eller fyra med ger högst 96 olika rader.
+ * Två skylttyper, fyra fästen, med eller utan egen form, två märkningsmetoder
+ * utan logga eller fyra med, och med eller utan ram ger högst 192 olika rader.
  */
-export const shippingRequestSchema = z.strictObject({ items: z.array(itemSchema).min(1).max(96) });
+export const shippingRequestSchema = z.strictObject({ items: z.array(itemSchema).min(1).max(192) });
 
 const typeKey = (item: PriceItem) =>
-  `${item.signClass}|${item.mounting}|${item.extraEngraving}|${item.customShape}|${item.marking ?? ""}`;
+  `${item.signClass}|${item.mounting}|${item.extraEngraving}|${item.customShape}|${item.marking ?? ""}|${item.frame ? "ram" : ""}`;
 
 /**
  * Det servern behöver för att räkna frakten: skyltarna utan design och text,

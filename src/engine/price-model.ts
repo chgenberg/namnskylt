@@ -99,6 +99,7 @@ export const priceModelSchema = z
     options: z.object({
       customShape: tierPricesSchema,
       extraEngraving: tierPricesSchema,
+      frame: tierPricesSchema,
       pin: tierPricesSchema,
       clip: tierPricesSchema,
       magnet: tierPricesSchema,
@@ -138,7 +139,9 @@ const MARKING_OPTION_IDS = [
   "markingEngraveNamePrintLogo",
   "markingPrintNameEngraveLogo",
 ] as const satisfies readonly PriceOptionId[];
-const OPTION_IDS = ["customShape", "extraEngraving", "pin", "clip", "magnet", ...MARKING_OPTION_IDS] as const satisfies readonly PriceOptionId[];
+/** Rader som kommit till efter att modeller började sparas. En äldre modell saknar dem och läses med 0 kr. */
+const LATER_OPTION_IDS = [...MARKING_OPTION_IDS, "frame"] as const satisfies readonly PriceOptionId[];
+const OPTION_IDS = ["customShape", "extraEngraving", "pin", "clip", "magnet", ...LATER_OPTION_IDS] as const satisfies readonly PriceOptionId[];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -150,13 +153,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * så att ordrar och offerter från den tiden behåller exakt sina priser. En
  * modell sparad före 2026-11-14 saknar frakt och läses utan, av samma skäl.
  * En modell sparad före 2026-11-16 saknar märkningsmetodernas rader och läses
- * med 0 kr på alla fyra, alltså att metoden ingår i skylten.
+ * med 0 kr på alla fyra, alltså att metoden ingår i skylten. En modell sparad
+ * före 2026-11-20 saknar ramens rad och läses med 0 kr: ramen ingick då.
  */
 function upgradeStoredModel(value: unknown): unknown {
   if (!isRecord(value)) return value;
   const options = isRecord(value.options)
     ? {
-        ...Object.fromEntries(MARKING_OPTION_IDS.map((id) => [id, Array(PRICE_TIER_COUNT).fill(0)])),
+        ...Object.fromEntries(LATER_OPTION_IDS.map((id) => [id, Array(PRICE_TIER_COUNT).fill(0)])),
         ...Object.fromEntries(
           Object.entries(value.options).map(([id, price]) => [id, typeof price === "number" ? Array(PRICE_TIER_COUNT).fill(price) : price]),
         ),

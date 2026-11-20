@@ -36,6 +36,7 @@ export function PurchasePriceTable({ purchase, list, marginPercent }: PurchasePr
     ...OFFERED_MOUNTINGS.map((m) => ({ name: `Fäste: ${m.name}`, ...perTier((table, i) => mountingPriceSek(m.id, table, i)) })),
     { name: "Logga på skylten", ...option("extraEngraving") },
     ...(OFFERED_MATERIALS.some((m) => m.customShape) ? [{ name: "Egen form", ...option("customShape") }] : []),
+    { name: "Ram, enkel eller dubbel", ...option("frame") },
     // Märkningsmetoden kunden väljer. 0 kr betyder att metoden ingår i skylten.
     ...MARKING_METHODS.map((method) => ({
       name: `Märkning: ${method.name}`,

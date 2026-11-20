@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
-import { engravedRows, getColor, getMaterial, mountingLabel, printColorLabel, shapeLabel } from "@/engine";
+import { engravedRows, getColor, getMaterial, frameLabel, mountingLabel, printColorLabel, shapeLabel } from "@/engine";
 import { ReorderForm } from "@/features/quote-public/reorder-form";
 import { SellerLogo } from "@/features/quote-public/seller-logo";
 import styles from "@/features/quote-public/quote-public.module.css";
@@ -109,6 +109,7 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
                     <div className={styles.lineSpec}>
                       {getMaterial(badge.materialId).name} · {getColor(badge.materialId, badge.colorId).name} · {shapeLabel(badge)}{" "}
                       {badge.size.widthMm}×{badge.size.heightMm} mm · {mountingLabel(badge)}
+                      {frameLabel(badge) && ` · ${frameLabel(badge)}`}
                       {printColorLabel(badge) && ` · ${printColorLabel(badge)}`}
                     </div>
                   </div>

@@ -3,7 +3,9 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { isBlankBadge, lineUnitPrices, orderDesigns, resellerOrder, type BadgeDocument, type FontEngine, type PriceTable } from "@/engine";
 import { useOrderShipping } from "@/hooks/use-order-shipping";
-import { formattedOrgNumber } from "@/lib/company/org-number";
+import { formattedOrgNumber, orgNumberSchema } from "@/lib/company/org-number";
+import type { SellerProfile } from "@/lib/company/seller";
+import type { CustomerAccountView } from "@/lib/customer-auth/model";
 import { priceWithPricing, type Pricing } from "@/lib/orders/pricing";
 import { marginOf } from "@/lib/orders/purchase";
 import { quoteDocument, type QuoteMargin } from "@/lib/quotes/document";
@@ -21,7 +23,8 @@ import {
   type QuoteOptions,
   type QuoteShot,
 } from "@/lib/quotes/model";
-import type { ResellerOrderContext } from "../reseller";
+import { shopOrderPricing } from "@/lib/shops/price-list";
+import type { ResellerOrderContext, ShopContext } from "../reseller";
 import { customerOf, firstTarget, recipientOf, type CustomerTarget } from "../sections/reseller-customer";
 import type { VideoClip } from "../three/recorder";
 import { videoFileName } from "../video-file";
@@ -39,7 +42,34 @@ interface SavedQuote {
   pdfPath: string;
   /** Offerten sparades som utkast, utan kund: kunden väljs i panelen. */
   noCustomer: boolean;
+  /** Sidan där kunden godkänner en offert som kunden har gjort själv. */
+  quotePath?: string;
 }
+
+/** Uppgifterna en slutkund fyller i för sin egen offert: samma som i kassan. */
+export interface QuoteContact {
+  orgNumber: string;
+  company: string;
+  name: string;
+  email: string;
+}
+
+const EMPTY_CONTACT: QuoteContact = { orgNumber: "", company: "", name: "", email: "" };
+
+/** Kundens uppgifter ur kontot, när kunden är inloggad. Det som redan är skrivet står kvar där kontot saknar något. */
+function contactOf(account: CustomerAccountView | null | undefined, current: QuoteContact = EMPTY_CONTACT): QuoteContact {
+  if (!account) return current;
+  const { profile } = account;
+  return {
+    orgNumber: profile.orgNumber || current.orgNumber,
+    company: profile.company || current.company,
+    name: profile.name || current.name,
+    email: account.email,
+  };
+}
+
+/** Säljaren som offertens dokument ritas med. */
+type QuoteSeller = { company: SellerProfile; plate: string | null };
 
 export type QuoteSaveState = { status: "idle" } | { status: "saving" } | { status: "error"; message: string } | { status: "saved"; quote: SavedQuote };
 
@@ -74,6 +104,15 @@ export const QUOTE_FIELD_IDS = { customer: "quote-customer", validUntil: "quote-
 
 interface UseQuoteInput {
   reseller: ResellerOrderContext | undefined;
+  /**
+   * En slutkund gör offerten själv, utan att vara inloggad i panelen (besked av ägaren 2026-11-20):
+   * samma dokument, till kundens pris, som laddas ner som PDF. Gäller bara när `reseller` saknas.
+   */
+  self?: boolean;
+  /** Butiken skyltmotorn står i. Kundens offert får då butikens priser och butikens säljare. */
+  shop?: ShopContext;
+  /** Kunden som är inloggad: uppgifterna fylls i ur kontot. */
+  account?: CustomerAccountView | null;
   /** Skyltarna offerten gäller: varukorgen och skylten i editorn. */
   badges: readonly BadgeDocument[];
   priceList: PriceTable;
@@ -112,7 +151,37 @@ const shotKey = (doc: BadgeDocument) => JSON.stringify({ ...doc, quantity: 1 });
  * väljer kund och sparar. Då laddas PDF:en ner, och offerten väntar i panelen, där säljaren
  * godkänner eller nekar åt kunden. Inget mejlas härifrån.
  */
-export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot, onSaved }: UseQuoteInput) {
+export function useQuote({ reseller, self: selfQuote = false, shop, account, badges, priceList, fonts, active, badgeShot, onSaved }: UseQuoteInput) {
+  /** Kunden gör offerten själv. Den som är inloggad i panelen gör den alltid åt en kund. */
+  const self = selfQuote && !reseller;
+  const [contact, setContact] = useState<QuoteContact>(() => contactOf(account));
+  // Loggar kunden in i varukorgen medan sidan är öppen fylls uppgifterna i ur kontot.
+  useEffect(() => {
+    if (account) setContact((current) => contactOf(account, current));
+  }, [account]);
+  /**
+   * Säljaren för kundens egen offert: namnskylt.com eller butikens ägare. Den hämtas först när
+   * offerten öppnas, så att loggan inte följer med varje besök i skyltmotorn.
+   */
+  const [selfSeller, setSelfSeller] = useState<QuoteSeller | null>(null);
+  const [sellerFailed, setSellerFailed] = useState(false);
+  const shopSlug = shop?.slug;
+  useEffect(() => {
+    if (!self || !active || selfSeller) return;
+    const controller = new AbortController();
+    setSellerFailed(false);
+    fetch(`/api/quotes/seller${shopSlug ? `?shop=${encodeURIComponent(shopSlug)}` : ""}`, { signal: controller.signal })
+      .then((response) => (response.ok ? (response.json() as Promise<QuoteSeller>) : null))
+      .then((found) => {
+        if (controller.signal.aborted) return;
+        if (found?.company) setSelfSeller(found);
+        else setSellerFailed(true);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setSellerFailed(true);
+      });
+    return () => controller.abort();
+  }, [self, active, selfSeller, shopSlug]);
   const [target, setTarget] = useState<CustomerTarget>(() => firstTarget(reseller?.customers ?? []));
   const [project, setProject] = useState(reseller?.project ?? "");
   /** Kundens eget inköpsnummer, när säljaren redan har det. Kunden kan annars fylla i det när offerten godkänns. */
@@ -123,7 +192,7 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
   const [elements, setElements] = useState(FIRST_ELEMENTS);
   const [save, setSave] = useState<QuoteSaveState>({ status: "idle" });
   const shippingSek = useOrderShipping(badges, reseller?.purchaseList, active && badges.length > 0);
-  const seller = reseller?.quoteSeller;
+  const seller = reseller?.quoteSeller ?? (self ? (selfSeller ?? undefined) : undefined);
 
   // Bilderna ur 3D-vyn, per design. De tas en gång och finns kvar om vyn stängs och öppnas igen.
   const [shots, setShots] = useState<Record<string, QuoteShot | null>>({});
@@ -168,23 +237,32 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
     () => (purchaseList && badges.length > 0 ? { units: lineUnitPrices(badges, purchaseList), goodsSek: resellerOrder(badges, purchaseList).goodsSek } : null),
     [purchaseList, badges],
   );
-  const pricing = useMemo<Pricing | null>(
-    () =>
-      marginPercent === null || !purchase
-        ? null
-        : { unitOverrides: purchase.units.map((unit) => Math.max(1, Math.round(unit / (1 - marginPercent / 100)))), discountPercent: 0, extras: [] },
-    [marginPercent, purchase],
-  );
+  const shopPrices = shop?.priceList;
+  const pricing = useMemo<Pricing | null>(() => {
+    // Kundens egen offert i en butik får butikens priser, som när kunden beställer där.
+    if (self) return badges.length > 0 ? shopOrderPricing(badges, shopPrices, priceList) : null;
+    return marginPercent === null || !purchase
+      ? null
+      : { unitOverrides: purchase.units.map((unit) => Math.max(1, Math.round(unit / (1 - marginPercent / 100)))), discountPercent: 0, extras: [] };
+  }, [self, badges, shopPrices, priceList, marginPercent, purchase]);
 
-  const customer = useMemo(() => (reseller ? previewCustomer(reseller, target) : null), [reseller, target]);
+  const customer = useMemo<DraftCustomer | null>(() => {
+    if (self) {
+      // Kunden står på offerten som den fyller i sina uppgifter.
+      return contact.company.trim() || contact.name.trim()
+        ? { company: contact.company, name: contact.name, email: contact.email, phone: "", orgNumber: formattedOrgNumber(contact.orgNumber) ?? contact.orgNumber }
+        : null;
+    }
+    return reseller ? previewCustomer(reseller, target) : null;
+  }, [self, contact, reseller, target]);
   /** Valet Utkast: offerten sparas utan kund. Gäller inte när kunden är vald i förväg från panelen. */
-  const noCustomer = !reseller?.customerId && target.kind === "none";
+  const noCustomer = !self && !reseller?.customerId && target.kind === "none";
   const draft = useMemo(
     () =>
       active && seller && badges.length > 0
-        ? draftQuote({ badges, priceList, shippingSek, customer, customerPo, noCustomer, project, message: greeting, validUntil, options, badgeShot, shots: quoteShots, pricing, now: new Date() })
+        ? draftQuote({ badges, priceList, shippingSek, customer, customerPo, noCustomer: noCustomer || (self && !customer), project, message: greeting, validUntil, options, badgeShot, shots: quoteShots, pricing, byCustomer: self, now: new Date() })
         : null,
-    [active, seller, badges, priceList, shippingSek, customer, customerPo, noCustomer, project, greeting, validUntil, options, badgeShot, quoteShots, pricing],
+    [active, seller, badges, priceList, shippingSek, customer, customerPo, noCustomer, project, greeting, validUntil, options, badgeShot, quoteShots, pricing, self],
   );
   // Marginalen räknas på varorna, utan frakt, som överallt annars.
   const margin = useMemo<QuoteMargin | undefined>(() => {
@@ -195,8 +273,12 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
   }, [draft, purchase]);
   const slots = useMemo(() => ({ message: elements.message, closing: elements.closing }), [elements.message, elements.closing]);
   const drawn = useMemo(
-    () => (draft && seller ? quoteDocument(draft, fonts, seller.company, seller.plate, { editable: true, slots, margin }) : null),
-    [draft, fonts, seller, slots, margin],
+    () =>
+      draft && seller
+        ? // Kundens egen offert är säljarens dokument: kunden ser det, men ändrar inga texter i det.
+          quoteDocument(draft, fonts, seller.company, seller.plate, self ? {} : { editable: true, slots, margin })
+        : null,
+    [draft, fonts, seller, slots, margin, self],
   );
   // Dokumentet står kvar efter att offerten har sparats och varukorgen tömts.
   const [kept, setKept] = useState<{ css: string; body: string } | null>(null);
@@ -274,7 +356,41 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
     }
   }, []);
 
+  /** Kunden sparar sin egen offert: den sparas hos säljaren och laddas ner. Varukorgen står kvar. */
+  const submitSelf = async () => {
+    if (save.status === "saving" || capturing) return;
+    if (blank) return setSave({ status: "error", message: "Skylten är tom. Skriv ett namn eller lägg in en logga först." });
+    if (!orgNumberSchema.safeParse(contact.orgNumber).success) return setSave({ status: "error", message: "Skriv organisationsnumret, tio siffror." });
+    if (contact.company.trim().length < 2) return setSave({ status: "error", message: "Skriv företagets namn." });
+    if (!contact.name.trim()) return setSave({ status: "error", message: "Skriv ditt namn." });
+    if (!/^\S+@\S+\.\S+$/.test(contact.email.trim())) return setSave({ status: "error", message: "Skriv din e-postadress." });
+    setSave({ status: "saving" });
+    try {
+      const response = await fetch("/api/quotes", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          customer: { name: contact.name.trim(), email: contact.email.trim(), company: contact.company.trim(), orgNumber: contact.orgNumber.trim() },
+          badges,
+          badgeShot: badgeShot ?? undefined,
+          project: project.trim() || undefined,
+          customerPo: customerPo.trim() || undefined,
+          ...(quoteShots.some(Boolean) && { shots: quoteShots }),
+          ...(shopSlug && { shop: shopSlug }),
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as { quoteNo?: string; pdfPath?: string; quotePath?: string; error?: string } | null;
+      if (!response.ok || !body?.quoteNo || !body.pdfPath) throw new Error(body?.error ?? "Offerten kunde inte sparas");
+      // Designerna hålls kvar, så att filmen spelas in klart också om kunden ändrar skylten under tiden.
+      setFrozen(designs);
+      setSave({ status: "saved", quote: { quoteNo: body.quoteNo, pdfPath: body.pdfPath, noCustomer: false, quotePath: body.quotePath } });
+    } catch (error) {
+      setSave({ status: "error", message: error instanceof Error ? error.message : "Offerten kunde inte sparas" });
+    }
+  };
+
   const submit = async () => {
+    if (self) return submitSelf();
     if (!reseller || save.status === "saving" || capturing) return;
     if (blank) return setSave({ status: "error", message: "Skylten är tom. Skriv ett namn eller lägg in en logga först." });
     const chosen = reseller.customerId ? ({ ok: true, body: { customerId: reseller.customerId } } as const) : customerOf(target, customers, reseller.needsInvoiceDetails ?? false, minimal);
@@ -361,6 +477,12 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
     save,
     submit,
     reset,
+    /** Kunden gör offerten själv: uppgifterna kunden fyller i, och om säljarens uppgifter inte gick att hämta. */
+    self,
+    contact,
+    setContact,
+    loading: self && active && !seller && !sellerFailed,
+    sellerFailed: self && sellerFailed,
   };
 }
 

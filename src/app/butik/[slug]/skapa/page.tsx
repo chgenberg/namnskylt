@@ -8,7 +8,8 @@ import { customerDesignerContext } from "@/lib/customer-auth/designer-context";
 import { copyMarkOf } from "@/lib/designer-work/model";
 import { db } from "@/lib/db/client";
 import { ASSET_ID_PATTERN } from "@/lib/outreach/badge-asset";
-import { getAssetBadge } from "@/lib/outreach/repository";
+import { isOutreachPreviewShop } from "@/lib/outreach/demo-source";
+import { getAssetBadge, shopHasOutreachLead } from "@/lib/outreach/repository";
 import { getShopOwner } from "@/lib/shops/editor-repository";
 import { getShop } from "@/lib/shops/repository";
 import { decodeShareCode } from "@/lib/share/share-link";
@@ -35,7 +36,11 @@ export default async function ShopDesignerPage({ params, searchParams }: ShopDes
   const [shop, query] = await Promise.all([getShop((await params).slug), searchParams]);
   if (!shop) notFound();
   // En butik utan ägare säljer som namnskylt.com: då sköter verkstaden ordern mot kunden.
-  const direct = (await getShopOwner(shop.slug)) === null;
+  const owner = await getShopOwner(shop.slug);
+  const direct = owner === null;
+  // En butik som bara är en förhandsvisning tar varken emot beställningar eller offerter.
+  const sql = db();
+  const preview = sql ? isOutreachPreviewShop({ ownerId: owner, hasOutreachLead: await shopHasOutreachLead(sql, shop.slug) }) : true;
   const shared = (await decodeShareCode(first(query.d))) ?? (await outreachBadge(first(query.f)));
   const customer = await customerDesignerContext(shop.slug, first(query.igen));
   return (
@@ -51,6 +56,7 @@ export default async function ShopDesignerPage({ params, searchParams }: ShopDes
           initialFont={engravingFontFor(shop.font)}
           {...customer}
           copyMark={copyMarkOf(first(query.ny))}
+          customerQuote={!preview}
         />
       </ShopPriceProvider>
     </main>

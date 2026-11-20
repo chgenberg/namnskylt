@@ -161,6 +161,15 @@ export function withFittingFrame<T extends FramedBadge>(doc: T): T {
   return hasFittingFrame(doc) ? doc : { ...doc, frame: { ...doc.frame, style: "none" } };
 }
 
+/**
+ * Ramen i skyltens specifikation, "Ram" eller "Dubbel ram", eller `null` utan ram. Ramen kostar
+ * extra sedan 2026-11-20, så den står där priset står: på offert och ordersidor.
+ */
+export function frameLabel(doc: Pick<BadgeDocument, "frame">): string | null {
+  if (doc.frame.style === "none") return null;
+  return doc.frame.style === "double" ? "Dubbel ram" : "Ram";
+}
+
 /** Längsta färgkod en äldre skylt får bära för trycket, och för en rad. I dag sparas bara `#RRGGBB`. */
 export const PRINT_COLOR_MAX = 40;
 /** En äldre logga kan bära flera koder efter varandra. I dag har loggan ingen egen färg. */

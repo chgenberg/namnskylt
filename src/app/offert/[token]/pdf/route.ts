@@ -1,6 +1,7 @@
 import { clientKey, createRateLimiter } from "@/lib/ai/rate-limit";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { withInlineLogoImages } from "@/lib/logo-images/repository";
+import { publicOrigin } from "@/lib/http/public-url";
 import { databaseConfigured } from "@/lib/orders/repository";
 import { htmlToPdf } from "@/lib/pdf/html-to-pdf";
 import { quoteHtml } from "@/lib/quotes/document";
@@ -23,7 +24,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     const [fonts, { company, plate }] = await Promise.all([loadNodeFontEngine(), quoteSellerView(quote.resellerId)]);
     // PDF:en ritas ur en fristående sida, som inte når adresser på sajten: bilden läggs in i skyltarna.
     const badges = await withInlineLogoImages(quote.badges);
-    const pdf = await htmlToPdf(quoteHtml({ ...quote, badges }, fonts, company, plate));
+    // En offert som kunden har gjort själv godkänns på sin egen sida: länken dit står i PDF:en.
+    const acceptUrl = quote.byCustomer ? `${publicOrigin()}/offert/${quote.token}` : undefined;
+    const pdf = await htmlToPdf(quoteHtml({ ...quote, badges }, fonts, company, plate, { acceptUrl }));
     return new Response(new Uint8Array(pdf), {
       headers: {
         "content-type": "application/pdf",

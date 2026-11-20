@@ -12,8 +12,6 @@ interface LogoColorsProps {
   colors: readonly string[];
   /** Färgerna som de lästes av från början, när kunden har ändrat någon av dem. */
   readColors?: readonly string[];
-  /** Hemsidans färger, när loggan hämtades därifrån. De räknas bara när loggan saknar egen färg. */
-  siteColors?: readonly string[];
   /** Kunden har rättat en färg. */
   onColors: (colors: string[]) => void;
   /** Kunden väljer plastfärgen som föreslås. */
@@ -35,7 +33,7 @@ interface LogoColorsProps {
  * (`pickedColorCombo`), inte den som passar loggans övriga färger. De avlästa
  * färgerna står kvar bredvid knappen Återställ.
  */
-export function LogoColors({ doc, colors, readColors, siteColors = [], onColors, onPickCombo }: LogoColorsProps) {
+export function LogoColors({ doc, colors, readColors, onColors, onPickCombo }: LogoColorsProps) {
   const material = getMaterial(doc.materialId);
   /** Färgen kunden ändrade senast. Den glöms när sektionen stängs: då gäller den första ändrade färgen. */
   const [lastPicked, setLastPicked] = useState<string | null>(null);
@@ -50,7 +48,7 @@ export function LogoColors({ doc, colors, readColors, siteColors = [], onColors,
         : logoColorCombo({
             materialId: doc.materialId,
             logoColors: colors,
-            siteColors,
+            siteColors: [],
             printedInColor: Boolean(doc.logo?.image) && logoMarking(doc) === "print",
           })
       : null;

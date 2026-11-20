@@ -24,6 +24,9 @@ export const DEFAULT_PRICE_MODEL: PriceModel = {
     customShape: [19, 19, 19, 19],
     // Loggan ingår i skylten (besked via ägaren 2026-11-16). Kombinerad märkning prissätts under märkningsmetoden.
     extraEngraving: [0, 0, 0, 0],
+    // Ramen, enkel eller dubbel, kostar 10 kr extra (beslut av ägaren 2026-11-20). Beloppet är som
+    // övriga här det återförsäljaren betalar; slutkunden betalar det med marginalen.
+    frame: [10, 10, 10, 10],
     pin: [5, 5, 5, 5],
     clip: [9, 9, 9, 9],
     magnet: [11, 11, 11, 11],

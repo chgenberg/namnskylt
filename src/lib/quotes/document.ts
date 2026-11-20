@@ -1,4 +1,5 @@
 import {
+  frameLabel,
   getColor,
   getMaterial,
   mountingLabel,
@@ -39,6 +40,7 @@ function badgeSpec(quote: StoredQuote, index: number): string {
     `${getMaterial(badge.materialId).name}, ${getColor(badge.materialId, badge.colorId).name}`,
     `${shape} ${badge.size.widthMm}×${badge.size.heightMm} mm`,
     mountingLabel(badge),
+    ...(frameLabel(badge) ? [frameLabel(badge)] : []),
     ...(printColorLabel(badge) ? [printColorLabel(badge)] : []),
   ].join(" · ");
 }
@@ -58,6 +60,12 @@ export interface QuoteRenderOptions {
    * förhandsvisningen: det färdiga dokumentet får aldrig rutan, eftersom det går till kunden.
    */
   margin?: QuoteMargin;
+  /**
+   * Adressen där kunden godkänner en offert som kunden har gjort själv (`byCustomer`). Den står i
+   * rutan längst ner i PDF:en. Utan den, som i förhandsvisningen innan offerten finns, står att
+   * länken kommer med den nedladdade offerten.
+   */
+  acceptUrl?: string;
 }
 
 /** Säljarens inköp och marginal på offertens varor, utan frakt. */
@@ -221,7 +229,7 @@ s{color:#9ca3af;font-weight:400}
 .sum .vat{color:#6b7280;font-size:9px}
 .page .closing{margin:7mm 0 0;max-width:150mm;font-size:10.5px;line-height:1.55;color:#374151;white-space:pre-line}
 .promise{margin-top:8mm;display:flex;gap:7mm;font-size:9px;font-weight:600}.promise span:before{content:"✓";margin-right:1.6mm;color:${accent}}
-.accept{margin-top:6mm;padding:4mm 5mm;border-radius:12px;background:${primary};color:${onPrimary};font-size:10px}.accept b{font-size:11px}
+.accept{margin-top:6mm;padding:4mm 5mm;border-radius:12px;background:${primary};color:${onPrimary};font-size:10px}.accept b{font-size:11px}.accept a{color:inherit;font-weight:600}
 .foot{margin-top:auto;padding-top:6mm;display:flex;justify-content:space-between;gap:8mm;font-size:7.5px;line-height:1.55;color:#9ca3af}
 .foot .terms{max-width:85mm;white-space:pre-line}.foot .seller{text-align:right}${
     editable
@@ -282,8 +290,13 @@ ${showsElement(quote, "promises") ? `<div class="promise">${QUOTE_PROMISES.map((
 ${
     showsElement(quote, "accept")
       ? `<div class="accept"><b>Godkänn offerten</b> — ${
+          // En offert som kunden har gjort själv godkänns på sin egen sida: länken står i PDF:en.
           // En offert som säljaren skickar själv har ingen länk i något mejl: kunden svarar säljaren.
-          quote.emailedAt
+          quote.byCustomer
+            ? render.acceptUrl
+              ? `öppna <a href="${esc(render.acceptUrl)}">${esc(render.acceptUrl.replace(/^https?:\/\//, ""))}</a> och klicka ”Godkänn”, så går skyltarna till tillverkningen.`
+              : "länken står här i den nedladdade offerten. Där klickar ni ”Godkänn”, så går skyltarna till tillverkningen."
+            : quote.emailedAt
             ? "öppna länken i mejlet och klicka ”Godkänn”, så går skyltarna till tillverkningen."
             : `svara ${esc(company.site ? "oss" : company.name)} att ni godkänner, så går skyltarna till tillverkningen.`
         }</div>`
@@ -300,7 +313,8 @@ export function quoteHtml(
   fonts: FontEngine,
   company: SellerProfile = DEFAULT_COMPANY,
   logoPlate: string | null = null,
+  render: Pick<QuoteRenderOptions, "acceptUrl"> = {},
 ): string {
-  const { css, body } = quoteDocument(quote, fonts, company, logoPlate);
+  const { css, body } = quoteDocument(quote, fonts, company, logoPlate, render);
   return `<!doctype html><html lang="sv"><head><meta charset="utf-8"><style>${css}</style></head><body>${body}</body></html>`;
 }
