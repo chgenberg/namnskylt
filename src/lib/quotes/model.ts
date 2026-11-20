@@ -126,6 +126,8 @@ export interface StoredQuote {
   badgeShot: string | null;
   /** Projektets namn — offertens rubrik. */
   project: string | null;
+  /** Kundens eget inköpsnummer. Följer med till ordern när offerten godkänns. Saknas på offerter som byggs utanför lagringen. */
+  customerPo?: string | null;
   /** Återförsäljaren offerten tillhör — dess logga och uppgifter står på offerten. */
   resellerId: string;
   quoteNo: string;

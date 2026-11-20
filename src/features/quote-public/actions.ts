@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { customerPoSchema } from "@/lib/orders/customer-po";
 import { deliveryAddressSchema, deliveryPhoneIssue, shippingMethodOf, shippingMethodSchema } from "@/lib/orders/delivery";
 import { acceptQuote, declineByCustomer } from "@/lib/quotes/accept";
 import { canCustomerAnswer } from "@/lib/quotes/model";
@@ -14,6 +15,8 @@ const decisionSchema = z.object({
   delivery: deliveryAddressSchema.optional(),
   /** Leveranssättet kunden valde. Utelämnat = det som står på offerten. */
   method: shippingMethodSchema.optional(),
+  /** Kundens eget inköpsnummer. Utelämnat = det som står på offerten. */
+  customerPo: customerPoSchema,
 });
 
 /** Publik — länkens token är behörigheten. Godkänd offert blir en order direkt. */
@@ -24,9 +27,9 @@ export async function decideQuoteAction(
   if (!parsed.success) {
     const field = parsed.error.issues[0];
     // Adressens fel är skrivna för kunden; övriga fel beror på en trasig sida.
-    return { ok: false, error: field?.path[0] === "delivery" ? field.message : "Ogiltigt svar" };
+    return { ok: false, error: field?.path[0] === "delivery" || field?.path[0] === "customerPo" ? field.message : "Ogiltigt svar" };
   }
-  const { token, accept, reason, delivery, method } = parsed.data;
+  const { token, accept, reason, delivery, method, customerPo } = parsed.data;
   try {
     const quote = await getQuoteByToken(token);
     if (!quote || !canCustomerAnswer(quote)) return { ok: false, error: "Offerten går inte att besvara längre" };
@@ -37,7 +40,7 @@ export async function decideQuoteAction(
     // Adressen kunden fyller i nu ska ha telefon när skyltarna fraktas, med fraktsättet som gäller för ordern.
     const phoneIssue = deliveryPhoneIssue(delivery, method ?? shippingMethodOf(quote.delivery));
     if (phoneIssue) return { ok: false, error: phoneIssue };
-    const result = await acceptQuote(quote.resellerId, quote.quoteNo, false, delivery ?? null, method ?? null);
+    const result = await acceptQuote(quote.resellerId, quote.quoteNo, false, delivery ?? null, method ?? null, customerPo ?? null);
     // Kunden får numret den ser på sin order: verkstadens när de själva säljer, annars säljarens.
     return result.ok ? { ok: true, orderNo: result.customerNumber, orderPath: result.orderPath } : { ok: false, error: result.error };
   } catch (error) {

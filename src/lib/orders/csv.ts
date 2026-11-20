@@ -23,7 +23,7 @@ function date(iso: string): string {
 
 export function ordersCsv(orders: readonly StoredOrder[]): string {
   return toCsv(
-    ["Order", "Datum", "Kund", "Företag", "E-post", "Status", "Skyltar", "Belopp exkl. moms", "Belopp inkl. moms", "Spårning"],
+    ["Order", "Datum", "Kund", "Företag", "E-post", "Status", "Skyltar", "Belopp exkl. moms", "Belopp inkl. moms", "Spårning", "Inköpsnummer"],
     orders.map((o) => [
       o.orderNo,
       date(o.placedAt),
@@ -35,6 +35,7 @@ export function ordersCsv(orders: readonly StoredOrder[]): string {
       o.totalSek,
       o.totalInclVatSek,
       o.trackingUrl,
+      o.customerPo,
     ]),
   );
 }
@@ -69,23 +70,25 @@ export function invoiceCsv(orders: readonly StoredOrder[]): string {
           unit * badge.quantity,
           25,
           paid,
+          o.customerPo,
         ];
       });
       const customer = [o.orderNo, date(o.placedAt), o.customer.company ?? o.customer.name, o.customer.email] as const;
       return [
         ...rows,
         ...(priced.discountSek > 0
-          ? [[...customer, `Rabatt ${priced.discountPercent} %`, "", 1, -priced.discountSek, -priced.discountSek, 25, paid]]
+          ? [[...customer, `Rabatt ${priced.discountPercent} %`, "", 1, -priced.discountSek, -priced.discountSek, 25, paid, o.customerPo]]
           : []),
-        ...priced.extras.map((extra) => [...customer, extra.label, "Extra kostnad", 1, extra.amountSek, extra.amountSek, 25, paid]),
+        ...priced.extras.map((extra) => [...customer, extra.label, "Extra kostnad", 1, extra.amountSek, extra.amountSek, 25, paid, o.customerPo]),
         ...(priced.minimumTopUpSek > 0
-          ? [[...customer, "Upp till minsta ordervärde", "", 1, priced.minimumTopUpSek, priced.minimumTopUpSek, 25, paid]]
+          ? [[...customer, "Upp till minsta ordervärde", "", 1, priced.minimumTopUpSek, priced.minimumTopUpSek, 25, paid, o.customerPo]]
           : []),
-        ...(priced.shippingSek > 0 ? [[...customer, "Frakt", "", 1, priced.shippingSek, priced.shippingSek, 25, paid]] : []),
+        ...(priced.shippingSek > 0 ? [[...customer, "Frakt", "", 1, priced.shippingSek, priced.shippingSek, 25, paid, o.customerPo]] : []),
       ];
     });
   return toCsv(
-    ["Order", "Datum", "Kund", "E-post", "Benämning", "Artikel", "Antal", "À-pris exkl. moms", "Summa exkl. moms", "Moms %", "Betalning"],
+    // Kundens eget inköpsnummer står sist, så att kolumnerna före ligger kvar där en import redan läser dem.
+    ["Order", "Datum", "Kund", "E-post", "Benämning", "Artikel", "Antal", "À-pris exkl. moms", "Summa exkl. moms", "Moms %", "Betalning", "Inköpsnummer"],
     rows,
   );
 }

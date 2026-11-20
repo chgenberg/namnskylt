@@ -233,6 +233,12 @@ export default async function OrderPage({ params }: OrderPageProps) {
               <dd>
                 {formatSek(order.totalSek)} exkl. · {formatSek(order.totalInclVatSek)} inkl. moms
               </dd>
+              {order.customerPo && (
+                <>
+                  <dt>Inköpsnummer</dt>
+                  <dd>{order.customerPo}</dd>
+                </>
+              )}
               <dt>Kundens ordersida</dt>
               <dd>
                 <a href={`/order/${order.customerToken}`} target="_blank" rel="noreferrer" className={styles.link}>

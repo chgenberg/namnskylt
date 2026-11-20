@@ -19,6 +19,7 @@ import {
 } from "./delivery";
 import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "./price-lists";
 import { isCustomPricing, isLineInvoiceable, parsePricing, priceWithPricing, type Pricing } from "./pricing";
+import { cleanCustomerPo } from "./customer-po";
 import { UNASSIGNED_CUSTOMER_EMAIL, UNASSIGNED_CUSTOMER_NAME } from "./unassigned-customer";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
 import { workshopSeller, type SellerProfile } from "@/lib/company/seller";
@@ -55,6 +56,7 @@ interface OrderRow {
   has_badge_shot: boolean;
   shop_slug: string | null;
   project: string | null;
+  customer_po: string | null;
   reseller_id: string;
   customer_id: string;
   customer_name: string;
@@ -119,6 +121,7 @@ function toOrder(row: OrderRow, currentModel: PriceModel, audience: PriceAudienc
     hasBadgeShot: row.has_badge_shot,
     shopSlug: row.shop_slug,
     project: row.project,
+    customerPo: row.customer_po,
     resellerId: row.reseller_id,
     demo: row.is_demo,
     delivery: parseDelivery(row.delivery),
@@ -140,7 +143,7 @@ function selectOrders(sql: Sql) {
   return sql`
     select o.id, o.order_no, o.status, o.badges, o.pricing, o.price_model, o.total_sek, o.total_incl_vat_sek,
            o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo, o.supplier_synced_at,
-           o.badge_shot is not null as has_badge_shot, o.shop_slug, o.project, o.reseller_id,
+           o.badge_shot is not null as has_badge_shot, o.shop_slug, o.project, o.customer_po, o.reseller_id,
            o.delivery, o.supplier_sent_at, o.supplier_error, o.supplier_attempts, o.payment, o.express_shipping_sek, o.customer_token,
            r.order_no as repeat_of_order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email, c.is_demo as customer_demo,
@@ -291,6 +294,8 @@ export interface NewOrder {
   badgeShot?: string | null;
   shopSlug?: string | null;
   project?: string | null;
+  /** Beställarens eget inköpsnummer. */
+  customerPo?: string | null;
   /** Vart skyltarna skickas. Utan leverans sparas ordern, men den går inte att skicka till verkstaden. */
   delivery?: Delivery | null;
   /** Betalningen, när ordern är betald med kort. Utelämnad = faktura. */
@@ -330,12 +335,13 @@ export async function createOrder(order: NewOrder): Promise<{ id: string; orderN
     const [saved] = await tx<{ id: string; order_no: string; customer_token: string }[]>`
       insert into orders (customer_id, status, badges, pricing, price_model, total_sek, total_incl_vat_sek,
                           supplier_order_no, partner_request_no, source, repeat_of, placed_at, is_demo, badge_shot, shop_slug, reseller_id, project,
-                          delivery, payment, account_id)
+                          customer_po, delivery, payment, account_id)
       values (${customer.id}, ${order.status}, ${tx.json(badges as unknown as Json)},
               ${pricing ? tx.json(pricing as unknown as Json) : null}, ${tx.json(model as unknown as Json)},
               ${price.totalSek}, ${price.totalInclVatSek}, ${order.supplierOrderNo ?? null},
               ${order.partnerRequestNo ?? null}, ${order.source}, ${order.repeatOf ?? null}, ${placedAt}, ${order.demo ?? false},
               ${order.badgeShot ?? null}, ${order.shopSlug ?? null}, ${tenant}, ${order.project ?? null},
+              ${cleanCustomerPo(order.customerPo)},
               ${order.delivery ? tx.json(order.delivery as unknown as Json) : null},
               ${order.payment ? tx.json(order.payment as unknown as Json) : null},
               -- Ett konto som hann tas bort får aldrig stoppa ordern: då sparas den utan konto.

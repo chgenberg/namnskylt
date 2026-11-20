@@ -6,13 +6,14 @@ import { badgeCountLabel, customerLabel } from "@/lib/notices/model";
 import { notify } from "@/lib/notices/notify";
 import type { OrderPayment } from "@/lib/payments/model";
 import { estimatedShipDate } from "@/lib/supplier/client";
+import { OWNER_TENANT, isOwner } from "@/lib/tenants/model";
 import { dispatchOrder } from "@/lib/supplier/dispatch";
 import { sendOrderConfirmation } from "./confirmation";
 import type { Delivery } from "./delivery";
 import { NOT_OFFERED_ERROR, allOffered, type OrderSource } from "./model";
 import type { Pricing } from "./pricing";
 import { partnerRequestNumber, splitByProducer } from "./partner";
-import { createOrder, databaseConfigured } from "./repository";
+import { createOrder, databaseConfigured, getCompanyProfile } from "./repository";
 
 export interface PlaceOrderInput {
   customer: { name: string; email: string; company?: string | null; orgNumber?: string | null };
@@ -33,6 +34,8 @@ export interface PlaceOrderInput {
   /** Demobutiken ordern kom från. */
   shopSlug?: string | null;
   project?: string | null;
+  /** Beställarens eget inköpsnummer, som ska stå på fakturan. */
+  customerPo?: string | null;
   /** Vart skyltarna skickas. Utan leverans sparas ordern, men den skickas inte till verkstaden förrän adressen är ifylld. */
   delivery?: Delivery | null;
   /** Betalningen, när kunden redan har betalat med kort. Utelämnad = ordern faktureras. */
@@ -58,6 +61,23 @@ export interface PlaceOrderResult {
   supplierOrderNumber?: string;
   /** Koden i länken till kundens ordersida. Saknas när ordern inte sparades. */
   customerToken?: string;
+}
+
+/**
+ * Beskedet till namnskylt.com om en ny order (beslut av ägaren 2026-11-20: adminen ska få mejl om
+ * varje order). En order hos en återförsäljare nämner återförsäljaren, inte dess kund. En order i
+ * namnskylt.coms egen panel nämner kunden. En order som kunden själv lade hos namnskylt.com har
+ * redan gett sitt besked, och ger inget till.
+ */
+async function notifyOwner(input: PlaceOrderInput, orderId: string, placedByCustomer: boolean): Promise<void> {
+  const detail = badgeCountLabel(input.badges.reduce((sum, badge) => sum + badge.quantity, 0));
+  if (isOwner(input.tenant)) {
+    if (!placedByCustomer) await notify({ tenant: OWNER_TENANT, kind: "order-created", who: customerLabel(input.customer), detail, orderId });
+    return;
+  }
+  // Beskedet får aldrig stoppa ordern, inte heller om säljarens namn inte går att läsa.
+  const seller = await getCompanyProfile(input.tenant).then((company) => company.name, () => input.tenant);
+  await notify({ tenant: OWNER_TENANT, kind: "reseller-order", who: seller, detail, orderId });
 }
 
 /**
@@ -107,6 +127,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     badgeShot: input.badgeShot,
     shopSlug: input.shopSlug,
     project: input.project,
+    customerPo: input.customerPo,
     delivery: input.delivery,
     payment: input.payment,
     accountId: input.accountId,
@@ -114,7 +135,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   });
 
   // En order kunden själv har lagt, i webbshoppen eller i en butik, kommer utan att panelens ägare har gjort något.
-  if (!input.demo && (input.source === "web" || input.source === "shop")) {
+  const placedByCustomer = input.source === "web" || input.source === "shop";
+  if (!input.demo && placedByCustomer) {
     await notify({
       tenant: input.tenant,
       kind: "order-placed",
@@ -125,6 +147,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
     // Kunden får sin bekräftelse som mejl när sajtens mejl är påslagna. Mejlet väntar kunden inte på.
     void sendOrderConfirmation(saved.orderNo);
   }
+  // namnskylt.com får besked om varje ny order på plattformen (beslut av ägaren 2026-11-20).
+  if (!input.demo) await notifyOwner(input, saved.id, placedByCustomer);
 
   const customerToken = saved.customerToken;
   if (input.demo) return { orderNumber: saved.orderNo, status: "mock", customerToken };

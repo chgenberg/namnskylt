@@ -1,10 +1,10 @@
 import "server-only";
 import { isRealEmailSend } from "@/lib/email";
-import { ResendEmailSender } from "@/lib/email/resend-sender";
+import { ResendEmailSender, type FetchLike } from "@/lib/email/resend-sender";
 import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
 import { accountEmail } from "@/lib/reseller-auth/accounts";
 import { isOwner } from "@/lib/tenants/model";
-import { composeNoticeEmail, noticeEmailSettings } from "./email";
+import { adminNoticeEmailSettings, composeNoticeEmail, noticeEmailSettings, type AdminNoticeEmailSettings } from "./email";
 import type { PanelNotice } from "./model";
 import { insertNotice, markNoticeEmailed, type NewNotice } from "./repository";
 
@@ -32,8 +32,33 @@ async function recipientFor(tenant: string): Promise<string | null> {
   return isOwner(tenant) ? null : accountEmail(tenant);
 }
 
+/**
+ * Adminens besked till adminens adresser, ett mejl per mottagare. `true` när minst ett mejl gick iväg.
+ * Varje mottagare har sin egen nyckel hos Resend: med samma nyckel hade det andra mejlet räknats som
+ * en upprepning av det första och aldrig skickats.
+ */
+export async function emailAdminNotice(notice: PanelNotice, settings: AdminNoticeEmailSettings, fetchImpl?: FetchLike): Promise<boolean> {
+  // På datorn kan en låtsasmottagare stå i stället för Resend, så att flödet går att prova utan att mejla någon.
+  const target: FetchLike | undefined = settings.apiUrl ? (_url, init) => fetch(settings.apiUrl as string, init) : fetchImpl;
+  const sender = new ResendEmailSender(settings.apiKey, target);
+  let sent = false;
+  for (const to of settings.recipients) {
+    const message = composeNoticeEmail(notice, to, settings);
+    const result = await sender.send({ ...message, idempotencyKey: `${message.idempotencyKey}:${to}` });
+    if (isRealEmailSend(result)) sent = true;
+    else console.error("Adminens besked kunde inte mejlas", result.status, result.error);
+  }
+  return sent;
+}
+
 async function emailNotice(tenant: string, notice: PanelNotice): Promise<void> {
   try {
+    // namnskylt.coms egna besked har sin egen strömbrytare och sina egna mottagare.
+    const admin = isOwner(tenant) ? adminNoticeEmailSettings() : null;
+    if (admin) {
+      if (await emailAdminNotice(notice, admin)) await markNoticeEmailed(notice.id);
+      return;
+    }
     const settings = noticeEmailSettings();
     if (!settings) return;
     const to = await recipientFor(tenant);

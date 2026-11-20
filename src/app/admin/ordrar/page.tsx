@@ -19,6 +19,7 @@ function matches(order: StoredOrder, query: string): boolean {
   const haystack = [
     order.orderNo,
     order.project ?? "",
+    order.customerPo ?? "",
     order.customer.name,
     order.customer.company ?? "",
     order.customer.email,

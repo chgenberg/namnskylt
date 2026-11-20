@@ -14,6 +14,7 @@ import {
 } from "@/engine";
 import { orgNumberDigits } from "@/lib/company/org-number";
 import type { CompanyProfile } from "@/lib/company/profile";
+import { cleanCustomerPo } from "@/lib/orders/customer-po";
 import { guessAddress, shippingMethodOf, type Delivery, type DeliveryAddress } from "@/lib/orders/delivery";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import type { Customer } from "@/lib/orders/model";
@@ -199,9 +200,29 @@ function withImageRefs(document: SupplierSignDocument, images: Record<string, st
   };
 }
 
+/** Så lång får orderns märkning vara hos verkstaden. */
+const ORDER_NAME_MAX = 120;
+
+/**
+ * Orderns märkning hos verkstaden: projektets namn och beställarens eget inköpsnummer. Verkstadens
+ * mottagare har inget eget fält för inköpsnumret: deras "Ert ordernummer" är vårt ordernummer.
+ * Märkningen står däremot på deras orderpapper och faktura ("Märkning: …"), så numret följer med
+ * där. Blir raden för lång kortas projektets namn, aldrig numret.
+ */
+export function supplierOrderName(project: string | null, customerPo: string | null | undefined): string | undefined {
+  const po = cleanCustomerPo(customerPo);
+  const reference = po ? `Inköpsnr ${po}` : "";
+  const name = (project ?? "").trim();
+  if (!reference) return name ? name.slice(0, ORDER_NAME_MAX) : undefined;
+  const room = ORDER_NAME_MAX - reference.length - 3;
+  return name && room > 0 ? `${name.slice(0, room).trim()} · ${reference}` : reference;
+}
+
 export interface SupplierRequestInput {
   orderNo: string;
   project: string | null;
+  /** Beställarens eget inköpsnummer. Det står i orderns märkning hos verkstaden. */
+  customerPo?: string | null;
   customer: { name: string; email: string; company: string | null };
   buyer: SupplierBuyer;
   delivery: Delivery;
@@ -255,7 +276,7 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
   });
   return {
     orderRef: input.orderNo,
-    ...(input.project && { orderName: input.project }),
+    ...(supplierOrderName(input.project, input.customerPo) && { orderName: supplierOrderName(input.project, input.customerPo) }),
     buyer: input.buyer,
     customer: {
       name: input.customer.name,

@@ -38,6 +38,7 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     hasBadgeShot: false,
     shopSlug: null,
     project: null,
+    customerPo: null,
     resellerId: "namnskylt",
     pricing: null,
     priceList: LIST,
@@ -113,6 +114,18 @@ describe("export", () => {
     assert.ok(csv.startsWith("\uFEFFOrder;Datum;"));
     assert.match(csv, /"Kafé; Ett"/);
     assert.match(csv, /;Mottagen;1;100;125;/);
+  });
+
+  it("kundens inköpsnummer står sist på varje rad, så att kolumnerna före ligger kvar", () => {
+    const withPo = order({ customerPo: "4500 012345" });
+    const list = ordersCsv([withPo]).trim().split("\r\n");
+    assert.ok(list[0]?.endsWith(";Spårning;Inköpsnummer"));
+    assert.ok(list[1]?.endsWith(";4500 012345"));
+    const invoice = invoiceCsv([withPo]).trim().split("\r\n");
+    assert.ok(invoice[0]?.endsWith(";Betalning;Inköpsnummer"));
+    assert.ok(invoice.slice(1).every((line) => line.endsWith(";4500 012345")), invoice.join("\n"));
+    // Utan nummer är kolumnen tom.
+    assert.ok(invoiceCsv([order({})]).trim().split("\r\n")[1]?.endsWith(";"));
   });
 
   it("ger en fakturarad per skylt och hoppar över avbrutna", () => {

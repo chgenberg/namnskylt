@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { formatSek, plural } from "@/lib/format";
+import { CUSTOMER_PO_MAX } from "@/lib/orders/customer-po";
 import type { ResellerOrderContext } from "../reseller";
 import { ResellerCustomer } from "../sections/reseller-customer";
 import sections from "../sections/sections.module.css";
@@ -164,6 +165,20 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
                 value={quote.project}
                 disabled={saving}
                 onChange={(event) => quote.setProject(event.target.value)}
+              />
+            </span>
+          </label>
+          <label className={styles.labelled}>
+            <span>Kundens inköpsnummer (valfritt)</span>
+            <span className="field">
+              <input
+                type="text"
+                maxLength={CUSTOMER_PO_MAX}
+                autoComplete="off"
+                placeholder="Står på offerten och följer med till fakturan"
+                value={quote.customerPo}
+                disabled={saving}
+                onChange={(event) => quote.setCustomerPo(event.target.value)}
               />
             </span>
           </label>

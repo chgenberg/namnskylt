@@ -1,6 +1,7 @@
 import { engravedRows, orderDesigns, type BadgeDocument } from "@/engine";
 import { companyFooter } from "@/lib/company/profile";
 import type { SellerProfile } from "@/lib/company/seller";
+import { CUSTOMER_PO_LABEL } from "@/lib/orders/customer-po";
 import { deliveryLines } from "@/lib/orders/delivery";
 import { QUOTE_SHOT_DESIGNS, showsElement, type StoredQuote } from "./model";
 
@@ -68,6 +69,8 @@ export function quoteInfoRows(quote: StoredQuote, company: Pick<SellerProfile, "
     // En kund som sparats med bara företagets namn har det som namn också, och ingen e-post: då finns ingen kontakt att visa.
     ...(contact ? [{ label: "Kontakt", value: contact }] : []),
     ...(customer.address ? [{ label: "Adress", value: customer.address }] : []),
+    // Kundens eget inköpsnummer, när det är känt. Kunden kan också fylla i det när offerten godkänns.
+    ...(quote.customerPo ? [{ label: CUSTOMER_PO_LABEL, value: quote.customerPo }] : []),
     // Vart skyltarna skickas. Återförsäljarens egen adress står inte på kundens offert.
     ...(quote.delivery.to === "reseller"
       ? [{ label: "Leverans", value: `Till ${company.name}` }]

@@ -266,6 +266,7 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
               totalInclVatSek={priced.totalInclVatSek}
               shippingOptions={shippingOptions}
               shippingMethod={shippingMethodOf(quote.delivery)}
+              customerPo={quote.customerPo}
               answer={answer}
               deliveryDraft={
                 quote.delivery.to === "customer"

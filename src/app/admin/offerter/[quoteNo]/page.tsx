@@ -148,7 +148,14 @@ export default async function QuotePage({ params }: QuotePageProps) {
             <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>
               Villkor och hälsning
             </h2>
-            <QuoteTermsForm quoteNo={quote.quoteNo} project={quote.project} message={quote.message} validUntil={quote.validUntil} editable={editable} />
+            <QuoteTermsForm
+              quoteNo={quote.quoteNo}
+              project={quote.project}
+              message={quote.message}
+              validUntil={quote.validUntil}
+              customerPo={quote.customerPo ?? null}
+              editable={editable}
+            />
           </section>
         </div>
 

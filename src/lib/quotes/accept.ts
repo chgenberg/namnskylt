@@ -4,6 +4,7 @@ import { deliveryPhoneIssue, shippingMethodOf, type Delivery, type DeliveryAddre
 import { isOwner } from "@/lib/tenants/model";
 import { customerLabel } from "@/lib/notices/model";
 import { notify } from "@/lib/notices/notify";
+import { cleanCustomerPo } from "@/lib/orders/customer-po";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
 import { NO_CUSTOMER_ERROR, type StoredQuote } from "./model";
@@ -67,6 +68,8 @@ export async function acceptQuote(
   address: DeliveryAddress | null = null,
   /** Leveranssättet kunden valde när den godkände. Utelämnat = det som står på offerten. */
   method: ShippingMethod | null = null,
+  /** Inköpsnumret kunden skrev när den godkände. Utelämnat eller tomt = det som står på offerten. */
+  customerPo: string | null = null,
 ): Promise<AcceptResult> {
   const before = await getQuote(tenant, quoteNo);
   if (!before) return { ok: false, error: "Offerten finns inte" };
@@ -96,6 +99,8 @@ export async function acceptQuote(
       demo: quote.demo,
       badgeShot: quote.badgeShot,
       project: quote.project,
+      // Kundens eget nummer vid godkännandet gäller före det säljaren skrev på offerten.
+      customerPo: cleanCustomerPo(customerPo) ?? quote.customerPo ?? null,
       delivery,
       // Fler skyltar beställda från en order på ett kundkonto hamnar på samma konto.
       accountId: await reorderAccountId(quote.id),

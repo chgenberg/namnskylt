@@ -7,7 +7,7 @@ import { endPriceTable, resellerPriceTable } from "@/engine/price-model";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
 import type { Delivery } from "@/lib/orders/delivery";
 import { priceWithPricing } from "@/lib/orders/pricing";
-import { buildSupplierRequest, customerBuyer, dispatchProblems, requestBytes, supplierBuyer, type SupplierRequestInput } from "./request";
+import { buildSupplierRequest, customerBuyer, dispatchProblems, requestBytes, supplierBuyer, supplierOrderName, type SupplierRequestInput } from "./request";
 
 const PURCHASE = resellerPriceTable(DEFAULT_PRICE_MODEL);
 /** Slutkundens prislista: det kunden betalar på en direktorder. */
@@ -62,6 +62,20 @@ describe("ordern till verkstaden", () => {
     assert.equal(request.orderName, "Nya skyltar till receptionen");
     assert.deepEqual(request.buyer, { id: "exempelprofil", name: "Exempelprofil AB", orgNumber: "556000-0000", email: "order@example.se" });
     assert.deepEqual(request.customer, { name: "Anna Lind", email: "anna@example.se", company: "Hotell Exempel AB" });
+  });
+
+  it("beställarens inköpsnummer står i orderns märkning, som verkstadens faktura visar", () => {
+    const one = [named("Anna Lind", 10)];
+    // Verkstadens mottagare har inget eget fält för numret: deras "Ert ordernummer" är vårt ordernummer.
+    assert.equal(buildSupplierRequest(input(one, { customerPo: " 4500 012345 " })).orderName, "Nya skyltar till receptionen · Inköpsnr 4500 012345");
+    assert.equal(buildSupplierRequest(input(one, { project: null, customerPo: "PO-77" })).orderName, "Inköpsnr PO-77");
+    assert.equal(buildSupplierRequest(input(one, { project: null })).orderName, undefined);
+    assert.equal(buildSupplierRequest(input(one, { customerPo: "  " })).orderName, "Nya skyltar till receptionen");
+    // Märkningen får ha 120 tecken hos verkstaden. Projektets namn kortas, aldrig numret.
+    const long = supplierOrderName("P".repeat(120), "4500 012345");
+    assert.ok(long && long.length <= 120 && long.endsWith(" · Inköpsnr 4500 012345"), long ?? "saknas");
+    // Vårt ordernummer är fortfarande referensen.
+    assert.equal(buildSupplierRequest(input(one, { customerPo: "PO-77" })).orderRef, "NS-2001");
   });
 
   it("en återförsäljares kund får sakna e-post: ordern går att skicka, med kunden som referens", () => {

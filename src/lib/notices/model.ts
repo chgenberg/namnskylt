@@ -3,6 +3,11 @@
  * svarat på en offert eller ett korrektur, lagt en order själv, verkstaden har
  * skickat en order, eller ett företag har ansökt om konto. Det återförsäljaren
  * gör själv ger inget besked.
+ *
+ * namnskylt.com får dessutom ett besked om varje ny order på plattformen (beslut av
+ * ägaren 2026-11-20: mejl om ansökningar "och alla om orders" ska gå till adminens
+ * adresser): `reseller-order` för en order hos en återförsäljare, och `order-created`
+ * för en order som läggs i namnskylt.coms egen panel.
  */
 export const NOTICE_KINDS = [
   "quote-accepted",
@@ -12,6 +17,9 @@ export const NOTICE_KINDS = [
   "order-placed",
   "order-shipped",
   "application",
+  // Besked till namnskylt.com om varje ny order på plattformen (beslut av ägaren 2026-11-20):
+  "reseller-order",
+  "order-created",
 ] as const;
 export type NoticeKind = (typeof NOTICE_KINDS)[number];
 
@@ -32,7 +40,7 @@ export interface PanelNotice {
 }
 
 /** Det som pekar ut vilka besked en sida visar, så att de kan märkas som lästa när sidan öppnas. */
-export type NoticeTarget = { orderNo: string } | { quoteNo: string } | { kind: "application" } | { all: true };
+export type NoticeTarget = { orderNo: string } | { quoteNo: string } | { kind: "application" | "reseller-order" } | { all: true };
 
 export type NoticeTone = "good" | "warn" | "info";
 
@@ -92,6 +100,16 @@ export function noticeView(notice: PanelNotice): NoticeView {
         href: orderHref(notice.orderNo),
         tone: "good",
       };
+    case "reseller-order":
+      // En återförsäljares order öppnas inte under adminens Ordrar. Alla ordrar står under Tillverkning.
+      return {
+        title: `Ny order${notice.orderNo ? ` ${notice.orderNo}` : ""} hos ${notice.who}`,
+        detail: notice.detail,
+        href: "/admin/tillverkning",
+        tone: "info",
+      };
+    case "order-created":
+      return { title: `Ny order${notice.orderNo ? ` ${notice.orderNo}` : ""} till ${notice.who}`, detail: notice.detail, href: orderHref(notice.orderNo), tone: "info" };
     case "application":
       return {
         title: `${notice.who} har ansökt om att bli återförsäljare`,

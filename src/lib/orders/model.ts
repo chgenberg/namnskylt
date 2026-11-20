@@ -110,6 +110,8 @@ export interface StoredOrder {
   shopSlug: string | null;
   /** Återförsäljarens namn på beställningen, t.ex. "Nya skyltar till receptionen". */
   project: string | null;
+  /** Beställarens eget inköpsnummer, som ska stå på fakturan. `null` när inget angavs. */
+  customerPo: string | null;
   /** Återförsäljaren ordern tillhör. */
   resellerId: string;
   /** Demoorder — skickas aldrig till tillverkningen, inte heller om den beställs igen. */

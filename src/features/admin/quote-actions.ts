@@ -5,6 +5,7 @@ import { z } from "zod";
 import { siteOrigin } from "@/lib/http/origin";
 import { deliveryPhoneIssue, quoteDeliverySchema, type QuoteDelivery } from "@/lib/orders/delivery";
 import { DIRECT_PRICING_ERROR, isLineInvoiceable, pricingSchema, type Pricing } from "@/lib/orders/pricing";
+import { customerPoSchema } from "@/lib/orders/customer-po";
 import { quoteCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-customer";
 import { saveResellerDeliveryAddress } from "@/lib/orders/repository";
 import { acceptQuote } from "@/lib/quotes/accept";
@@ -49,13 +50,20 @@ const termsSchema = z.object({
   project: z.string().trim().max(120),
   message: z.string().trim().max(2000),
   validUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  /** Kundens eget inköpsnummer. Utelämnat = det som står på offerten rörs inte. */
+  customerPo: customerPoSchema,
 });
 
 export async function updateQuoteTermsAction(quoteNo: string, input: z.input<typeof termsSchema>): Promise<ActionResult> {
   const tenant = await requireReseller();
   try {
-    const { project, message, validUntil } = termsSchema.parse(input);
-    const ok = await updateQuote(tenant, quoteNoSchema.parse(quoteNo), { project: project || null, message: message || null, validUntil });
+    const { project, message, validUntil, customerPo } = termsSchema.parse(input);
+    const ok = await updateQuote(tenant, quoteNoSchema.parse(quoteNo), {
+      project: project || null,
+      message: message || null,
+      validUntil,
+      ...(customerPo !== undefined && { customerPo: customerPo || null }),
+    });
     return ok ? done() : { ok: false, error: "Offerten går inte att ändra längre" };
   } catch (error) {
     return fail(error, "Villkoren kunde inte sparas");

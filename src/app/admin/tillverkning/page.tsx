@@ -1,6 +1,8 @@
 import { DispatchQueue, type DispatchRow } from "@/features/admin/dispatch-queue";
 import { adminTenant } from "@/features/admin/guard";
+import { NoticesSeen } from "@/features/admin/notices-seen";
 import styles from "@/features/admin/admin.module.css";
+import { countUnreadNotices } from "@/lib/notices/repository";
 import { listOrdersForDispatch } from "@/lib/orders/repository";
 import { supplierApiConfigured } from "@/lib/supplier/client";
 import { dispatchStatus, partyFor } from "@/lib/supplier/dispatch";
@@ -21,9 +23,12 @@ export default async function DispatchPage() {
     rows.push({ ...row, status: dispatchStatus(row.order, await partyFor(row.order, sellers)) });
   }
   const connected = supplierApiConfigured();
+  // Beskeden om nya ordrar hos återförsäljarna leder hit, och är lästa när sidan har öppnats.
+  const unread = await countUnreadNotices(tenant, { kind: "reseller-order" });
 
   return (
     <>
+      {unread > 0 && <NoticesSeen target={{ kind: "reseller-order" }} />}
       <header className={styles.pageHead}>
         <div>
           <p className={styles.eyebrow}>Tillverkning</p>

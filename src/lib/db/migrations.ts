@@ -665,6 +665,15 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       create unique index customers_reseller_email on customers (reseller_id, email) where email <> '';
     `,
   },
+  {
+    // Beställarens eget inköpsnummer (besked av ägaren 2026-11-20). Det fylls i på offerten eller
+    // när ordern läggs, följer med från offert till order och står på verkstadens faktura.
+    id: "035_customer_po",
+    sql: `
+      alter table orders add column customer_po text;
+      alter table quotes add column customer_po text;
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

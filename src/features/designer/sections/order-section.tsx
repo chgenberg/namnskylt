@@ -40,6 +40,7 @@ import {
   type DeliveryOptions,
   type DeliveryTo,
 } from "@/lib/orders/delivery";
+import { CUSTOMER_PO_MAX } from "@/lib/orders/customer-po";
 import { marginOf } from "@/lib/orders/purchase";
 import type { CheckoutStep } from "@/lib/designer-stats/model";
 import type { CustomerType } from "@/lib/payments/model";
@@ -244,6 +245,8 @@ export function OrderSection({
   const picksCustomer = reseller?.customerId === null;
   const [target, setTarget] = useState<CustomerTarget>(() => firstTarget(reseller?.customers ?? []));
   const [customerError, setCustomerError] = useState<string | null>(null);
+  /** Beställarens eget inköpsnummer (besked av ägaren 2026-11-20). Det står på fakturan. */
+  const [customerPo, setCustomerPo] = useState("");
   /** Det registret fyllde i senast. Byts numret ersätts det som registret fyllde i, aldrig det som är skrivet för hand. */
   const autofilled = useRef<CompanyHit | null>(null);
   // Företagets namn och adress fylls i ur registret när organisationsnumret är skrivet (besked av
@@ -417,6 +420,7 @@ export function OrderSection({
           badges,
           badgeShot: captureShot?.() ?? undefined,
           project: context.project,
+          ...(customerPo.trim() && { customerPo: customerPo.trim() }),
           delivery: { to: deliverTo, address: delivery.address, method },
           // En tidigare order som öppnades för ändring: den nya ordern pekar tillbaka på den.
           ...(context.copy && { copyOf: context.copy.orderNo }),
@@ -457,6 +461,8 @@ export function OrderSection({
           shop: shop?.slug,
           delivery: delivery.address,
           shippingMethod: method,
+          // Bara ett företag faktureras, och har ett inköpsnummer att se igen på fakturan.
+          ...(!privateCustomer && customerPo.trim() && { customerPo: customerPo.trim() }),
           acceptedTerms: form.get("acceptedTerms") === "on",
           ...(privateCustomer && { visit: visitId?.() ?? undefined }),
           ...(offersAccount && newAccount.wanted && { account: { password: newAccount.password } }),
@@ -712,6 +718,20 @@ export function OrderSection({
               <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} phoneRequired={needsPhone(method)} />
               <p className={styles.specTitle}>Leveranssätt</p>
               <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} disabled={order.status === "sending"} />
+              {/* Hos en återförsäljare är det återförsäljarens eget nummer: verkstaden fakturerar återförsäljaren. */}
+              <label className="field">
+                <span className="visually-hidden">Inköpsnummer</span>
+                <input
+                  type="text"
+                  maxLength={CUSTOMER_PO_MAX}
+                  autoComplete="off"
+                  placeholder={reseller?.needsInvoiceDetails ? "Kundens inköpsnummer (valfritt)" : "Ert inköpsnummer (valfritt)"}
+                  value={customerPo}
+                  disabled={order.status === "sending"}
+                  onChange={(event) => setCustomerPo(event.target.value)}
+                  data-customer-po
+                />
+              </label>
               <OrderTotals label="Kundens pris" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} method={method} vat={false} />
             </div>
           )}
@@ -859,6 +879,22 @@ export function OrderSection({
                 onChange={(event) => setContact({ ...contact, email: event.target.value })}
               />
             </label>
+            {/* Kundens eget inköpsnummer, som står på fakturan. En privatperson betalar med kort och har inget. */}
+            {!privateCustomer && (
+              <label className="field">
+                <span className="visually-hidden">Ert inköpsnummer</span>
+                <input
+                  name="customerPo"
+                  type="text"
+                  maxLength={CUSTOMER_PO_MAX}
+                  autoComplete="off"
+                  placeholder="Ert inköpsnummer (valfritt)"
+                  value={customerPo}
+                  onChange={(event) => setCustomerPo(event.target.value)}
+                  data-customer-po
+                />
+              </label>
+            )}
             {offersAccount && <NewAccountField value={newAccount} onChange={setNewAccount} disabled={order.status === "sending"} />}
             <div className={styles.delivery}>
               <p className={styles.specTitle}>Leveransadress</p>

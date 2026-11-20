@@ -52,6 +52,13 @@ describe("det offerten säger, för både PDF:en och kundens offertsida", () => 
     assert.ok(!JSON.stringify(toSeller).includes("Hemliga gatan"));
   });
 
+  it("kundens inköpsnummer står bland raderna när det är ifyllt", () => {
+    assert.ok(!quoteInfoRows(draftQuote(base), seller).some((row) => row.label === "Inköpsnummer"));
+    const rows = quoteInfoRows(draftQuote({ ...base, customerPo: " 4500 012345 " }), seller);
+    assert.deepEqual(rows.find((row) => row.label === "Inköpsnummer")?.value, "4500 012345");
+    assert.ok(quoteHtml(draftQuote({ ...base, customerPo: "4500 012345" }), approxFonts, seller).includes('<p class="k">Inköpsnummer</p><p class="v">4500 012345</p>'));
+  });
+
   it("bilderna följer säljarens val: stor bild, vinklar med bildtext, eller inga alls", () => {
     const [gallery] = quoteGalleries(draftQuote(base));
     assert.ok(gallery);

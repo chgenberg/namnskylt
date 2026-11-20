@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
+import { customerPoSchema } from "@/lib/orders/customer-po";
 import { defaultQuoteDelivery } from "@/lib/orders/delivery-options";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { quoteCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-customer";
@@ -43,6 +44,8 @@ const requestSchema = z.object({
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
   badgeShot: badgeShotUploadSchema,
   project: z.string().trim().max(120).optional(),
+  /** Kundens eget inköpsnummer, när säljaren redan har det. */
+  customerPo: customerPoSchema,
   /** Hälsningen överst på offerten. */
   message: z.string().trim().max(2000).optional(),
   /** Sista giltiga dag, `YYYY-MM-DD`. Utelämnad = 30 dagar. */
@@ -120,6 +123,7 @@ export async function POST(request: Request) {
       demo,
       badgeShot: await normalizeBadgeShot(parsed.data.badgeShot),
       project: parsed.data.project || null,
+      customerPo: parsed.data.customerPo ?? null,
       // Utan kund finns ingen känd adress: leveransen fylls i när kunden är vald.
       delivery: customer ? await defaultQuoteDelivery(tenant, customer) : { to: "customer", address: null },
       message: parsed.data.message || null,

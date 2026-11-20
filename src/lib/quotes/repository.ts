@@ -10,6 +10,7 @@ import { parseQuoteDelivery, quoteDeliverySchema, shippingMethodOf, type QuoteDe
 import { isCustomPricing, parsePricing, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
 import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "@/lib/orders/price-lists";
 import { getPriceModel } from "@/lib/orders/repository";
+import { cleanCustomerPo } from "@/lib/orders/customer-po";
 import { UNASSIGNED_CUSTOMER_EMAIL, isUnassignedCustomer } from "@/lib/orders/unassigned-customer";
 import {
   addDays,
@@ -59,6 +60,7 @@ interface QuoteRow {
   events: { status: string; note: string | null; at: string }[] | null;
   badge_shot: string | null;
   project: string | null;
+  customer_po: string | null;
   reseller_id: string;
   delivery: unknown;
   options: unknown;
@@ -77,6 +79,7 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
     id: row.id,
     badgeShot: row.badge_shot,
     project: row.project,
+    customerPo: row.customer_po,
     resellerId: row.reseller_id,
     quoteNo: row.quote_no,
     customer: noCustomer
@@ -118,7 +121,7 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
 /** Stillbilden är den tunga kolumnen — listan klarar sig utan. */
 function selectQuotes(sql: Sql, withShot = false) {
   return sql`
-    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, ${withShot ? sql`q.shots` : sql`null::jsonb`} as shots, q.project, q.reseller_id, q.delivery, q.options, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
+    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, ${withShot ? sql`q.shots` : sql`null::jsonb`} as shots, q.project, q.customer_po, q.reseller_id, q.delivery, q.options, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
            to_char(q.valid_until, 'YYYY-MM-DD') as valid_until, q.token, q.decline_reason, q.is_demo,
            q.created_at, q.sent_at, q.emailed_at, q.decided_at, o.order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email,
@@ -178,6 +181,8 @@ export async function createQuote(input: {
   demo: boolean;
   badgeShot?: string | null;
   project?: string | null;
+  /** Kundens eget inköpsnummer, när säljaren redan har det. */
+  customerPo?: string | null;
   /** Utelämnad = till kunden, som fyller i adressen när offerten godkänns. */
   delivery?: QuoteDelivery | null;
   /** Egna priser redan från början, till exempel butikens priser eller kundens rabatt. Utelämnad = listpris. */
@@ -221,13 +226,14 @@ export async function createQuote(input: {
     // Kunden måste tillhöra samma återförsäljare — annars skapas ingen offert.
     const [row] = await tx<{ id: string; quote_no: string }[]>`
       insert into quotes (reseller_id, customer_id, badges, price_model, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project,
-                          delivery, pricing, reorder_of, status, sent_at, message, options, shots)
+                          delivery, pricing, reorder_of, status, sent_at, message, options, shots, customer_po)
       select ${input.tenant}, ${input.customerId}, ${tx.json(badges as unknown as Json)}, ${tx.json(model as unknown as Json)}, ${price.totalSek},
              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null}, ${input.project ?? null},
              ${input.delivery ? tx.json(input.delivery as unknown as Json) : null},
              ${pricing ? tx.json(pricing as unknown as Json) : null}, ${input.reorderOf?.orderId ?? null},
              ${waiting ? "sent" : "draft"}, ${waiting ? tx`now()` : null}, ${input.message || null},
-             ${options ? tx.json(options as unknown as Json) : null}, ${shots ? tx.json(shots as unknown as Json) : null}
+             ${options ? tx.json(options as unknown as Json) : null}, ${shots ? tx.json(shots as unknown as Json) : null},
+             ${cleanCustomerPo(input.customerPo)}
        where exists (select 1 from customers where id = ${input.customerId} and reseller_id = ${input.tenant})
       returning id, quote_no`;
     if (!row) throw new Error("Offerten kunde inte sparas");
@@ -276,7 +282,7 @@ export async function assignQuoteCustomer(tenant: string, quoteNo: string, custo
 export async function updateQuote(
   tenant: string,
   quoteNo: string,
-  patch: { pricing?: Pricing; message?: string | null; validUntil?: string; project?: string | null },
+  patch: { pricing?: Pricing; message?: string | null; validUntil?: string; project?: string | null; customerPo?: string | null },
 ): Promise<boolean> {
   const sql = requireDb();
   const currentModel = await getPriceModel();
@@ -296,6 +302,7 @@ export async function updateQuote(
              message = ${patch.message === undefined ? tx`message` : patch.message},
              valid_until = ${patch.validUntil ?? tx`valid_until`},
              project = ${patch.project === undefined ? tx`project` : patch.project},
+             customer_po = ${patch.customerPo === undefined ? tx`customer_po` : cleanCustomerPo(patch.customerPo)},
              status = ${status}
        where id = ${row.id}`;
     if (patch.pricing !== undefined) {

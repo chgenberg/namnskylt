@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { formatDate, formatSek } from "@/lib/format";
+import { CUSTOMER_PO_MAX } from "@/lib/orders/customer-po";
 import {
   acceptQuoteForCustomerAction,
   cancelQuoteAction,
@@ -17,16 +18,19 @@ interface TermsFormProps {
   project: string | null;
   message: string | null;
   validUntil: string;
+  /** Kundens eget inköpsnummer, som följer med till ordern och står på fakturan. */
+  customerPo: string | null;
   editable: boolean;
 }
 
-export function QuoteTermsForm({ quoteNo, project, message, validUntil, editable }: TermsFormProps) {
+export function QuoteTermsForm({ quoteNo, project, message, validUntil, customerPo, editable }: TermsFormProps) {
   const [title, setTitle] = useState(project ?? "");
   const [text, setText] = useState(message ?? "");
   const [until, setUntil] = useState(validUntil);
+  const [po, setPo] = useState(customerPo ?? "");
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  const dirty = title !== (project ?? "") || text !== (message ?? "") || until !== validUntil;
+  const dirty = title !== (project ?? "") || text !== (message ?? "") || until !== validUntil || po !== (customerPo ?? "");
 
   return (
     <form
@@ -35,7 +39,7 @@ export function QuoteTermsForm({ quoteNo, project, message, validUntil, editable
         event.preventDefault();
         setNote(null);
         startTransition(async () => {
-          const result = await updateQuoteTermsAction(quoteNo, { project: title, message: text, validUntil: until });
+          const result = await updateQuoteTermsAction(quoteNo, { project: title, message: text, validUntil: until, customerPo: po });
           setNote(result.ok ? { ok: true, text: "Sparat" } : { ok: false, text: result.error });
         });
       }}
@@ -62,6 +66,10 @@ export function QuoteTermsForm({ quoteNo, project, message, validUntil, editable
           placeholder="Hej! Här kommer offerten på namnskyltar till ert team, som vi pratade om."
           onChange={(e) => setText(e.target.value)}
         />
+      </label>
+      <label className={styles.formRow}>
+        <span className={styles.formLabel}>Kundens inköpsnummer (står på offerten och följer med till fakturan)</span>
+        <input className={styles.input} maxLength={CUSTOMER_PO_MAX} disabled={!editable} value={po} placeholder="Valfritt" onChange={(e) => setPo(e.target.value)} />
       </label>
       <label className={styles.formRow}>
         <span className={styles.formLabel}>Giltig till och med</span>

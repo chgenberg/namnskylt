@@ -1,6 +1,6 @@
 import "server-only";
 import { emailMode } from "@/lib/email";
-import { noticeEmailSettings } from "@/lib/notices/email";
+import { adminNoticeEmailSettings, noticeEmailSettings } from "@/lib/notices/email";
 import { paymentsConfigured } from "@/lib/payments/stripe";
 import { quoteEmailOn } from "@/lib/quotes/send";
 import { supplierApiConfigured } from "@/lib/supplier/client";
@@ -48,6 +48,7 @@ export async function getOpsStatus(): Promise<OpsStatus> {
   const noticeMail = noticeEmailSettings() !== null;
   const cardPayments = paymentsConfigured();
   const quoteMail = quoteEmailOn();
+  const adminMail = adminNoticeEmailSettings();
   const [runs, retry, logged] = await Promise.all([jobRuns(), dispatchRetryOverview(), listServerErrors(ERRORS_SHOWN)]);
   return {
     switches: [
@@ -64,6 +65,13 @@ export async function getOpsStatus(): Promise<OpsStatus> {
         text: quoteMail
           ? "En offert mejlas till kunden när den skickas, via Skylt & Gravyrtekniks Resend."
           : "Offerter mejlas inte härifrån. Säljaren skickar länken själv.",
+      },
+      {
+        label: "Adminens besked som mejl",
+        on: adminMail !== null,
+        text: adminMail
+          ? `Besked till namnskylt.coms panel, som en ny ansökan från en återförsäljare, mejlas till ${adminMail.recipients.length === 1 ? "en adress" : `${adminMail.recipients.length} adresser`}.`
+          : "Adminens besked syns bara i panelen.",
       },
       {
         label: "Mejl",

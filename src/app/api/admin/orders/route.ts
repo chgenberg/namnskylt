@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_ORDER_BADGES, badgeDocumentSchema } from "@/engine";
 import { deliveryPhoneIssue, deliverySchema } from "@/lib/orders/delivery";
+import { customerPoSchema } from "@/lib/orders/customer-po";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { orderCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-customer";
 import { placeOrder } from "@/lib/orders/place-order";
@@ -17,6 +18,8 @@ const requestSchema = z.object({
   badges: z.array(badgeDocumentSchema).min(1).max(MAX_ORDER_BADGES),
   badgeShot: badgeShotUploadSchema,
   project: z.string().trim().max(120).optional(),
+  /** Beställarens eget inköpsnummer, som ska stå på fakturan. */
+  customerPo: customerPoSchema,
   delivery: deliverySchema,
   /** Ordern som öppnades för ändring i skyltmotorn ("Beställ igen" med andra namn eller antal). */
   copyOf: z.string().regex(/^NS-\d{1,9}$/).optional(),
@@ -58,6 +61,7 @@ export async function POST(request: Request) {
       demo: customer.demo,
       badgeShot: await normalizeBadgeShot(parsed.data.badgeShot),
       project: parsed.data.project || null,
+      customerPo: parsed.data.customerPo ?? null,
       delivery: parsed.data.delivery,
     });
     // Nästa gång skyltarna ska "till oss" är adressen redan ifylld.

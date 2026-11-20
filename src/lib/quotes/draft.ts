@@ -18,6 +18,8 @@ export interface QuoteDraftInput {
   /** Frakten, när den är känd. */
   shippingSek: number | null;
   customer: DraftCustomer | null;
+  /** Kundens eget inköpsnummer, när säljaren har fyllt i det. */
+  customerPo?: string;
   /** Offerten sparas som utkast, utan kund: dokumentet ritas då utan kundens rader. */
   noCustomer?: boolean;
   project: string;
@@ -58,6 +60,7 @@ export function draftQuote(input: QuoteDraftInput): StoredQuote {
     id: "draft",
     badgeShot: input.badgeShot,
     project: text(input.project),
+    customerPo: text(input.customerPo ?? ""),
     resellerId: "",
     quoteNo: DRAFT_QUOTE_NO,
     customer: {

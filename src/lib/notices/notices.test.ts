@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { composeNoticeEmail, noticeEmailSettings } from "./email";
+import { adminNoticeEmailSettings, composeNoticeEmail, noticeEmailSettings } from "./email";
 import { badgeCountLabel, customerLabel, isNoticeKind, noticeView, NOTICE_KINDS, type PanelNotice } from "./model";
 
 const base: PanelNotice = {
@@ -66,7 +66,8 @@ describe("beskedets text", () => {
   test("varje slag har en text och en sida i panelen", () => {
     for (const kind of NOTICE_KINDS) {
       const view = noticeView({ ...base, kind });
-      assert.ok(view.title.startsWith("Exempel AB "), kind);
+      // Beskeden om en ny order börjar med ordern och nämner sedan vem det gäller.
+      assert.ok(view.title.includes("Exempel AB"), kind);
       assert.ok(view.href.startsWith("/admin"), kind);
     }
   });
@@ -137,5 +138,75 @@ describe("mejl om besked", () => {
     assert.ok(settings);
     const email = composeNoticeEmail({ ...base, who: "Exempel AB\r\nBcc: x@y.se" }, "anna@exempel.se", settings);
     assert.doesNotMatch(email.subject, /[\r\n]/);
+  });
+});
+
+describe("adminens besked som mejl", () => {
+  const on = {
+    ADMIN_NOTICE_RESEND_API_KEY: "re_admin",
+    ADMIN_NOTICE_FROM_EMAIL: "namnskylt.com <besked@exempel.se>",
+    ADMIN_NOTICE_TO: "Ett@Exempel.se, tva@exempel.se",
+  };
+
+  test("har sin egen strömbrytare: alla tre variablerna krävs", () => {
+    assert.equal(adminNoticeEmailSettings({}), null);
+    for (const missing of Object.keys(on)) assert.equal(adminNoticeEmailSettings({ ...on, [missing]: " " }), null, missing);
+    assert.deepEqual(adminNoticeEmailSettings(on), {
+      apiKey: "re_admin",
+      from: "namnskylt.com <besked@exempel.se>",
+      replyTo: "besked@exempel.se",
+      origin: "https://www.namnskylt.com",
+      recipients: ["ett@exempel.se", "tva@exempel.se"],
+      apiUrl: null,
+    });
+  });
+
+  test("slås inte på av sajtens övriga mejl, och slår inte på dem", () => {
+    // Den vanliga nyckeln och avsändaren räcker inte för adminens besked.
+    assert.equal(adminNoticeEmailSettings({ RESEND_API_KEY: "re_x", NOTICE_FROM_EMAIL: "namnskylt.com <besked@exempel.se>", ADMIN_NOTICE_TO: on.ADMIN_NOTICE_TO }), null);
+    // Och adminens strömbrytare öppnar inte återförsäljarnas besked eller kundens mejl.
+    assert.equal(noticeEmailSettings(on), null);
+  });
+
+  test("nödstoppet stänger av det", () => {
+    assert.equal(adminNoticeEmailSettings({ ...on, OUTREACH_DISABLED: "true" }), null);
+  });
+
+  test("en mottagare som inte är en adress stänger av det, hellre än att bara en del får mejlet", () => {
+    assert.equal(adminNoticeEmailSettings({ ...on, ADMIN_NOTICE_TO: "ett@exempel.se, inte-en-adress" }), null);
+    assert.equal(adminNoticeEmailSettings({ ...on, ADMIN_NOTICE_TO: Array.from({ length: 6 }, (_, i) => `m${i}@exempel.se`).join(",") }), null);
+    // Samma adress två gånger får ett mejl.
+    assert.deepEqual(adminNoticeEmailSettings({ ...on, ADMIN_NOTICE_TO: "ett@exempel.se; ETT@exempel.se" })?.recipients, ["ett@exempel.se"]);
+  });
+
+  test("låtsasmottagaren för prov får bara ligga på samma dator", () => {
+    assert.equal(adminNoticeEmailSettings({ ...on, ADMIN_NOTICE_RESEND_API_URL: "http://localhost:3998/emails" })?.apiUrl, "http://localhost:3998/emails");
+    assert.equal(adminNoticeEmailSettings({ ...on, ADMIN_NOTICE_RESEND_API_URL: "https://exempel.se/emails" }), null);
+  });
+});
+
+describe("besked till namnskylt.com om varje ny order", () => {
+  const base: PanelNotice = { id: "1", kind: "reseller-order", who: "Exempel Profil AB", detail: "3 skyltar", quoteNo: null, orderNo: "NS-2001", createdAt: "2026-11-20T10:00:00Z" };
+
+  test("en order hos en återförsäljare nämner återförsäljaren och leder till Tillverkning, där alla ordrar står", () => {
+    assert.deepEqual(noticeView(base), { title: "Ny order NS-2001 hos Exempel Profil AB", detail: "3 skyltar", href: "/admin/tillverkning", tone: "info" });
+  });
+
+  test("en order i namnskylt.coms egen panel nämner kunden och leder till ordern", () => {
+    assert.deepEqual(noticeView({ ...base, kind: "order-created", who: "Kund AB" }), {
+      title: "Ny order NS-2001 till Kund AB",
+      detail: "3 skyltar",
+      href: "/admin/ordrar/NS-2001",
+      tone: "info",
+    });
+  });
+
+  test("de nya beskeden är giltiga, och mejlet säger samma sak som panelen", () => {
+    assert.ok(isNoticeKind("reseller-order") && isNoticeKind("order-created"));
+    const settings = adminNoticeEmailSettings({ ADMIN_NOTICE_RESEND_API_KEY: "re_admin", ADMIN_NOTICE_FROM_EMAIL: "besked@exempel.se", ADMIN_NOTICE_TO: "ett@exempel.se" });
+    assert.ok(settings);
+    const mail = composeNoticeEmail(base, "ett@exempel.se", settings);
+    assert.equal(mail.subject, "Ny order NS-2001 hos Exempel Profil AB");
+    assert.match(mail.text, /https:\/\/www\.namnskylt\.com\/admin\/tillverkning/);
   });
 });

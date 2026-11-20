@@ -115,6 +115,8 @@ const shotKey = (doc: BadgeDocument) => JSON.stringify({ ...doc, quantity: 1 });
 export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot, onSaved }: UseQuoteInput) {
   const [target, setTarget] = useState<CustomerTarget>(() => firstTarget(reseller?.customers ?? []));
   const [project, setProject] = useState(reseller?.project ?? "");
+  /** Kundens eget inköpsnummer, när säljaren redan har det. Kunden kan annars fylla i det när offerten godkänns. */
+  const [customerPo, setCustomerPo] = useState("");
   const [message, setMessage] = useState("");
   const [closing, setClosing] = useState("");
   const [validUntil, setValidUntil] = useState(() => addDays(swedishDay(new Date()), QUOTE_VALID_DAYS));
@@ -180,9 +182,9 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
   const draft = useMemo(
     () =>
       active && seller && badges.length > 0
-        ? draftQuote({ badges, priceList, shippingSek, customer, noCustomer, project, message: greeting, validUntil, options, badgeShot, shots: quoteShots, pricing, now: new Date() })
+        ? draftQuote({ badges, priceList, shippingSek, customer, customerPo, noCustomer, project, message: greeting, validUntil, options, badgeShot, shots: quoteShots, pricing, now: new Date() })
         : null,
-    [active, seller, badges, priceList, shippingSek, customer, noCustomer, project, greeting, validUntil, options, badgeShot, quoteShots, pricing],
+    [active, seller, badges, priceList, shippingSek, customer, customerPo, noCustomer, project, greeting, validUntil, options, badgeShot, quoteShots, pricing],
   );
   // Marginalen räknas på varorna, utan frakt, som överallt annars.
   const margin = useMemo<QuoteMargin | undefined>(() => {
@@ -291,6 +293,7 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
           badges,
           badgeShot: badgeShot ?? undefined,
           project: project.trim() || undefined,
+          customerPo: customerPo.trim() || undefined,
           message: greeting.trim() || undefined,
           validUntil,
           options,
@@ -319,6 +322,7 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
     setFilms({});
     setMarginPercent(null);
     setProject(reseller?.project ?? "");
+    setCustomerPo("");
     setMessage("");
     setClosing("");
     setElements(FIRST_ELEMENTS);
@@ -334,6 +338,8 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
     setTarget,
     project,
     setProject,
+    customerPo,
+    setCustomerPo,
     validUntil,
     setValidUntil,
     elements,

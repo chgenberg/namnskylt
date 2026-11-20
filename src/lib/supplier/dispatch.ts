@@ -85,6 +85,7 @@ export async function supplierRequestFor(order: StoredOrder, party: DispatchPart
   return buildSupplierRequest({
     orderNo: order.orderNo,
     project: order.project,
+    customerPo: order.customerPo,
     customer: order.customer,
     buyer: party.buyer,
     delivery: order.delivery,

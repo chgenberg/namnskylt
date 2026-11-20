@@ -9,7 +9,7 @@ import { requireReseller } from "@/lib/reseller-auth/session";
 const targetSchema = z.union([
   z.strictObject({ orderNo: z.string().regex(/^NS-\d{1,9}$/) }),
   z.strictObject({ quoteNo: z.string().regex(/^OF-\d{1,9}$/) }),
-  z.strictObject({ kind: z.literal("application") }),
+  z.strictObject({ kind: z.enum(["application", "reseller-order"]) }),
   z.strictObject({ all: z.literal(true) }),
 ]) satisfies z.ZodType<NoticeTarget>;
 

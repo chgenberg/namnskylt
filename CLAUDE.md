@@ -30,6 +30,13 @@ Läs dessa när du arbetar i respektive område:
     ägarens begäran. Ändra dem inte och ta inte bort dem utan att ägaren säger till, och lägg
     aldrig offertmejlets nyckel i `RESEND_API_KEY`: då slås övriga mejl och utskicket på. Se
     avsnittet Offertmejlet.
+  - **Det andra undantaget är adminens besked som mejl**, som ägaren bad om och slog på
+    2026-11-20: ett mejl till adminens adresser när ett företag ansöker om att bli
+    återförsäljare och vid varje ny order. Det har sin egen strömbrytare,
+    `ADMIN_NOTICE_RESEND_API_KEY`, `ADMIN_NOTICE_FROM_EMAIL` och `ADMIN_NOTICE_TO`, satta på
+    Railway på ägarens begäran. Ändra dem inte och ta inte bort dem utan att ägaren säger
+    till. **Mottagarnas adresser står bara i `ADMIN_NOTICE_TO` på Railway: skriv dem aldrig i
+    koden, i den här filen eller i en commit.** Se avsnittet Besked.
 - **Slå aldrig på kortbetalningen.** `STRIPE_SECRET_KEY` och `STRIPE_WEBHOOK_SECRET` ska vara
   tomma i driften tills användaren har ett Stripe-konto och säger till. Med dem satta betalar
   privatpersoner med kort på riktigt. Se avsnittet Kassan, betalning och köpvillkor.
@@ -61,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1366 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1388 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -727,7 +734,9 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     pengar: fråga först.
   - De äldre skyltbilderna från fotoläget (`<exempel>-badge.jpg`) används inte längre men
     ligger kvar i `public/inspiration/`, som bilderna för de fyra borttagna exemplen.
-  - Provat lokalt 2026-11-20 i Chrome, på dator och på 390 och 320 px. Inte provat i drift.
+  - Provat lokalt 2026-11-20 i Chrome, på dator och på 390 och 320 px, och kontrollerat i
+    drift samma dag efter pushen (`bc007f1`): fyra exempel under varandra, alla bilder laddas,
+    och "Gör en liknande" öppnar exemplets skylt.
 - **Preliminärt tills verkstaden bekräftat:**
   - Metallämnenas mått och tjocklek är verkstadens egna sedan 2026-11-17. Uppskattade är
     fortfarande rektanglarnas hörnrundning (3 och 2 mm) och TV-brickans form.
@@ -2023,6 +2032,49 @@ som syns i panelen. Det återförsäljaren gör själv ger inget besked.
 - Kända brister: lästa besked visas ingenstans (historiken står i orderns och offertens
   tidslinje) och tas aldrig bort.
 
+### Adminens besked som mejl — läge 2026-11-20
+
+Beskeden till namnskylt.coms egen panel mejlas till adminens adresser (besked av ägaren
+2026-11-20: "När vi får en förfrågan för en registrering av ny återförsäljare så måste vi
+godkänna eller neka i admin dashboard. Ett mejl kring detta och alla om orders osv." ska gå
+till två adresser). Koden ligger i `adminNoticeEmailSettings` (`src/lib/notices/email.ts`)
+och `emailAdminNotice` (`notify.ts`).
+
+- **Egen strömbrytare**, skild från `RESEND_API_KEY` och `NOTICE_FROM_EMAIL`, som
+  offertmejlets: `ADMIN_NOTICE_RESEND_API_KEY`, `ADMIN_NOTICE_FROM_EMAIL` och
+  `ADMIN_NOTICE_TO` (adresser med komma emellan, högst fem). Alla tre krävs. Med dem satta
+  mejlas bara besked till hyresgästen `namnskylt`. Återförsäljarnas besked, kundens
+  orderbekräftelse, fraktbeskedet, lösenordslänken och utskicket är fortfarande avstängda.
+  Nödstoppet `OUTREACH_DISABLED=true` stänger av även det här.
+- **Mejlen går via Skylt & Gravyrtekniks Resend-konto**, samma konto som offertmejlet
+  (ägarens val 2026-11-20: "Samma konto, slå på nu"). Nyckeln i
+  `ADMIN_NOTICE_RESEND_API_KEY` har samma värde som offertmejlets, och avsändaren är
+  `namnskylt.com <besked@skyltochgravyr.com>`. Adressen valde jag: domänen är den som är
+  bekräftad i deras Resend.
+- **Varje mottagare får sitt eget mejl**, med en egen nyckel hos Resend
+  (`notice:<id>:<adress>`). Med samma nyckel hade det andra mejlet räknats som en upprepning
+  av det första och aldrig skickats.
+- **Det som mejlas** (ägarens val: "Ansökningar och alla ordrar"):
+  - en ny ansökan från en återförsäljare,
+  - varje ny order på plattformen. Två nya slag av besked bär det (`notifyOwner` i
+    `place-order.ts`): `reseller-order` för en order hos en återförsäljare, som nämner
+    återförsäljaren och inte dess kund och leder till Tillverkning, och `order-created` för
+    en order som läggs i namnskylt.coms egen panel. En order som kunden själv lägger hos
+    namnskylt.com hade redan sitt besked (`order-placed`). Demoordrar ger inget besked,
+  - de besked namnskylt.com redan fick: svar på egna offerter och korrektur, och när
+    verkstaden har skickat.
+- Beskeden om återförsäljarnas ordrar är lästa när Tillverkning har öppnats
+  (`NoticesSeen` med `kind: "reseller-order"`).
+- Driftsidan visar strömbrytaren "Adminens besked som mejl", med antalet adresser men aldrig
+  adresserna.
+- `ADMIN_NOTICE_RESEND_API_URL` är bara till för prov på datorn: en låtsasmottagare i
+  stället för Resend, och bara på samma dator.
+- Provat lokalt 2026-11-20 mot en låtsasmottagare: en ansökan och en återförsäljares order
+  gav var sitt mejl till två adresser, och inga andra mejl gick iväg.
+- Kända brister: går ett mejl inte iväg görs inget nytt försök, och det syns bara i
+  serverns logg. Beskedet står ändå i panelen. Adminens två inloggade delar på samma panel,
+  så ett besked som den ena har öppnat är läst också för den andra.
+
 ## Mejl från sajten — läge 2026-11-15
 
 **Sajten ska inte skicka egna mejl** (besked av ägaren 2026-11-17: "vi ska inte ha någonting
@@ -2267,6 +2319,45 @@ kontaktar"). Deras uppgifter ligger i `WORKSHOP_COMPANY` (`src/lib/company/works
     och menyn flyttar sig.
   - Skyltmotorn, villkoren, integritetssidan, inloggningen och kontot har kvar den raka
     menyn över hela bredden. Skyltmotorn och panelen räknar sin höjd på den.
+
+## Inköpsnummer — läge 2026-11-20
+
+Beställaren kan ange sitt eget inköpsnummer, som följer ordern och står på fakturan (besked av
+ägaren 2026-11-20: "en kund oavsett ÅF eller slutkund kommer vilja kunna lägga in eget
+inköpsnummer"). Fältet är frivilligt, fri text på högst 40 tecken, och heter "Inköpsnummer".
+Reglerna ligger i `src/lib/orders/customer-po.ts`, och numret sparas i `orders.customer_po` och
+`quotes.customer_po` (migrering 035).
+
+- **Var det fylls i:**
+  - kundens kassa i varukorgen ("Ert inköpsnummer (valfritt)"), bara för företag,
+  - säljarens leveranssteg när en order läggs i varukorgen: hos en återförsäljare är det
+    återförsäljarens eget nummer, eftersom verkstaden fakturerar återförsäljaren, och hos
+    namnskylt.com kundens,
+  - offertvyn i skyltmotorn och "Villkor och hälsning" på offertens sida i panelen,
+  - kundens svarsruta när en offert godkänns. Det kunden skriver där gäller före det säljaren
+    skrev på offerten (`acceptQuote`).
+- **Var det syns:** bland kundens rader på offerten, i PDF:en och på kundens offertsida
+  (`quoteInfoRows`), under Detaljer på orderns sida i panelen, på kundens ordersida, och sist
+  på varje rad i orderlistans CSV och fakturaunderlaget. Orderlistans sökning hittar numret.
+- **Ett nummer per order.** Det är numret från den som lägger ordern. Godkänner en
+  återförsäljares kund en offert och skriver sitt nummer, följer det numret med till
+  verkstadens faktura till återförsäljaren, som en märkning. Två skilda nummer, kundens och
+  återförsäljarens, går inte att ange. Det valde jag, för att hålla det till ett fält.
+- **Verkstaden får numret i orderns märkning** (`supplierOrderName` i `request.ts`):
+  "Projektets namn · Inköpsnr 4500 012345", högst 120 tecken, där projektets namn kortas och
+  aldrig numret. Verkstadens mottagare har inget eget fält för beställarens inköpsnummer: deras
+  "Ert ordernummer" (`customerPo`) är vårt ordernummer. Märkningen står på deras orderpapper
+  och på fakturan som "Märkning: …" (läst i deras kod 2026-11-20, `fortnoxOrderRefs`, inget
+  ändrat där). **Ska kundens nummer stå som "Ert ordernummer" på fakturan behöver deras
+  mottagare ändras**, vilket kräver ägarens ja.
+- "Beställ igen", "Ny personal" och en order från en mall ärver inte numret: varje inköp har
+  sitt eget. De tre vägarna har inget fält för det.
+- En order som redan har gått till verkstaden får inte ett nytt nummer dit: numret går inte
+  att ändra på en order i panelen, bara på en offert.
+- Provat lokalt 2026-11-20 utan kopplingen till verkstaden (12 kontroller): kundens kassa,
+  kundens ordersida, panelen, sökningen, underlaget till verkstaden, offertvyn, PDF:en och
+  kundens godkännande med ett ändrat nummer. Inte provat i drift, och ingen order med ett
+  inköpsnummer har gått till verkstaden.
 
 ## Kundens ordersida — läge 2026-11-15
 
@@ -2844,6 +2935,8 @@ Luckor i kontraktet:
   släpper igenom den för våra ordrar.
 - Fästet skickas som text i stället för artikelkod. Deras mottagare lägger det i kommentaren
   till produktionen.
+- Beställarens eget inköpsnummer har inget fält i deras mottagare. Vi skickar det i orderns
+  märkning (`orderName`), se avsnittet Inköpsnummer. Deras `customerPo` är vårt ordernummer.
 - Deras text- och ramlager har inget läge för print. Vi går runt det med ett trycklager av
   banor, så personalen kan inte ändra ett printat namn hos sig. Med ett tryckläge på deras
   textlager kunde namnet skickas som text igen.

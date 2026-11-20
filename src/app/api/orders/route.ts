@@ -11,6 +11,7 @@ import { ACCOUNT_EXISTS_ERROR, customerPasswordSchema, profileAfterOrder, EMPTY_
 import { currentCustomer, signInCustomer, type CustomerCookie } from "@/lib/customer-auth/session";
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
 import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages } from "@/lib/logo-images/repository";
+import { customerPoSchema } from "@/lib/orders/customer-po";
 import { deliveryAddressSchema, deliveryPhoneIssue, shippingMethodSchema } from "@/lib/orders/delivery";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { splitByProducer } from "@/lib/orders/partner";
@@ -42,6 +43,8 @@ const orderRequestSchema = z.object({
   delivery: deliveryAddressSchema,
   /** Leveranssättet kunden valde i kassan. Utelämnat = standardfrakt. */
   shippingMethod: shippingMethodSchema.optional(),
+  /** Kundens eget inköpsnummer, som ska stå på fakturan. */
+  customerPo: customerPoSchema,
   /** Kunden har kryssat i att köpvillkoren gäller. */
   acceptedTerms: z.literal(true, "Godkänn köpvillkoren för att beställa"),
   /** Besökets slumpade id i skyltmotorns statistik. Följer med kortbetalningen, så att den betalda ordern räknas till besöket. */
@@ -58,7 +61,7 @@ const orderRequestSchema = z.object({
 const newAccounts = createRateLimiter({ limit: 10, windowMs: 60 * 60 * 1000 });
 
 /** Fälten vars fel är skrivna för kunden som fyller i formuläret. */
-const CUSTOMER_FACING = new Set(["delivery", "acceptedTerms", "account"]);
+const CUSTOMER_FACING = new Set(["delivery", "acceptedTerms", "account", "customerPo"]);
 
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
 
@@ -120,6 +123,7 @@ export async function POST(request: Request) {
           badgeShot: await normalizeBadgeShot(badgeShot),
           visit: visit ?? null,
           accountId: signedIn?.id ?? null,
+          customerPo: parsed.data.customerPo ?? null,
         },
         priceModel,
       );
@@ -159,6 +163,7 @@ export async function POST(request: Request) {
       delivery: orderDelivery,
       badgeShot: await normalizeBadgeShot(badgeShot),
       accountId: signedIn?.id ?? null,
+      customerPo: parsed.data.customerPo ?? null,
     });
 
     // Kontot får det kunden just fyllde i, så att kassan är ifylld nästa gång. Ordern är redan lagd:

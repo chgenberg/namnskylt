@@ -139,6 +139,12 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
             </dd>
             <dt>Betalning</dt>
             <dd>{paymentLabel(order.payment)}</dd>
+            {order.customerPo && (
+              <>
+                <dt>Ert inköpsnummer</dt>
+                <dd>{order.customerPo}</dd>
+              </>
+            )}
           </dl>
           {order.delivery && (
             <p className={styles.deliveryNote}>

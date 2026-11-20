@@ -6,6 +6,7 @@ import { DeliveryFields } from "@/components/delivery-fields";
 import { ShippingMethodPicker } from "@/components/shipping-method-picker";
 import type { ShippingMethod } from "@/engine";
 import { formatSek } from "@/lib/format";
+import { CUSTOMER_PO_MAX } from "@/lib/orders/customer-po";
 import { needsPhone, shippingAddressFromDraft, type DeliveryDraft } from "@/lib/orders/delivery";
 import type { QuoteAnswer } from "@/lib/quotes/quote-email";
 import { decideQuoteAction } from "./actions";
@@ -32,6 +33,8 @@ interface QuoteDecisionProps {
   shippingOptions?: readonly QuoteShippingOption[];
   /** Leveranssättet som står på offerten. */
   shippingMethod?: ShippingMethod;
+  /** Inköpsnumret som redan står på offerten. Kunden kan fylla i eller ändra det innan offerten godkänns. */
+  customerPo?: string | null;
   /**
    * Valet mottagaren gjorde i offertmejlet. Det är förvalt här, och ett klick
    * bekräftar. Länken i mejlet avgör aldrig något själv: mejlprogram öppnar
@@ -40,7 +43,7 @@ interface QuoteDecisionProps {
   answer?: QuoteAnswer | null;
 }
 
-export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingOptions = [], shippingMethod = "standard", answer = null }: QuoteDecisionProps) {
+export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingOptions = [], shippingMethod = "standard", customerPo = null, answer = null }: QuoteDecisionProps) {
   const [result, setResult] = useState<Result | null>(null);
   const [method, setMethod] = useState<ShippingMethod>(shippingMethod);
   const chosen = shippingOptions.find((option) => option.method === method);
@@ -54,6 +57,8 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingO
     if (answer) blockRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [answer]);
   const [reason, setReason] = useState("");
+  /** Kundens eget inköpsnummer, som följer med ordern och står på fakturan (besked av ägaren 2026-11-20). */
+  const [po, setPo] = useState(customerPo ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const errorRef = useRef<HTMLParagraphElement>(null);
@@ -77,6 +82,7 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingO
         reason: accept ? undefined : reason,
         delivery: delivery?.address,
         ...(accept && chosen && { method }),
+        ...(accept && po.trim() && { customerPo: po.trim() }),
       });
       if (!response.ok) {
         setError(response.error ?? "Något gick fel");
@@ -167,6 +173,23 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingO
               />
             </div>
           )}
+          <div className={styles.delivery}>
+            <label className={styles.label} htmlFor="quote-customer-po">
+              Ert inköpsnummer (valfritt)
+            </label>
+            <span className="field">
+              <input
+                id="quote-customer-po"
+                type="text"
+                maxLength={CUSTOMER_PO_MAX}
+                autoComplete="off"
+                placeholder="Står på fakturan"
+                value={po}
+                disabled={pending}
+                onChange={(event) => setPo(event.target.value)}
+              />
+            </span>
+          </div>
           {error && (
             <p ref={errorRef} className={styles.error} role="alert">
               {error}
