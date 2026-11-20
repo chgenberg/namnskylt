@@ -5,6 +5,8 @@ import Link from "next/link";
 import { DeliveryFields } from "@/components/delivery-fields";
 import { ShippingMethodPicker } from "@/components/shipping-method-picker";
 import type { ShippingMethod } from "@/engine";
+import { companyLookupNote, useCompanyLookup } from "@/hooks/use-company-lookup";
+import { filled, withCompanyAddress, type CompanyHit } from "@/lib/company/lookup-model";
 import { formatSek } from "@/lib/format";
 import { CUSTOMER_PO_MAX } from "@/lib/orders/customer-po";
 import { needsPhone, shippingAddressFromDraft, type DeliveryDraft } from "@/lib/orders/delivery";
@@ -41,15 +43,47 @@ interface QuoteDecisionProps {
    * länkar av sig själva, och ett godkännande blir en riktig order.
    */
   answer?: QuoteAnswer | null;
+  /**
+   * Offerten saknar kund i registret: kunden laddade ner den själv utan att lägga upp sig. Då fyller
+   * kunden i sina uppgifter här, samma som i kassan, förifyllda med det den skrev på offerten.
+   */
+  party?: QuoteParty | null;
 }
 
-export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingOptions = [], shippingMethod = "standard", customerPo = null, answer = null }: QuoteDecisionProps) {
+/** Kundens uppgifter på en offert som saknar kund i registret. */
+export interface QuoteParty {
+  orgNumber: string;
+  company: string;
+  name: string;
+  email: string;
+}
+
+export function QuoteDecision({
+  token,
+  totalInclVatSek,
+  deliveryDraft,
+  shippingOptions = [],
+  shippingMethod = "standard",
+  customerPo = null,
+  answer = null,
+  party: firstParty = null,
+}: QuoteDecisionProps) {
   const [result, setResult] = useState<Result | null>(null);
   const [method, setMethod] = useState<ShippingMethod>(shippingMethod);
   const chosen = shippingOptions.find((option) => option.method === method);
   // Summan följer leveranssättet. Expressfraktens pris sätts i efterhand och är inte med.
   const payInclVatSek = chosen?.totalInclVatSek ?? totalInclVatSek;
   const [address, setAddress] = useState<DeliveryDraft | null>(deliveryDraft);
+  const [party, setParty] = useState<QuoteParty | null>(firstParty);
+  /** Det registret fyllde i senast. Byts numret ersätts det som registret fyllde i, aldrig det som är skrivet för hand. */
+  const autofilled = useRef<CompanyHit | null>(null);
+  const company = useCompanyLookup((hit) => {
+    const before = autofilled.current;
+    autofilled.current = hit;
+    setParty((current) => (current ? { ...current, company: filled(current.company, hit.name, before?.name) } : current));
+    setAddress((current) => (current ? withCompanyAddress(current, hit, before) : current));
+  });
+  const companyNote = companyLookupNote(company.status);
   const [declining, setDeclining] = useState(answer === "decline");
   const blockRef = useRef<HTMLDivElement>(null);
   // Den som kommer från mejlets knapp ska hamna vid valet, inte överst på offerten.
@@ -75,6 +109,22 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingO
       setError(delivery.error);
       return;
     }
+    // Uppgifterna behövs för ordern och fakturan. Ett nej behöver dem inte.
+    if (accept && party) {
+      const missing = !party.orgNumber.trim()
+        ? "Skriv organisationsnumret"
+        : party.company.trim().length < 2
+          ? "Skriv företagets namn"
+          : !party.name.trim()
+            ? "Skriv ditt namn"
+            : !/^\S+@\S+\.\S+$/.test(party.email.trim())
+              ? "Skriv din e-postadress"
+              : null;
+      if (missing) {
+        setError(missing);
+        return;
+      }
+    }
     startTransition(async () => {
       const response = await decideQuoteAction({
         token,
@@ -83,6 +133,8 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingO
         delivery: delivery?.address,
         ...(accept && chosen && { method }),
         ...(accept && po.trim() && { customerPo: po.trim() }),
+        ...(accept &&
+          party && { customer: { company: party.company.trim(), orgNumber: party.orgNumber.trim(), name: party.name.trim(), email: party.email.trim() } }),
       });
       if (!response.ok) {
         setError(response.error ?? "Något gick fel");
@@ -155,6 +207,70 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingO
         </>
       ) : (
         <>
+          {party && (
+            <div className={styles.delivery} data-quote-party>
+              <p className={styles.label}>Era uppgifter</p>
+              {/* Organisationsnumret står först: företagets namn och adress fylls i av det. */}
+              <label className="field">
+                <span className="visually-hidden">Organisationsnummer</span>
+                <input
+                  name="orgNumber"
+                  placeholder="Organisationsnummer"
+                  inputMode="numeric"
+                  maxLength={20}
+                  title="Tio siffror, till exempel 556123-4567"
+                  value={party.orgNumber}
+                  disabled={pending}
+                  onChange={(event) => {
+                    setParty({ ...party, orgNumber: event.target.value });
+                    company.lookup(event.target.value);
+                  }}
+                />
+              </label>
+              {companyNote && (
+                <p className={styles.partyNote} role="status">
+                  {companyNote}
+                </p>
+              )}
+              <label className="field">
+                <span className="visually-hidden">Företagsnamn</span>
+                <input
+                  name="company"
+                  placeholder="Företagsnamn"
+                  maxLength={120}
+                  autoComplete="organization"
+                  value={party.company}
+                  disabled={pending}
+                  onChange={(event) => setParty({ ...party, company: event.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span className="visually-hidden">Ditt namn</span>
+                <input
+                  name="name"
+                  placeholder="Ditt namn"
+                  maxLength={120}
+                  autoComplete="name"
+                  value={party.name}
+                  disabled={pending}
+                  onChange={(event) => setParty({ ...party, name: event.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span className="visually-hidden">E-post</span>
+                <input
+                  name="email"
+                  type="email"
+                  placeholder="E-post"
+                  maxLength={200}
+                  autoComplete="email"
+                  value={party.email}
+                  disabled={pending}
+                  onChange={(event) => setParty({ ...party, email: event.target.value })}
+                />
+              </label>
+            </div>
+          )}
           {address && (
             <div className={styles.delivery}>
               <p className={styles.label}>Vart ska skyltarna skickas?</p>

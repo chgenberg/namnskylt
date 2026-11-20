@@ -3,7 +3,7 @@ import { companyFooter } from "@/lib/company/profile";
 import type { SellerProfile } from "@/lib/company/seller";
 import { CUSTOMER_PO_LABEL } from "@/lib/orders/customer-po";
 import { deliveryLines } from "@/lib/orders/delivery";
-import { QUOTE_SHOT_DESIGNS, showsElement, type StoredQuote } from "./model";
+import { hasQuoteParty, QUOTE_SHOT_DESIGNS, showsElement, type StoredQuote } from "./model";
 
 /**
  * Det offerten säger, på ett ställe. PDF:en (`document.ts`) och kundens offertsida ritar båda ur
@@ -40,13 +40,13 @@ export const badgeText = (badge: BadgeDocument) =>
 
 /** Rubriken en offert har tills säljaren ger den ett projektnamn. Ett utkast utan kund har ingen kund att nämna. */
 export function defaultQuoteTitle(quote: Pick<StoredQuote, "customer" | "noCustomer">): string {
-  return quote.noCustomer ? "Namnskyltar" : `Namnskyltar till ${quote.customer.company ?? quote.customer.name}`;
+  return hasQuoteParty(quote) ? `Namnskyltar till ${quote.customer.company ?? quote.customer.name}` : "Namnskyltar";
 }
 
 /** Offertens rubrik, och den lilla raden över den. */
 export function quoteHeading(quote: Pick<StoredQuote, "customer" | "noCustomer" | "project">): { eyebrow: string; title: string } {
   return {
-    eyebrow: quote.project && !quote.noCustomer ? `Offert till ${quote.customer.company ?? quote.customer.name}` : "Offert",
+    eyebrow: quote.project && hasQuoteParty(quote) ? `Offert till ${quote.customer.company ?? quote.customer.name}` : "Offert",
     title: quote.project ?? defaultQuoteTitle(quote),
   };
 }
@@ -64,7 +64,7 @@ export function quoteInfoRows(quote: StoredQuote, company: Pick<SellerProfile, "
   const contact = [customer.name !== customer.company ? customer.name : "", customer.email, customer.phone].filter(Boolean).join(" · ");
   return [
     // Ett utkast utan kund har inga kundrader: där står bara dagarna.
-    ...(quote.noCustomer ? [] : [{ label: "Kund", value: customer.company ?? customer.name, field: "customer" as const }]),
+    ...(hasQuoteParty(quote) ? [{ label: "Kund", value: customer.company ?? customer.name, field: "customer" as const }] : []),
     ...(customer.orgNumber ? [{ label: "Org.nr", value: customer.orgNumber }] : []),
     // En kund som sparats med bara företagets namn har det som namn också, och ingen e-post: då finns ingen kontakt att visa.
     ...(contact ? [{ label: "Kontakt", value: contact }] : []),

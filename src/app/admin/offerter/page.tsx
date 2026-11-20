@@ -93,7 +93,11 @@ export default async function QuotesPage() {
                     {quote.orderNo && <span className="mono">→ {quote.orderNo}</span>}
                     {quote.demo && <span className={styles.demoTag}>Demo</span>}
                     {/* Ett utkast utan kund går inte att godkänna än. Hela raden leder till offerten, där kunden väljs. */}
-                    {waits && quote.noCustomer && <span data-quote-no-customer>Öppna offerten och välj kund</span>}
+                    {waits && quote.noCustomer && (
+                      <span data-quote-no-customer>
+                        {quote.byCustomer ? "Nedladdad av kunden, som inte har lagt upp sig än" : "Öppna offerten och välj kund"}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className={styles.rowTail}>

@@ -6,6 +6,7 @@ import { endPriceTable } from "@/engine/price-model";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
 import { quoteHtml } from "./document";
 import { draftQuote, type QuoteDraftInput } from "./draft";
+import { hasQuoteParty, parseQuoteRequester, quoteCustomerLabel } from "./model";
 import { quoteAllBadges, quoteGalleries, quoteHeading, quoteInfoRows, quoteSellerLines, quoteTermsLines } from "./view";
 
 /** En PNG på en pixel: bilderna ur 3D-vyn är data-URL:er. */
@@ -26,6 +27,55 @@ const base: QuoteDraftInput = {
   shots: [{ main: PIXEL, angles: [PIXEL, PIXEL, PIXEL] }],
   now: new Date("2026-11-20T09:00:00Z"),
 };
+
+describe("en offert som kunden har laddat ner själv, utan kund i registret", () => {
+  // Kundens egen offert har aldrig en kund i registret när den ritas i skyltmotorn.
+  const own = (customer: QuoteDraftInput["customer"]) => draftQuote({ ...base, customer, noCustomer: true, byCustomer: true });
+
+  it("utan uppgifter har den inga kundrader, och rubriken nämner ingen", () => {
+    const quote = own(null);
+    assert.equal(hasQuoteParty(quote), false);
+    assert.deepEqual(quoteHeading(quote), { eyebrow: "Offert", title: "Namnskyltar" });
+    assert.deepEqual(
+      quoteInfoRows(quote, seller).map((row) => row.label),
+      ["Offertdatum", "Giltig till"],
+    );
+    assert.equal(quoteCustomerLabel(quote), "Utan kund");
+    assert.ok(!quoteHtml(quote, approxFonts, seller).includes("Kunden"));
+  });
+
+  it("det kunden skriver om sig själv står på den, också bara ett företagsnamn", () => {
+    const quote = own({ company: "Kund AB", name: "", email: "", phone: "", orgNumber: "" });
+    assert.equal(hasQuoteParty(quote), true);
+    assert.equal(quoteHeading(quote).title, "Namnskyltar till Kund AB");
+    assert.deepEqual(
+      quoteInfoRows(quote, seller).map((row) => [row.label, row.value]).slice(0, 1),
+      [["Kund", "Kund AB"]],
+    );
+    assert.equal(quoteCustomerLabel(quote), "Kund AB");
+    const full = own(base.customer);
+    assert.equal(Object.fromEntries(quoteInfoRows(full, seller).map((row) => [row.label, row.value])).Kontakt, "Kim Ek · kim@exempel.se");
+  });
+
+  it("ett utkast som säljaren sparade utan kund ritas som förut, utan kundrader", () => {
+    const draft = draftQuote({ ...base, customer: null, noCustomer: true });
+    assert.equal(hasQuoteParty(draft), false);
+    assert.equal(quoteHeading(draft).title, "Namnskyltar");
+  });
+
+  it("det kunden skrev rensas, och inget ifyllt är inget alls", () => {
+    assert.equal(parseQuoteRequester({}), null);
+    assert.equal(parseQuoteRequester({ company: "   ", name: "" }), null);
+    assert.equal(parseQuoteRequester("x"), null);
+    assert.deepEqual(parseQuoteRequester({ company: "  Kund   AB ", email: "Kim@Exempel.SE", annat: "bort", name: 7 }), {
+      company: "Kund AB",
+      name: "",
+      email: "kim@exempel.se",
+      orgNumber: "",
+    });
+    assert.equal(parseQuoteRequester({ company: "x".repeat(300) })?.company.length, 120);
+  });
+});
 
 describe("det offerten säger, för både PDF:en och kundens offertsida", () => {
   it("rubriken är densamma i båda: projektet, annars Namnskyltar till kunden", () => {

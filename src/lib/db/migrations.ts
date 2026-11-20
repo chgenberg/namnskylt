@@ -722,6 +722,14 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
     id: "039_quotes_by_customer",
     sql: `alter table quotes add column if not exists by_customer boolean not null default false;`,
   },
+  {
+    // Kunden ska kunna ladda ner sin offert utan att först fylla i sina uppgifter, bara för att visa
+    // kollegorna (besked av ägaren 2026-11-20). Offerten sparas då utan kund i kundregistret. Det
+    // kunden ändå skrev om sig själv, obekräftat, ligger här och står på offerten. Kunden läggs upp
+    // i registret först när offerten godkänns, som i kassan.
+    id: "040_quotes_requester",
+    sql: `alter table quotes add column if not exists requester jsonb;`,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

@@ -271,6 +271,19 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
               shippingMethod={shippingMethodOf(quote.delivery)}
               customerPo={quote.customerPo}
               answer={answer}
+              // En offert som kunden laddade ner själv utan att lägga upp sig: uppgifterna fylls i här,
+              // förifyllda med det kunden skrev på offerten.
+              party={
+                quote.noCustomer && quote.byCustomer
+                  ? {
+                      orgNumber: quote.customer.orgNumber ?? "",
+                      company: quote.customer.company ?? "",
+                      // Utan namn står företaget som namn på offerten: det är ingen kontaktperson.
+                      name: quote.customer.name !== (quote.customer.company ?? "") ? quote.customer.name : "",
+                      email: quote.customer.email,
+                    }
+                  : null
+              }
               deliveryDraft={
                 quote.delivery.to === "customer"
                   ? quote.delivery.address

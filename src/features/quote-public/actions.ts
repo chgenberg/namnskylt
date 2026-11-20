@@ -3,7 +3,8 @@
 import { z } from "zod";
 import { customerPoSchema } from "@/lib/orders/customer-po";
 import { deliveryAddressSchema, deliveryPhoneIssue, shippingMethodOf, shippingMethodSchema } from "@/lib/orders/delivery";
-import { acceptQuote, declineByCustomer } from "@/lib/quotes/accept";
+import { declineByCustomer } from "@/lib/quotes/accept";
+import { acceptCustomerQuote } from "@/lib/quotes/customer-quote";
 import { canCustomerAnswer } from "@/lib/quotes/model";
 import { getQuoteByToken } from "@/lib/quotes/repository";
 
@@ -17,6 +18,18 @@ const decisionSchema = z.object({
   method: shippingMethodSchema.optional(),
   /** Kundens eget inköpsnummer. Utelämnat = det som står på offerten. */
   customerPo: customerPoSchema,
+  /**
+   * Kundens uppgifter, när offerten saknar kund i registret: en offert som kunden laddade ner själv
+   * utan att fylla i något. Samma uppgifter som i kassan. De prövas i `acceptCustomerQuote`.
+   */
+  customer: z
+    .object({
+      company: z.string().trim().max(120),
+      orgNumber: z.string().trim().max(20),
+      name: z.string().trim().max(120),
+      email: z.email("Skriv en e-postadress").max(200),
+    })
+    .optional(),
 });
 
 /** Publik — länkens token är behörigheten. Godkänd offert blir en order direkt. */
@@ -27,9 +40,10 @@ export async function decideQuoteAction(
   if (!parsed.success) {
     const field = parsed.error.issues[0];
     // Adressens fel är skrivna för kunden; övriga fel beror på en trasig sida.
-    return { ok: false, error: field?.path[0] === "delivery" || field?.path[0] === "customerPo" ? field.message : "Ogiltigt svar" };
+    const shown = field?.path[0] === "delivery" || field?.path[0] === "customerPo" || field?.path[0] === "customer";
+    return { ok: false, error: shown && field ? field.message : "Ogiltigt svar" };
   }
-  const { token, accept, reason, delivery, method, customerPo } = parsed.data;
+  const { token, accept, reason, delivery, method, customerPo, customer } = parsed.data;
   try {
     const quote = await getQuoteByToken(token);
     if (!quote || !canCustomerAnswer(quote)) return { ok: false, error: "Offerten går inte att besvara längre" };
@@ -40,7 +54,8 @@ export async function decideQuoteAction(
     // Adressen kunden fyller i nu ska ha telefon när skyltarna fraktas, med fraktsättet som gäller för ordern.
     const phoneIssue = deliveryPhoneIssue(delivery, method ?? shippingMethodOf(quote.delivery));
     if (phoneIssue) return { ok: false, error: phoneIssue };
-    const result = await acceptQuote(quote.resellerId, quote.quoteNo, false, delivery ?? null, method ?? null, customerPo ?? null);
+    // En offert som kunden laddade ner själv får sin kund nu, med uppgifterna kunden fyller i, och godkänns sedan.
+    const result = await acceptCustomerQuote(quote, customer ?? null, delivery ?? null, method ?? null, customerPo ?? null);
     // Kunden får numret den ser på sin order: verkstadens när de själva säljer, annars säljarens.
     return result.ok ? { ok: true, orderNo: result.customerNumber, orderPath: result.orderPath } : { ok: false, error: result.error };
   } catch (error) {

@@ -185,6 +185,37 @@ describe("adminens besked som mejl", () => {
   });
 });
 
+describe("besked om en offert som kunden har laddat ner själv", () => {
+  const made: PanelNotice = {
+    id: "9",
+    kind: "quote-created",
+    who: "Exempel AB",
+    detail: "4 skyltar · 1 234 kr exkl. moms",
+    quoteNo: "OF-2001",
+    orderNo: null,
+    createdAt: "2026-11-20T15:00:00Z",
+  };
+
+  test("säger vem som laddade ner vilken offert, och leder till offerten i panelen", () => {
+    assert.ok(isNoticeKind("quote-created"));
+    assert.deepEqual(noticeView(made), {
+      title: "Exempel AB har laddat ner offert OF-2001",
+      detail: "4 skyltar · 1 234 kr exkl. moms",
+      href: "/admin/offerter/OF-2001",
+      tone: "info",
+    });
+  });
+
+  test("mejlet till adminens adresser säger samma sak som panelen", () => {
+    const settings = adminNoticeEmailSettings({ ADMIN_NOTICE_RESEND_API_KEY: "re_admin", ADMIN_NOTICE_FROM_EMAIL: "besked@exempel.se", ADMIN_NOTICE_TO: "ett@exempel.se" });
+    assert.ok(settings);
+    const mail = composeNoticeEmail(made, "ett@exempel.se", settings);
+    assert.equal(mail.subject, "Exempel AB har laddat ner offert OF-2001");
+    assert.match(mail.text, /4 skyltar · 1 234 kr exkl\. moms/);
+    assert.match(mail.text, /https:\/\/www\.namnskylt\.com\/admin\/offerter\/OF-2001/);
+  });
+});
+
 describe("besked till namnskylt.com om varje ny order", () => {
   const base: PanelNotice = { id: "1", kind: "reseller-order", who: "Exempel Profil AB", detail: "3 skyltar", quoteNo: null, orderNo: "NS-2001", createdAt: "2026-11-20T10:00:00Z" };
 

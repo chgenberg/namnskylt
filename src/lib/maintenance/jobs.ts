@@ -3,6 +3,7 @@ import { pruneCustomerSessions } from "@/lib/customer-auth/session";
 import { pruneDesignerEvents } from "@/lib/designer-stats/repository";
 import { deleteUnusedLogoFiles } from "@/lib/logo-images/cleanup";
 import { pruneUnpaidCheckouts } from "@/lib/payments/checkout";
+import { pruneUnclaimedCustomerQuotes } from "@/lib/quotes/repository";
 import { retryFailedDispatches, retryNote } from "@/lib/supplier/retry";
 import { pruneErrorLog } from "./error-log";
 import type { Job } from "./model";
@@ -46,6 +47,12 @@ export const JOBS: readonly Job[] = [
     label: "Rensning av kundernas inloggningar som har gått ut",
     everyMs: DAY_MS,
     run: async () => `${await pruneCustomerSessions()} inloggningar borttagna`,
+  },
+  {
+    name: "customer-quote-prune",
+    label: "Rensning av nedladdade offerter som aldrig fick en kund",
+    everyMs: DAY_MS,
+    run: async () => `${await pruneUnclaimedCustomerQuotes()} offerter borttagna`,
   },
   {
     name: "logo-cleanup",

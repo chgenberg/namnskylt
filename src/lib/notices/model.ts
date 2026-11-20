@@ -8,6 +8,10 @@
  * ägaren 2026-11-20: mejl om ansökningar "och alla om orders" ska gå till adminens
  * adresser): `reseller-order` för en order hos en återförsäljare, och `order-created`
  * för en order som läggs i namnskylt.coms egen panel.
+ *
+ * `quote-created` är en offert som kunden har gjort själv i skyltmotorn och laddat ner (besked
+ * av ägaren 2026-11-20: "Ja tack" till besked och mejl om en ny offert). Det går till den som
+ * äger panelen offerten sparades i: namnskylt.com, eller butikens ägare.
  */
 export const NOTICE_KINDS = [
   "quote-accepted",
@@ -20,6 +24,8 @@ export const NOTICE_KINDS = [
   // Besked till namnskylt.com om varje ny order på plattformen (beslut av ägaren 2026-11-20):
   "reseller-order",
   "order-created",
+  // En kund har gjort en offert själv och laddat ner den (beslut av ägaren 2026-11-20):
+  "quote-created",
 ] as const;
 export type NoticeKind = (typeof NOTICE_KINDS)[number];
 
@@ -110,6 +116,9 @@ export function noticeView(notice: PanelNotice): NoticeView {
       };
     case "order-created":
       return { title: `Ny order${notice.orderNo ? ` ${notice.orderNo}` : ""} till ${notice.who}`, detail: notice.detail, href: orderHref(notice.orderNo), tone: "info" };
+    case "quote-created":
+      // Kunden har inte beställt något än: offerten väntar på kundens svar, och går att följa upp.
+      return { title: `${notice.who} har laddat ner offert${quote}`, detail: notice.detail, href: quoteHref(notice.quoteNo), tone: "info" };
     case "application":
       return {
         title: `${notice.who} har ansökt om att bli återförsäljare`,

@@ -133,14 +133,17 @@ export interface StoredQuote {
   quoteNo: string;
   customer: Customer;
   /**
-   * Offerten är sparad som utkast, utan kund (besked via ägaren 2026-11-20). Kundens uppgifter är
-   * då tomma, och säljaren väljer kund i panelen innan offerten skickas eller godkänns.
+   * Offerten har ingen kund i kundregistret (besked via ägaren 2026-11-20): ett utkast som säljaren
+   * sparade utan kund, eller en offert som kunden laddade ner själv utan att lägga upp sig. Ett
+   * utkast har då tomma kunduppgifter. En nedladdad offert bär det kunden skrev om sig själv, om
+   * något (`hasQuoteParty`). Kunden väljs i panelen, eller läggs upp när kunden godkänner offerten.
    */
   noCustomer?: boolean;
   /**
    * Kunden gjorde offerten själv i skyltmotorn och laddade ner den (besked av ägaren 2026-11-20).
-   * Dokumentet visar då länken där offerten godkänns, och kundens sparade telefon och adress visas
-   * inte för den som har länken: den som gjorde offerten har inte bekräftat sin e-postadress.
+   * Dokumentet visar då länken där offerten godkänns. Kunden behöver inte ha fyllt i något, och
+   * det som är ifyllt är obekräftat: kundregistrets telefon och adress visas därför aldrig för den
+   * som har länken.
    */
   byCustomer?: boolean;
   status: QuoteStatus;
@@ -179,7 +182,35 @@ export const NO_CUSTOMER_ERROR = "Offerten har ingen kund än. Välj kund på of
 
 /** Offertens kund som den kallas i panelen: företaget, annars namnet. Ett utkast utan kund heter "Utan kund". */
 export function quoteCustomerLabel(quote: Pick<StoredQuote, "customer" | "noCustomer">): string {
-  return quote.noCustomer ? UNASSIGNED_CUSTOMER_NAME : (quote.customer.company ?? quote.customer.name);
+  return hasQuoteParty(quote) ? (quote.customer.company ?? quote.customer.name) : UNASSIGNED_CUSTOMER_NAME;
+}
+
+/**
+ * Offerten har någon att nämna: en kund ur kundregistret, eller det den som laddade ner sin egen
+ * offert skrev om sig själv. Ett utkast utan kund, och en offert som laddats ner utan uppgifter,
+ * har ingen: där ritas inga kundrader.
+ */
+export function hasQuoteParty(quote: Pick<StoredQuote, "customer" | "noCustomer">): boolean {
+  return !quote.noCustomer || Boolean(quote.customer.company?.trim() || quote.customer.name.trim());
+}
+
+/** Det den som laddar ner sin egen offert skriver om sig själv. Allt är frivilligt och obekräftat. */
+export interface QuoteRequester {
+  company: string;
+  name: string;
+  email: string;
+  orgNumber: string;
+}
+
+const REQUESTER_MAX = { company: 120, name: 120, email: 200, orgNumber: 20 } as const;
+
+/** Det kunden skrev, rensat, eller `null` när inget är ifyllt. Läser också det som ligger sparat. */
+export function parseQuoteRequester(value: unknown): QuoteRequester | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const text = (key: keyof typeof REQUESTER_MAX) => (typeof raw[key] === "string" ? raw[key].replace(/\s+/g, " ").trim().slice(0, REQUESTER_MAX[key]) : "");
+  const requester = { company: text("company"), name: text("name"), email: text("email").toLowerCase(), orgNumber: text("orgNumber") };
+  return requester.company || requester.name || requester.email || requester.orgNumber ? requester : null;
 }
 
 export function isQuoteStatus(value: string): value is QuoteStatus {

@@ -28,9 +28,11 @@ function download(path: string) {
 /**
  * Kundens egen offert, i panelen bredvid dokumentet (besked av ägaren 2026-11-20: en slutkund,
  * inloggad eller inte, ska kunna ladda hem en offert som en återförsäljare, med sina priser och
- * med samma knapp). Kunden fyller i samma uppgifter som i kassan och laddar ner offerten som PDF.
- * Den sparas hos säljaren, och kunden godkänner den senare på sin egen sida, dit länken står i
- * PDF:en. Inget beställs här, och varukorgen står kvar.
+ * med samma knapp). **Inget behöver fyllas i**: offerten är till för att visa kollegorna hur
+ * skyltarna blir, med bilder och pris (ägarens besked samma dag). Det kunden ändå skriver om sig
+ * själv står på offerten. Den sparas hos säljaren, och den som vill beställa fyller i sina
+ * uppgifter och godkänner på offertens sida, dit länken står i PDF:en. Inget beställs här, och
+ * varukorgen står kvar.
  */
 export function CustomerQuotePanel({ quote, onBack }: CustomerQuotePanelProps) {
   const { save, draft, contact, setContact } = quote;
@@ -64,8 +66,9 @@ export function CustomerQuotePanel({ quote, onBack }: CustomerQuotePanelProps) {
             <h1 className={styles.title}>Offert {saved.quoteNo} är klar</h1>
           </header>
           <p className={styles.lead} role="status">
-            PDF:en laddas ner till din enhet. När ni har bestämt er öppnar ni offerten och klickar Godkänn, så går skyltarna
-            till tillverkningen. Länken står också i PDF:en. Ingenting är beställt än.
+            PDF:en laddas ner till din enhet, med bilder och pris, så att du kan visa den för kollegorna. Ingenting är
+            beställt. När ni har bestämt er öppnar ni offerten, fyller i era uppgifter och klickar Godkänn. Länken står
+            också i PDF:en.
           </p>
           <div className={styles.links}>
             {saved.quotePath && (
@@ -115,12 +118,13 @@ export function CustomerQuotePanel({ quote, onBack }: CustomerQuotePanelProps) {
           <h1 className={styles.title}>Ladda ner en offert</h1>
         </header>
         <p className={styles.lead}>
-          Så här ser offerten ut, med era priser. Fyll i era uppgifter och ladda ner den som PDF. Ingenting beställs: ni
-          godkänner offerten senare, via länken i PDF:en, när ni har bestämt er.
+          Så här ser offerten ut, med bilder och era priser. Ladda ner den som PDF och visa den för kollegorna. Ingenting
+          beställs, och du behöver inte fylla i något.
         </p>
 
         <div className={styles.group}>
-          <p className={sections.specTitle}>Era uppgifter</p>
+          <p className={sections.specTitle}>Era uppgifter (valfritt)</p>
+          <p className={sections.cartNote}>Det du fyller i står på offerten. Resten fyller ni i om ni godkänner den.</p>
           {/* Organisationsnumret står först: företagets namn fylls i av det. */}
           <label className="field">
             <span className="visually-hidden">Organisationsnummer</span>
@@ -193,7 +197,6 @@ export function CustomerQuotePanel({ quote, onBack }: CustomerQuotePanelProps) {
         </div>
 
         <div className={styles.group}>
-          <p className={sections.specTitle}>Valfritt</p>
           <label className={styles.labelled}>
             <span>Projekt</span>
             <span className="field">
@@ -225,8 +228,7 @@ export function CustomerQuotePanel({ quote, onBack }: CustomerQuotePanelProps) {
 
         <p className={sections.cartNote}>
           Offerten gäller skyltarna i varukorgen och skylten du just har gjort, till och med {formatDay(quote.validUntil)}.
-          Leveransadressen fyller ni i när ni godkänner. Offerten och era uppgifter sparas hos oss, så att den går att
-          godkänna senare.
+          Den sparas hos oss, så att den går att godkänna senare via länken i PDF:en.
         </p>
       </div>
 

@@ -294,8 +294,8 @@ ${
           // En offert som säljaren skickar själv har ingen länk i något mejl: kunden svarar säljaren.
           quote.byCustomer
             ? render.acceptUrl
-              ? `öppna <a href="${esc(render.acceptUrl)}">${esc(render.acceptUrl.replace(/^https?:\/\//, ""))}</a> och klicka ”Godkänn”, så går skyltarna till tillverkningen.`
-              : "länken står här i den nedladdade offerten. Där klickar ni ”Godkänn”, så går skyltarna till tillverkningen."
+              ? `öppna <a href="${esc(render.acceptUrl)}">${esc(render.acceptUrl.replace(/^https?:\/\//, ""))}</a>, fyll i era uppgifter och klicka ”Godkänn”, så går skyltarna till tillverkningen.`
+              : "länken står här i den nedladdade offerten. Där fyller ni i era uppgifter och klickar ”Godkänn”, så går skyltarna till tillverkningen."
             : quote.emailedAt
             ? "öppna länken i mejlet och klicka ”Godkänn”, så går skyltarna till tillverkningen."
             : `svara ${esc(company.site ? "oss" : company.name)} att ni godkänner, så går skyltarna till tillverkningen.`

@@ -18,7 +18,7 @@ import { countUnreadNotices } from "@/lib/notices/repository";
 import { customerChoiceRows } from "@/lib/orders/customer-choices";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { badgeCount } from "@/lib/orders/model";
-import { canEditQuote, displayStatus, quoteCustomerLabel } from "@/lib/quotes/model";
+import { canEditQuote, displayStatus, hasQuoteParty, quoteCustomerLabel } from "@/lib/quotes/model";
 import { getQuote } from "@/lib/quotes/repository";
 import { quoteEmailOn } from "@/lib/quotes/send";
 import { isOwner } from "@/lib/tenants/model";
@@ -163,14 +163,35 @@ export default async function QuotePage({ params }: QuotePageProps) {
           {needsCustomer && (
             <section className={styles.panel} data-quote-needs-customer>
               <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>
-                Välj kund
+                {quote.byCustomer ? "Kunden laddade ner offerten själv" : "Välj kund"}
               </h2>
+              {quote.byCustomer ? (
+                // Kunden har inte lagt upp sig än. Det kunden skrev om sig själv är obekräftat.
+                <div className={styles.callout} data-tone="warn" style={{ marginBottom: "var(--space-3)" }} data-quote-by-customer>
+                  <strong>Väntar på kunden</strong>
+                  <span>
+                    Kunden har laddat ner offerten som PDF utan att lägga upp sig. Den som godkänner via länken i PDF:en
+                    fyller i sina uppgifter där, och då blir offerten en order. Du kan också välja kund här.
+                  </span>
+                  <span>
+                    {hasQuoteParty(quote)
+                      ? `Kunden skrev: ${[quote.customer.company, quote.customer.orgNumber, quote.customer.name !== quote.customer.company ? quote.customer.name : "", quote.customer.email].filter(Boolean).join(" · ")}. Uppgifterna är inte bekräftade.`
+                      : "Kunden fyllde inte i några uppgifter."}
+                  </span>
+                  {link && (
+                    <a href={link} className={styles.link}>
+                      Kundens offertsida →
+                    </a>
+                  )}
+                </div>
+              ) : (
               <div className={styles.callout} data-tone="warn" style={{ marginBottom: "var(--space-3)" }}>
                 <strong>Utkast utan kund</strong>
                 <span>
                   PDF:en går att ladda ner och skicka som den är. Välj kund här, så går offerten att skicka och godkänna.
                 </span>
               </div>
+              )}
               <QuoteCustomerForm quoteNo={quote.quoteNo} customers={customers} needsInvoiceDetails={isOwner(tenant)} />
             </section>
           )}

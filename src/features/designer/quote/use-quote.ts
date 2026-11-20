@@ -3,7 +3,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { isBlankBadge, lineUnitPrices, orderDesigns, resellerOrder, type BadgeDocument, type FontEngine, type PriceTable } from "@/engine";
 import { useOrderShipping } from "@/hooks/use-order-shipping";
-import { formattedOrgNumber, orgNumberSchema } from "@/lib/company/org-number";
+import { formattedOrgNumber } from "@/lib/company/org-number";
 import type { SellerProfile } from "@/lib/company/seller";
 import type { CustomerAccountView } from "@/lib/customer-auth/model";
 import { priceWithPricing, type Pricing } from "@/lib/orders/pricing";
@@ -46,7 +46,7 @@ interface SavedQuote {
   quotePath?: string;
 }
 
-/** Uppgifterna en slutkund fyller i för sin egen offert: samma som i kassan. */
+/** Det en slutkund kan skriva om sig själv på sin egen offert. Allt är frivilligt: uppgifterna krävs först när offerten godkänns. */
 export interface QuoteContact {
   orgNumber: string;
   company: string;
@@ -260,7 +260,8 @@ export function useQuote({ reseller, self: selfQuote = false, shop, account, bad
   const draft = useMemo(
     () =>
       active && seller && badges.length > 0
-        ? draftQuote({ badges, priceList, shippingSek, customer, customerPo, noCustomer: noCustomer || (self && !customer), project, message: greeting, validUntil, options, badgeShot, shots: quoteShots, pricing, byCustomer: self, now: new Date() })
+        ? // Kundens egen offert har ingen kund i registret. Det kunden skriver om sig själv står ändå på den.
+          draftQuote({ badges, priceList, shippingSek, customer, customerPo, noCustomer: noCustomer || self, project, message: greeting, validUntil, options, badgeShot, shots: quoteShots, pricing, byCustomer: self, now: new Date() })
         : null,
     [active, seller, badges, priceList, shippingSek, customer, customerPo, noCustomer, project, greeting, validUntil, options, badgeShot, quoteShots, pricing, self],
   );
@@ -356,14 +357,18 @@ export function useQuote({ reseller, self: selfQuote = false, shop, account, bad
     }
   }, []);
 
-  /** Kunden sparar sin egen offert: den sparas hos säljaren och laddas ner. Varukorgen står kvar. */
+  /**
+   * Kunden sparar sin egen offert: den sparas hos säljaren och laddas ner. Inget behöver vara ifyllt
+   * (besked av ägaren 2026-11-20: offerten ska gå att ladda ner bara för att visa kollegorna).
+   * Varukorgen står kvar.
+   */
   const submitSelf = async () => {
     if (save.status === "saving" || capturing) return;
     if (blank) return setSave({ status: "error", message: "Skylten är tom. Skriv ett namn eller lägg in en logga först." });
-    if (!orgNumberSchema.safeParse(contact.orgNumber).success) return setSave({ status: "error", message: "Skriv organisationsnumret, tio siffror." });
-    if (contact.company.trim().length < 2) return setSave({ status: "error", message: "Skriv företagets namn." });
-    if (!contact.name.trim()) return setSave({ status: "error", message: "Skriv ditt namn." });
-    if (!/^\S+@\S+\.\S+$/.test(contact.email.trim())) return setSave({ status: "error", message: "Skriv din e-postadress." });
+    // Det enda som prövas är en e-postadress som är skriven men inte går att läsa.
+    if (contact.email.trim() && !/^\S+@\S+\.\S+$/.test(contact.email.trim())) {
+      return setSave({ status: "error", message: "E-postadressen går inte att läsa. Rätta den, eller lämna fältet tomt." });
+    }
     setSave({ status: "saving" });
     try {
       const response = await fetch("/api/quotes", {

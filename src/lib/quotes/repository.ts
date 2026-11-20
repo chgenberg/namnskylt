@@ -16,12 +16,14 @@ import {
   addDays,
   isQuoteStatus,
   parseQuoteOptions,
+  parseQuoteRequester,
   parseQuoteShots,
   QUOTE_VALID_DAYS,
   storedQuoteOptions,
   swedishDay,
   type QuoteEvent,
   type QuoteOptions,
+  type QuoteRequester,
   type QuoteShot,
   type QuoteStatus,
   type StoredQuote,
@@ -66,6 +68,7 @@ interface QuoteRow {
   options: unknown;
   shots: unknown;
   by_customer: boolean | null;
+  requester: unknown;
 }
 
 function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudience): StoredQuote {
@@ -75,6 +78,8 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
   // Den som gjorde offerten själv har inte bekräftat sin e-postadress. Det kundregistret redan visste
   // om adressen, alltså telefon och adress, följer därför inte med till den som har offertens länk.
   const guarded = byCustomer && audience === "customer";
+  // Det kunden skrev om sig själv när offerten laddades ner. Det gäller bara tills offerten har en kund i registret.
+  const requester = byCustomer && noCustomer ? parseQuoteRequester(row.requester) : null;
   const badges = badgesSchema.safeParse(row.badges);
   if (!badges.success) console.error(`Ogiltiga skyltar i offert ${row.quote_no}`);
   const events: QuoteEvent[] = (row.events ?? [])
@@ -88,7 +93,17 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
     resellerId: row.reseller_id,
     quoteNo: row.quote_no,
     customer: noCustomer
-      ? { id: row.customer_id, name: "", company: null, email: "", phone: null, orgNumber: null, address: null, demo: false }
+      ? // Utan kund i registret: tomt, eller det den som laddade ner offerten skrev om sig själv.
+        {
+          id: row.customer_id,
+          name: requester?.name || requester?.company || "",
+          company: requester?.company || null,
+          email: requester?.email ?? "",
+          phone: null,
+          orgNumber: requester?.orgNumber || null,
+          address: null,
+          demo: false,
+        }
       : {
           id: row.customer_id,
           name: row.customer_name,
@@ -127,7 +142,7 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
 /** Stillbilden är den tunga kolumnen — listan klarar sig utan. */
 function selectQuotes(sql: Sql, withShot = false) {
   return sql`
-    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, ${withShot ? sql`q.shots` : sql`null::jsonb`} as shots, q.project, q.customer_po, q.reseller_id, q.delivery, q.options, q.by_customer, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
+    select q.id, ${withShot ? sql`q.badge_shot` : sql`null::text`} as badge_shot, ${withShot ? sql`q.shots` : sql`null::jsonb`} as shots, q.project, q.customer_po, q.reseller_id, q.delivery, q.options, q.by_customer, q.requester, q.quote_no, q.status, q.badges, q.pricing, q.price_model, q.total_sek, q.total_incl_vat_sek, q.message,
            to_char(q.valid_until, 'YYYY-MM-DD') as valid_until, q.token, q.decline_reason, q.is_demo,
            q.created_at, q.sent_at, q.emailed_at, q.decided_at, o.order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email,
@@ -218,7 +233,9 @@ export async function createQuote(input: {
    * väntar på svar direkt, som en som säljaren skickar själv, och kunden godkänner den via sin länk.
    */
   byCustomer?: boolean;
-}): Promise<{ quoteNo: string; token: string }> {
+  /** Det kunden skrev om sig själv när den laddade ner sin egen offert, obekräftat. Står på offerten tills kunden är upplagd. */
+  requester?: QuoteRequester | null;
+}): Promise<{ id: string; quoteNo: string; token: string; totalSek: number }> {
   const sql = requireDb();
   const model = await getPriceModel();
   const pricing = input.pricing && isCustomPricing(input.pricing) ? input.pricing : null;
@@ -229,6 +246,7 @@ export async function createQuote(input: {
   const validUntil = input.validUntil ?? addDays(swedishDay(new Date()), QUOTE_VALID_DAYS);
   const options = storedQuoteOptions(input.options);
   const shots = input.shots?.some(Boolean) ? input.shots : null;
+  const requester = input.byCustomer ? parseQuoteRequester(input.requester) : null;
   // En offert som kunden bad om, eller som säljaren skickar själv, väntar på svar från början.
   // Ett utkast utan kund väntar inte på svar: det har ingen kund som kan svara.
   const waiting = !input.unassigned && (Boolean(input.reorderOf) || Boolean(input.manual) || Boolean(input.byCustomer));
@@ -237,14 +255,15 @@ export async function createQuote(input: {
     // Kunden måste tillhöra samma återförsäljare — annars skapas ingen offert.
     const [row] = await tx<{ id: string; quote_no: string }[]>`
       insert into quotes (reseller_id, customer_id, badges, price_model, total_sek, total_incl_vat_sek, valid_until, token, is_demo, badge_shot, project,
-                          delivery, pricing, reorder_of, status, sent_at, message, options, shots, customer_po, by_customer)
+                          delivery, pricing, reorder_of, status, sent_at, message, options, shots, customer_po, by_customer, requester)
       select ${input.tenant}, ${input.customerId}, ${tx.json(badges as unknown as Json)}, ${tx.json(model as unknown as Json)}, ${price.totalSek},
              ${price.totalInclVatSek}, ${validUntil}, ${token}, ${input.demo}, ${input.badgeShot ?? null}, ${input.project ?? null},
              ${input.delivery ? tx.json(input.delivery as unknown as Json) : null},
              ${pricing ? tx.json(pricing as unknown as Json) : null}, ${input.reorderOf?.orderId ?? null},
              ${waiting ? "sent" : "draft"}, ${waiting ? tx`now()` : null}, ${input.message || null},
              ${options ? tx.json(options as unknown as Json) : null}, ${shots ? tx.json(shots as unknown as Json) : null},
-             ${cleanCustomerPo(input.customerPo)}, ${input.byCustomer === true}
+             ${cleanCustomerPo(input.customerPo)}, ${input.byCustomer === true},
+             ${requester ? tx.json(requester as unknown as Json) : null}
        where exists (select 1 from customers where id = ${input.customerId} and reseller_id = ${input.tenant})
       returning id, quote_no`;
     if (!row) throw new Error("Offerten kunde inte sparas");
@@ -257,14 +276,14 @@ export async function createQuote(input: {
                values (${row.id}, 'draft', 'Utkast sparat i skyltmotorn, utan kund. Kunden väljs innan offerten godkänns.')`;
     } else if (input.byCustomer) {
       await tx`insert into quote_events (quote_id, status, note)
-               values (${row.id}, 'sent', 'Kunden gjorde offerten själv i skyltmotorn och laddade ner den. Kunden godkänner via sin länk.')`;
+               values (${row.id}, 'sent', 'Kunden gjorde offerten själv i skyltmotorn och laddade ner den. Kunden lägger upp sig och godkänner via sin länk.')`;
     } else if (input.manual) {
       await tx`insert into quote_events (quote_id, status, note)
                values (${row.id}, 'sent', 'Offert sparad i skyltmotorn. Säljaren skickar PDF:en själv och svarar åt kunden.')`;
     } else {
       await tx`insert into quote_events (quote_id, status, note) values (${row.id}, 'draft', 'Offert skapad i skyltmotorn')`;
     }
-    return { quoteNo: row.quote_no, token };
+    return { id: row.id, quoteNo: row.quote_no, token, totalSek: price.totalSek };
   });
 }
 
@@ -466,6 +485,25 @@ export async function deleteQuote(tenant: string, quoteNo: string): Promise<bool
   const rows = await requireDb()<{ id: string }[]>`
     delete from quotes where quote_no = ${quoteNo} and reseller_id = ${tenant} and status <> 'accepted' returning id`;
   return rows.length > 0;
+}
+
+/** Så länge efter sista giltiga dag ligger en offert kvar som kunden laddade ner själv men aldrig lade upp sig på. */
+const UNCLAIMED_QUOTE_KEEP_DAYS = 60;
+
+/**
+ * Tar bort offerter som kunder har laddat ner själva och som aldrig fick en kund: de ligger på
+ * säljarens platshållare, är inte godkända, och gick ut för mer än `UNCLAIMED_QUOTE_KEEP_DAYS` dagar
+ * sedan. Vem som helst kan ladda ner en offert utan att uppge något, så utan städning växer tabellen
+ * med bilder som ingen kommer att öppna igen. Offerter med en kund i registret rörs aldrig.
+ */
+export async function pruneUnclaimedCustomerQuotes(): Promise<number> {
+  const rows = await requireDb()<{ id: string }[]>`
+    delete from quotes q using customers c
+     where c.id = q.customer_id and c.email = ${UNASSIGNED_CUSTOMER_EMAIL}
+       and q.by_customer and q.status in ('sent', 'declined', 'cancelled')
+       and q.valid_until < current_date - ${UNCLAIMED_QUOTE_KEEP_DAYS}::int
+    returning q.id`;
+  return rows.length;
 }
 
 export async function cancelQuote(tenant: string, quoteNo: string): Promise<boolean> {

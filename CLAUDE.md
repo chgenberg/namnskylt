@@ -68,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1436 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1446 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -2108,8 +2108,14 @@ En slutkund kan själv göra en offert i skyltmotorn och ladda ner den (besked a
 "Även en slutkund som kommer in (inloggad eller icke inloggad) ska kunna ladda hem en offert exakt
 som en återförsäljare men då med sina slutpriser osv med samma knapp som en återförsäljare har upp
 till höger"). Koden ligger i `src/app/api/quotes/`, `src/features/designer/quote/` och
-`src/lib/quotes/`.
+`src/lib/quotes/` (`customer-quote.ts`).
 
+- **Inget behöver fyllas i** (ägarens besked senare samma dag, när den första versionen krävde
+  kassans uppgifter: kunden ska kunna få offerten "bara så att han eller hon kan visa sina
+  kollegor hur det skulle kunna se ut med bilder och så, som det är för en återförsäljare").
+  Offerten är till för att visas upp. Uppgifterna krävs först när den godkänns.
+  **Att det var kravet på uppgifter som skulle bort är min tolkning** av ett meddelande via
+  tal-till-text ("kan handla den här offerten").
 - **Knappen Offert över skylten visas för alla** (`customerQuote` på `Designer`, `selfQuote`): för
   den som är inloggad i panelen är den säljarens offertvy som förut, för alla andra kundens egen.
   Den finns på namnskylt.com och i butikerna, men inte i en butik som bara är en förhandsvisning
@@ -2117,48 +2123,81 @@ till höger"). Koden ligger i `src/app/api/quotes/`, `src/features/designer/quot
 - **Vyn:** samma dokument som säljaren ser, till kundens pris (butikens priser i en butik,
   `shopOrderPricing`), med säljarens uppgifter: Skylt & Gravyrteknik på namnskylt.com, butikens
   ägare i en återförsäljares butik. Kunden ändrar inga texter i dokumentet, och ikonraden och
-  marginalrutan finns inte. Panelen bredvid (`CustomerQuotePanel`) har samma uppgifter som kassan:
-  organisationsnummer med uppslag, företag, namn och e-post, och valfritt projekt och inköpsnummer.
-  En inloggad kund får dem ifyllda ur kontot.
+  marginalrutan finns inte. Panelen bredvid (`CustomerQuotePanel`) har "Era uppgifter (valfritt)":
+  organisationsnummer med uppslag, företag, namn och e-post, och projekt och inköpsnummer. Det
+  kunden fyller i står på offerten medan den skrivs. En inloggad kund får dem ifyllda ur kontot.
 - **"Ladda ner offert" sparar offerten och laddar ner PDF:en** (`POST /api/quotes`,
-  `submitSelf` i `use-quote.ts`). Offerten sparas hos säljaren som **Skickad**, märkt
-  `quotes.by_customer` (migrering 039, `StoredQuote.byCustomer`), och syns under Offerter i
-  panelen med noten "Kunden gjorde offerten själv…". Inget mejlas, och panelens ägare får inget
-  besked. En 3D-film per design spelas in efteråt och hämtas med en knapp, inte av sig själv.
-  - **Varukorgen står kvar.** Kunden kan beställa direkt i stället. Varje nedladdning är en ny
-    offert med eget nummer.
-  - **Kunden godkänner på sin offertsida**, dit länken står i PDF:ens ruta "Godkänn offerten —
-    öppna www.namnskylt.com/offert/<kod>…" (`QuoteRenderOptions.acceptUrl`, satt i PDF-vägen med
+  `saveCustomerQuote`, `submitSelf` i `use-quote.ts`), också med alla fält tomma. En 3D-film per
+  design spelas in efteråt och hämtas med en knapp, inte av sig själv. Varukorgen står kvar, och
+  varje nedladdning är en ny offert med eget nummer. Kunden får inget mejl.
+- **Offerten sparas utan kund i kundregistret.** Den ligger på säljarens platshållare
+  (`unassignedCustomerId`, alltså `noCustomer`), är märkt `quotes.by_customer` (migrering 039,
+  `StoredQuote.byCustomer`) och sparas som **Skickad**, så att den går att godkänna.
+  - **Det kunden skrev om sig själv ligger i `quotes.requester`** (migrering 040,
+    `QuoteRequester`, `parseQuoteRequester`), obekräftat, och står på offerten tills den har en
+    kund i registret: `toQuote` lägger det i `customer`. `hasQuoteParty` avgör om offerten har
+    någon att nämna, och rubriken, kundraderna och `quoteCustomerLabel` följer den. Ett utkast
+    som säljaren sparade utan kund har tomma uppgifter och ritas som förut.
+  - **`noCustomer` betyder att offerten saknar kund i registret**, inte att den saknar namn att
+    visa. Panelens Godkänn och offertmejlet nekar fortfarande en sådan offert
+    (`NO_CUSTOMER_ERROR`).
+- **Kunden lägger upp sig när offerten godkänns** (`acceptCustomerQuote`,
+  `decideQuoteAction`). På offertens sida (`/offert/<kod>`) har svarsrutan då delen "Era
+  uppgifter" (`QuoteDecision` med `party`): organisationsnummer med uppslag, företag, namn och
+  e-post, förifyllda med det kunden skrev, och leveransadressen under. Kraven är kassans. Kunden
+  sparas då hos säljaren (`upsertCustomer`, som i kassan), offerten får kunden
+  (`assignQuoteCustomer`) och godkänns sedan som vilken offert som helst: den blir en order som
+  går till tillverkningen. Ett utkast som säljaren sparade utan kund får aldrig sin kund den vägen.
+  - Länken står i PDF:ens ruta: "Godkänn offerten — öppna www.namnskylt.com/offert/<kod>, fyll i
+    era uppgifter och klicka Godkänn" (`QuoteRenderOptions.acceptUrl`, satt i PDF-vägen med
     `publicOrigin()`). I förhandsvisningen står att länken kommer med den nedladdade offerten.
-    Godkännandet är det vanliga: leveransadress och telefon fylls i där, och offerten blir en
-    order som går till tillverkningen.
   - Säljarens uppgifter hämtas först när offerten öppnas (`GET /api/quotes/seller`), så att loggan
     inte följer med varje besök i skyltmotorn. Fakturabrevlådan lämnar inte servern.
-- **Kunden har inte bekräftat sin e-postadress, och får därför aldrig se kundregistrets uppgifter.**
-  Offerten sparas på kunden med samma e-post hos säljaren (`upsertCustomer`, som när kunden
-  beställer själv): det som fylls i skriver över namn, företag och organisationsnummer. Men
-  telefon och adress som redan låg på kunden visas aldrig på en sådan offert för den som har
-  länken (`guarded` i `toQuote`: de töms när offerten läses åt kunden), och leveransen sparas
-  alltid utan adress. Annars hade den som känner någons e-post fått ut dess adress i PDF:en och i
-  leveransformuläret. Säljaren ser kunden som vanligt i panelen. **Ta inte bort det skyddet.**
-- Kraven är kassans: företag och organisationsnummer med tio siffror, namn och e-post, eftersom
-  en godkänd offert blir en order som faktureras. En privatperson kan alltså inte ladda ner en
-  offert. Gränser i processens minne: 12 offerter per klient och timme och 600 per dygn för hela
-  sajten.
-- Integritetssidan säger att en nedladdad offert sparas med kundens uppgifter.
-- Bildernas kod delas nu av de två vägarna som sparar en offert (`src/lib/quotes/shots.ts`).
-- Provat lokalt 2026-11-20 i Chrome som utloggad besökare, på dator och 390 px (21 kontroller
-  var): knappen, dokumentet, uppgifterna, nedladdad PDF med klickbar länk, den sparade rutan med
-  filmens knapp, kundens offertsida med Godkänn, och att skylten står kvar. Säljarens offertvy är
-  kontrollerad som admin och är oförändrad. **Godkänn trycktes aldrig**, butikernas skyltmotor är
-  inte provad i webbläsaren, och inget är provat i Safari.
-- Det jag valde själv: att offerten sparas (ägaren sa "ladda hem"), att kassans uppgifter krävs,
-  att varukorgen står kvar, att filmen hämtas med en knapp, att butikerna är med, och att
-  panelens ägare inte får något besked.
+- **Kundregistrets uppgifter visas aldrig för den som har länken.** Ingen kundrad rörs när
+  offerten laddas ner. När offerten har fått sin kund, genom att någon godkänner med en
+  e-postadress som redan finns hos säljaren, töms kundens telefon och adress när offerten läses
+  åt kunden (`guarded` i `toQuote`), och leveransen sparas alltid utan adress. Annars hade den
+  som känner någons e-post fått ut dess adress. Säljaren ser kunden som vanligt i panelen.
+  **Ta inte bort det skyddet.**
+- **Den som äger panelen får ett besked** (ägarens "Ja tack!" 2026-11-20, på frågan om besked
+  och mejl om en ny offert): slaget `quote-created`, "Exempel AB har laddat ner offert OF-2001",
+  eller "En besökare har laddat ner offert…" när kunden inte skrev något om sig själv
+  (`ANONYMOUS_REQUESTER`), med antalet skyltar och summan. Det leder till offerten och blir läst
+  när den öppnas. **Hos namnskylt.com går beskedet också som mejl till adminens adresser**, genom
+  strömbrytaren som redan är på (se Adminens besked som mejl). En återförsäljare får det i sin
+  panel; dess mejl är avstängda som förut.
+  - **Varje nedladdad offert ger ett mejl per adress, också från en besökare som inte uppgav
+    något.** Det kan bli många. Ska bara offerter med uppgifter ge mejl är det en rad i
+    `saveCustomerQuote`.
+- **I panelen** står offerten under Offerter som Skickad, med raden "Nedladdad av kunden, som inte
+  har lagt upp sig än". På offertens sida står rutan "Kunden laddade ner offerten själv", med det
+  kunden skrev ("Uppgifterna är inte bekräftade") och länken till kundens offertsida. Säljaren
+  kan också välja kund där, som för ett utkast.
+- **Städning:** jobbet `customer-quote-prune` tar en gång per dygn bort offerter som kunder har
+  laddat ner och som aldrig fick en kund, 60 dagar efter sista giltiga dag
+  (`pruneUnclaimedCustomerQuotes`). Offerter med en kund i registret rörs aldrig. Gränser i
+  processens minne: 8 offerter per klient och timme och 300 per dygn för hela sajten.
+- Integritetssidan säger att en nedladdad offert sparas, och att uppgifterna om kunden är frivilliga.
+- Bildernas kod delas av de två vägarna som sparar en offert (`src/lib/quotes/shots.ts`).
+- Provat lokalt 2026-11-20 i Chrome som utloggad besökare, på dator och 390 px (12 kontroller
+  var), mot en låtsasmottagare i stället för Resend: nedladdning utan att fylla i något, PDF:en,
+  beskedet som två mejl, offertsidan med "Era uppgifter", och godkännandet som blev en order
+  lokalt, utan kopplingen till verkstaden. Dessutom en offert med bara företagets namn, som stod
+  på offerten, var förifyllt på offertsidan och syntes i panelen. Säljarens offertvy är
+  kontrollerad som admin och är oförändrad. Butikernas skyltmotor är inte provad i webbläsaren,
+  och inget är provat i Safari. **Inget riktigt mejl har skickats.**
+- Kontrollerat i drift 2026-11-20 efter den första pushen (`8a214da`), bara läsning: migrering 038
+  och 039, ramens pris i den sparade prismodellen, släppytan, och att en utloggad besökare får
+  knappen Offert och kundens offertvy. Den versionen krävde kassans uppgifter vid nedladdningen.
+- Det jag valde själv: att offerten sparas (ägaren sa "ladda hem"), att varukorgen står kvar,
+  att filmen hämtas med en knapp, att butikerna är med, att uppgifterna som fylls i är
+  frivilliga fält i stället för att tas bort helt, att också en besökare utan uppgifter ger
+  besked och mejl, och städningen efter 60 dagar.
 - Kända brister: offerten på skärmen bär numret "Utkast" också efter att den har sparats. En
-  offert som kunden har gjort själv hamnar inte på kundens konto när den blir en order. Admin
-  får inget besked eller mejl om en ny offert. Den som känner en kunds e-post kan skriva över
-  kundens namn, företag och organisationsnummer hos säljaren, som i kassan.
+  offert som kunden har laddat ner hamnar inte på kundens konto när den blir en order. Den som
+  godkänner med en e-postadress som redan finns hos säljaren skriver över den kundens namn,
+  företag och organisationsnummer, som i kassan. Uppslaget på organisationsnummer fungerar inte
+  på offertsidan för den som saknar sajtkoden, medan sajtspärren är på.
 
 ## Panelens listor — läge 2026-11-20
 
@@ -2207,7 +2246,9 @@ som syns i panelen. Det återförsäljaren gör själv ger inget besked.
   - kunden godkänner sitt korrektur eller vill ändra (`answerProof` i `src/lib/orders/proof-answer.ts`),
   - en kund lägger en order själv i webbshoppen eller i en butik (`placeOrder`, källorna `web`
     och `shop`, inte demoordrar),
-  - ett företag ansöker om konto (`saveApplication`), som går till namnskylt.com.
+  - ett företag ansöker om konto (`saveApplication`), som går till namnskylt.com,
+  - en kund gör en offert själv i skyltmotorn och laddar ner den (`saveCustomerQuote`, sedan
+    2026-11-20).
 - **Alla krokar anropar `notify`** (`src/lib/notices/notify.ts`), som aldrig kastar: kundens svar
   är redan sparat, och ett besked som inte går att spara får inte ge kunden ett fel.
 - **I panelen:** översikten visar listan "Nytt sedan sist" överst (`NoticeList`), även för en
@@ -2264,7 +2305,9 @@ och `emailAdminNotice` (`notify.ts`).
     en order som läggs i namnskylt.coms egen panel. En order som kunden själv lägger hos
     namnskylt.com hade redan sitt besked (`order-placed`). Demoordrar ger inget besked,
   - de besked namnskylt.com redan fick: svar på egna offerter och korrektur, och när
-    verkstaden har skickat.
+    verkstaden har skickat,
+  - en offert som en kund har gjort själv och laddat ner (`quote-created`, ägarens "Ja tack!"
+    senare samma dag, se Kundens egen offert).
 - Beskeden om återförsäljarnas ordrar är lästa när Tillverkning har öppnats
   (`NoticesSeen` med `kind: "reseller-order"`).
 - Driftsidan visar strömbrytaren "Adminens besked som mejl", med antalet adresser men aldrig

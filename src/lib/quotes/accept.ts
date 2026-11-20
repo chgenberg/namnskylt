@@ -142,7 +142,8 @@ export async function declineByCustomer(
     await notify({
       tenant: quote.resellerId,
       kind: "quote-declined",
-      who: customerLabel(quote.customer),
+      // En offert som kunden laddade ner själv utan att skriva något om sig har inget namn att nämna.
+      who: customerLabel(quote.customer) || "En besökare",
       detail: reason,
       quoteId: quote.id,
     });

@@ -100,8 +100,9 @@ export function PrivacyPage() {
           <a href={`tel:${workshop.phoneHref}`}>{workshop.phone}</a>.
         </p>
         <p>
-          Laddar du ner en offert sparas den hos oss med namn, e-post, företag, organisationsnummer och texten på
-          skyltarna, så att offerten går att godkänna senare. Inget beställs förrän du godkänner den.
+          Laddar du ner en offert sparas den hos oss med texten på skyltarna, så att offerten går att godkänna senare.
+          Du behöver inte uppge något om dig själv. Fyller du i namn, e-post, företag eller organisationsnummer sparas
+          de med offerten. Inget beställs förrän du godkänner den.
         </p>
         <p>
           När du skriver ett organisationsnummer hämtar vi företagets namn och adress ur EU:s momsregister (VIES), så
