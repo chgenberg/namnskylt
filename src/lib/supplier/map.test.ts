@@ -433,6 +433,16 @@ describe("det som printas skickas som ett trycklager", () => {
     assert.deepEqual(printed.partnerSpecs?.map((row) => row.label), ["Fäste", "Märkning", "Tryckfärg", "Typsnitt", "Tryckt text"]);
   });
 
+  it("en CMYK-kod kunden har angett går till tryckfilen med exakt de värdena", () => {
+    // 50/50/50/95 ritas nästan svart på skärmen, och räknas därifrån om till ren svart. Kundens värden ska gälla.
+    const supplier = toSupplierSignDocument({ ...plastic(["Anna Lind"]), marking: "print", printColor: "50/50/50/95" }, fonts);
+    const layer = printLayerOf(supplier);
+    assert.ok(layer?.data.kind === "image" && layer.data.vector);
+    const [fill] = fills(layer.data.vector.markup);
+    assert.deepEqual(supplier.printCmyk, { [fill!]: [50, 50, 50, 95] });
+    assert.deepEqual(supplier.partnerSpecs?.find((row) => row.label === "Tryckfärg"), { label: "Tryckfärg", value: "CMYK 50/50/50/95" });
+  });
+
   it("en skylt utan trycklager säger ingenting om CMYK", () => {
     const engraved = toSupplierSignDocument(plastic(["Anna Lind"]), fonts);
     assert.equal(engraved.printColorSpace, undefined);

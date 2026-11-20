@@ -10,8 +10,12 @@ import {
   mountingLabel,
   engravingHex,
   engravingPaths,
+  cmykHex,
+  cmykOf,
   cmykText,
   hexCmyk,
+  printColorOf,
+  rowPrintColorOf,
   printColorLabel,
   printedPaths,
   hasStraightSides,
@@ -81,12 +85,23 @@ function withCmyk(text: string): string {
   });
 }
 
-/** Tryckfärgerna för varje fyllnadsfärg i ett trycklager, för verkstadens tryckfil. */
-function printCmykOf(markup: string): Record<string, [number, number, number, number]> {
+/**
+ * Tryckfärgerna för varje fyllnadsfärg i ett trycklager, för verkstadens tryckfil. En färg kunden
+ * har angett som CMYK går dit med exakt de värdena; lagret bär den som sin skärmfärg (`cmykHex`),
+ * och det är den tabellen slås upp på. Övriga färger räknas om från skärmfärgen.
+ */
+function printCmykOf(doc: BadgeDocument, markup: string): Record<string, [number, number, number, number]> {
+  const typed = new Map<string, [number, number, number, number]>();
+  for (const code of [printColorOf(doc), ...doc.rows.map((row) => rowPrintColorOf(doc, row))]) {
+    const cmyk = cmykOf(code);
+    if (cmyk) typed.set(cmykHex(cmyk).toLowerCase(), [cmyk.c, cmyk.m, cmyk.y, cmyk.k]);
+  }
   const table: Record<string, [number, number, number, number]> = {};
   for (const match of markup.matchAll(/fill="(#[0-9a-f]{6})"/g)) {
-    const cmyk = hexCmyk(match[1]!);
-    if (cmyk) table[match[1]!] = [cmyk.c, cmyk.m, cmyk.y, cmyk.k];
+    const fill = match[1]!;
+    const cmyk = hexCmyk(fill);
+    const values = typed.get(fill) ?? (cmyk ? ([cmyk.c, cmyk.m, cmyk.y, cmyk.k] as [number, number, number, number]) : null);
+    if (values) table[fill] = values;
   }
   return table;
 }
@@ -334,7 +349,7 @@ export function toSupplierSignDocument(
   const rowTexts = layout.rows.map((row) => row.text);
   // Trycklagrets färger i CMYK: tryckfilen bär dem, och raden Tryckfärg visar dem.
   const printMarkup = print?.data.kind === "image" && print.data.vector ? print.data.vector.markup : null;
-  const printCmyk = printMarkup ? printCmykOf(printMarkup) : {};
+  const printCmyk = printMarkup ? printCmykOf(doc, printMarkup) : {};
   const text = {
     printed: nameInPrintLayer ? rowTexts : [],
     engraved: engravedText ? rowTexts : [],

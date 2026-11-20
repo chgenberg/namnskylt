@@ -1,6 +1,6 @@
 import { getColor, getMaterial } from "./catalog";
 import { INVISIBLE_CONTRAST, contrastRatio } from "./color-choice";
-import { isPrintHex, printColorHex, printColorText, printHex } from "./color-code";
+import { cmykOf, cmykText, isPrintHex, printColorHex, printColorText, printHex } from "./color-code";
 import type { BadgeDocument, MarkingMethod, MarkingMode, MaterialId } from "./types";
 
 /**
@@ -167,13 +167,20 @@ export const PRINT_COLOR_MAX = 40;
 export const LOGO_PRINT_COLOR_MAX = 120;
 
 /**
- * Tryckets färger är skärmfärger (beslut av ägaren 2026-11-18, som hos Skylt & Gravyrteknik):
- * färgen för hela trycket och för en rad är `#RRGGBB`, och loggan har ingen egen. En skylt
- * med en äldre kod, som CMYK eller PMS, säljs inte som den är.
+ * Tryckets färg är en skärmfärg, `#RRGGBB`, eller en CMYK-kod som kunden själv har angett
+ * (beslut av ägaren 2026-11-20: tryckfilen är i CMYK, och kunden ska kunna välja värdena själv).
+ * Från 2026-11-18 till 2026-11-20 gällde bara skärmfärger. Loggan har ingen egen färg. En skylt
+ * med en kod som inte går att trycka efter, som PMS, säljs inte som den är.
  */
 export function hasScreenPrintColors(doc: Pick<BadgeDocument, "printColor" | "rows" | "logo">): boolean {
-  const screen = (code: string | undefined) => code === undefined || isPrintHex(code);
-  return screen(doc.printColor) && doc.rows.every((row) => screen(row.printColor)) && doc.logo?.printColor === undefined;
+  const fine = (code: string | undefined) => code === undefined || isPrintHex(code) || cmykOf(code) !== null;
+  return fine(doc.printColor) && doc.rows.every((row) => fine(row.printColor)) && doc.logo?.printColor === undefined;
+}
+
+/** Tryckets färg som den sparas: skärmfärgen, eller CMYK-koden på samma form hur kunden än skrev den. `null` för allt annat. */
+export function printColorCode(input: string): string | null {
+  const cmyk = cmykOf(input);
+  return printHex(input) ?? (cmyk ? cmykText(cmyk) : null);
 }
 
 /**
@@ -183,9 +190,10 @@ export function hasScreenPrintColors(doc: Pick<BadgeDocument, "printColor" | "ro
  * kan få en egen färg igen efteråt. `null` tar bort färgen, och trycket får ytans förvalda.
  */
 export function withTextColor<T extends Pick<BadgeDocument, "printColor" | "rows">>(doc: T, color: string | null): T {
-  const hex = color === null ? null : printHex(color);
-  if (color !== null && !hex) return doc;
-  return { ...withColor(doc, hex), rows: doc.rows.map((row) => (row.printColor === undefined ? row : withColor(row, null))) };
+  // En skärmfärg, eller en CMYK-kod som kunden har angett. En halvskriven kod sparas aldrig.
+  const code = color === null ? null : printColorCode(color);
+  if (color !== null && !code) return doc;
+  return { ...withColor(doc, code), rows: doc.rows.map((row) => (row.printColor === undefined ? row : withColor(row, null))) };
 }
 
 /**
@@ -218,17 +226,22 @@ function withColor<T extends { printColor?: string }>(item: T, color: string | n
 }
 
 /**
- * Skylten med tryckets färger som skärmfärger: en äldre CMYK-kod blir färgen den visades i,
- * och en kod som inte går att rita, som PMS, tas bort. Trycket visades aldrig i en sådan kod.
- * En rad som bar en får tryckets färg, om trycket har någon. Loggans egna koder tas bort: en
- * svartvit logga som printas får tryckets färg.
+ * Skylten med tryckets färger som de säljs: en skärmfärg eller en CMYK-kod står kvar, och en kod
+ * som inte går att trycka efter, som PMS, tas bort. Trycket visades aldrig i en sådan kod. En rad
+ * som bar en får tryckets färg, om trycket har någon. Loggans egna koder tas bort: en svartvit
+ * logga som printas får tryckets färg.
  */
 export function withScreenPrintColors<T extends Pick<BadgeDocument, "printColor" | "rows" | "logo">>(doc: T): T {
   if (hasScreenPrintColors(doc)) return doc;
-  const moved = doc.printColor === undefined ? doc : withColor(doc, printColorHex(doc.printColor));
+  // En CMYK-kod behåller sina värden. Allt annat som går att rita, som en hexkod med tre siffror, blir skärmfärgen.
+  const sold = (code: string) => {
+    const cmyk = cmykOf(code);
+    return cmyk ? cmykText(cmyk) : printColorHex(code);
+  };
+  const moved = doc.printColor === undefined ? doc : withColor(doc, sold(doc.printColor));
   return {
     ...moved,
-    rows: doc.rows.map((row) => (row.printColor === undefined ? row : withColor(row, printColorHex(row.printColor)))),
+    rows: doc.rows.map((row) => (row.printColor === undefined ? row : withColor(row, sold(row.printColor)))),
     ...(doc.logo && { logo: withColor(doc.logo, null) }),
   };
 }

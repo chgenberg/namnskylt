@@ -14,6 +14,7 @@ import {
   logoEngravingPath,
   logoMarking,
   logoPrintInkOf,
+  printColorOf,
   nameMarking,
   printsInOneColor,
   type BadgeDocument,
@@ -447,6 +448,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
               label="Loggans färg"
               target="loggan"
               shown={logoPrintInkOf(doc) ?? engravingHex(getColor(doc.materialId, doc.colorId))}
+              code={printColorOf(doc)}
               surface={getColor(doc.materialId, doc.colorId).surface}
               logoColors={[]}
               onChange={(next) => dispatch({ type: "print/color", color: next })}

@@ -16,6 +16,7 @@ import {
   logoPrintInkOf,
   printColorLabel,
   printColorOf,
+  printColorCode,
   printInkOf,
   printsInOneColor,
   rowPrintColorOf,
@@ -395,10 +396,15 @@ describe("tryckets färger är skärmfärger", () => {
     assert.equal(rowPrintInkOf(colored, colored.rows[1]!), "#E31C23");
   });
 
-  it("en skylt med en äldre kod säljs inte som den är", () => {
-    for (const code of ["CMYK 100/60/0/20", "100/60/0/20", "PMS 286 C", "0057B8", "#fff"]) {
+  it("en skylt med en kod som inte går att trycka efter säljs inte som den är", () => {
+    for (const code of ["PMS 286 C", "0057B8", "#fff"]) {
       assert.equal(isOfferedDocument({ ...printed, printColor: code }), false, code);
       assert.equal(isOfferedDocument(withRow(code)), false, code);
+    }
+    // En CMYK-kod säljs: kunden får välja tryckfärgerna själv, och tryckfilen bär just de värdena.
+    for (const code of ["CMYK 100/60/0/20", "100/60/0/20"]) {
+      assert.equal(isOfferedDocument({ ...printed, printColor: code }), true, code);
+      assert.equal(isOfferedDocument(withRow(code)), true, code);
     }
     assert.equal(isOfferedDocument({ ...printed, logo: { ...logo, printColor: "#0057B8" } }), false);
     // Också en kod som står kvar på en skylt som graveras: den skulle gälla igen om metoden byttes till print.
@@ -407,17 +413,17 @@ describe("tryckets färger är skärmfärger", () => {
     assert.equal(isOfferedDocument({ ...engraved, printColor: "PMS 286 C" }), false);
   });
 
-  it("en äldre CMYK-kod blir färgen den visades i när skylten öppnas", () => {
+  it("en CMYK-kod står kvar när skylten öppnas, med kundens värden", () => {
     const old: BadgeDocument = { ...withRow("C0 M100 Y80 K0"), printColor: "100/60/0/20" };
-    const opened = toOfferedDocument(old);
-    assert.equal(opened.printColor, "#0052CC");
-    assert.equal(opened.rows[1]!.printColor, "#FF0033");
-    assert.equal(printInkOf(opened), printInkOf(old));
-    assert.equal(rowPrintInkOf(opened, opened.rows[1]!), rowPrintInkOf(old, old.rows[1]!));
-    assert.equal(isOfferedDocument(opened), true);
-    assert.equal(printColorLabel(opened), "Tryckfärg #0052CC, rad 2 #FF0033");
-    // Texten och allt annat är orört.
-    assert.deepEqual({ ...opened, printColor: old.printColor, rows: old.rows }, old);
+    // Skylten säljs som den är, och öppnas därför orörd.
+    assert.equal(toOfferedDocument(old), old);
+    assert.equal(printColorLabel(old), "Tryckfärg CMYK 100/60/0/20, rad 2 CMYK 0/100/80/0");
+    // Står en CMYK-kod bredvid en kod som måste bort, behåller den sina värden, på samma form.
+    const mixed = toOfferedDocument({ ...withRow("PMS 300 C"), printColor: "c100 m60 y0 k20" });
+    assert.equal(mixed.printColor, "CMYK 100/60/0/20");
+    assert.equal("printColor" in mixed.rows[1]!, false);
+    assert.equal(printInkOf(mixed), "#0052CC");
+    assert.equal(isOfferedDocument(mixed), true);
   });
 
   it("en kod som inte går att rita tas bort", () => {
@@ -614,7 +620,24 @@ describe("textfärgen gäller alla rader", () => {
     const own: BadgeDocument = { ...printed, printColor: "#0057B8" };
     assert.equal("printColor" in withTextColor(own, null), false);
     assert.equal(withTextColor(own, "PMS 286 C"), own);
-    assert.equal(withTextColor(own, "100/60/0/20"), own);
+    assert.equal(withTextColor(own, "100/60/0"), own);
+    assert.equal(withTextColor(own, "100/60/0/120"), own);
+  });
+
+  it("kunden kan ange tryckfärgerna själv: en CMYK-kod sparas med sina värden", () => {
+    const own: BadgeDocument = { ...printed, printColor: "#0057B8" };
+    const typed = withTextColor(own, "100/60/0/20");
+    assert.equal(typed.printColor, "CMYK 100/60/0/20");
+    // Skärmen visar färgen ungefärligt, och valet gäller alla rader som ett vanligt färgval.
+    assert.equal(printInkOf(typed), "#0052CC");
+    assert.equal(printColorLabel(typed), "Tryckfärg CMYK 100/60/0/20");
+    assert.equal(isOfferedDocument(typed), true);
+    assert.equal(printColorCode("c100 m60 y0 k20"), "CMYK 100/60/0/20");
+    assert.equal(printColorCode("0057b8"), "#0057B8");
+    assert.equal(printColorCode("PMS 286 C"), null);
+    // Samma skärmfärg kan komma ur olika blandningar: därför sparas koden, inte skärmfärgen.
+    assert.notDeepEqual(hexCmyk(printInkOf(withTextColor(own, "50/50/50/95"))!), { c: 50, m: 50, y: 50, k: 95 });
+    assert.equal(withTextColor(own, "50/50/50/95").printColor, "CMYK 50/50/50/95");
   });
 });
 

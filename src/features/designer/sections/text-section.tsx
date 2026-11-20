@@ -7,6 +7,7 @@ import { useLogoColors } from "@/hooks/use-logo-colors";
 import { Segmented } from "@/components/ui/segmented";
 import {
   TEXT_LIMITS,
+  cmykOf,
   cmykText,
   colorNames,
   getColor,
@@ -15,6 +16,7 @@ import {
   nameMarking,
   engravingHex,
   printColorName,
+  printColorOf,
   printInkOf,
   rowPrintInkOf,
   type BadgeDocument,
@@ -67,7 +69,8 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
   const defaultInk = engravingHex(color);
   /** Textfärgen som gäller för hela trycket. En rad kan avvika med sin egen. */
   const textColor = printInkOf(doc) ?? defaultInk;
-  const textCmyk = hexCmyk(textColor);
+  // Det tryckfilen får: värdena kunden har angett, eller dem skärmfärgen räknas om till.
+  const textCmyk = cmykOf(printColorOf(doc)) ?? hexCmyk(textColor);
   // Loggans färger står först bland valen, med den som passar bäst mot skylten utpekad. De lästes av när loggan
   // lades in och kan vara rättade av kunden. En äldre logga utan sparade färger läses ur sin bild.
   const stored = doc.logo?.colors;
@@ -176,6 +179,7 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
             label="Textfärg"
             target="texten"
             shown={textColor}
+            code={printColorOf(doc)}
             surface={color.surface}
             logoColors={logoColors}
             onChange={(next) => dispatch({ type: "print/color", color: next })}

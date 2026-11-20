@@ -68,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1412 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1414 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -2507,7 +2507,9 @@ avsnitt: typsnitten, följesedeln, paketvalet i frakten (Prismodellen), klämman
 - **Svar från Mats 2026-11-20**, via ägaren:
   - **Tryckfilen bör vara i CMYK**: "för att printern ska fatta färgerna rätt, kan vara så
     att den konverterar men för att vi ska vara på den säkra sidan". **Byggt 2026-11-20 på
-    ägarens "Bygg", i båda projekten, inte utrullat.**
+    ägarens "Bygg", och ute i båda projekten samma dag** (ägarens "Ja till båda"): Namnskylt
+    pushad (`8585b53`) och skyltmotor deployad cirka 14:00, efter bug-hunt utan allvarliga
+    fynd. Verkstadens sajt svarade likadant före och efter.
     - **Vi skickar** `printColorSpace: "cmyk"` och `printCmyk` i dokumentet när skylten har
       ett trycklager: tryckfärgerna för varje färg i lagret, i hela procent (`hexCmyk` i
       `src/engine/color-code.ts`, `printCmykOf` i `supplier/map.ts`). Omräkningen är den
@@ -2522,7 +2524,21 @@ avsnitt: typsnitten, följesedeln, paketvalet i frakten (Prismodellen), klämman
       valde jag, efter ägarens besked att deras egen motor inte ska ändras.
     - **En logga i färg är fortfarande en RGB-bild** i tryckfilen. Att räkna om en bild
       kräver en färgprofil, och det är inte byggt.
-    - Kunden väljer fortfarande en skärmfärg. Det går inte att skriva en CMYK-kod själv.
+    - **Kunden kan ange tryckfärgerna själv** (ägarens "Lös det" 2026-11-20, på frågan om
+      CMYK-fält): under "Egen färg" vid textfärgen står fyra fält, C, M, Y och K
+      (`CmykFields` i `print-color-field.tsx`). De visar alltid det tryckfilen får. Ändras
+      ett fält sparas alla fyra som en kod, `CMYK 100/60/0/20`, i `printColor`
+      (`printColorCode`, `withTextColor`), och **just de värdena går till tryckfilen**
+      (`printCmykOf` slår upp dem på lagrets skärmfärg). Skärmen visar färgen ungefärligt.
+      - Koden sparas, inte skärmfärgen, eftersom olika blandningar ger samma skärmfärg:
+        50/50/50/95 ser svart ut och hade annars blivit 0/0/0/98.
+      - **Det upphäver delar av beslutet från 2026-11-18**, då CMYK-fälten togs bort: en
+        skylt med en CMYK-kod säljs nu som den är (`hasScreenPrintColors`), och koden står
+        kvar när skylten öppnas. En kod som inte går att trycka efter, som PMS, säljs
+        fortfarande inte och tas bort. Pantone finns fortfarande inte.
+      - Radernas egna färgrutor är fortfarande skärmfärger. Det valde jag, för att panelen
+        inte ska växa. En enfärgad logga som printas följer textfärgen och får samma värden.
+      - Provat lokalt i Chrome på dator, 390 och 320 px (30 kontroller). Inte pushat.
     - Provat lokalt 2026-11-20: ett riktigt dokument från Namnskylt med blått namn och röd
       andra rad gick genom verkstadens tryckfil, som då bara bär "1 0.53 0 0.28 k" och
       "0 0.88 0.85 0.11 k". **Ingen sådan fil har tryckts**, och hur RIP:en läser en fil med
@@ -2541,7 +2557,9 @@ avsnitt: typsnitten, följesedeln, paketvalet i frakten (Prismodellen), klämman
       varubrev (`LETTER_ALWAYS_SEK`), och **migrering 037 skriver samma regel i den sparade
       prismodellen**: den skriver över det som stod i drift (75, 75 och 3 000 kr). Fältet
       för antal skyltar står tomt. Varubrevets rad i väljaren säger att PostNord delar ut
-      varannan vardag, och paketets att det är snabbare och säkrare. Inte pushat än.
+      varannan vardag, och paketets att det är snabbare och säkrare. Pushat 2026-11-20
+      (`8585b53`) och kontrollerat i drift genom läsning: migreringen är tillämpad, och
+      frakten svarar 75 kr med paket för 159 kr som val för 1, 10 och 200 skyltar.
     - Testerna för regelns gräns använder `TIERED_SHIPPING` i `src/engine/testing.ts`.
   - **Fraktsedeln** behöver troligen en avsändare, för returer. Mats kollar upp det.
 - **Väntar fortfarande på Mats:** vad paketet ska kosta (i drift står det på 75 kr, som
