@@ -20,3 +20,10 @@ export function engravedBadge(texts: readonly string[] = []): BadgeDocument {
 export function plasticBadge(texts: readonly string[] = [], colorId = "white-black"): BadgeDocument {
   return withBlank({ ...engravedBadge(texts), materialId: "plastic", colorId }, "rectangle");
 }
+
+/**
+ * Fraktregeln med en gräns i varuvärde, som den var 2026-11-14 till 2026-11-20: varubrev upp till
+ * 500 kr, annars paket. Testerna för regelns gräns använder den. Sedan 2026-11-20 är varubrevet
+ * standard för varje order i kalkylen, och paketet ett val.
+ */
+export const TIERED_SHIPPING = { letterSek: 75, parcelSek: 159, letterMaxSek: 500 };

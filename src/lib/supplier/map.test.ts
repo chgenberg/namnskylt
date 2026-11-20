@@ -125,7 +125,7 @@ describe("toSupplierSignDocument", () => {
     assert.deepEqual(toSupplierSignDocument(clip, approxFonts).partnerSpecs, [{ label: "Fäste", value: "Klämma, horisontellt" }]);
     // Tryckfärgen står utan sitt ledord, eftersom raden redan heter Tryckfärg.
     const colored = toSupplierSignDocument({ ...createBadgeDocument(["Anna", "Säljare"]), printColor: "#0057B8" }, approxFonts);
-    assert.deepEqual(colored.partnerSpecs?.find((row) => row.label === "Tryckfärg"), { label: "Tryckfärg", value: "#0057B8" });
+    assert.deepEqual(colored.partnerSpecs?.find((row) => row.label === "Tryckfärg"), { label: "Tryckfärg", value: "#0057B8 (CMYK 100/53/0/28)" });
     // Kommentaren i löptext följer med som förut: verkstaden ritar den tills raderna är inlästa där.
     assert.match(colored.productionNote ?? "", /Märkningsmetod: Endast print\. Namn: Print\. Tryckfärg #0057B8\.$/);
     // Varje rad har rubrik och värde, och inget av dem bär en radbrytning.
@@ -318,6 +318,11 @@ describe("det som printas skickas som ett trycklager", () => {
     assert.ok(layer.data.vector.markup.includes("C"));
     // En bana per rad, i färgen skylten visades i.
     assert.deepEqual(fills(layer.data.vector.markup), ["#111111", "#111111"]);
+    // Tryckfilen ska bära färgerna i CMYK: dokumentet säger det och bär värdena för varje färg i lagret.
+    assert.equal(supplier.printColorSpace, "cmyk");
+    assert.deepEqual(supplier.printCmyk, { "#111111": [0, 0, 0, 93] });
+    // Raden Tryckfärg visar färgen skylten visades i, med samma värden.
+    assert.deepEqual(supplier.partnerSpecs?.find((row) => row.label === "Tryckfärg"), { label: "Tryckfärg", value: "#111111 (CMYK 0/0/0/93)" });
     // Texten står i kommentaren, eftersom verkstaden inte har något textlager att läsa.
     assert.equal(supplier.productionNote, "Märkningsmetod: Endast print. Namn: Print. Text som printas: Anna Lind / Säljare.");
     // Och som en egen rad på orderpappret.
@@ -331,6 +336,9 @@ describe("det som printas skickas som ett trycklager", () => {
     const layer = printLayerOf(supplier);
     assert.ok(layer?.data.kind === "image" && layer.data.renderMode === "print" && layer.data.vector);
     assert.deepEqual(fills(layer.data.vector.markup), ["#0052cc", "#c8102e", "#ff0033"]);
+    // Varje färg i lagret har sina tryckfärger, och raden på orderpappret visar dem bredvid skärmfärgen.
+    assert.deepEqual(supplier.printCmyk, { "#0052cc": [100, 60, 0, 20], "#c8102e": [0, 92, 77, 22], "#ff0033": [0, 100, 80, 0] });
+    assert.match(supplier.partnerSpecs?.find((row) => row.label === "Tryckfärg")?.value ?? "", /rad 2 #C8102E \(CMYK 0\/92\/77\/22\)/);
     assert.match(supplier.productionNote ?? "", /Tryckfärg CMYK 100\/60\/0\/20, rad 2 #C8102E, rad 3 CMYK 0\/100\/80\/0\. Text som printas: Anna Lind \/ Säljare \/ Butiken\.$/);
   });
 
@@ -422,7 +430,14 @@ describe("det som printas skickas som ett trycklager", () => {
     // Printas namnet ligger det i trycklagret som förut, och typsnittet står med på orderpappret.
     const printed = toSupplierSignDocument({ ...doc, marking: "print" as const }, fonts);
     assert.deepEqual(printed.layers.map((l) => (l.data.kind === "image" ? l.data.renderMode : l.data.kind)), ["print"]);
-    assert.deepEqual(printed.partnerSpecs?.map((row) => row.label), ["Fäste", "Märkning", "Typsnitt", "Tryckt text"]);
+    assert.deepEqual(printed.partnerSpecs?.map((row) => row.label), ["Fäste", "Märkning", "Tryckfärg", "Typsnitt", "Tryckt text"]);
+  });
+
+  it("en skylt utan trycklager säger ingenting om CMYK", () => {
+    const engraved = toSupplierSignDocument(plastic(["Anna Lind"]), fonts);
+    assert.equal(engraved.printColorSpace, undefined);
+    assert.equal(engraved.printCmyk, undefined);
+    assert.equal(engraved.partnerSpecs?.some((row) => row.label === "Tryckfärg"), false);
   });
 
   it("en skylt som bara graveras har inget trycklager", () => {

@@ -10,6 +10,8 @@ import {
   mountingLabel,
   engravingHex,
   engravingPaths,
+  cmykText,
+  hexCmyk,
   printColorLabel,
   printedPaths,
   hasStraightSides,
@@ -71,6 +73,24 @@ function markingNote(doc: BadgeDocument, printedText: readonly string[] = []): s
 
 const PRINT_COLOR_PREFIX = "Tryckfärg ";
 
+/** `#0057B8` blir `#0057B8 (CMYK 100/53/0/28)`: skärmfärgen med tryckfärgerna tryckfilen bär. */
+function withCmyk(text: string): string {
+  return text.replace(/#[0-9a-f]{6}\b/gi, (hex) => {
+    const cmyk = hexCmyk(hex);
+    return cmyk ? `${hex} (${cmykText(cmyk)})` : hex;
+  });
+}
+
+/** Tryckfärgerna för varje fyllnadsfärg i ett trycklager, för verkstadens tryckfil. */
+function printCmykOf(markup: string): Record<string, [number, number, number, number]> {
+  const table: Record<string, [number, number, number, number]> = {};
+  for (const match of markup.matchAll(/fill="(#[0-9a-f]{6})"/g)) {
+    const cmyk = hexCmyk(match[1]!);
+    if (cmyk) table[match[1]!] = [cmyk.c, cmyk.m, cmyk.y, cmyk.k];
+  }
+  return table;
+}
+
 /**
  * Raderna verkstaden ritar på sitt orderpapper, en per uppgift: fästet, ämnet och, när något
  * printas, märkningsmetoden, tryckfärgen och texten som printas. Samma uppgifter som i
@@ -81,14 +101,17 @@ const PRINT_COLOR_PREFIX = "Tryckfärg ";
 function specRows(
   doc: BadgeDocument,
   article: ReturnType<typeof blankArticleOf>,
-  text: { printed: readonly string[]; engraved: readonly string[] },
+  text: { printed: readonly string[]; engraved: readonly string[]; printInk?: string | null },
 ): SupplierSpecRow[] {
   const rows: SupplierSpecRow[] = [{ label: "Fäste", value: mountingLabel(doc) }];
   if (article) rows.push({ label: "Ämne", value: `${article.name}, ${article.thicknessMm.toLocaleString("sv-SE")} mm` });
   if (markingOf(doc) !== "engrave") {
     rows.push({ label: "Märkning", value: getMarkingMethod(markingOf(doc)).name });
     const color = printColorLabel(doc);
-    if (color) rows.push({ label: "Tryckfärg", value: color.startsWith(PRINT_COLOR_PREFIX) ? color.slice(PRINT_COLOR_PREFIX.length) : color });
+    // Varje skärmfärg står med sina tryckfärger, de som tryckfilen bär.
+    if (color) rows.push({ label: "Tryckfärg", value: withCmyk(color.startsWith(PRINT_COLOR_PREFIX) ? color.slice(PRINT_COLOR_PREFIX.length) : color) });
+    // Utan vald färg trycks det i färgen skylten visades i: den står då här, så att raden alltid finns när något trycks i en färg.
+    else if (text.printInk) rows.push({ label: "Tryckfärg", value: withCmyk(text.printInk.toUpperCase()) });
   }
   // Texten som skickas som banor finns inte som text hos verkstaden: då står den, och typsnittet, här.
   if (text.printed.length > 0 || text.engraved.length > 0) rows.push({ label: "Typsnitt", value: getFont(doc.font).name });
@@ -309,7 +332,15 @@ export function toSupplierSignDocument(
   // annat i deras katalog, och formatet går inte att läsa ur materialkoden.
   const article = blankArticleOf(doc);
   const rowTexts = layout.rows.map((row) => row.text);
-  const text = { printed: nameInPrintLayer ? rowTexts : [], engraved: engravedText ? rowTexts : [] };
+  // Trycklagrets färger i CMYK: tryckfilen bär dem, och raden Tryckfärg visar dem.
+  const printMarkup = print?.data.kind === "image" && print.data.vector ? print.data.vector.markup : null;
+  const printCmyk = printMarkup ? printCmykOf(printMarkup) : {};
+  const text = {
+    printed: nameInPrintLayer ? rowTexts : [],
+    engraved: engravedText ? rowTexts : [],
+    // Färgen skylten visades i, när något trycks i en färg utan att kunden har valt en.
+    printInk: printMarkup ? engravingHex(getColor(doc.materialId, doc.colorId)) : null,
+  };
   const notes = [
     article ? `Ämne: ${article.name}, ${article.thicknessMm.toLocaleString("sv-SE")} mm.` : null,
     method !== "engrave" ? markingNote(doc, text.printed) : null,
@@ -330,5 +361,6 @@ export function toSupplierSignDocument(
     layers: [...frameLayers, ...logoLayers, ...textLayers, ...(engravedText ? [engravedText] : []), ...(print ? [print] : [])],
     ...(notes.length > 0 && { productionNote: notes.join(" ") }),
     partnerSpecs: specRows(doc, article, text),
+    ...(Object.keys(printCmyk).length > 0 && { printColorSpace: "cmyk" as const, printCmyk }),
   };
 }

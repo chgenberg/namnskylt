@@ -7,9 +7,11 @@ import { useLogoColors } from "@/hooks/use-logo-colors";
 import { Segmented } from "@/components/ui/segmented";
 import {
   TEXT_LIMITS,
+  cmykText,
   colorNames,
   getColor,
   hasBold,
+  hexCmyk,
   nameMarking,
   engravingHex,
   printColorName,
@@ -65,6 +67,7 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
   const defaultInk = engravingHex(color);
   /** Textfärgen som gäller för hela trycket. En rad kan avvika med sin egen. */
   const textColor = printInkOf(doc) ?? defaultInk;
+  const textCmyk = hexCmyk(textColor);
   // Loggans färger står först bland valen, med den som passar bäst mot skylten utpekad. De lästes av när loggan
   // lades in och kan vara rättade av kunden. En äldre logga utan sparade färger läses ur sin bild.
   const stored = doc.logo?.colors;
@@ -179,6 +182,8 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
           />
           <p className={styles.hint}>
             Färgen gäller alla rader. Rutan vid en rad ger just den raden en egen färg. {PRINT_COLOR_NOTE}
+            {/* Tryckfilen bär färgen i CMYK: kunden ser samma värden som verkstaden får. */}
+            {textCmyk && ` I tryckfilen: ${cmykText(textCmyk)}.`}
           </p>
         </>
       ) : (

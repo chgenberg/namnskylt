@@ -103,6 +103,16 @@ export interface SupplierSignDocument {
   productionNote?: string;
   /** Det verkstaden ska läsa om skylten utöver ritningen, en rad per uppgift. Fästet står alltid med. */
   partnerSpecs?: SupplierSpecRow[];
+  /**
+   * Tryckfilen ska bära trycklagrets färger i CMYK (besked från Mats på verkstaden via ägaren
+   * 2026-11-20). Verkstadens egna dokument har inte fältet, och deras tryckfil ritas då som förut.
+   */
+  printColorSpace?: "cmyk";
+  /**
+   * Tryckfärgerna för varje fyllnadsfärg i trycklagret, i procent: `#rrggbb` i gemener →
+   * `[C, M, Y, K]`. Samma värden som kunden såg vid färgvalet (`hexCmyk`).
+   */
+  printCmyk?: Record<string, [number, number, number, number]>;
 }
 
 export interface SupplierOrderLine {

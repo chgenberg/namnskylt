@@ -105,7 +105,7 @@ export function TermsPage({ seller, shopName, direct = !shopName, cardPayments =
           från att korrekturet är godkänt.
         </p>
         <p>
-          Standardfrakten är varubrev eller paket, beroende på orderns storlek. Väljer du expressfrakt bestäms priset av
+          Standardfrakten är varubrev, och du kan välja paket i stället. Väljer du expressfrakt bestäms priset av
           storlek och vikt och meddelas innan ordern skickas.
         </p>
       </section>

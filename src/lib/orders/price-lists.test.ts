@@ -5,9 +5,11 @@ import { describe, it } from "node:test";
 import * as engine from "@/engine";
 import { endPriceTable, resellerPriceTable, type PriceModel } from "@/engine/price-model";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
+import { TIERED_SHIPPING } from "@/engine/testing";
 import { priceListsFor, shippingFor, storedPriceModel } from "./price-lists";
 
-const M = DEFAULT_PRICE_MODEL;
+/** Kalkylen med fraktregeln som har en gräns i varuvärde, som testerna här prövar. */
+const M = { ...DEFAULT_PRICE_MODEL, shipping: TIERED_SHIPPING };
 /** Tre metallskyltar med nål: återförsäljaren betalar 434,01 kr för varorna, kunden 723 kr. */
 const THREE = [{ ...engine.createBadgeDocument(["Anna Lind"]), quantity: 3 }];
 /** En äldre modell: dyrare skyltar och annan provision än dagens. */

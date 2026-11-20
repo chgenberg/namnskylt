@@ -1,4 +1,5 @@
 import type { PriceModel } from "./price-model";
+import { LETTER_ALWAYS_SEK } from "./pricing";
 
 /**
  * Kalkylen från 2026-11-13. Gäller tills något annat sparats i admin.
@@ -36,6 +37,7 @@ export const DEFAULT_PRICE_MODEL: PriceModel = {
   minOrderSek: 299,
   endMarginPercent: 40,
   endMinOrderSek: 299,
-  // Skylt & Gravyrtekniks frakt 2026-11-14: varubrev 75 kr upp till 500 kr i varuvärde, annars paket 159 kr.
-  shipping: { letterSek: 75, parcelSek: 159, letterMaxSek: 500 },
+  // Frakten (beslut av ägaren 2026-11-20): varubrev 75 kr är standard för varje order, och den som
+  // beställer kan välja paket för 159 kr. Från 2026-11-14 gick varubrevet bara upp till 500 kr i varuvärde.
+  shipping: { letterSek: 75, parcelSek: 159, letterMaxSek: LETTER_ALWAYS_SEK },
 };

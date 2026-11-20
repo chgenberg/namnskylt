@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { getMaterial } from "./catalog";
 import { INVISIBLE_CONTRAST, PRINT_PALETTE, bestTextColor, contrastRatio, pigmentCodeText, pigmentCodes, printColorName } from "./color-choice";
 import { LOGO_COLORS_MAX, cleanLogoColors, inkPalette, logoPalette, withLogoColors } from "./logo-color";
-import { PRINT_STANDARD_COLORS, cmykHex, cmykOf, cmykText, isPrintHex, printColorHex, printColorText, printHex } from "./color-code";
+import { PRINT_STANDARD_COLORS, cmykHex, cmykOf, cmykText, hexCmyk, isPrintHex, printColorHex, printColorText, printHex } from "./color-code";
 import { createBadgeDocument, isOfferedDocument, toOfferedDocument } from "./document";
 import { engravedBadge, plasticBadge } from "./testing";
 import { engravingPaths, printedPaths } from "./engraving";
@@ -670,6 +670,24 @@ describe("loggans avlästa färger följer med skylten", () => {
     assert.deepEqual(cleanLogoColors(["#C8362D", "#c8362d"]), ["#C8362D"]);
     assert.deepEqual(cleanLogoColors(["PMS 186 C", "100/60/0/20", "#C83", ""]), []);
     assert.equal(cleanLogoColors(["#111111", "#222222", "#333333", "#444444", "#555555"]).length, LOGO_COLORS_MAX);
+  });
+
+  it("en skärmfärg räknas om till tryckfärger, och tillbaka till samma skärmfärg", () => {
+    assert.deepEqual(hexCmyk("#0057B8"), { c: 100, m: 53, y: 0, k: 28 });
+    assert.deepEqual(hexCmyk("#ffffff"), { c: 0, m: 0, y: 0, k: 0 });
+    // Svart text är ren svart, aldrig en blandning av alla fyra färgerna.
+    assert.deepEqual(hexCmyk("#000000"), { c: 0, m: 0, y: 0, k: 100 });
+    assert.deepEqual(hexCmyk("#111111"), { c: 0, m: 0, y: 0, k: 93 });
+    assert.deepEqual(hexCmyk("E31C23"), { c: 0, m: 88, y: 85, k: 11 });
+    assert.equal(hexCmyk("PMS 286 C"), null);
+    assert.equal(hexCmyk("#12"), null);
+    // Omräkningen är omvändningen av den som ritar en CMYK-kod på skärmen: värdena ger samma färg, inom avrundningen.
+    for (const hex of ["#0057B8", "#E31C23", "#FFD200", "#00A33A", "#7A7F87", "#3B2314"]) {
+      const back = cmykHex(hexCmyk(hex)!);
+      const channels = (value: string) => [1, 3, 5].map((at) => parseInt(value.slice(at, at + 2), 16));
+      const diff = channels(back).map((channel, i) => Math.abs(channel - channels(hex)[i]!));
+      assert.ok(Math.max(...diff) <= 3, `${hex} → ${back}`);
+    }
   });
 
   it("de avlästa färgerna sparas när kunden ändrar en, så att de går att återställa", () => {

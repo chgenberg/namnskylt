@@ -64,6 +64,13 @@ export interface ShippingRule {
 
 export const NO_SHIPPING: ShippingRule = { letterSek: 0, parcelSek: 0, letterMaxSek: 0 };
 
+/**
+ * Gränsen i varuvärde som betyder att varubrevet gäller varje order: det högsta värde gränsen kan
+ * ha i prismodellen. Verkstaden har ingen gräns för hur många skyltar ett varubrev rymmer
+ * (besked från Mats via ägaren 2026-11-20).
+ */
+export const LETTER_ALWAYS_SEK = 100_000;
+
 export type ShippingKind = "letter" | "parcel";
 
 /**

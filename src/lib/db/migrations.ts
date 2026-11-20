@@ -685,6 +685,17 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       create unique index orders_packing_code on orders (packing_code);
     `,
   },
+  {
+    // Frakten (beslut av ägaren 2026-11-20): varubrev 75 kr är standard för varje order, och den som
+    // beställer kan välja paket för 159 kr. Gränsen 100 000 kr i varuvärde betyder alltid varubrev
+    // (LETTER_ALWAYS_SEK). Ordrar och offerter har sin egen sparade modell och ändras inte.
+    id: "037_shipping_letter_standard",
+    sql: `
+      update settings
+         set value = jsonb_set(value, '{shipping}', '{"letterSek": 75, "parcelSek": 159, "letterMaxSek": 100000}'::jsonb), updated_at = now()
+       where key = 'price_model';
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 import { createBadgeDocument, withBlank, withShapePreset } from "./document";
 import { BLANKS } from "./catalog";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
+import { TIERED_SHIPPING } from "./testing";
 import {
+  LETTER_ALWAYS_SEK,
   NO_SHIPPING,
   badgePriceParts,
   fromPriceSek,
@@ -385,12 +387,18 @@ describe("tillbehör och tillval per trappsteg", () => {
 
 describe("frakten", () => {
   /** Kalkylen med frakt men utan startkostnad: 10 skyltar med nål är 780 kr hos återförsäljaren och 1 300 kr hos kunden. */
-  const S: PriceModel = { ...M, shipping: KALKYL.shipping };
+  const S: PriceModel = { ...M, shipping: TIERED_SHIPPING };
   const purchase = resellerPriceTable(S);
   const list = endPriceTable(S);
 
-  it("kalkylen har Skylt & Gravyrtekniks frakt: varubrev 75 kr upp till 500 kr, annars paket 159 kr", () => {
-    assert.deepEqual(KALKYL.shipping, { letterSek: 75, parcelSek: 159, letterMaxSek: 500 });
+  it("kalkylen har varubrev för 75 kr som standard för varje order, och paket för 159 kr som val", () => {
+    assert.deepEqual(KALKYL.shipping, { letterSek: 75, parcelSek: 159, letterMaxSek: LETTER_ALWAYS_SEK });
+    // Också en stor order går som varubrev, och den som beställer kan välja paketet.
+    for (const quantity of [1, 10, 100, 600]) {
+      assert.deepEqual(orderShippingChoices(KALKYL, [premium(quantity)]), { shippingSek: 75, parcelSek: 159 }, String(quantity));
+      assert.equal(orderShippingSek(KALKYL, [premium(quantity)], "parcel"), 159);
+    }
+    assert.equal(priceModelSchema.safeParse(KALKYL).success, true);
   });
 
   it("gränsen gäller varuvärdet: precis 500 kr går som varubrev, en krona till som paket", () => {
@@ -421,13 +429,13 @@ describe("frakten", () => {
   });
 
   it("en skylt till, och båda betalar för paket", () => {
-    const D = KALKYL;
+    const D: PriceModel = { ...KALKYL, shipping: TIERED_SHIPPING };
     assert.equal(priceItems([premium(4)], resellerPriceTable(D)).goodsSek, 512);
     assert.equal(orderShippingSek(D, [premium(4)]), 159);
   });
 
   it("frakten räknas på hela ordern, även när skyltarna är olika", () => {
-    const D = KALKYL;
+    const D: PriceModel = { ...KALKYL, shipping: TIERED_SHIPPING };
     // 2 metall med nål och 2 plast med nål: 2 × 78 + 2 × 59 + 200 = 474 kr.
     assert.equal(orderShippingSek(D, [premium(2), premium(2, { signClass: "standard" })]), 75);
     // Med logga på plastskyltarna: 474 + 2 × 19 = 512 kr.
@@ -605,8 +613,11 @@ describe("fraktsätt", () => {
 
   it("standardfrakten följer fraktregeln och listan är orörd", () => {
     assert.equal(withShippingMethod(list, "standard"), list);
-    assert.equal(orderShippingSek(KALKYL, four), 159);
-    assert.equal(orderShippingSek(KALKYL, four, "standard"), 159);
+    const tiered: PriceModel = { ...KALKYL, shipping: TIERED_SHIPPING };
+    assert.equal(orderShippingSek(tiered, four), 159);
+    assert.equal(orderShippingSek(tiered, four, "standard"), 159);
+    // I kalkylen är varubrevet standard för varje order.
+    assert.equal(orderShippingSek(KALKYL, four), 75);
   });
 
   it("upphämtning och express har ingen frakt på ordern, och varorna kostar detsamma", () => {

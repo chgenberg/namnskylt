@@ -106,6 +106,23 @@ export function cmykHex({ c, m, y, k }: Cmyk): string {
   return `#${channel(c)}${channel(m)}${channel(y)}`.toUpperCase();
 }
 
+/**
+ * Tryckfärgerna för en skärmfärg, i hela procent: den enkla omräkningen, omvändningen av `cmykHex`.
+ * Verkstadens tryckfil bär de här värdena (besked från Mats via ägaren 2026-11-20: tryckfilen ska
+ * vara i CMYK), och kunden ser samma värden vid färgvalet. Svart text blir ren svart (bara K),
+ * aldrig en blandning av alla fyra. `null` när koden inte är en skärmfärg.
+ */
+export function hexCmyk(hex: string): Cmyk | null {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) return null;
+  const value = parseInt(match[1]!, 16);
+  const [r, g, b] = [(value >> 16) & 255, (value >> 8) & 255, value & 255].map((channel) => channel / 255) as [number, number, number];
+  const black = 1 - Math.max(r, g, b);
+  if (black >= 1) return { c: 0, m: 0, y: 0, k: 100 };
+  const ink = (channel: number) => Math.round(((1 - channel - black) / (1 - black)) * 100);
+  return { c: ink(r), m: ink(g), y: ink(b), k: Math.round(black * 100) };
+}
+
 /** Hexkoden i en färgkod, som `#RRGGBB` i versaler. Tre siffror kräver brädgården: `286` är ett PMS-nummer och ingen färg. */
 function hexOf(code: string | null | undefined): string | null {
   const text = code?.trim() ?? "";

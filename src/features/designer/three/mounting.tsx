@@ -137,7 +137,8 @@ export function Mounting({ doc, fonts, widthUnits, heightUnits, backZ }: Mountin
             {mounting === "magnet" && <Magnet size={size} fonts={fonts} />}
             {mounting === "clip" && (
               // Stående klämma: vikningen uppåt, så att läppen öppnar sig nedåt mot fickans kant.
-              <group rotation={[0, 0, clipIsVertical(doc) ? -Math.PI / 2 : 0]}>
+              // Liggande klämma: vikningen till vänster när skylten ses framifrån (besked från verkstaden 2026-11-20).
+              <group rotation={[0, 0, clipIsVertical(doc) ? -Math.PI / 2 : Math.PI]}>
                 <Clip size={size} />
               </group>
             )}
@@ -439,8 +440,8 @@ function Magnet({ size, fonts }: { size: HardwareSize; fonts: FontEngine }) {
  * fönster med en tunga som pekar ner mot plattan, och slutar i en uppvikt läpp.
  *
  * Plattans hörn har skyltens rundning när klämman ligger kant i kant med den.
- * Vikningen sitter på den raka delen av plattans kortsida, mellan hörnen, och
- * sticker ut utanför plattan (`CLIP_FOLD_REACH_MM`).
+ * Vikningen är lika bred som plattan, alltså lika hög som skylten, och sticker
+ * ut utanför plattans kortsida (`CLIP_FOLD_REACH_MM`).
  */
 function Clip({ size }: { size: HardwareSize }) {
   const { longMm, wideMm } = size;
@@ -448,8 +449,8 @@ function Clip({ size }: { size: HardwareSize }) {
   const sheet = 0.5;
   const bend = 2;
   const armMm = longMm * 0.64;
-  // Vikningen och armen sitter på den raka delen av plattans kortsida, mellan de rundade hörnen.
-  const armWideMm = Math.max(wideMm * 0.5, Math.min(wideMm - 0.8, wideMm - 2 * cornerMm - 0.3));
+  // Vikningen är lika hög som skylten (besked från verkstaden 2026-11-20), och armen är dess fortsättning.
+  const armWideMm = wideMm;
   // Vikningen börjar vid plattans kortsida och sticker ut utanför den.
   const foldX = -longMm / 2;
   const armZ = bend * 2 - sheet;

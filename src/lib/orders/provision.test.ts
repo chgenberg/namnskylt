@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createBadgeDocument, NO_SHIPPING, type BadgeDocument } from "@/engine";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
+import { TIERED_SHIPPING } from "@/engine/testing";
 import type { PriceModel } from "@/engine/price-model";
 import {
   DIRECT_SELLER_NAME,
@@ -71,7 +72,7 @@ describe("fördelningen av en återförsäljares order", () => {
   });
 
   it("frakten har ingen provision: 10 skyltar med 159 kr frakt ger samma 117 kr som utan", () => {
-    const withShipping = orderShare(badges(10), { ...M, shipping: DEFAULT_PRICE_MODEL.shipping });
+    const withShipping = orderShare(badges(10), { ...M, shipping: TIERED_SHIPPING });
     assert.equal(withShipping.resellerSek, 780);
     assert.equal(withShipping.shippingSek, 159);
     assert.equal(withShipping.provisionSek, 117);
@@ -113,7 +114,7 @@ describe("fördelningen av en direktorder hos namnskylt.com", () => {
   });
 
   it("frakten har ingen provision och är densamma som via en återförsäljare", () => {
-    const withShipping = { ...M, shipping: DEFAULT_PRICE_MODEL.shipping };
+    const withShipping = { ...M, shipping: TIERED_SHIPPING };
     const share = directOrderShare(badges(10), null, withShipping);
     assert.equal(share.shippingSek, orderShare(badges(10), withShipping).shippingSek);
     assert.equal(share.provisionSek, 520);
@@ -122,7 +123,7 @@ describe("fördelningen av en direktorder hos namnskylt.com", () => {
   });
 
   it("exemplen på provisionssidan visar båda slagen av order", () => {
-    const examples = exampleResellerOrders(DEFAULT_PRICE_MODEL, new Date("2026-11-17T10:00:00Z"));
+    const examples = exampleResellerOrders({ ...DEFAULT_PRICE_MODEL, shipping: TIERED_SHIPPING }, new Date("2026-11-17T10:00:00Z"));
     const directRows = examples.filter((example) => example.resellerName === DIRECT_SELLER_NAME);
     assert.equal(directRows.length, 2);
     assert.ok(directRows.every((example) => example.share.provisionPercent === 40));
@@ -131,7 +132,7 @@ describe("fördelningen av en direktorder hos namnskylt.com", () => {
 });
 
 describe("fraktsättet i fördelningen", () => {
-  const withShipping: PriceModel = { ...M, shipping: DEFAULT_PRICE_MODEL.shipping };
+  const withShipping: PriceModel = { ...M, shipping: TIERED_SHIPPING };
 
   it("upphämtning och express har ingen frakt, och provisionen är densamma", () => {
     const standard = orderShare(badges(10), withShipping);
@@ -201,7 +202,7 @@ describe("perioder", () => {
   it("underlaget har en rad per order med varor, frakt, provision och verkstadens del", () => {
     const withShipping: ResellerOrderRow = {
       ...at("2026-11-13T10:00:00.000Z"),
-      share: orderShare(badges(10), { ...M, shipping: DEFAULT_PRICE_MODEL.shipping }),
+      share: orderShare(badges(10), { ...M, shipping: TIERED_SHIPPING }),
     };
     const lines = provisionCsv([withShipping]).replace("\uFEFF", "").trim().split("\r\n");
     assert.equal(lines.length, 2);
@@ -211,7 +212,7 @@ describe("perioder", () => {
 });
 
 describe("exempelordrarna på sidan Provision", () => {
-  const rows = exampleResellerOrders(DEFAULT_PRICE_MODEL, new Date("2026-11-15T12:00:00.000Z"));
+  const rows = exampleResellerOrders({ ...DEFAULT_PRICE_MODEL, shipping: TIERED_SHIPPING }, new Date("2026-11-15T12:00:00.000Z"));
   const share = (orderNo: string) => rows.find((row) => row.orderNo === orderNo)?.share;
 
   it("har egna ordernummer och påhittade namn, så att de inte går att ta för riktiga", () => {

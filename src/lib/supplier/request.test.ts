@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { approxFonts, createBadgeDocument, logoImageRef, NO_SHIPPING, type BadgeDocument, type BadgeLogo } from "@/engine";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
+import { TIERED_SHIPPING } from "@/engine/testing";
 import { engravedBadge } from "@/engine/testing";
 import { endPriceTable, resellerPriceTable } from "@/engine/price-model";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
@@ -9,7 +10,8 @@ import type { Delivery } from "@/lib/orders/delivery";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import { buildSupplierRequest, customerBuyer, dispatchProblems, requestBytes, supplierBuyer, supplierOrderName, type SupplierRequestInput } from "./request";
 
-const PURCHASE = resellerPriceTable(DEFAULT_PRICE_MODEL);
+/** Inköpslistan med fraktregeln som har en gräns i varuvärde: små ordrar som varubrev, större som paket. */
+const PURCHASE = resellerPriceTable({ ...DEFAULT_PRICE_MODEL, shipping: TIERED_SHIPPING });
 /** Slutkundens prislista: det kunden betalar på en direktorder. */
 const SALE = endPriceTable(DEFAULT_PRICE_MODEL);
 const DELIVERY: Delivery = {

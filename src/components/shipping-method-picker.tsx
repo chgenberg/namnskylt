@@ -27,7 +27,7 @@ function costLabel(method: ShippingMethod, standardSek: number | null | undefine
 }
 
 /** Bredvid paketet är standardfrakten ett varubrev, och då heter den så. */
-const LETTER = { label: "Varubrev, PostNord", info: "Spårbart varubrev med PostNord. Det billigaste sättet för en liten order." } as const;
+const LETTER = { label: "Varubrev, PostNord", info: "Spårbart varubrev med PostNord, som delar ut varannan vardag. Det billigaste sättet." } as const;
 
 /**
  * Leveranssättet i kassan, samma val som i Skylt & Gravyrtekniks egen kassa:

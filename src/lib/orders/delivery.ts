@@ -38,7 +38,7 @@ export const SHIPPING_METHOD_LABEL: Record<ShippingMethod, string> = {
 /** Det den som väljer behöver veta om varje fraktsätt. Texterna följer Skylt & Gravyrtekniks egen kassa. */
 export const SHIPPING_METHOD_INFO: Record<ShippingMethod, string> = {
   standard: "PostNord varubrev eller DHL-paket, beroende på orderns storlek.",
-  parcel: "Spårbart företagspaket med DHL, i stället för varubrev.",
+  parcel: "Spårbart företagspaket med DHL. För den som vill ha en snabbare och säkrare leverans än varubrev.",
   express: "Priset avgörs av storlek och vikt. Fraktkostnaden tillkommer och meddelas innan ordern skickas.",
   pickup: "F O Petersons gata 28, Västra Frölunda. Mån–tor 08–17, fre 08–16. Ingen frakt.",
 };

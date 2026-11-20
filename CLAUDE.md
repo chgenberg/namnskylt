@@ -68,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1410 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1412 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -299,10 +299,15 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       böjningen börjar och att böjningen syns framifrån). Plattan är fortfarande 80 × 25 mm och
       täcker skylten. Vikningen börjar vid plattans kortsida och går 4 mm ut
       (`CLIP_FOLD_REACH_MM` i `hardware-fit.ts`, `foldGeometry` i `three/mounting.tsx`), som
-      ett utdraget halvt varv: 4 mm långt och 4 mm högt. Den sitter på den raka delen av
-      kortsidan, mellan de rundade hörnen. Från 2026-11-18 till 2026-11-20 skars vikningen av
-      mot plattans hörn, så att inget stack ut. Att varvet är utdraget och 4 mm högt är min
-      tolkning: ägaren gav bara de två längderna.
+      ett utdraget halvt varv: 4 mm långt och 4 mm högt. Från 2026-11-18 till 2026-11-20
+      skars vikningen av mot plattans hörn, så att inget stack ut. Att varvet är utdraget och
+      4 mm högt är min tolkning: ägaren gav bara de två längderna.
+    - **Vikningen sitter till vänster och är lika hög som skylten** (svar från Mats via ägaren
+      2026-11-20: "Böjningen på militärklämman har du på vänster sida, och den är alltså lika
+      hög som skylten"). Vikningen och armen är alltså lika breda som plattan, 25 mm, och på
+      en liggande klämma ligger vikningen till vänster när skylten ses framifrån. **Att
+      vänster är sett framifrån är min tolkning**; är det sett bakifrån ska vridningen i
+      `Mounting` (`Math.PI`) tillbaka till 0. En stående klämma har vikningen uppåt, som förut.
     - Förut ritades plattan 72 × 21 mm, alltså 4 mm innanför skyltens kortsidor och 2 mm
       innanför långsidorna.
   - Fästena ritas i mm i en grupp som är vänd som de ses bakifrån (x åt höger, z ut från
@@ -2470,9 +2475,11 @@ via en länk, eftersom det inte kräver någon ändring hos dem).
     (`/admin/ordrar/[id]/fraktsedel`). För en order från namnskylt.com visar den sidan i
     stället raden Packning, en knapp till vår följesedel och fraktetiketten, utan utskrift.
     Länken läses ur raderna vi skickar och godtas bara på `namnskylt.com/f/<kod>`
-    (`partnerPacking` i deras `lib/partner-orders.ts`). **Byggt lokalt hos dem och inte
-    deployat**, och sidan är inte sedd i en webbläsare. Deras egna ordrar är orörda, liksom
-    Fortnox-följesedeln och fakturan.
+    (`partnerPacking` i deras `lib/partner-orders.ts`). **Deployat till deras produktion
+    2026-11-20 cirka 13:35** (ägarens "Få ut detta"), efter bug-hunt utan allvarliga fynd,
+    och sajten svarade likadant före och efter. Sidan är inte sedd med en riktig order.
+    Fraktetiketten öppnas där med ett klick, inte av sig själv som på deras egen fraktsedel.
+    Deras egna ordrar är orörda, liksom Fortnox-följesedeln och fakturan.
   - Fraktsedeln och transportörens avisering anger fortfarande verkstaden som avsändare.
   - Följesedeln gäller hela ordern. Delleveranser finns inte.
 
@@ -2497,9 +2504,48 @@ avsnitt: typsnitten, följesedeln, paketvalet i frakten (Prismodellen), klämman
   läst). Det stämmer med att Mats på mötet hade fått filer från en testskylt. Det som på
   andra ställen i den här filen står om att ingen riktig order har gått genom kopplingen
   gäller alltså inte längre.
-- **Väntar på Mats:** om CMYK ska stå som text på orderpappret eller ligga i tryckfilen (i dag
-  väljs en skärmfärg, se Märkningsmetod), hur många skyltar som ryms i ett varubrev, om
-  fraktsedeln kan få en neutral avsändare, och vilket format klistermärkena ska ha.
+- **Svar från Mats 2026-11-20**, via ägaren:
+  - **Tryckfilen bör vara i CMYK**: "för att printern ska fatta färgerna rätt, kan vara så
+    att den konverterar men för att vi ska vara på den säkra sidan". **Byggt 2026-11-20 på
+    ägarens "Bygg", i båda projekten, inte utrullat.**
+    - **Vi skickar** `printColorSpace: "cmyk"` och `printCmyk` i dokumentet när skylten har
+      ett trycklager: tryckfärgerna för varje färg i lagret, i hela procent (`hexCmyk` i
+      `src/engine/color-code.ts`, `printCmykOf` i `supplier/map.ts`). Omräkningen är den
+      enkla, omvändningen av `cmykHex`: #0057B8 blir 100/53/0/28, och svart text blir ren
+      svart (bara K). Ingen profil används, så värdena är inte en färgmatchning.
+    - **Kunden ser samma värden** vid textfärgen ("I tryckfilen: CMYK 100/53/0/28."), och
+      raden Tryckfärg på orderpappret bär dem: "#0057B8 (CMYK 100/53/0/28), rad 2 …". Raden
+      står nu också när kunden inte har valt en färg, med färgen skylten visades i.
+    - **Hos verkstaden** ritar `vectorPrintColor` i `packages/production/src/print-pdf.ts`
+      trycklagrets banor i DeviceCMYK när dokumentet begär det. **Det gäller bara dokument
+      med fältet, alltså våra**: deras egna tryckta produkter ritas i RGB som förut. Det
+      valde jag, efter ägarens besked att deras egen motor inte ska ändras.
+    - **En logga i färg är fortfarande en RGB-bild** i tryckfilen. Att räkna om en bild
+      kräver en färgprofil, och det är inte byggt.
+    - Kunden väljer fortfarande en skärmfärg. Det går inte att skriva en CMYK-kod själv.
+    - Provat lokalt 2026-11-20: ett riktigt dokument från Namnskylt med blått namn och röd
+      andra rad gick genom verkstadens tryckfil, som då bara bär "1 0.53 0 0.28 k" och
+      "0 0.88 0.85 0.11 k". **Ingen sådan fil har tryckts**, och hur RIP:en läser en fil med
+      CMYK-banor och RGB-bild vet ingen än. Ordningen de två sidorna rullas ut i spelar
+      ingen roll: utan fältet ritas RGB, och ett fält deras kod inte känner hoppas över.
+  - **Texter som banor är okej**, och valet mellan många typsnitt och att kunna ändra texten
+    efter beställning är vårt. Det valet finns i praktiken inte: personalen kan ändå inte
+    ändra rader på en order från oss i sitt admin, vilket typsnitt texten än har. Ett
+    felstavat namn rättas genom att ordern makuleras och en ny skickas.
+  - **Varubrev rymmer i stort sett hur många skyltar som helst.** Nackdelen är PostNord:
+    utdelning varannan dag, och paket som kommer bort. **Skriv aldrig ut kartongens mått på
+    sajten**: måtten Mats nämnde var en uppskattning.
+    - **Varubrev för 75 kr är standard för varje order, och paket för 159 kr är ett val**
+      (beslut av ägaren 2026-11-20: "75 kr är bra. Bygg detta som standard men även en
+      lösning för 159 kr"). Kalkylen har gränsen 100 000 kr i varuvärde, som betyder alltid
+      varubrev (`LETTER_ALWAYS_SEK`), och **migrering 037 skriver samma regel i den sparade
+      prismodellen**: den skriver över det som stod i drift (75, 75 och 3 000 kr). Fältet
+      för antal skyltar står tomt. Varubrevets rad i väljaren säger att PostNord delar ut
+      varannan vardag, och paketets att det är snabbare och säkrare. Inte pushat än.
+    - Testerna för regelns gräns använder `TIERED_SHIPPING` i `src/engine/testing.ts`.
+  - **Fraktsedeln** behöver troligen en avsändare, för returer. Mats kollar upp det.
+- **Väntar fortfarande på Mats:** vad paketet ska kosta (i drift står det på 75 kr, som
+  varubrevet), och vilket format klistermärkena ska ha.
 - **Väntar på ägaren:** ja till att läsa och ändra hur verkstadens egen följesedel skrivs ut,
   bokningslänken för demo vid ansökan, när sajtlösenordet ska bort, och när den skarpa
   testordern ska läggas.
