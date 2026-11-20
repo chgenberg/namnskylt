@@ -1,4 +1,5 @@
 import "server-only";
+import { orderListStatus, type OrderListStatus } from "@/lib/orders/list-status";
 import { isOpen, type StoredOrder } from "@/lib/orders/model";
 import { applySupplierUpdate } from "@/lib/orders/repository";
 import { announceShipped } from "@/lib/orders/shipped";
@@ -15,6 +16,11 @@ export function supplierLink(order: StoredOrder): SupplierLink {
   if (order.demo) return "demo";
   if (!supplierApiConfigured()) return "not-configured";
   return isTrackableSupplierOrder(order.supplierOrderNo) ? "connected" : "not-sent";
+}
+
+/** Orderns läge i panelens listor: I produktion eller Skickad, och Väntar när ordern inte har gått till tillverkningen. */
+export function listStatusOf(order: Pick<StoredOrder, "status" | "demo" | "supplierSentAt" | "supplierOrderNo">): OrderListStatus {
+  return orderListStatus(order.status, { demo: order.demo, atWorkshop: Boolean(order.supplierSentAt) || isTrackableSupplierOrder(order.supplierOrderNo) });
 }
 
 /** Leverantörens nummer när ordern ligger hos verkstaden och ännu inte är klar. */

@@ -2,20 +2,33 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
 import { engravedRows, getColor, getMaterial, mountingLabel, printColorLabel, shapeLabel } from "@/engine";
-import { formatDay, formatSek } from "@/lib/format";
+import { formatSek } from "@/lib/format";
 import { QuoteDecision, type QuoteShippingOption } from "@/features/quote-public/quote-decision";
 import { SellerLogo } from "@/features/quote-public/seller-logo";
 import styles from "@/features/quote-public/quote-public.module.css";
-import { companyFooter, readableOn } from "@/lib/company/profile";
+import { readableOn } from "@/lib/company/profile";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
-import { deliveryLines, draftForRecipient, draftFromAddress, shippingMethodOf, shippingNote } from "@/lib/orders/delivery";
+import { draftForRecipient, draftFromAddress, shippingMethodOf, shippingNote } from "@/lib/orders/delivery";
 import { customerOrderPath, databaseConfigured, getSellerProfile } from "@/lib/orders/repository";
 import { shippingFor } from "@/lib/orders/price-lists";
 import { priceWithPricing } from "@/lib/orders/pricing";
-import { displayStatus, showsSellerLogo } from "@/lib/quotes/model";
+import { displayStatus, showsElement, showsSellerLogo } from "@/lib/quotes/model";
 import { quoteAnswerOf, QUOTE_ANSWER_PARAM } from "@/lib/quotes/quote-email";
 import { getQuoteByToken, quotePriceModel } from "@/lib/quotes/repository";
 import { quoteShippingMethods } from "@/lib/quotes/shipping";
+import {
+  QUOTE_PROMISES,
+  allBadgesCaption,
+  allBadgesMore,
+  quoteAllBadges,
+  quoteDay,
+  quoteGalleries,
+  quoteHeading,
+  quoteInfoRows,
+  quoteSellerLines,
+  quoteTermsLines,
+  type QuoteGallery,
+} from "@/lib/quotes/view";
 import { isOwner } from "@/lib/tenants/model";
 
 export const metadata: Metadata = {
@@ -48,8 +61,16 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
   const status = displayStatus(quote);
   const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceList, quote.shippingSek);
   const shipping = shippingNote(shippingMethodOf(quote.delivery));
-  const firstName = quote.customer.name.split(" ")[0] ?? quote.customer.name;
   const saving = priced.savingsSek;
+  // Det som står på offerten läses ur samma delar som PDF:en ritas ur, så att sidan och PDF:en säger samma sak.
+  const heading = quoteHeading(quote);
+  const info = quoteInfoRows(quote, company);
+  const galleries = quoteGalleries(quote);
+  const beside = galleries.length === 1 ? galleries[0] : undefined;
+  const all = quoteAllBadges(quote);
+  const closing = quote.options?.closing ?? "";
+  const termsLines = quoteTermsLines(quote, company);
+  const sellerLines = quoteSellerLines(quote, company);
   const orderPath = status === "accepted" && quote.orderNo ? await customerOrderPath(quote.orderNo) : null;
   // Ska skyltarna till kunden väljer kunden leveranssätt när offerten godkänns. Varje sätt har sin frakt och summa.
   let shippingOptions: QuoteShippingOption[] = [];
@@ -67,12 +88,13 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
       : status === "declined"
         ? { title: "Du tackade nej", text: "Vi har fått beskedet och hör av oss om något kan ändras." }
         : status === "expired"
-          ? { title: "Offerten har gått ut", text: `Den gällde till ${formatDay(quote.validUntil)}. Hör av dig så skickar vi en ny.` }
+          ? { title: "Offerten har gått ut", text: `Den gällde till ${quoteDay(quote.validUntil)}. Hör av dig så skickar vi en ny.` }
           : status === "draft"
             ? { title: "Offerten är inte klar än", text: "Du får en länk när den är klar att godkänna." }
             : {
-                title: quote.project ?? `Offert till ${quote.customer.company ?? firstName}`,
-                text: `${quote.project ? `Till ${quote.customer.company ?? quote.customer.name} · ` : ""}Giltig till och med ${formatDay(quote.validUntil)}.`,
+                // Samma rubrik som i PDF:en.
+                title: heading.title,
+                text: `${heading.eyebrow !== "Offert" ? `${heading.eyebrow} · ` : ""}Giltig till och med ${quoteDay(quote.validUntil)}.`,
               };
 
   return (
@@ -94,22 +116,44 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
           )}
         </header>
 
-        {quote.message && status === "sent" && <p className={styles.message}>{quote.message}</p>}
+        {quote.message && <p className={styles.message}>{quote.message}</p>}
 
         <section className={styles.card}>
-          {quote.badgeShot && (
-            <div className={styles.shot}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- data-URL från skyltmotorn */}
-              <img src={quote.badgeShot} alt="Skylten i 3D" />
+          {/* När sidans rubrik säger hur det gick (godkänd, nekad, utgången) står offertens egen rubrik här. */}
+          {status !== "sent" && <h2 className={styles.cardHeading}>{heading.title}</h2>}
+          {/* Kundens rader och bilderna, som i PDF:en: en design står bredvid uppgifterna, flera står under. */}
+          <div className={styles.overview} data-beside={beside ? "" : undefined}>
+            <dl className={styles.info}>
+              {info.map((row) => (
+                <div key={row.label}>
+                  <dt>{row.label}</dt>
+                  <dd>{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+            {beside && <Gallery gallery={beside} />}
+          </div>
+          {galleries.length > 1 && (
+            <div className={styles.designs}>
+              {galleries.map((gallery, i) => (
+                <Gallery key={i} gallery={gallery} />
+              ))}
             </div>
           )}
-          <div className={styles.meta}>
-            <span>
-              <strong>{quote.customer.company ?? quote.customer.name}</strong>
-            </span>
-            {quote.customer.name !== quote.customer.company && <span>{quote.customer.name}</span>}
-            {quote.customer.email && <span>{quote.customer.email}</span>}
-          </div>
+          {all && (
+            <div className={styles.all}>
+              <p className={styles.eyebrow}>Alla skyltar</p>
+              <div className={styles.allGrid}>
+                {all.badges.map((badge, i) => (
+                  <figure key={i}>
+                    <BadgePreview doc={badge} label={`Skylt: ${allBadgesCaption(badge)}`} />
+                    <figcaption>{allBadgesCaption(badge)}</figcaption>
+                  </figure>
+                ))}
+              </div>
+              {all.more > 0 && <small className={styles.galleryNote}>{allBadgesMore(all.more)}</small>}
+            </div>
+          )}
           <ul className={styles.lines}>
             {quote.badges.map((badge, i) => {
               const line = priced.lines[i];
@@ -188,14 +232,19 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
             )}
             <dt className={styles.grand}>Totalt exkl. moms</dt>
             <dd className={styles.grand}>{formatSek(priced.totalSek)}</dd>
-            <dt>Moms 25 %</dt>
-            <dd>{formatSek(priced.vatSek)}</dd>
-            <dt>
-              <strong>Att betala</strong>
-            </dt>
-            <dd>
-              <strong>{formatSek(priced.totalInclVatSek)}</strong>
-            </dd>
+            {/* Säljaren kan välja bort momsraderna på offerten, och då står de inte här heller. */}
+            {showsElement(quote, "vat") && (
+              <>
+                <dt>Moms 25 %</dt>
+                <dd>{formatSek(priced.vatSek)}</dd>
+                <dt>
+                  <strong>Att betala inkl. moms</strong>
+                </dt>
+                <dd>
+                  <strong>{formatSek(priced.totalInclVatSek)}</strong>
+                </dd>
+              </>
+            )}
             {saving > 0 && (
               <>
                 <dt className={styles.saving}>Du sparar</dt>
@@ -203,14 +252,13 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
               </>
             )}
           </dl>
-          {quote.delivery.address && (status === "accepted" || quote.delivery.to === "reseller") && (
-            <p className={styles.deliveryNote}>
-              <strong>{quote.delivery.to === "reseller" ? `Skyltarna skickas till ${company.name}` : "Skyltarna skickas till"}</strong>
-              {quote.delivery.to === "customer" &&
-                deliveryLines(quote.delivery.address).map((line) => (
-                  <span key={line}>{line}</span>
-                ))}
-            </p>
+          {closing && <p className={styles.closing}>{closing}</p>}
+          {showsElement(quote, "promises") && (
+            <ul className={styles.promises}>
+              {QUOTE_PROMISES.map((promise) => (
+                <li key={promise}>{promise}</li>
+              ))}
+            </ul>
           )}
           {status === "sent" && (
             <QuoteDecision
@@ -234,12 +282,40 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
           Ladda ner offerten som PDF
         </a>
         <div className={styles.foot}>
-          {companyFooter(company).map((line) => (
+          {sellerLines.map((line) => (
             <p key={line}>{line}</p>
           ))}
-          {company.quoteTerms && <p className={styles.terms}>{company.quoteTerms}</p>}
+          {termsLines.length > 0 && <p className={styles.terms}>{termsLines.join("\n")}</p>}
         </div>
       </div>
     </main>
+  );
+}
+
+/** En design som den visas överst på offerten: den stora bilden, vinklarna under och raden om vilka skyltar den gäller. */
+function Gallery({ gallery }: { gallery: QuoteGallery }) {
+  return (
+    <div className={styles.gallery}>
+      <div className={styles.shot}>
+        {gallery.main ? (
+          // eslint-disable-next-line @next/next/no-img-element -- data-URL från skyltmotorn
+          <img src={gallery.main} alt="Skylten i 3D" />
+        ) : (
+          <BadgePreview doc={gallery.doc} label="Skylten" />
+        )}
+      </div>
+      {gallery.angles.length > 0 && (
+        <div className={styles.angles}>
+          {gallery.angles.map((angle) => (
+            <figure key={angle.label}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- data-URL från skyltmotorn */}
+              <img src={angle.src} alt={`Skylten ${angle.label.toLowerCase()}`} />
+              <figcaption>{angle.label}</figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
+      {gallery.note && <small className={styles.galleryNote}>{gallery.note}</small>}
+    </div>
   );
 }

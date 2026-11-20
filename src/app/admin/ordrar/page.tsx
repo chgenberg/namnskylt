@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { adminTenant } from "@/features/admin/guard";
-import { OrderCard } from "@/features/admin/order-card";
-import { OrderFilters, type StatusFilter } from "@/features/admin/order-filters";
+import { OrderFilters } from "@/features/admin/order-filters";
+import { OrderRow } from "@/features/admin/order-row";
 import styles from "@/features/admin/admin.module.css";
 import { engravedRows } from "@/engine";
-import { isOpen, isOrderStatus, ORDER_STATUSES, type StoredOrder } from "@/lib/orders/model";
+import { inOrderListFilter, isOrderListFilter, ORDER_LIST_FILTERS, type OrderListFilter } from "@/lib/orders/list-status";
+import type { StoredOrder } from "@/lib/orders/model";
 import { listOrders } from "@/lib/orders/repository";
+import { listStatusOf } from "@/lib/supplier/sync";
+import { isOwner } from "@/lib/tenants/model";
 
 interface OrdersPageProps {
   searchParams: Promise<{ q?: string; status?: string }>;
@@ -29,25 +32,19 @@ function matches(order: StoredOrder, query: string): boolean {
     .every((word) => haystack.includes(word));
 }
 
-function inFilter(order: StoredOrder, filter: StatusFilter): boolean {
-  if (filter === "all") return true;
-  if (filter === "open") return isOpen(order);
-  return order.status === filter;
-}
-
 export default async function OrdersPage({ searchParams }: OrdersPageProps) {
   const tenant = await adminTenant();
   if (!tenant) return null;
   const params = await searchParams;
   const query = (params.q ?? "").trim().slice(0, 100);
-  const active: StatusFilter =
-    params.status === "all" ? "all" : params.status && isOrderStatus(params.status) ? params.status : "open";
+  // Två filter, I produktion och Skickad. Utan valt filter visas alla ordrar (besked via ägaren 2026-11-20).
+  const active: OrderListFilter | null = isOrderListFilter(params.status) ? params.status : null;
 
   const orders = (await listOrders(tenant)).filter((o) => matches(o, query));
   const counts = Object.fromEntries(
-    (["open", "all", ...ORDER_STATUSES] as StatusFilter[]).map((f) => [f, orders.filter((o) => inFilter(o, f)).length]),
-  ) as Record<StatusFilter, number>;
-  const shown = orders.filter((o) => inFilter(o, active));
+    ORDER_LIST_FILTERS.map((filter) => [filter, orders.filter((o) => inOrderListFilter(listStatusOf(o), filter)).length]),
+  ) as Record<OrderListFilter, number>;
+  const shown = orders.filter((o) => inOrderListFilter(listStatusOf(o), active));
 
   return (
     <>
@@ -55,7 +52,7 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
         <div>
           <p className={styles.eyebrow}>Ordrar</p>
           <h1 className={styles.pageTitle}>Alla ordrar</h1>
-          <p className={styles.pageLead}>Klicka på en order för detaljer, eller beställ samma sak igen direkt från kortet.</p>
+          <p className={styles.pageLead}>Klicka på en order för detaljer, eller beställ samma sak igen direkt från raden.</p>
         </div>
         <Link href="/admin/ny-order" className="btn btn--primary">
           + Skapa order
@@ -65,12 +62,12 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
       {shown.length === 0 ? (
         <div className={styles.empty}>
           <strong>Inga ordrar här</strong>
-          <span>{query ? `Inget matchar ”${query}”.` : "Prova ett annat filter."}</span>
+          <span>{query ? `Inget matchar ”${query}”.` : active ? "Inga ordrar har det läget. Klicka på filtret igen för att se alla." : "Här står ordrarna när den första är lagd."}</span>
         </div>
       ) : (
-        <div className={styles.cards}>
+        <div className={styles.listRows}>
           {shown.map((order) => (
-            <OrderCard key={order.id} order={order} />
+            <OrderRow key={order.id} order={order} canDelete={isOwner(tenant)} />
           ))}
         </div>
       )}

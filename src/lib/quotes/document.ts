@@ -1,6 +1,4 @@
 import {
-  engravedRows,
-  orderDesigns,
   getColor,
   getMaterial,
   mountingLabel,
@@ -11,21 +9,27 @@ import {
   type BadgeDocument,
   type FontEngine,
 } from "@/engine";
-import { companyFooter, DEFAULT_COMPANY, readableOn } from "@/lib/company/profile";
+import { DEFAULT_COMPANY, readableOn } from "@/lib/company/profile";
 import type { SellerProfile } from "@/lib/company/seller";
-import { deliveryLines, shippingMethodOf, shippingNote } from "@/lib/orders/delivery";
+import { shippingMethodOf, shippingNote } from "@/lib/orders/delivery";
 import { priceWithPricing } from "@/lib/orders/pricing";
-import { QUOTE_SHOT_DESIGNS, showsElement, showsSellerLogo, type StoredQuote } from "./model";
-
-const PROMISES = ["Korrektur innan produktion", "Leverans inom 5 arbetsdagar", "Svensk tillverkning"];
+import { showsElement, showsSellerLogo, type StoredQuote } from "./model";
+import {
+  QUOTE_PROMISES,
+  allBadgesCaption,
+  allBadgesMore,
+  badgeText,
+  quoteAllBadges,
+  quoteGalleries,
+  quoteHeading,
+  quoteInfoRows,
+  quoteSellerLines,
+  quoteTermsLines,
+} from "./view";
 
 const esc = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
 const sek = (value: number) => `${new Intl.NumberFormat("sv-SE").format(value).replace(/\u00a0/g, " ")} kr`;
-const day = (iso: string) =>
-  new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Stockholm" }).format(
-    new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso),
-  );
 
 function badgeSpec(quote: StoredQuote, index: number): string {
   const badge = quote.badges[index];
@@ -73,12 +77,6 @@ const PLACEHOLDER = {
   closing: "Klicka för att skriva en avslutande text",
 };
 
-/** Bildtexterna under de små bilderna, i den ordning vinklarna tas (`QUOTE_SHOT_YAWS` i skyltmotorn). */
-const ANGLE_LABELS = ["Framifrån", "Från sidan", "Baksidan"];
-
-/** Så många skyltar ritas i rutan "Alla skyltar". Fler står i raderna under, och det sägs. */
-const ALL_BADGES_MAX = 60;
-
 /**
  * Skyltens ritning, sparad per skylt: förhandsvisningen ritas om för varje tecken säljaren
  * skriver, och en offert kan ha många namn. På servern är varje skylt ny, så inget ligger kvar.
@@ -92,18 +90,14 @@ function drawing(badge: BadgeDocument, fonts: FontEngine): string {
   return svg;
 }
 
-/** Det som står på skylten, som en rad: "Erik, tomtenisse". */
-const badgeText = (badge: BadgeDocument) =>
-  engravedRows(badge)
-    .map((row) => row.text.trim())
-    .filter(Boolean)
-    .join(", ");
-
 /**
  * Offertens dokument i två delar: stilen och sidans innehåll. Förhandsvisningen i skyltmotorn
  * lägger dem i sidan, och PDF:en ritas ur samma delar (`quoteHtml`), så att det säljaren ser är
  * det kunden får. Skyltarna är bilder ur 3D-vyn när offerten har dem, annars inbäddade
  * ritningar med glyferna som konturer, så inget behöver hämtas.
+ *
+ * Vad som står på offerten (rubrik, kundens rader, bilderna, alla skyltar, villkoren) bestäms i
+ * `view.ts`, som kundens offertsida också läser, så att sidan och PDF:en säger samma sak.
  */
 export function quoteDocument(
   quote: StoredQuote,
@@ -123,67 +117,28 @@ export function quoteDocument(
   const brand = company.logo && showsSellerLogo(quote)
     ? `<img class="logo${logoPlate ? " plate" : ""}" src="${esc(company.logo)}" alt="${esc(company.site ? "namnskylt.com" : company.name)}"${logoPlate ? ` style="background:${logoPlate}"` : ""}>`
     : `<div class="brand">${esc(company.name)}${company.tagline ? `<small>${esc(company.tagline)}</small>` : ""}</div>`;
-  const footer = companyFooter(company);
   const priced = priceWithPricing(quote.badges, quote.pricing, quote.priceList, quote.shippingSek);
   const shipping = shippingNote(shippingMethodOf(quote.delivery));
-  const customer = quote.customer;
-  const contact = [customer.name !== customer.company ? customer.name : "", customer.email, customer.phone].filter(Boolean).join(" · ");
-  const info: [string, string, string?][] = [
-    ["Kund", customer.company ?? customer.name, "customer"],
-    ...(customer.orgNumber ? ([["Org.nr", customer.orgNumber]] as [string, string][]) : []),
-    // En kund som sparats med bara företagets namn har det som namn också, och ingen e-post: då finns ingen kontakt att visa.
-    ...(contact ? ([["Kontakt", contact]] as [string, string][]) : []),
-    ...(customer.address ? ([["Adress", customer.address]] as [string, string][]) : []),
-    // Vart skyltarna skickas. Återförsäljarens egen adress står inte på kundens offert.
-    ...(quote.delivery.to === "reseller"
-      ? ([["Leverans", `Till ${company.name}`]] as [string, string][])
-      : quote.delivery.address
-        ? ([["Leverans", deliveryLines(quote.delivery.address).join("\n")]] as [string, string][])
-        : []),
-    ["Offertdatum", day(quote.sentAt ?? quote.createdAt)],
-    ["Giltig till", day(quote.validUntil), "validUntil"],
-  ];
+  const info = quoteInfoRows(quote, company);
 
   // En bild per design: skylten som visar designen, och hur många skyltar som har den.
-  const designs = orderDesigns(quote.badges);
-  const withAngles = showsElement(quote, "angles");
-  const galleries = showsElement(quote, "pictures")
-    ? designs.slice(0, Math.max(QUOTE_SHOT_DESIGNS, 6)).map((design, i) => {
-        const shot = quote.shots?.[i] ?? null;
-        // Äldre offerter har en enda stillbild, av den första designen.
-        const single = !shot && i === 0 && designs.length === 1 ? quote.badgeShot : null;
-        const main = shot
-          ? `<img src="${esc(shot.main)}" alt="">`
-          : single
-            ? `<img src="${esc(single)}" alt="">`
-            : drawing(design.doc, fonts);
-        const angles =
-          shot && withAngles && shot.angles.length > 0
-            ? `<div class="angles">${shot.angles
-                .map((angle, n) => `<figure><img src="${esc(angle)}" alt=""><figcaption>${esc(ANGLE_LABELS[n] ?? "")}</figcaption></figure>`)
-                .join("")}</div>`
-            : "";
-        const names = quote.badges.length;
-        const note =
-          designs.length > 1
-            ? `Design ${i + 1} · ${design.count} st`
-            : names > 1
-              ? `Visas med första namnet — alla ${names} namn står nedan`
-              : "";
-        return `<div class="gallery"><div class="hero${shot || single ? " photo" : ""}">${main}</div>${angles}${note ? `<small>${esc(note)}</small>` : ""}</div>`;
-      })
-    : [];
-  // Alla skyltar, en ritning per namn (besked av ägaren 2026-11-19: "vill att alla skyltar ska synas på
-  // offerten"). Bilderna ovan visar en skylt per design, så rutan behövs när en design har flera namn.
-  const everyBadge =
-    showsElement(quote, "badges") && quote.badges.length > designs.length
-      ? `<div class="all"><p class="eyebrow">Alla skyltar</p><div class="allgrid">${quote.badges
-          .slice(0, ALL_BADGES_MAX)
-          .map((badge) => `<figure>${drawing(badge, fonts)}<figcaption>${esc(badgeText(badge) || "Utan text")}${badge.quantity > 1 ? ` · ${badge.quantity} st` : ""}</figcaption></figure>`)
-          .join("")}</div>${
-          quote.badges.length > ALL_BADGES_MAX ? `<small>Och ${quote.badges.length - ALL_BADGES_MAX} skyltar till. Alla står i raderna nedan.</small>` : ""
-        }</div>`
-      : "";
+  const galleries = quoteGalleries(quote).map((gallery) => {
+    const main = gallery.main ? `<img src="${esc(gallery.main)}" alt="">` : drawing(gallery.doc, fonts);
+    const angles =
+      gallery.angles.length > 0
+        ? `<div class="angles">${gallery.angles
+            .map((angle) => `<figure><img src="${esc(angle.src)}" alt=""><figcaption>${esc(angle.label)}</figcaption></figure>`)
+            .join("")}</div>`
+        : "";
+    return `<div class="gallery"><div class="hero${gallery.main ? " photo" : ""}">${main}</div>${angles}${gallery.note ? `<small>${esc(gallery.note)}</small>` : ""}</div>`;
+  });
+  // Alla skyltar, en ritning per namn, när en design har flera namn.
+  const all = quoteAllBadges(quote);
+  const everyBadge = all
+    ? `<div class="all"><p class="eyebrow">Alla skyltar</p><div class="allgrid">${all.badges
+        .map((badge) => `<figure>${drawing(badge, fonts)}<figcaption>${esc(allBadgesCaption(badge))}</figcaption></figure>`)
+        .join("")}</div>${all.more > 0 ? `<small>${esc(allBadgesMore(all.more))}</small>` : ""}</div>`
+    : "";
   // En design står bredvid kundens uppgifter. Flera står i en egen rad under, två i bredd.
   const beside = galleries.length === 1 ? (galleries[0] ?? "") : "";
   const below = galleries.length > 1 ? `<div class="designs">${galleries.join("")}</div>` : "";
@@ -219,10 +174,10 @@ export function quoteDocument(
 <label class="pfield"><span>Marginal i procent</span><span class="pinput"><input data-input="margin" type="number" inputmode="numeric" min="0" max="90" step="1" value="${margin.percent ?? 0}" aria-label="Marginal i procent"><span>%</span></span></label>
 <p class="pnote">Ändra procenten, så räknas kundens pris om.${margin.custom ? ` <button type="button" data-action="margin-reset">Återställ till listpris</button>` : ""}</p></div>`
     : "";
-  const terms = showsElement(quote, "terms")
-    ? `<div class="terms">Offerten gäller till ${esc(day(quote.validUntil))}.${company.quoteTerms ? `\n${esc(company.quoteTerms)}` : ""}</div>`
-    : "<div></div>";
-  const seller = showsElement(quote, "seller") ? `<div class="seller">${footer.map(esc).join("<br>")}</div>` : "";
+  const termsLines = quoteTermsLines(quote, company);
+  const terms = termsLines.length > 0 ? `<div class="terms">${termsLines.map(esc).join("\n")}</div>` : "<div></div>";
+  const sellerLines = quoteSellerLines(quote, company);
+  const seller = sellerLines.length > 0 ? `<div class="seller">${sellerLines.map(esc).join("<br>")}</div>` : "";
 
   const css = `@page{size:A4;margin:0}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{margin:0}
@@ -290,13 +245,13 @@ s{color:#9ca3af;font-weight:400}
       : ""
   }`;
 
-  const title = quote.project ?? `Namnskyltar till ${customer.company ?? customer.name}`;
+  const heading = quoteHeading(quote);
   const body = `<div class="page">
 <div class="top">${brand}<div class="ref">Offert<b>${esc(quote.quoteNo)}</b></div></div>
-<p class="eyebrow">${quote.project ? `Offert till ${esc(customer.company ?? customer.name)}` : "Offert"}</p>
-<h1${edit("project")}>${esc(title)}</h1>
+<p class="eyebrow">${esc(heading.eyebrow)}</p>
+<h1${edit("project")}>${esc(heading.title)}</h1>
 ${message}
-<div class="grid${beside ? "" : " wide"}"><div class="info">${info.map(([k, v, to]) => `<div${to ? jump(to) : ""}><p class="k">${esc(k)}</p><p class="v">${esc(v)}</p></div>`).join("")}</div>
+<div class="grid${beside ? "" : " wide"}"><div class="info">${info.map((row) => `<div${row.field ? jump(row.field) : ""}><p class="k">${esc(row.label)}</p><p class="v">${esc(row.value)}</p></div>`).join("")}</div>
 ${beside}</div>
 ${below}
 ${everyBadge}
@@ -323,7 +278,7 @@ ${
   }
 </div>${privateBox ? "</div>" : ""}
 ${closing}
-${showsElement(quote, "promises") ? `<div class="promise">${PROMISES.map((p) => `<span>${esc(p)}</span>`).join("")}</div>` : ""}
+${showsElement(quote, "promises") ? `<div class="promise">${QUOTE_PROMISES.map((p) => `<span>${esc(p)}</span>`).join("")}</div>` : ""}
 ${
     showsElement(quote, "accept")
       ? `<div class="accept"><b>Godkänn offerten</b> — ${

@@ -196,7 +196,14 @@ export function QuoteSendPanel({ quoteNo, customerName, email, totalSek, link: i
   );
 }
 
-export function QuoteDecisionButtons({ quoteNo, canCancel }: { quoteNo: string; canCancel: boolean }) {
+interface DecisionButtonsProps {
+  quoteNo: string;
+  canCancel: boolean;
+  /** Ett utkast utan kund: det går inte att godkänna eller neka förrän kunden är vald. */
+  needsCustomer?: boolean;
+}
+
+export function QuoteDecisionButtons({ quoteNo, canCancel, needsCustomer = false }: DecisionButtonsProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -204,6 +211,7 @@ export function QuoteDecisionButtons({ quoteNo, canCancel }: { quoteNo: string; 
   return (
     <div className={styles.form}>
       <div className={styles.actionBar}>
+        {!needsCustomer && (
         <button
           type="button"
           className={styles.repeat}
@@ -220,6 +228,8 @@ export function QuoteDecisionButtons({ quoteNo, canCancel }: { quoteNo: string; 
         >
           ✓ Godkänn
         </button>
+        )}
+        {!needsCustomer && (
         <button
           type="button"
           className={styles.ghostButton}
@@ -235,6 +245,7 @@ export function QuoteDecisionButtons({ quoteNo, canCancel }: { quoteNo: string; 
         >
           Neka
         </button>
+        )}
         {canCancel && (
           <button
             type="button"

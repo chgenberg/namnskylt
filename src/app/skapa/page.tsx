@@ -9,7 +9,8 @@ import { siteOrigin } from "@/lib/http/origin";
 import { EMPTY_DELIVERY_DRAFT } from "@/lib/orders/delivery";
 import { deliveryOptions, resellerDeliveryDraft } from "@/lib/orders/delivery-options";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
-import { databaseConfigured, getCustomer, getOrder, getPriceModel, listCustomerChoices } from "@/lib/orders/repository";
+import { customerChoiceRows } from "@/lib/orders/customer-choices";
+import { databaseConfigured, getCustomer, getOrder, getPriceModel } from "@/lib/orders/repository";
 import { quoteSellerView } from "@/lib/quotes/seller-view";
 import { isOwner } from "@/lib/tenants/model";
 import { paymentsConfigured } from "@/lib/payments/stripe";
@@ -76,16 +77,7 @@ async function resellerContext(customerId: string | undefined, quote: boolean, p
   const customer = customerId ? await getCustomer(tenant, customerId) : null;
   // Utan kund i adressen, eller med en som inte går att beställa åt, väljs kunden i varukorgen.
   if (!customer || isErasedCustomer(customer)) {
-    const customers = (await listCustomerChoices(tenant))
-      .filter((choice) => !isErasedCustomer(choice))
-      .map((choice) => ({
-        id: choice.id,
-        label: choice.company ?? choice.name,
-        // En kund som sparats med bara företagets namn har det som namn också, och ingen e-post.
-        detail: [choice.company && choice.name !== choice.company ? choice.name : null, choice.email].filter(Boolean).join(" · "),
-        email: choice.email,
-        ...(choice.demo && { demo: true }),
-      }));
+    const customers = await customerChoiceRows(tenant);
     return {
       ...shared,
       customerId: null,

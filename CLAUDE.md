@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1346 tester, grönt 2026-11-19).
+# Kvalitetsgrinden. Kör den innan något lämnas (1365 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -626,7 +626,10 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Miniatyrerna under "Fel logga?" krymps nu till sina rutor. En kvadratisk logga stack
     förut ut under rutan.
   - Provat lokalt 2026-11-19 mot samma hemsida, i skyltmotorn i Chrome: loggan kommer i
-    854 px med genomskinlig botten och hamnar hel på skylten. **Inte provat i drift.**
+    854 px med genomskinlig botten och hamnar hel på skylten.
+  - Kontrollerat i drift samma dag efter pushen (`150309e`), bara läsning: samma hemsida ger
+    en enda logga, hel på skylten, och raden "Fel logga?" visas inte, eftersom modellen
+    valde bort flaggan och ikonen.
   - Känd brist: utan AI-modellen (lokalt, eller när den inte svarar) kom också sidans runda
     språkflagga och kontoikon med som alternativ. `flagLike` känner inte igen en rund flagga
     på vit botten. I drift väljer modellen bort dem.
@@ -1575,6 +1578,13 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   - Dela: `src/features/designer/share.ts` är borttagen. En delad länk (`/skapa?d=…`) öppnas
     som förut, och `encodeShareCode` används fortfarande av inspirationsbanken och
     ordersidorna. `POST /api/share-image` anropas inte längre av någon sida.
+  - **Video och Offert finns i alla vyer av skylten** (besked via ägaren 2026-11-20: de syntes
+    bara med 3D markerat, och "ska alltid finnas även i skiss-läget"): 3D, Ritning och På
+    person. Filmen spelas in ur 3D-vyn, så från en annan vy byter Video först till 3D och
+    börjar när vyn har ritats (`recordVideo`: inspelaren läses efter väntan, eftersom den som
+    fanns när knappen trycktes hör till en vy som är borta). I Ritning står "Återställ
+    placering" i samma rad. Ryms tre knappar inte på en smal telefon börjar raden från
+    vänster och går att rulla (`.stageActions` i `designer.module.css`).
 - **Sajten ska vara lika lätt att använda på telefon och surfplatta som på dator** (besked av
   ägaren 2026-11-19: "Motorn är exempelvis inte mobile-vänlig. Det är alldeles för liten
   skrollyta för val"). Förut tog skylten 48 % av höjden och prisdelen cirka 220 px, så på en
@@ -1652,7 +1662,33 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   Svarsruta, Villkor, Våra uppgifter och 3D-film till mejlet. På telefon står raden ovanför offerten. Valen
   sparas i `quotes.options` (`QUOTE_ELEMENTS`, `QuoteOptions`, `storedQuoteOptions` sparar
   bara det som avviker från förvalet), och den avslutande texten som `options.closing`.
-  - **Valen gäller PDF:en.** Kundens offertsida på webben följer bara valet om loggan.
+  - **Valen gäller PDF:en och kundens offertsida** (sedan 2026-11-20, se nedan). Förut följde
+    sidan bara valet om loggan.
+- **Kundens offertsida visar samma uppgifter som PDF:en** (besked via ägaren 2026-11-20, med
+  PDF:en och sidan bredvid varandra: "PDF o mail visar inte samma info"). Sidan
+  (`/offert/<kod>`, dit mejlets länk leder) hade en egen rubrik ("Offert till X" mot PDF:ens
+  "Namnskyltar till X") och en enda bild, och saknade offertdatum, vinkelbilderna, rutan med
+  alla skyltar, den avslutande texten, löftena och säljarens val av delar.
+  - **Det som står på offerten bestäms på ett ställe, `src/lib/quotes/view.ts`**: rubriken
+    (`quoteHeading`), kundens rader och dagarna (`quoteInfoRows`), bilderna per design med
+    vinklar (`quoteGalleries`), alla skyltar (`quoteAllBadges`), löftena, villkoren och
+    säljarens uppgifter. PDF:en (`document.ts`) och sidan ritar båda ur de delarna. **Lägg
+    det som ska stå på offerten där, inte i den ena av de två.**
+  - Sidan ritar delarna i sin egen form, som fungerar på telefon: bilden först på en smal
+    skärm, uppgifterna bredvid bilden på en bred, och alla skyltar två eller fyra i bredd.
+    Att sidan inte är PDF:ens A4-sida inlagd som den är valde jag: den blir oläslig på telefon.
+  - Det som skiljer med flit: PDF:ens ruta "Godkänn offerten — svara …" är på sidan
+    knapparna Godkänn och Tacka nej med leveransformuläret. Sidan har kvar en liten ritning
+    per rad, och när offerten är besvarad säger sidans rubrik hur det gick ("Tack för
+    ordern!"), med offertens rubrik i kortet.
+  - Hälsningen visas nu i alla lägen, inte bara medan offerten väntar på svar. Leveransen
+    står som en rad bland kundens uppgifter, som i PDF:en, i stället för under summan.
+  - **Offertmejlet är oförändrat**: en kort sammanfattning med bild, summa och knappar, som
+    leder till sidan. Jag läste "mail" som sidan bakom mejlets länk, eftersom bilden i
+    beskedet var den.
+  - Provat lokalt 2026-11-20 genom att läsa texten ur den nedladdade PDF:en och jämföra med
+    sidan (16 kontroller, och 390 och 320 px): rubrik, kundens rader, vinklarnas bildtexter,
+    alla skyltar, hälsning, löften, villkor och alla belopp står på båda. Inte provat i drift.
 - **Bilderna: en stor och tre små per design** (samma besked), tagna ur 3D-vyn: tre kvart,
   rakt framifrån, från sidan och baksidan med fästet (`QuoteShots`, `stillAt` i
   `three/recorder.tsx`). Skyltarna ritas en i taget i en osynlig 3D-vy med kameran nära
@@ -1698,6 +1734,41 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   "Lägg i varukorgen", som förut.
   - **Vägen är nu:** logga in (offertlistan) → Skapa offert → skriv namnet → Skapa offert →
     skriv kundens företag → Spara.
+- **En offert går att spara som utkast, utan kund** (besked via ägaren 2026-11-20, med tre
+  förslag: ett val "utkast / utan kund" vid kunden, en knapp "ladda ner" utan kund, eller ett
+  tredje alternativ "utkast" i kundvalet, "så slipper man fylla i massa info"). Jag byggde
+  det tredje, som täcker alla tre: kundvalet i offertvyn har **Befintlig kund, Ny kund och
+  Utkast** (`CustomerTarget` med `kind: "none"`, `allowDraft` i `ResellerCustomer`). Med
+  Utkast sparas offerten utan kund, och PDF:en och filmen laddas ner som vanligt. Någon
+  särskild knapp för nedladdning finns inte, eftersom Spara redan laddar ner.
+  - **Dokumentet ritas utan kundrader**, och rubriken är "Namnskyltar" tills säljaren ger
+    offerten ett projektnamn (`noCustomer` i `draftQuote`, `defaultQuoteTitle` i `document.ts`).
+  - **Offerten sparas som Utkast**, inte som skickad: den har ingen kund som kan svara
+    (`unassigned` i `createQuote`, `noCustomer` i `POST /api/admin/quotes`). Den mejlas aldrig.
+  - **Kunden väljs i panelen innan offerten skickas eller godkänns.** Offertens sida visar
+    "Välj kund" med samma val som i offertvyn (`QuoteCustomerForm`,
+    `assignQuoteCustomerAction`, `assignQuoteCustomer`), och har bara Makulera tills kunden är
+    vald. Listan visar "Utan kund" och "Utkast utan kund. Öppna offerten och välj kund." i
+    stället för Godkänn och Neka. Skicka och Godkänn nekas också på servern
+    (`NO_CUSTOMER_ERROR` i `sendQuote`, `sendQuoteAction` och `acceptQuote`). Att kunden måste
+    väljas före Godkänn valde jag: en order ska höra till en kund.
+  - **I databasen pekar utkastet på en platshållare**, en per säljare
+    (`src/lib/orders/unassigned-customer.ts`, `unassignedCustomerId`): `quotes.customer_id`
+    kräver en kund, och en platshållare behövde ingen migrering. Den känns igen på adressen
+    `utan-kund@utkast.invalid`, som en borttagen kund känns igen på sin. **Platshållaren visas
+    aldrig som en kund**: den finns inte i kundlistan eller kundvalen, `getCustomer` ger
+    `null` för den, och `toQuote` läser offerten med tomma kunduppgifter och
+    `StoredQuote.noCustomer`. Dess adress når alltså aldrig offertmejlet eller en sida. Läs
+    offertens kund i panelen med `quoteCustomerLabel`, som ger "Utan kund".
+  - En offert som har en kund byter aldrig kund den vägen: `assignQuoteCustomer` ändrar bara
+    en offert som pekar på platshållaren. Offerten blir demo när den valda kunden är det.
+  - Valet finns också för admin. Hos namnskylt.com krävs kundens företag,
+    organisationsnummer, kontaktperson och e-post när kunden sedan väljs.
+  - Provat lokalt 2026-11-20 som återförsäljare i Chrome (12 kontroller, och 390 och 320 px):
+    Utkast i offertvyn, Spara med PDF och film, listan, Välj kund på offertens sida, och att
+    Godkänn finns först när kunden är vald. Inte provat i drift, och Godkänn trycktes inte.
+  - Kända brister: kunden går inte att byta eller ta bort när den väl är vald. Kundens
+    offertsida (`/offert/<kod>`) visar ett utkast som "Offerten är inte klar än".
 - **En återförsäljares kund behöver bara ett företagsnamn på en offert** (beslut av ägaren
   2026-11-19, på frågan om vad som mer gick att korta: "Båda"). Offerten mejlas inte
   härifrån, så kontaktperson och e-post är frivilliga (`newCustomerOf` och
@@ -1855,6 +1926,37 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
   Inställningar gav röda färger i formuläret. Migrering 034 är tillämpad: indexet gäller
   bara kunder med e-post. **Spara trycktes aldrig**, varken på offerten eller under
   Inställningar, så ingen offert utan e-post har sparats i drift än.
+
+## Panelens listor — läge 2026-11-20
+
+- **Offerter, ordrar och kunder står som rader, inte kort** (besked via ägaren 2026-11-20:
+  "radannonser" för bättre ordning, med skylten längst till vänster i mindre format på
+  offerter och ordrar, och företagets namn längst till vänster på kunder). Stilen är
+  `.listRows` och `.listRow` i `admin.module.css`: listan äger kolumnerna och varje rad lånar
+  dem (`subgrid`), så att status, belopp och knappar står rakt under varandra. Under 1000 px
+  blir raden två rader, med status, belopp och knappar under namnet.
+  - Ordrar ritas av `OrderRow` (`src/features/admin/order-row.tsx`, förut `OrderCard`), på
+    orderlistan, kundens sida och adminens översikt. Offertlistan och kundlistan ritar sina
+    rader i sidan.
+  - Beskedet sa "offerter o kunder syns aktuell skylt längst till vänster" och sedan "kunder -
+    företagsnamnet längst till vänster". Jag läste det första som offerter och ordrar.
+  - Första kolumnen är `auto`, inte ett fast mått: radens kantluft räknas in i kolumnen, och
+    med 84 px fast åt den upp luften mellan skylten och texten.
+- **Orderlistan har två filter, I produktion och Skickad** (besked via ägaren 2026-11-20:
+  "räcker väl att ha I produktion, lila som nu, och Skickad, grön, ta bort resten"). Förut
+  fanns Pågående, Mottagen, Korrektur skickad, I produktion, Skickad, Levererad och Alla.
+  Reglerna ligger i `src/lib/orders/list-status.ts`.
+  - **Inget filter är valt från början, och då visas alla ordrar.** Ett klick på det valda
+    filtret tar bort det igen. Det valde jag, så att ingen order blir oåtkomlig utan "Alla".
+  - **Märket på raden följer samma två lägen** (`ListStatusPill`, `listStatusOf` i
+    `src/lib/supplier/sync.ts`): mottagen, korrektur, godkänd och i produktion visas som
+    I produktion, och skickad och levererad som Skickad. Skickad är grön överallt, också på
+    orderns sida. Orderns sida och tidslinjen har kvar alla steg.
+  - **Två undantag har eget märke men inget filter**, och dem lade jag till själv: **Väntar**,
+    när ordern inte har gått till tillverkningen än (annars stod en order som har fastnat som
+    I produktion), och **Avbruten**. En order som väntar står under filtret I produktion.
+    En demoorder visas som I produktion, fast den aldrig skickas.
+  - Lokalt, utan kopplingen till verkstaden, står därför varje riktig order som Väntar.
 
 ## Besked — läge 2026-11-15
 
@@ -2419,6 +2521,21 @@ och testdata går att städa bort. Reglerna ligger i `src/lib/orders/erase-model
   gått till verkstaden, är i produktion, skickad eller levererad, eller är betald med kort
   (`isBookkeepingOrder`). Andra ordrar får tas bort. "Ta bort order" i panelen nekar en
   bokföringsorder.
+- **En återförsäljare kan inte ta bort en order, men väl en offert** (besked via ägaren
+  2026-11-20: "under order kan man deleta en order, det ska man inte kunna göra, däremot ska
+  man kunna göra det under offerter").
+  - **Ordrar:** papperskorgen på orderkortet och knappen Ta bort på orderns sida visas bara
+    för admin (`canDelete` i `OrderCard`), och `deleteOrderAction` nekar en återförsäljare.
+    **Att admin har kvar knappen valde jag**: beskedet kom från en återförsäljares panel, och
+    admin har städat testordrar den vägen. Regeln om bokföringsordrar gäller admin som förut.
+    En återförsäljares order som aldrig gick till verkstaden går alltså inte att ta bort i
+    panelen längre, annat än genom att kunden tas bort.
+  - **Offerter:** kortet i offertlistan har en papperskorg och offertens sida knappen Ta bort
+    (`DeleteQuoteButton`, `deleteQuoteAction`, `deleteQuote`), för både admin och
+    återförsäljare. Offerten tas bort för gott med sin historik och sina besked, och kundens
+    länk slutar gälla. **En offert som har blivit en order går inte att ta bort**: den är
+    orderns underlag, och knappen visas inte för den. Den regeln lade jag till själv.
+    Makulera finns kvar och låter offerten stå kvar i listan.
 - **Ta bort kund** (`/admin/kunder/<id>`, återförsäljaren för sina egna kunder, `eraseCustomer`
   i `src/lib/orders/erase.ts`): kundens offerter, mallar och övriga ordrar raderas. Finns
   bokföringsordrar kvar avidentifieras kunden i stället: namnet blir "Borttagen kund",

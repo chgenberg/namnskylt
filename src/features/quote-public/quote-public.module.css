@@ -276,14 +276,6 @@
   color: #0b7a4b;
 }
 
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
-  color: var(--color-ink-2);
-}
-
 .pdf {
   font-size: var(--text-sm);
   font-weight: 600;
@@ -330,6 +322,184 @@
 @media (prefers-reduced-motion: reduce) {
   .shot img {
     animation: none;
+  }
+}
+
+/* ── Offertens översikt: samma uppgifter och bilder som i PDF:en ── */
+.cardHeading {
+  margin: 0;
+  color: var(--brand, var(--color-ink));
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.overview {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.info {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  border-radius: 18px;
+  background: #f4f4f1;
+}
+
+/* Utan bild bredvid står raderna i bredd. */
+.overview:not([data-beside]) .info {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.info div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.info dt {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.info dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.gallery {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.gallery .shot {
+  margin: 0;
+}
+
+.shot svg {
+  display: block;
+  width: min(88%, 520px);
+  height: auto;
+  filter: drop-shadow(0 18px 22px rgb(10 10 11 / 0.2));
+}
+
+.angles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.angles figure {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3) var(--space-2) var(--space-2);
+  border-radius: 14px;
+  background: #f4f4f1;
+}
+
+.angles img {
+  width: 100%;
+  height: auto;
+  max-height: 96px;
+  object-fit: contain;
+}
+
+.angles figcaption,
+.galleryNote {
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.designs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.all {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.allGrid {
+  display: grid;
+  /* Fyra i bredd på en bred skärm, som i PDF:en, och två på telefon. */
+  grid-template-columns: repeat(auto-fill, minmax(max(100px, 22%), 1fr));
+  gap: var(--space-3);
+}
+
+.allGrid figure {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: 14px;
+  background: #f4f4f1;
+}
+
+.allGrid svg {
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 6px 8px rgb(10 10 11 / 0.16));
+}
+
+.allGrid figcaption {
+  font-size: var(--text-xs);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.closing {
+  max-width: 62ch;
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.promises {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.promises li::before {
+  content: "✓";
+  margin-right: 6px;
+  color: var(--brand-accent, #0b7a4b);
+}
+
+/* På en bred skärm står uppgifterna bredvid bilden, som i PDF:en. På telefon står bilden först. */
+@media (min-width: 720px) {
+  .overview[data-beside] {
+    grid-template-columns: minmax(200px, 5fr) 9fr;
+    align-items: start;
+  }
+}
+
+@media (max-width: 719px) {
+  .overview[data-beside] .gallery {
+    order: -1;
   }
 }
 

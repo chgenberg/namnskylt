@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BadgePreview } from "@/components/badge-preview";
+import { DeleteQuoteButton } from "@/features/admin/delete-quote-button";
 import { DeliveryPanel } from "@/features/admin/delivery-panel";
 import { LogoOriginalLinks } from "@/features/admin/logo-original-links";
 import { adminTenant } from "@/features/admin/guard";
@@ -8,16 +9,19 @@ import { NoticesSeen } from "@/features/admin/notices-seen";
 import { PricingEditor } from "@/features/admin/pricing-editor";
 import { updateQuotePricingAction } from "@/features/admin/quote-actions";
 import { QuoteDecisionButtons, QuoteSendPanel, QuoteTermsForm } from "@/features/admin/quote-controls";
+import { QuoteCustomerForm } from "@/features/admin/quote-customer-form";
 import { QuoteFlow, QuoteStatusPill } from "@/features/admin/quote-parts";
 import styles from "@/features/admin/admin.module.css";
 import { formatDate, formatDay, formatSek, plural } from "@/lib/format";
 import { siteOrigin } from "@/lib/http/origin";
 import { countUnreadNotices } from "@/lib/notices/repository";
+import { customerChoiceRows } from "@/lib/orders/customer-choices";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { badgeCount } from "@/lib/orders/model";
-import { canEditQuote, displayStatus } from "@/lib/quotes/model";
+import { canEditQuote, displayStatus, quoteCustomerLabel } from "@/lib/quotes/model";
 import { getQuote } from "@/lib/quotes/repository";
 import { quoteEmailOn } from "@/lib/quotes/send";
+import { isOwner } from "@/lib/tenants/model";
 
 interface QuotePageProps {
   params: Promise<{ quoteNo: string }>;
@@ -37,7 +41,10 @@ export default async function QuotePage({ params }: QuotePageProps) {
     countUnreadNotices(tenant, { quoteNo: quote.quoteNo }),
   ]);
   const link = quote.status === "sent" || status === "expired" ? `${origin}/offert/${quote.token}` : null;
-  const name = quote.customer.company ?? quote.customer.name;
+  const name = quoteCustomerLabel(quote);
+  // Ett utkast som sparades utan kund i skyltmotorn får sin kund här, innan det går att skicka eller godkänna.
+  const needsCustomer = Boolean(quote.noCustomer) && editable;
+  const customers = needsCustomer ? await customerChoiceRows(tenant) : [];
 
   return (
     <>
@@ -65,6 +72,16 @@ export default async function QuotePage({ params }: QuotePageProps) {
           <a href={`/offert/${quote.token}`} target="_blank" rel="noreferrer" className={styles.ghostButton}>
             Förhandsgranska
           </a>
+          {/* En offert som har blivit en order är orderns underlag och går inte att ta bort. */}
+          {quote.status !== "accepted" && (
+            <DeleteQuoteButton
+              quoteNo={quote.quoteNo}
+              customerName={name}
+              badgeCount={badgeCount(quote)}
+              totalSek={quote.totalSek}
+              redirectTo="/admin/offerter"
+            />
+          )}
         </div>
       </header>
 
@@ -136,6 +153,22 @@ export default async function QuotePage({ params }: QuotePageProps) {
         </div>
 
         <div className={styles.detailSide}>
+          {needsCustomer && (
+            <section className={styles.panel} data-quote-needs-customer>
+              <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>
+                Välj kund
+              </h2>
+              <div className={styles.callout} data-tone="warn" style={{ marginBottom: "var(--space-3)" }}>
+                <strong>Utkast utan kund</strong>
+                <span>
+                  PDF:en går att ladda ner och skicka som den är. Välj kund här, så går offerten att skicka och godkänna.
+                </span>
+              </div>
+              <QuoteCustomerForm quoteNo={quote.quoteNo} customers={customers} needsInvoiceDetails={isOwner(tenant)} />
+            </section>
+          )}
+
+          {!needsCustomer && (
           <section className={styles.panel}>
             <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>
               {quote.status === "accepted" ? "Godkänd" : "Skicka till kunden"}
@@ -181,6 +214,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
               </>
             )}
           </section>
+          )}
 
           {editable && (
             <section className={styles.panel}>
@@ -188,13 +222,15 @@ export default async function QuotePage({ params }: QuotePageProps) {
                 Kundens svar
               </h2>
               <p className={styles.hint} style={{ marginBottom: "var(--space-3)" }}>
-                Godkänn när kunden har sagt ja: då blir offerten en order som går till tillverkningen. Neka om kunden
-                tackar nej.
+                {needsCustomer
+                  ? "Välj kund först. Sedan går offerten att godkänna, och blir då en order som går till tillverkningen."
+                  : "Godkänn när kunden har sagt ja: då blir offerten en order som går till tillverkningen. Neka om kunden tackar nej."}
               </p>
-              <QuoteDecisionButtons quoteNo={quote.quoteNo} canCancel />
+              <QuoteDecisionButtons quoteNo={quote.quoteNo} canCancel needsCustomer={needsCustomer} />
             </section>
           )}
 
+          {!quote.noCustomer && (
           <section className={styles.panel}>
             <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>
               Kund
@@ -228,6 +264,7 @@ export default async function QuotePage({ params }: QuotePageProps) {
               )}
             </dl>
           </section>
+          )}
 
           <section className={styles.panel}>
             <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>

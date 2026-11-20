@@ -6,15 +6,6 @@ import { formatRelative, formatSek, plural } from "@/lib/format";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { listCustomers } from "@/lib/orders/repository";
 
-function initials(text: string): string {
-  return text
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? "")
-    .join("");
-}
-
 export default async function CustomersPage() {
   const tenant = await adminTenant();
   if (!tenant) return null;
@@ -30,36 +21,25 @@ export default async function CustomersPage() {
           <p className={styles.pageLead}>Varje kund har sin orderhistorik och sina sparade skyltmallar.</p>
         </div>
       </header>
-      <div className={styles.customerGrid}>
+      {/* Rader i stället för kort, med företagets namn längst till vänster (besked via ägaren 2026-11-20). */}
+      <div className={styles.listRows} data-kind="customers">
         {customers.map((c) => (
-          <Link key={c.id} href={`/admin/kunder/${c.id}`} className={styles.customerCard}>
-            <div className={styles.customerHead}>
-              <span className={styles.avatar} aria-hidden="true">
-                {initials(c.company ?? c.name)}
+          <Link key={c.id} href={`/admin/kunder/${c.id}`} className={styles.listRow}>
+            <span className={styles.rowMain}>
+              <strong className={styles.rowName}>{c.company ?? c.name}</strong>
+              <span className={styles.cardMeta}>
+                {[c.company && c.name !== c.company ? c.name : null, c.email].filter(Boolean).join(" · ") || "Ingen kontakt sparad"}
               </span>
-              <span className={styles.rowTitle}>
-                <strong>{c.company ?? c.name}</strong>
-                <span className={styles.muted}>{c.company ? c.name : c.email}</span>
-              </span>
-            </div>
-            <span className={styles.muted}>
-              {c.lastOrderAt ? `Senaste order ${formatRelative(c.lastOrderAt)}` : "Inga ordrar än"}
-              {c.designs > 0 && ` · ${c.designs} ${c.designs === 1 ? "mall" : "mallar"}`}
             </span>
-            <div className={styles.customerStats}>
-              <div>
-                <strong>{c.orders}</strong>
-                <span>{c.orders === 1 ? "order" : "ordrar"}</span>
-              </div>
-              <div>
-                <strong>{c.badges}</strong>
-                <span>{c.badges === 1 ? "skylt" : "skyltar"}</span>
-              </div>
-              <div>
-                <strong>{formatSek(c.revenueSek)}</strong>
-                <span>totalt</span>
-              </div>
-            </div>
+            <span className={styles.rowTail}>
+              <span className={styles.rowFact}>
+                {c.lastOrderAt ? `Senaste order ${formatRelative(c.lastOrderAt)}` : "Inga ordrar än"}
+                {c.designs > 0 && ` · ${plural(c.designs, "mall", "mallar")}`}
+              </span>
+              <span className={styles.rowFact}>{plural(c.orders, "order", "ordrar")}</span>
+              <span className={styles.rowFact}>{plural(c.badges, "skylt", "skyltar")}</span>
+              <span className={styles.amount}>{formatSek(c.revenueSek)}</span>
+            </span>
           </Link>
         ))}
       </div>

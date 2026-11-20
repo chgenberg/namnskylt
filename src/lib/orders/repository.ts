@@ -19,6 +19,7 @@ import {
 } from "./delivery";
 import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "./price-lists";
 import { isCustomPricing, isLineInvoiceable, parsePricing, priceWithPricing, type Pricing } from "./pricing";
+import { UNASSIGNED_CUSTOMER_EMAIL, UNASSIGNED_CUSTOMER_NAME } from "./unassigned-customer";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
 import { workshopSeller, type SellerProfile } from "@/lib/company/seller";
 import { isOwner, OWNER_TENANT, settingsKey } from "@/lib/tenants/model";
@@ -680,6 +681,20 @@ export async function upsertCustomer(tenant: string, input: CustomerInput): Prom
   return row;
 }
 
+/**
+ * Säljarens platshållare för offerter som sparats som utkast, utan kund. Den skapas första gången
+ * den behövs, och det finns en per säljare: adressen är unik hos säljaren.
+ */
+export async function unassignedCustomerId(tenant: string): Promise<string> {
+  const [row] = await requireDb()<{ id: string }[]>`
+    insert into customers (reseller_id, email, name)
+    values (${tenant}, ${UNASSIGNED_CUSTOMER_EMAIL}, ${UNASSIGNED_CUSTOMER_NAME})
+    on conflict (reseller_id, email) where email <> '' do update set name = excluded.name
+    returning id`;
+  if (!row) throw new Error("Utkastet kunde inte sparas");
+  return row.id;
+}
+
 /** Vad som hände när priserna skulle sparas. `locked`: priset går inte att ändra längre, `refused`: priset går inte att fakturera. */
 export type PricingUpdate = "saved" | "missing" | "locked" | "refused";
 
@@ -746,7 +761,7 @@ const CUSTOMER_CHOICES = 2000;
 export async function listCustomerChoices(tenant: string): Promise<Pick<Customer, "id" | "name" | "company" | "email" | "demo">[]> {
   return requireDb()<Pick<Customer, "id" | "name" | "company" | "email" | "demo">[]>`
     select id, name, company, email, is_demo as demo from customers
-     where reseller_id = ${tenant} and erased_at is null
+     where reseller_id = ${tenant} and erased_at is null and email <> ${UNASSIGNED_CUSTOMER_EMAIL}
      order by lower(coalesce(company, name)), id
      limit ${CUSTOMER_CHOICES}`;
 }
@@ -786,7 +801,7 @@ export async function listCustomers(tenant: string): Promise<CustomerSummary[]> 
            (select count(*)::int from designs d where d.customer_id = c.id) as designs
       from customers c
       left join orders o on o.customer_id = c.id
-     where c.reseller_id = ${tenant}
+     where c.reseller_id = ${tenant} and c.email <> ${UNASSIGNED_CUSTOMER_EMAIL}
      group by c.id
      order by max(o.placed_at) desc nulls last`;
   return rows.map((r) => ({
@@ -810,7 +825,9 @@ export async function getCustomer(tenant: string, id: string): Promise<Customer 
   const sql = requireDb();
   if (!z.uuid().safeParse(id).success) return null;
   const [row] = await sql<Customer[]>`
-    select ${sql.unsafe(CUSTOMER_COLUMNS)} from customers where id = ${id} and reseller_id = ${tenant}`;
+    select ${sql.unsafe(CUSTOMER_COLUMNS)} from customers
+     where id = ${id} and reseller_id = ${tenant} and email <> ${UNASSIGNED_CUSTOMER_EMAIL}`;
+  // Platshållaren för utkast utan kund är ingen kund: den går varken att öppna eller beställa åt.
   return row ?? null;
 }
 

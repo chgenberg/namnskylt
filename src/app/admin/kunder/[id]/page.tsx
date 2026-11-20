@@ -6,7 +6,7 @@ import { DeleteCustomerButton } from "@/features/admin/delete-customer-button";
 import { DeleteDesignButton } from "@/features/admin/delete-design-button";
 import { adminTenant } from "@/features/admin/guard";
 import { NewNamesButton } from "@/features/admin/new-names-button";
-import { OrderCard } from "@/features/admin/order-card";
+import { OrderRow } from "@/features/admin/order-row";
 import { RepeatButton } from "@/features/admin/repeat-button";
 import styles from "@/features/admin/admin.module.css";
 import { formatDay, formatSek, plural } from "@/lib/format";
@@ -14,6 +14,7 @@ import { customerErasurePlan } from "@/lib/orders/erase";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { badgeCount } from "@/lib/orders/model";
 import { getCustomer, listCustomerOrders, listDesigns } from "@/lib/orders/repository";
+import { isOwner } from "@/lib/tenants/model";
 
 interface CustomerPageProps {
   params: Promise<{ id: string }>;
@@ -137,9 +138,9 @@ export default async function CustomerPage({ params }: CustomerPageProps) {
           <h2 className={styles.sectionTitle}>Orderhistorik</h2>
           <span className={styles.muted}>{plural(orders.length, "order", "ordrar")}</span>
         </div>
-        <div className={styles.cards}>
+        <div className={styles.listRows}>
           {orders.map((order) => (
-            <OrderCard key={order.id} order={order} />
+            <OrderRow key={order.id} order={order} canDelete={isOwner(tenant)} />
           ))}
         </div>
       </section>

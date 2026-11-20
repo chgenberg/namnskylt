@@ -63,14 +63,15 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
         <div className={styles.body}>
           <header className={styles.head}>
             <p className="eyebrow">Offert</p>
-            <h1 className={styles.title}>Offert {saved.quoteNo} är sparad</h1>
+            <h1 className={styles.title}>{saved.noCustomer ? `Utkast ${saved.quoteNo} är sparat` : `Offert ${saved.quoteNo} är sparad`}</h1>
           </header>
           <p className={styles.lead} role="status">
             {films.length > 0 || quote.filmsLeft > 0
               ? "PDF:en laddas ner till din enhet, och en 3D-film av varje skylt. Bifoga dem i ditt mejl till kunden."
               : "PDF:en laddas ner till din enhet. Skicka den till kunden."}{" "}
-            När kunden har svarat godkänner eller nekar du offerten under Offerter i panelen. Godkänner du blir den en
-            order som går till tillverkningen.
+            {saved.noCustomer
+              ? "Offerten ligger som utkast under Offerter i panelen, utan kund. Välj kund där innan du godkänner den: då blir den en order som går till tillverkningen."
+              : "När kunden har svarat godkänner eller nekar du offerten under Offerter i panelen. Godkänner du blir den en order som går till tillverkningen."}
           </p>
           <div className={styles.links}>
             <a className="btn btn--primary" href={`/admin/offerter/${saved.quoteNo}`}>
@@ -116,7 +117,7 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
       <div className={styles.body}>
         <header className={styles.head}>
           <p className="eyebrow">Offert</p>
-          <h1 className={styles.title}>{quote.recipient ? `Offert till ${quote.recipient.label}` : "Ny offert"}</h1>
+          <h1 className={styles.title}>{quote.recipient ? `Offert till ${quote.recipient.label}` : quote.noCustomer ? "Utkast utan kund" : "Ny offert"}</h1>
         </header>
         <p className={styles.lead}>
           Så här ser offerten ut. När du sparar laddas den ner som PDF, tillsammans med en 3D-film av varje skylt, som
@@ -139,6 +140,7 @@ export function QuotePanel({ reseller, quote, onBack }: QuotePanelProps) {
               onChange={quote.setTarget}
               needsInvoiceDetails={reseller.needsInvoiceDetails ?? false}
               minimal={quote.minimal}
+              allowDraft
               disabled={saving}
             />
           )}

@@ -11,7 +11,7 @@ import { getSellerProfile } from "@/lib/orders/repository";
 import { accountEmail } from "@/lib/reseller-auth/accounts";
 import { displayStatus, showsSellerLogo, type StoredQuote } from "./model";
 import { composeQuoteEmail, quoteEmailSettings, quotePictureCaption, type QuoteEmailSettings } from "./quote-email";
-import { markEmailed, markSent } from "./repository";
+import { getQuote, markEmailed, markSent } from "./repository";
 
 const HOUR_MS = 60 * 60 * 1000;
 /** Så många offertmejl får en säljare skicka per timme. Skyddar mot att kontot används för utskick. */
@@ -49,6 +49,8 @@ function senderFor(settings: QuoteEmailSettings, fetchImpl?: FetchLike): ResendE
  * skickas för hand. `null` när offerten inte finns eller redan är besvarad.
  */
 export async function sendQuote(tenant: string, quoteNo: string, fetchImpl?: FetchLike): Promise<QuoteSendResult | null> {
+  // Ett utkast utan kund har ingen att skickas till: säljaren väljer kund i panelen först.
+  if ((await getQuote(tenant, quoteNo))?.noCustomer) return null;
   const quote = await markSent(tenant, quoteNo);
   if (!quote) return null;
   const settings = quoteEmailSettings();

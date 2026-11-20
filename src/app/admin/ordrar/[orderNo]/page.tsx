@@ -124,14 +124,17 @@ export default async function OrderPage({ params }: OrderPageProps) {
               shippingMethod={shippingMethodOf(order.delivery)}
             />
           )}
-          <DeleteOrderButton
-            orderNo={order.orderNo}
-            customerName={customerName}
-            badgeCount={badgeCount(order)}
-            totalSek={order.totalSek}
-            atPrinter={atPrinter(order)}
-            redirectTo="/admin/ordrar"
-          />
+          {/* Bara admin tar bort ordrar. En återförsäljare kan inte det (besked via ägaren 2026-11-20). */}
+          {isOwner(tenant) && (
+            <DeleteOrderButton
+              orderNo={order.orderNo}
+              customerName={customerName}
+              badgeCount={badgeCount(order)}
+              totalSek={order.totalSek}
+              atPrinter={atPrinter(order)}
+              redirectTo="/admin/ordrar"
+            />
+          )}
         </div>
       </header>
 

@@ -162,6 +162,8 @@ export async function saveDesignAction(orderNo: string, badgeIndex: number, name
 
 export async function deleteOrderAction(orderNo: string): Promise<ActionResult> {
   const tenant = await requireReseller();
+  // En återförsäljare kan inte ta bort en order (besked via ägaren 2026-11-20). Offerter går att ta bort.
+  if (!isOwner(tenant)) return { ok: false, error: "En order går inte att ta bort." };
   try {
     const order = await getOrder(tenant, orderNoSchema.parse(orderNo));
     if (!order) return { ok: false, error: "Ordern finns inte" };

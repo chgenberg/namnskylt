@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BadgePreview } from "@/components/badge-preview";
+import { DeleteQuoteButton } from "@/features/admin/delete-quote-button";
 import { FillDemoButton } from "@/features/admin/demo-data-controls";
 import { adminTenant } from "@/features/admin/guard";
 import { NoticeList } from "@/features/admin/notice-list";
@@ -9,7 +10,7 @@ import styles from "@/features/admin/admin.module.css";
 import { formatDay, formatRelative, formatSek } from "@/lib/format";
 import { badgeCount } from "@/lib/orders/model";
 import { priceWithPricing } from "@/lib/orders/pricing";
-import { displayStatus, type StoredQuote } from "@/lib/quotes/model";
+import { displayStatus, quoteCustomerLabel, type StoredQuote } from "@/lib/quotes/model";
 import { listUnreadNotices } from "@/lib/notices/repository";
 import { listQuotes } from "@/lib/quotes/repository";
 import { isOwner } from "@/lib/tenants/model";
@@ -65,44 +66,55 @@ export default async function QuotesPage() {
           )}
         </div>
       ) : (
-        <div className={styles.cards}>
+        <div className={styles.listRows}>
           {quotes.map((quote) => {
             const status = displayStatus(quote, now);
+            const first = quote.badges[0];
+            const waits = status === "sent" || status === "draft";
             return (
-              <article key={quote.id} className={styles.orderCard}>
-                <Link href={`/admin/offerter/${quote.quoteNo}`} className={styles.orderCardLink} aria-label={`Öppna ${quote.quoteNo}`} />
-                <div className={styles.stage} aria-hidden="true">
-                  <div className={styles.stageStack}>
-                    {quote.badges.slice(0, 3).map((badge, i) => (
-                      <BadgePreview key={i} doc={badge} className={styles.stageBadge} />
-                    ))}
-                  </div>
-                  {quote.badges.length > 1 && <span className={styles.stageCount}>{quote.badges.length} namn</span>}
+              <article key={quote.id} className={styles.listRow}>
+                <Link href={`/admin/offerter/${quote.quoteNo}`} className={styles.listRowLink} aria-label={`Öppna ${quote.quoteNo}`} />
+                {/* Skylten längst till vänster, i litet format (besked via ägaren 2026-11-20). */}
+                <div className={styles.rowThumb} aria-hidden="true">
+                  {first && <BadgePreview doc={first} />}
                 </div>
-                <div className={styles.cardBody}>
-                  <div className={styles.cardTop}>
+                <div className={styles.rowMain}>
+                  <h3 className={styles.rowName}>
                     <span className={styles.orderNo}>{quote.quoteNo}</span>
-                    <QuoteStatusPill status={status} />
-                  </div>
-                  <h3 className={styles.cardTitle}>{quote.project ?? quote.customer.company ?? quote.customer.name}</h3>
+                    {quote.project ?? quoteCustomerLabel(quote)}
+                  </h3>
                   <div className={styles.cardMeta}>
-                    {quote.project && <span>{quote.customer.company ?? quote.customer.name}</span>}
+                    {quote.project && <span>{quoteCustomerLabel(quote)}</span>}
                     <span>{badgeCount(quote)} st</span>
+                    {quote.badges.length > 1 && <span>{quote.badges.length} namn</span>}
                     <span>{formatRelative(quote.createdAt, now)}</span>
                     {status === "sent" && <span>gäller t.o.m. {formatDay(quote.validUntil)}</span>}
                     {savings(quote) > 0 && <span className={styles.source}>−{String(savings(quote)).replace(".", ",")} %</span>}
-                    {quote.demo && <span className={styles.demoTag}>Demo</span>}
-                  </div>
-                  <div className={styles.cardFoot}>
-                    <span className={styles.amount}>{formatSek(quote.totalSek)}</span>
                     {quote.orderNo && <span className="mono">→ {quote.orderNo}</span>}
+                    {quote.demo && <span className={styles.demoTag}>Demo</span>}
+                    {/* Ett utkast utan kund går inte att godkänna än. Hela raden leder till offerten, där kunden väljs. */}
+                    {waits && quote.noCustomer && <span data-quote-no-customer>Öppna offerten och välj kund</span>}
                   </div>
-                  {/* En offert som väntar på svar besvaras åt kunden direkt i listan (beslut av ägaren 2026-11-19). */}
-                  {(status === "sent" || status === "draft") && (
-                    <div className={styles.cardDecision}>
-                      <QuoteDecisionButtons quoteNo={quote.quoteNo} canCancel={false} />
-                    </div>
-                  )}
+                </div>
+                <div className={styles.rowTail}>
+                  <span className={styles.rowStatus}>
+                    <QuoteStatusPill status={status} />
+                  </span>
+                  <span className={styles.amount}>{formatSek(quote.totalSek)}</span>
+                  <div className={styles.rowActions}>
+                    {/* En offert som väntar på svar besvaras åt kunden direkt i listan (beslut av ägaren 2026-11-19). */}
+                    {waits && !quote.noCustomer && <QuoteDecisionButtons quoteNo={quote.quoteNo} canCancel={false} />}
+                    {/* En offert går att ta bort, men inte en som har blivit en order (besked via ägaren 2026-11-20). */}
+                    {quote.status !== "accepted" && (
+                      <DeleteQuoteButton
+                        quoteNo={quote.quoteNo}
+                        customerName={quoteCustomerLabel(quote)}
+                        badgeCount={badgeCount(quote)}
+                        totalSek={quote.totalSek}
+                        compact
+                      />
+                    )}
+                  </div>
                 </div>
               </article>
             );

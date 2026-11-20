@@ -6,7 +6,7 @@ import { customerLabel } from "@/lib/notices/model";
 import { notify } from "@/lib/notices/notify";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
-import type { StoredQuote } from "./model";
+import { NO_CUSTOMER_ERROR, type StoredQuote } from "./model";
 import { quoteShippingMethods } from "./shipping";
 import {
   claimForAcceptance,
@@ -70,6 +70,8 @@ export async function acceptQuote(
 ): Promise<AcceptResult> {
   const before = await getQuote(tenant, quoteNo);
   if (!before) return { ok: false, error: "Offerten finns inte" };
+  // Ett utkast utan kund kan inte bli en order: ordern ska höra till en kund.
+  if (before.noCustomer) return { ok: false, error: NO_CUSTOMER_ERROR };
   // En äldre offert kan gälla ett material eller mått som inte säljs längre.
   if (!allOffered(before.badges)) return { ok: false, error: NOT_OFFERED_ERROR };
   if (method && !quoteShippingMethods(isOwner(tenant), shippingMethodOf(before.delivery)).includes(method)) {

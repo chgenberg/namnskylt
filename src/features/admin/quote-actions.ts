@@ -5,10 +5,12 @@ import { z } from "zod";
 import { siteOrigin } from "@/lib/http/origin";
 import { deliveryPhoneIssue, quoteDeliverySchema, type QuoteDelivery } from "@/lib/orders/delivery";
 import { DIRECT_PRICING_ERROR, isLineInvoiceable, pricingSchema, type Pricing } from "@/lib/orders/pricing";
+import { quoteCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-customer";
 import { saveResellerDeliveryAddress } from "@/lib/orders/repository";
 import { acceptQuote } from "@/lib/quotes/accept";
 import { isOwner } from "@/lib/tenants/model";
-import { cancelQuote, declineQuoteForCustomer, getQuote, updateQuote, updateQuoteDelivery } from "@/lib/quotes/repository";
+import { NO_CUSTOMER_ERROR } from "@/lib/quotes/model";
+import { assignQuoteCustomer, cancelQuote, declineQuoteForCustomer, deleteQuote, getQuote, updateQuote, updateQuoteDelivery } from "@/lib/quotes/repository";
 import { sendQuote } from "@/lib/quotes/send";
 import { requireReseller } from "@/lib/reseller-auth/session";
 import type { ActionResult } from "./actions";
@@ -89,11 +91,38 @@ export async function updateQuoteDeliveryAction(quoteNo: string, delivery: Quote
 export async function sendQuoteAction(quoteNo: string): Promise<ActionResult> {
   const tenant = await requireReseller();
   try {
+    // Ett utkast utan kund har ingen att skickas till.
+    if ((await getQuote(tenant, quoteNoSchema.parse(quoteNo)))?.noCustomer) return { ok: false, error: NO_CUSTOMER_ERROR };
     const sent = await sendQuote(tenant, quoteNoSchema.parse(quoteNo));
     if (!sent) return { ok: false, error: "Offerten kan inte skickas" };
     return done({ ok: true, url: `${await siteOrigin()}/offert/${sent.quote.token}`, emailed: sent.emailed, notice: sent.emailError });
   } catch (error) {
     return fail(error, "Offerten kunde inte skickas");
+  }
+}
+
+const quoteCustomerSchema = z.strictObject(quoteCustomerFields);
+
+/**
+ * Väljer kund till ett utkast som sparades utan kund (besked via ägaren 2026-11-20): en av säljarens
+ * kunder, eller en ny. Reglerna är dem som gäller när offerten sparas med kund i skyltmotorn: hos en
+ * återförsäljare räcker ett företagsnamn, hos namnskylt.com krävs det verkstaden behöver för fakturan.
+ */
+export async function assignQuoteCustomerAction(quoteNo: string, input: z.input<typeof quoteCustomerSchema>): Promise<ActionResult> {
+  const tenant = await requireReseller();
+  try {
+    const parsed = quoteCustomerSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Ogiltiga uppgifter" };
+    const quote = await getQuote(tenant, quoteNoSchema.parse(quoteNo));
+    if (!quote?.noCustomer) return { ok: false, error: "Offerten har redan en kund" };
+    const found = await resolveOrderCustomer(tenant, parsed.data, { minimal: true });
+    if (!found.ok) return { ok: false, error: found.error };
+    // Hos namnskylt.com blir offerten en direktorder, som verkstaden fakturerar kunden rad för rad.
+    if (isOwner(tenant) && !found.customer.demo && !isLineInvoiceable(quote.pricing)) return { ok: false, error: DIRECT_PRICING_ERROR };
+    const ok = await assignQuoteCustomer(tenant, quote.quoteNo, found.customer);
+    return ok ? done() : { ok: false, error: "Offerten går inte att ändra längre" };
+  } catch (error) {
+    return fail(error, "Kunden kunde inte sparas");
   }
 }
 
@@ -126,5 +155,16 @@ export async function cancelQuoteAction(quoteNo: string): Promise<ActionResult> 
     return ok ? done() : { ok: false, error: "Offerten kan inte makuleras" };
   } catch (error) {
     return fail(error, "Offerten kunde inte makuleras");
+  }
+}
+
+/** Tar bort offerten för gott. En offert som har blivit en order går inte att ta bort. */
+export async function deleteQuoteAction(quoteNo: string): Promise<ActionResult> {
+  const tenant = await requireReseller();
+  try {
+    const ok = await deleteQuote(tenant, quoteNoSchema.parse(quoteNo));
+    return ok ? done() : { ok: false, error: "Offerten har blivit en order och kan inte tas bort." };
+  } catch (error) {
+    return fail(error, "Offerten kunde inte tas bort");
   }
 }

@@ -101,6 +101,11 @@ function forgetReorderInAddress(): void {
 const noPhotoProgress = () => {};
 /** Ett varv runt skylten i 3D-filmen. */
 const VIDEO_SECONDS = 6;
+/** Så länge väntar filmen på att 3D-vyn ska ritas, när den startas från Ritning eller På person. */
+const RECORDER_WAIT_MS = 6000;
+/** 3D-vyn tonas in innan filmen börjar, så att första bildrutan inte är halvgenomskinlig. */
+const VIEW_SETTLE_MS = 700;
+const pause = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 const VIDEO_STEPS = [
   [0, "Spelar in ett varv runt skylten…"],
   [85, "Sparar filmen…"],
@@ -308,11 +313,18 @@ export function Designer({
 
 
   const recordVideo = async () => {
-    const recorder = recorderRef.current;
-    if (recording || !recorder) return;
+    if (recording) return;
     setStageNote(null);
     setRecording(true);
-    const clip = await recorder.recordTurn(VIDEO_SECONDS).catch(() => null);
+    // Filmen spelas in ur 3D-vyn. Knappen finns i alla vyer (besked via ägaren 2026-11-20), så från
+    // Ritning eller På person visas 3D-vyn först, och filmen börjar när den har ritats.
+    const switched = view !== "3d";
+    if (switched) setView("3d");
+    for (let waited = 0; !recorderRef.current && waited < RECORDER_WAIT_MS; waited += 100) await pause(100);
+    if (switched && recorderRef.current) await pause(VIEW_SETTLE_MS);
+    // Inspelaren läses efter väntan: den som fanns när knappen trycktes hör till en vy som är borta.
+    const recorder = recorderRef.current;
+    const clip = recorder ? await recorder.recordTurn(VIDEO_SECONDS).catch(() => null) : null;
     setVideoFailed(!clip);
     setRecording(false);
     if (!clip) {
@@ -522,8 +534,14 @@ export function Designer({
           <div className={styles.viewToggle}>
             <Segmented label="Vy" value={view} options={VIEW_OPTIONS} onChange={setView} />
           </div>
-          {view === "3d" && (
+          {/* Video och Offert finns i alla vyer av skylten, inte bara i 3D (besked via ägaren 2026-11-20). */}
+          {view !== "quote" && (
             <div className={styles.stageActions}>
+              {view === "drawing" && moved && (
+                <button type="button" className={`chip ${styles.stageChip}`} onClick={() => update({ type: "move/reset" })}>
+                  Återställ placering
+                </button>
+              )}
               <button
                 type="button"
                 className={`chip ${styles.stageChip}`}
@@ -560,13 +578,6 @@ export function Designer({
             <div className={styles.stageActions}>
               <button type="button" className={`chip ${styles.stageChip}`} onClick={() => setView("3d")}>
                 ← Tillbaka till skylten
-              </button>
-            </div>
-          )}
-          {view === "drawing" && moved && (
-            <div className={styles.stageActions}>
-              <button type="button" className={`chip ${styles.stageChip}`} onClick={() => update({ type: "move/reset" })}>
-                Återställ placering
               </button>
             </div>
           )}

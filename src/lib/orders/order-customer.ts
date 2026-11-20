@@ -5,6 +5,7 @@ import { isOwner } from "@/lib/tenants/model";
 import { ERASED_CUSTOMER_ERROR, isErasedCustomer } from "./erase-model";
 import type { Customer } from "./model";
 import { getCustomer, upsertCustomer } from "./repository";
+import { isUnassignedCustomer } from "./unassigned-customer";
 
 const optionalText = (max: number) => z.string().trim().max(max).optional();
 
@@ -106,6 +107,8 @@ export async function resolveOrderCustomer(
   if (!fresh.ok) return { ok: false, error: fresh.error, status: 400 };
   // En borttagen kunds rad får aldrig skrivas över med nya uppgifter.
   if (isErasedCustomer({ email: fresh.customer.email.toLowerCase() })) return { ok: false, error: ERASED_CUSTOMER_ERROR, status: 409 };
+  // Inte heller platshållaren som utkast utan kund pekar på.
+  if (isUnassignedCustomer(fresh.customer)) return { ok: false, error: "Kundens e-postadress går inte att använda", status: 400 };
   const typed = input.customer.orgNumber ?? "";
   const orgNumber = typed ? orgNumberSchema.safeParse(typed) : null;
   if (orgNumber && !orgNumber.success) return { ok: false, error: "Kundens organisationsnummer ska ha tio siffror", status: 400 };

@@ -2,26 +2,21 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ORDER_STATUS_LABEL, type OrderStatus } from "@/lib/orders/model";
+import { ORDER_LIST_FILTERS, ORDER_LIST_STATUS_LABEL, type OrderListFilter } from "@/lib/orders/list-status";
 import styles from "./admin.module.css";
 
-export type StatusFilter = OrderStatus | "open" | "all";
-
 interface OrderFiltersProps {
-  counts: Record<StatusFilter, number>;
-  active: StatusFilter;
+  counts: Record<OrderListFilter, number>;
+  /** Det valda filtret. `null` = alla ordrar visas. */
+  active: OrderListFilter | null;
   query: string;
 }
 
-const FILTERS: readonly StatusFilter[] = ["open", "received", "proof-sent", "in-production", "shipped", "delivered", "all"];
-
-function label(filter: StatusFilter): string {
-  if (filter === "open") return "Pågående";
-  if (filter === "all") return "Alla";
-  return ORDER_STATUS_LABEL[filter];
-}
-
-/** Sökning och filter ligger i adressen, så att en filtrerad vy går att länka och laddas om. */
+/**
+ * Sökning och filter ligger i adressen, så att en filtrerad vy går att länka och laddas om.
+ * Filtren är två, I produktion och Skickad (besked via ägaren 2026-11-20). Inget är valt från
+ * början, och då visas alla ordrar. Ett klick på det valda filtret tar bort det igen.
+ */
 export function OrderFilters({ counts, active, query }: OrderFiltersProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -59,15 +54,16 @@ export function OrderFilters({ counts, active, query }: OrderFiltersProps) {
         />
       </label>
       <div className={styles.filters} role="group" aria-label="Status">
-        {FILTERS.map((filter) => (
+        {ORDER_LIST_FILTERS.map((filter) => (
           <button
             key={filter}
             type="button"
             className={styles.filter}
+            data-filter={filter}
             aria-pressed={active === filter}
-            onClick={() => go({ status: filter === "open" ? null : filter })}
+            onClick={() => go({ status: active === filter ? null : filter })}
           >
-            {label(filter)}
+            {ORDER_LIST_STATUS_LABEL[filter]}
             <span className={styles.filterCount}>{counts[filter]}</span>
           </button>
         ))}

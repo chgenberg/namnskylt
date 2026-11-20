@@ -18,6 +18,8 @@ export interface QuoteDraftInput {
   /** Frakten, när den är känd. */
   shippingSek: number | null;
   customer: DraftCustomer | null;
+  /** Offerten sparas som utkast, utan kund: dokumentet ritas då utan kundens rader. */
+  noCustomer?: boolean;
   project: string;
   message: string;
   /** Sista giltiga dag, `YYYY-MM-DD`. */
@@ -61,7 +63,7 @@ export function draftQuote(input: QuoteDraftInput): StoredQuote {
     customer: {
       id: "draft",
       // Utan vald kund står en platshållare där kundens namn kommer.
-      name: text(customer?.name ?? "") ?? (customer && text(customer.company) ? "" : "Kunden"),
+      name: text(customer?.name ?? "") ?? ((customer && text(customer.company)) || input.noCustomer ? "" : "Kunden"),
       company: text(customer?.company ?? ""),
       email: customer?.email.trim() ?? "",
       phone: text(customer?.phone ?? ""),
@@ -69,6 +71,7 @@ export function draftQuote(input: QuoteDraftInput): StoredQuote {
       address: null,
       demo: false,
     },
+    ...(input.noCustomer && { noCustomer: true }),
     status: "draft",
     badges,
     pricing,

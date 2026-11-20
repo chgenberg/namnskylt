@@ -8,6 +8,7 @@ import { priceWithPricing, type Pricing } from "@/lib/orders/pricing";
 import { marginOf } from "@/lib/orders/purchase";
 import { quoteDocument, type QuoteMargin } from "@/lib/quotes/document";
 import { draftQuote, type DraftCustomer } from "@/lib/quotes/draft";
+import { defaultQuoteTitle } from "@/lib/quotes/view";
 import {
   addDays,
   isValidUntil,
@@ -36,6 +37,8 @@ interface QuoteFilm {
 interface SavedQuote {
   quoteNo: string;
   pdfPath: string;
+  /** Offerten sparades som utkast, utan kund: kunden väljs i panelen. */
+  noCustomer: boolean;
 }
 
 export type QuoteSaveState = { status: "idle" } | { status: "saving" } | { status: "error"; message: string } | { status: "saved"; quote: SavedQuote };
@@ -87,6 +90,7 @@ interface UseQuoteInput {
 function previewCustomer(reseller: ResellerOrderContext, target: CustomerTarget): DraftCustomer | null {
   const empty = { company: "", name: "", email: "", phone: "", orgNumber: "" };
   if (reseller.customerId) return { ...empty, company: reseller.customerName };
+  if (target.kind === "none") return null;
   if (target.kind === "new") {
     return target.company.trim() || target.name.trim()
       ? { company: target.company, name: target.name, email: target.email, phone: target.phone, orgNumber: formattedOrgNumber(target.orgNumber) ?? target.orgNumber }
@@ -171,12 +175,14 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
   );
 
   const customer = useMemo(() => (reseller ? previewCustomer(reseller, target) : null), [reseller, target]);
+  /** Valet Utkast: offerten sparas utan kund. Gäller inte när kunden är vald i förväg från panelen. */
+  const noCustomer = !reseller?.customerId && target.kind === "none";
   const draft = useMemo(
     () =>
       active && seller && badges.length > 0
-        ? draftQuote({ badges, priceList, shippingSek, customer, project, message: greeting, validUntil, options, badgeShot, shots: quoteShots, pricing, now: new Date() })
+        ? draftQuote({ badges, priceList, shippingSek, customer, noCustomer, project, message: greeting, validUntil, options, badgeShot, shots: quoteShots, pricing, now: new Date() })
         : null,
-    [active, seller, badges, priceList, shippingSek, customer, project, greeting, validUntil, options, badgeShot, quoteShots, pricing],
+    [active, seller, badges, priceList, shippingSek, customer, noCustomer, project, greeting, validUntil, options, badgeShot, quoteShots, pricing],
   );
   // Marginalen räknas på varorna, utan frakt, som överallt annars.
   const margin = useMemo<QuoteMargin | undefined>(() => {
@@ -241,7 +247,7 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
       if (field === "closing") setClosing(text.slice(0, QUOTE_CLOSING_MAX));
       if (field === "project") {
         // Rubriken som står där utan projekt är inget projektnamn: orörd sparas den inte.
-        const fallback = draft ? `Namnskyltar till ${draft.customer.company ?? draft.customer.name}` : "";
+        const fallback = draft ? defaultQuoteTitle(draft) : "";
         setProject(text === fallback ? "" : text.replace(/\s+/g, " ").slice(0, 120));
       }
     },
@@ -270,7 +276,8 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
     if (!reseller || save.status === "saving" || capturing) return;
     if (blank) return setSave({ status: "error", message: "Skylten är tom. Skriv ett namn eller lägg in en logga först." });
     const chosen = reseller.customerId ? ({ ok: true, body: { customerId: reseller.customerId } } as const) : customerOf(target, customers, reseller.needsInvoiceDetails ?? false, minimal);
-    if (!chosen.ok) return setSave({ status: "error", message: chosen.error });
+    // Ingen kund vald i listan: då går det också att spara som utkast.
+    if (!chosen.ok) return setSave({ status: "error", message: target.kind === "existing" ? "Välj en kund, fyll i en ny, eller välj Utkast för att spara utan kund." : chosen.error });
     if (!isValidUntil(validUntil, swedishDay(new Date()))) {
       return setSave({ status: "error", message: "Välj en dag som offerten gäller till, från i dag och högst ett år fram." });
     }
@@ -297,7 +304,7 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
       if (!response.ok || !body?.quoteNo || !body.pdfPath) throw new Error(body?.error ?? "Offerten kunde inte sparas");
       // Designerna hålls kvar, så att filmerna som inte är klara än spelas in fast varukorgen töms.
       setFrozen(designs);
-      setSave({ status: "saved", quote: { quoteNo: body.quoteNo, pdfPath: body.pdfPath } });
+      setSave({ status: "saved", quote: { quoteNo: body.quoteNo, pdfPath: body.pdfPath, noCustomer: "noCustomer" in chosen.body } });
       onSaved();
     } catch (error) {
       setSave({ status: "error", message: error instanceof Error ? error.message : "Offerten kunde inte sparas" });
@@ -342,6 +349,7 @@ export function useQuote({ reseller, badges, priceList, fonts, active, badgeShot
     savedFilms,
     filmsLeft: filming ? filmsLeft : 0,
     recipient,
+    noCustomer,
     minimal,
     blank,
     save,

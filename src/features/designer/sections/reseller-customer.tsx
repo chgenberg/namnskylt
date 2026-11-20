@@ -1,14 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Segmented } from "@/components/ui/segmented";
+import { Segmented, type SegmentedOption } from "@/components/ui/segmented";
 import type { CustomerChoice } from "../reseller";
 import styles from "./sections.module.css";
 
 /** Kunden säljaren har valt i varukorgen: en av de gamla, eller en ny som fylls i. */
 export type CustomerTarget =
   | { kind: "existing"; id: string }
-  | { kind: "new"; company: string; orgNumber: string; name: string; email: string; phone: string };
+  | { kind: "new"; company: string; orgNumber: string; name: string; email: string; phone: string }
+  /**
+   * Ingen kund än (besked via ägaren 2026-11-20): offerten sparas som utkast, och kunden väljs i
+   * panelen innan offerten godkänns. Valet finns bara i offertvyn, aldrig när en order läggs.
+   */
+  | { kind: "none" };
 
 const NEW_CUSTOMER: CustomerTarget = { kind: "new", company: "", orgNumber: "", name: "", email: "", phone: "" };
 
@@ -17,7 +22,9 @@ export function firstTarget(customers: readonly CustomerChoice[]): CustomerTarge
   return customers.length > 0 ? { kind: "existing", id: "" } : NEW_CUSTOMER;
 }
 
-type TargetResult = { ok: true; body: { customerId: string } | { customer: Record<string, string> } } | { ok: false; error: string };
+type TargetResult =
+  | { ok: true; body: { customerId: string } | { customer: Record<string, string> } | { noCustomer: true } }
+  | { ok: false; error: string };
 
 /**
  * Vem ordern eller offerten går till, som säljaren ska se den vid knapparna:
@@ -30,6 +37,7 @@ export function recipientOf(
   /** På en offert som säljaren skickar själv räcker ett företagsnamn eller ett namn, utan e-post. */
   minimal = false,
 ): { label: string; email: string; demo?: boolean } | null {
+  if (target.kind === "none") return null;
   if (target.kind === "existing") {
     const chosen = customers.find((customer) => customer.id === target.id);
     return chosen ? { label: chosen.label, email: chosen.email, ...(chosen.demo && { demo: true }) } : null;
@@ -46,6 +54,8 @@ export function customerOf(
   /** En offert som säljaren skickar själv: kunden får sakna kontaktperson och e-post. Servern prövar samma regel. */
   minimal = false,
 ): TargetResult {
+  // Ett utkast utan kund: servern lägger offerten på säljarens platshållare.
+  if (target.kind === "none") return { ok: true, body: { noCustomer: true } };
   if (target.kind === "existing") {
     const chosen = customers.find((customer) => customer.id === target.id);
     return chosen ? { ok: true, body: { customerId: chosen.id } } : { ok: false, error: "Välj en kund, eller fyll i en ny." };
@@ -67,10 +77,6 @@ export function customerOf(
   return { ok: true, body: { customer: { ...(name && { name }), ...(email && { email }), ...optional } } };
 }
 
-const KIND_OPTIONS = [
-  { id: "existing", label: "Befintlig kund" },
-  { id: "new", label: "Ny kund" },
-] as const;
 
 /** Så många kunder syns i listan utan sökning. Resten nås med sökrutan. */
 const VISIBLE_CUSTOMERS = 30;
@@ -86,6 +92,8 @@ interface ResellerCustomerProps {
   note?: string | null;
   /** En offert som säljaren skickar själv: det räcker med företagets namn, och e-posten är frivillig. */
   minimal?: boolean;
+  /** Offertvyn: kunden får väljas senare. Då finns ett tredje val, Utkast, som sparar offerten utan kund. */
+  allowDraft?: boolean;
 }
 
 /**
@@ -93,8 +101,14 @@ interface ResellerCustomerProps {
  * gamla kunder ur listan, eller en ny som fylls i här (besked av ägaren
  * 2026-11-17). Från panelen är kunden redan vald, och då visas inte valet.
  */
-export function ResellerCustomer({ customers, value, onChange, needsInvoiceDetails, disabled, note, minimal = false }: ResellerCustomerProps) {
+export function ResellerCustomer({ customers, value, onChange, needsInvoiceDetails, disabled, note, minimal = false, allowDraft = false }: ResellerCustomerProps) {
   const [query, setQuery] = useState("");
+  // Det som går att välja: listan bara när säljaren har kunder, och utkastet bara i offertvyn.
+  const kinds: SegmentedOption<CustomerTarget["kind"]>[] = [
+    ...(customers.length > 0 ? [{ id: "existing" as const, label: "Befintlig kund" }] : []),
+    { id: "new", label: "Ny kund" },
+    ...(allowDraft ? [{ id: "none" as const, label: "Utkast", title: "Spara offerten utan kund. Kunden väljer du i panelen." }] : []),
+  ];
   const selectedId = value.kind === "existing" ? value.id : "";
   const matches = useMemo(() => {
     const words = query.trim().toLowerCase();
@@ -123,16 +137,23 @@ export function ResellerCustomer({ customers, value, onChange, needsInvoiceDetai
   return (
     <div className={styles.customer}>
       <p className={styles.specTitle}>Kund</p>
-      {customers.length > 0 && (
+      {kinds.length > 1 && (
         <Segmented
           label="Kund"
           value={value.kind}
-          options={KIND_OPTIONS}
+          options={kinds}
           // Ett klick på det som redan är valt ska inte tömma det som är ifyllt.
-          onChange={(kind) => kind !== value.kind && onChange(kind === "existing" ? { kind: "existing", id: "" } : NEW_CUSTOMER)}
+          onChange={(kind) =>
+            kind !== value.kind && onChange(kind === "existing" ? { kind: "existing", id: "" } : kind === "none" ? { kind: "none" } : NEW_CUSTOMER)
+          }
         />
       )}
-      {value.kind === "existing" ? (
+      {value.kind === "none" ? (
+        <p className={styles.cartNote} data-draft-customer>
+          Offerten sparas som utkast, utan kund. PDF:en laddas ner direkt, och du väljer kund i panelen innan du
+          godkänner offerten.
+        </p>
+      ) : value.kind === "existing" ? (
         <>
           <label className="field">
             <span className="visually-hidden">Sök kund</span>

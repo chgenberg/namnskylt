@@ -10,6 +10,7 @@ import { parseQuoteDelivery, quoteDeliverySchema, shippingMethodOf, type QuoteDe
 import { isCustomPricing, parsePricing, priceWithPricing, type Pricing } from "@/lib/orders/pricing";
 import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "@/lib/orders/price-lists";
 import { getPriceModel } from "@/lib/orders/repository";
+import { UNASSIGNED_CUSTOMER_EMAIL, isUnassignedCustomer } from "@/lib/orders/unassigned-customer";
 import {
   addDays,
   isQuoteStatus,
@@ -65,6 +66,8 @@ interface QuoteRow {
 }
 
 function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudience): StoredQuote {
+  // Ett utkast utan kund pekar på säljarens platshållare. Dess uppgifter visas aldrig, och går aldrig att mejla till.
+  const noCustomer = isUnassignedCustomer({ email: row.customer_email });
   const badges = badgesSchema.safeParse(row.badges);
   if (!badges.success) console.error(`Ogiltiga skyltar i offert ${row.quote_no}`);
   const events: QuoteEvent[] = (row.events ?? [])
@@ -76,16 +79,19 @@ function toQuote(row: QuoteRow, currentModel: PriceModel, audience: PriceAudienc
     project: row.project,
     resellerId: row.reseller_id,
     quoteNo: row.quote_no,
-    customer: {
-      id: row.customer_id,
-      name: row.customer_name,
-      company: row.customer_company,
-      email: row.customer_email,
-      phone: row.customer_phone,
-      orgNumber: row.customer_org_number,
-      address: row.customer_address,
-      demo: row.customer_demo,
-    },
+    customer: noCustomer
+      ? { id: row.customer_id, name: "", company: null, email: "", phone: null, orgNumber: null, address: null, demo: false }
+      : {
+          id: row.customer_id,
+          name: row.customer_name,
+          company: row.customer_company,
+          email: row.customer_email,
+          phone: row.customer_phone,
+          orgNumber: row.customer_org_number,
+          address: row.customer_address,
+          demo: row.customer_demo,
+        },
+    ...(noCustomer && { noCustomer }),
     status: isQuoteStatus(row.status) ? row.status : "draft",
     badges: badges.success ? badges.data : [],
     pricing: parsePricing(row.pricing),
@@ -191,6 +197,11 @@ export async function createQuote(input: {
    * skyltmotorn, beslut av ägaren 2026-11-19). Offerten väntar då på svar direkt, utan att mejlas härifrån.
    */
   manual?: boolean;
+  /**
+   * Offerten sparas som utkast, utan kund (besked via ägaren 2026-11-20): `customerId` är då säljarens
+   * platshållare (`unassignedCustomerId`), och kunden väljs i panelen innan offerten skickas eller godkänns.
+   */
+  unassigned?: boolean;
 }): Promise<{ quoteNo: string; token: string }> {
   const sql = requireDb();
   const model = await getPriceModel();
@@ -203,7 +214,8 @@ export async function createQuote(input: {
   const options = storedQuoteOptions(input.options);
   const shots = input.shots?.some(Boolean) ? input.shots : null;
   // En offert som kunden bad om, eller som säljaren skickar själv, väntar på svar från början.
-  const waiting = Boolean(input.reorderOf) || Boolean(input.manual);
+  // Ett utkast utan kund väntar inte på svar: det har ingen kund som kan svara.
+  const waiting = !input.unassigned && (Boolean(input.reorderOf) || Boolean(input.manual));
   const token = randomBytes(18).toString("base64url");
   return sql.begin(async (tx) => {
     // Kunden måste tillhöra samma återförsäljare — annars skapas ingen offert.
@@ -223,6 +235,9 @@ export async function createQuote(input: {
       // Kunden har själv bett om fler skyltar från sin ordersida. Offerten går att godkänna direkt.
       await tx`insert into quote_events (quote_id, status, note)
                values (${row.id}, 'sent', ${`Kunden bad om fler skyltar med samma design som ${input.reorderOf.orderNo}`})`;
+    } else if (input.unassigned) {
+      await tx`insert into quote_events (quote_id, status, note)
+               values (${row.id}, 'draft', 'Utkast sparat i skyltmotorn, utan kund. Kunden väljs innan offerten godkänns.')`;
     } else if (input.manual) {
       await tx`insert into quote_events (quote_id, status, note)
                values (${row.id}, 'sent', 'Offert sparad i skyltmotorn. Säljaren skickar PDF:en själv och svarar åt kunden.')`;
@@ -235,6 +250,26 @@ export async function createQuote(input: {
 
 async function addEvent(tx: TransactionSql, quoteId: string, status: QuoteStatus, note: string | null) {
   await tx`insert into quote_events (quote_id, status, note) values (${quoteId}, ${status}, ${note})`;
+}
+
+/**
+ * Ger ett utkast utan kund sin kund. Bara en offert som pekar på säljarens platshållare ändras:
+ * en offert som redan har en kund byter aldrig kund här. Offerten blir demo när kunden är det,
+ * som när den skapas. `false` när offerten inte finns, redan har en kund eller är besvarad.
+ */
+export async function assignQuoteCustomer(tenant: string, quoteNo: string, customer: { id: string; demo: boolean }): Promise<boolean> {
+  const sql = requireDb();
+  return sql.begin(async (tx) => {
+    const [row] = await tx<{ id: string; status: string }[]>`
+      update quotes q set customer_id = ${customer.id}, is_demo = ${customer.demo}
+       where q.quote_no = ${quoteNo} and q.reseller_id = ${tenant} and q.status in ('draft', 'sent', 'declined')
+         and exists (select 1 from customers c where c.id = ${customer.id} and c.reseller_id = ${tenant})
+         and exists (select 1 from customers p where p.id = q.customer_id and p.email = ${UNASSIGNED_CUSTOMER_EMAIL})
+      returning q.id, q.status`;
+    if (!row) return false;
+    await addEvent(tx, row.id, isQuoteStatus(row.status) ? row.status : "draft", "Kund vald för offerten");
+    return true;
+  });
 }
 
 /** Nya priser och villkor. En nekad offert som ändras blir ett utkast igen. */
@@ -398,6 +433,18 @@ export async function declineQuoteForCustomer(tenant: string, quoteNo: string): 
     await addEvent(tx, row.id, "declined", "Kunden tackade nej. Nekad av säljaren åt kunden.");
     return true;
   });
+}
+
+/**
+ * Tar bort offerten för gott, med sin historik och sina besked (besked via ägaren 2026-11-20:
+ * offerter ska gå att ta bort i panelen). En offert som har blivit en order behålls: den är
+ * orderns underlag. Det gäller också en offert som just godkänns, eftersom den låses som
+ * godkänd innan ordern läggs. `false` när offerten inte finns eller har blivit en order.
+ */
+export async function deleteQuote(tenant: string, quoteNo: string): Promise<boolean> {
+  const rows = await requireDb()<{ id: string }[]>`
+    delete from quotes where quote_no = ${quoteNo} and reseller_id = ${tenant} and status <> 'accepted' returning id`;
+  return rows.length > 0;
 }
 
 export async function cancelQuote(tenant: string, quoteNo: string): Promise<boolean> {

@@ -2,6 +2,7 @@ import type { BadgeDocument, PriceTable } from "@/engine";
 import type { QuoteDelivery } from "@/lib/orders/delivery";
 import type { Customer } from "@/lib/orders/model";
 import type { Pricing } from "@/lib/orders/pricing";
+import { UNASSIGNED_CUSTOMER_NAME } from "@/lib/orders/unassigned-customer";
 
 const QUOTE_STATUSES = ["draft", "sent", "accepted", "declined", "cancelled"] as const;
 export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
@@ -129,6 +130,11 @@ export interface StoredQuote {
   resellerId: string;
   quoteNo: string;
   customer: Customer;
+  /**
+   * Offerten är sparad som utkast, utan kund (besked via ägaren 2026-11-20). Kundens uppgifter är
+   * då tomma, och säljaren väljer kund i panelen innan offerten skickas eller godkänns.
+   */
+  noCustomer?: boolean;
   status: QuoteStatus;
   badges: BadgeDocument[];
   pricing: Pricing | null;
@@ -159,6 +165,13 @@ export interface StoredQuote {
   options?: QuoteOptions;
   /** Bilderna ur 3D-vyn, en plats per design. Läses bara när en enskild offert hämtas. */
   shots?: (QuoteShot | null)[];
+}
+
+export const NO_CUSTOMER_ERROR = "Offerten har ingen kund än. Välj kund på offertens sida först.";
+
+/** Offertens kund som den kallas i panelen: företaget, annars namnet. Ett utkast utan kund heter "Utan kund". */
+export function quoteCustomerLabel(quote: Pick<StoredQuote, "customer" | "noCustomer">): string {
+  return quote.noCustomer ? UNASSIGNED_CUSTOMER_NAME : (quote.customer.company ?? quote.customer.name);
 }
 
 export function isQuoteStatus(value: string): value is QuoteStatus {

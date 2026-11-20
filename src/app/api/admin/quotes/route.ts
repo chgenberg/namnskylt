@@ -7,7 +7,7 @@ import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { quoteCustomerFields, resolveOrderCustomer } from "@/lib/orders/order-customer";
 import { DIRECT_PRICING_ERROR, isLineInvoiceable, pricingSchema } from "@/lib/orders/pricing";
 import { isOwner } from "@/lib/tenants/model";
-import { databaseConfigured } from "@/lib/orders/repository";
+import { databaseConfigured, unassignedCustomerId } from "@/lib/orders/repository";
 import { isValidUntil, parseQuoteOptions, QUOTE_SHOT_ANGLES, QUOTE_SHOT_DESIGNS, swedishDay, type QuoteShot } from "@/lib/quotes/model";
 import { createQuote } from "@/lib/quotes/repository";
 import { quoteEmailOn, sendQuote } from "@/lib/quotes/send";
@@ -57,6 +57,11 @@ const requestSchema = z.object({
   /** Säljarens egna à-priser, satta med marginalen i offertvyn. Utelämnad = listpris. */
   pricing: pricingSchema.optional(),
   /**
+   * `true` = offerten sparas som utkast, utan kund (valet Utkast i offertvyn, besked via ägaren
+   * 2026-11-20). Kunden väljs i panelen innan offerten skickas eller godkänns. Mejlas aldrig.
+   */
+  noCustomer: z.boolean().optional(),
+  /**
    * `false` = offerten mejlas inte härifrån. Säljaren har sparat den med knappen Offert i skyltmotorn,
    * skickar PDF:en själv och svarar åt kunden i panelen.
    */
@@ -93,38 +98,44 @@ export async function POST(request: Request) {
   if (validUntil !== undefined && !isValidUntil(validUntil, swedishDay(new Date()))) {
     return NextResponse.json({ error: "Välj en dag som offerten gäller till, från i dag och högst ett år fram." }, { status: 400 });
   }
-  const manual = parsed.data.send === false;
+  const unassigned = parsed.data.noCustomer === true;
+  // Ett utkast utan kund har ingen att mejlas till: det räknas alltid som sparat av säljaren.
+  const manual = parsed.data.send === false || unassigned;
   const pricing = parsed.data.pricing ?? null;
   if (pricing && pricing.unitOverrides.length > parsed.data.badges.length) return NextResponse.json({ error: "Ogiltig offert" }, { status: 400 });
 
   // En offert som säljaren skickar själv behöver ingen e-post till kunden: då räcker ett företagsnamn.
-  const found = await resolveOrderCustomer(tenant, parsed.data, { minimal: manual });
-  if (!found.ok) return NextResponse.json({ error: found.error }, { status: found.status });
-  const { customer } = found;
+  // Ett utkast utan kund pekar på säljarens platshållare tills kunden har valts i panelen.
+  const found = unassigned ? null : await resolveOrderCustomer(tenant, parsed.data, { minimal: manual });
+  if (found && !found.ok) return NextResponse.json({ error: found.error }, { status: found.status });
+  const customer = found?.ok ? found.customer : null;
+  const demo = customer?.demo ?? false;
   // En offert hos namnskylt.com blir en direktorder, som verkstaden fakturerar kunden rad för rad.
-  if (isOwner(tenant) && !customer.demo && !isLineInvoiceable(pricing)) return NextResponse.json({ error: DIRECT_PRICING_ERROR }, { status: 400 });
+  if (isOwner(tenant) && !demo && !isLineInvoiceable(pricing)) return NextResponse.json({ error: DIRECT_PRICING_ERROR }, { status: 400 });
   try {
     const { quoteNo, token } = await createQuote({
       tenant,
-      customerId: customer.id,
+      customerId: customer?.id ?? (await unassignedCustomerId(tenant)),
       badges: parsed.data.badges,
-      demo: customer.demo,
+      demo,
       badgeShot: await normalizeBadgeShot(parsed.data.badgeShot),
       project: parsed.data.project || null,
-      delivery: await defaultQuoteDelivery(tenant, customer),
+      // Utan kund finns ingen känd adress: leveransen fylls i när kunden är vald.
+      delivery: customer ? await defaultQuoteDelivery(tenant, customer) : { to: "customer", address: null },
       message: parsed.data.message || null,
       validUntil: validUntil ?? null,
       pricing,
       options: parseQuoteOptions(parsed.data.options),
       shots: await normalizeShots(parsed.data.shots),
       manual,
+      unassigned,
     });
     // Säljaren skickar PDF:en själv. Den hämtas med offertens kod, som säljaren ändå ser i panelen.
     if (manual) return NextResponse.json({ quoteNo, emailed: false, pdfPath: `/offert/${token}/pdf` }, { status: 201 });
     // Offerten går direkt till kunden när offertmejlet är på. En demooffert mejlas aldrig.
     // Offerten finns redan: går utskicket inte får säljaren mejla den från panelen, inte skapa en till.
     const sent =
-      quoteEmailOn() && !customer.demo
+      quoteEmailOn() && !demo
         ? await sendQuote(tenant, quoteNo).catch((error: unknown) => {
             console.error("Offerten skapades men kunde inte skickas", error);
             return null;

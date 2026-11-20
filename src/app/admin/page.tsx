@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { FillDemoButton } from "@/features/admin/demo-data-controls";
 import { adminTenant } from "@/features/admin/guard";
 import { NoticeList } from "@/features/admin/notice-list";
-import { OrderCard } from "@/features/admin/order-card";
+import { OrderRow } from "@/features/admin/order-row";
 import { RepeatButton } from "@/features/admin/repeat-button";
 import { Sparkline } from "@/features/admin/sparkline";
 import styles from "@/features/admin/admin.module.css";
@@ -203,9 +203,9 @@ export default async function AdminOverviewPage() {
             Visa alla →
           </Link>
         </div>
-        <div className={styles.cards}>
+        <div className={styles.listRows}>
           {orders.slice(0, 4).map((order) => (
-            <OrderCard key={order.id} order={order} />
+            <OrderRow key={order.id} order={order} canDelete />
           ))}
         </div>
       </section>

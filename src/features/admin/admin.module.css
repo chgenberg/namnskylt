@@ -348,8 +348,14 @@
 }
 
 .status[data-status="shipped"] {
-  background: #e3f2fb;
-  color: #0b6a99;
+  background: #e5f5ee;
+  color: #0b7a4b;
+}
+
+/* Ordern har inte gått till tillverkningen än. */
+.status[data-status="waiting"] {
+  background: #fdf1dc;
+  color: #a35a00;
 }
 
 .status[data-status="delivered"] {
@@ -443,110 +449,200 @@
   font-variant-numeric: tabular-nums;
 }
 
+.filter[data-filter]::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.filter[data-filter="in-production"]::before {
+  background: #7c5ad6;
+}
+
+.filter[data-filter="shipped"]::before {
+  background: #17a366;
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--space-4);
 }
 
-.orderCard {
-  position: relative;
+/* ───────────── Rader ─────────────
+   Offerter, ordrar och kunder står som rader i stället för kort (besked via ägaren 2026-11-20:
+   "radannonser", för bättre ordning). Listan äger kolumnerna och varje rad lånar dem, så att
+   status, belopp och knappar står rakt under varandra hur långa texterna än är. */
+
+.listRows {
   display: grid;
-  grid-template-rows: auto 1fr;
+  /* Första kolumnen följer skyltens bredd. Med ett fast mått äter radens kantluft upp av kolumnen. */
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  column-gap: var(--space-4);
   overflow: hidden;
   border-radius: 20px;
   background: var(--color-white);
   box-shadow:
     0 0 0 1px rgb(10 10 11 / 0.05),
     0 12px 32px -22px rgb(10 10 11 / 0.28);
-  transition:
-    transform 280ms var(--ease-out),
-    box-shadow 280ms var(--ease-out);
 }
 
-.orderCard:hover {
-  transform: translateY(-3px);
-  box-shadow:
-    0 0 0 1px rgb(10 10 11 / 0.07),
-    0 22px 44px -22px rgb(10 10 11 / 0.38);
+/* Kunder har ingen skylt: företagets namn står längst till vänster. */
+.listRows[data-kind="customers"] {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto auto auto;
 }
 
-.orderCardLink {
+.listRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+  padding: 10px var(--space-4);
+  border-top: 1px solid var(--color-line);
+  transition: background var(--duration-fast);
+}
+
+.listRow:first-child {
+  border-top: 0;
+}
+
+.listRow:hover {
+  background: #faf9f5;
+}
+
+/* Hela raden leder till ordern eller offerten. Knapparna ligger ovanför länken. */
+.listRowLink {
   position: absolute;
   inset: 0;
   z-index: 1;
-  border-radius: inherit;
 }
 
-.orderCardLink:focus-visible {
-  box-shadow:
-    0 0 0 3px #fff,
-    0 0 0 6px var(--color-navy);
+.listRowLink:focus-visible,
+a.listRow:focus-visible {
+  outline: 2px solid var(--color-navy);
+  outline-offset: -2px;
 }
 
-.stage {
-  position: relative;
+/* Skylten i litet format, längst till vänster. */
+.rowThumb {
   display: grid;
   place-items: center;
-  height: 150px;
-  padding: var(--space-4) var(--space-6);
-  background:
-    radial-gradient(70% 90% at 50% 35%, #fff 0%, transparent 70%),
-    linear-gradient(180deg, #f2f1ec 0%, #e9e7e0 100%);
+  width: 84px;
+  height: 52px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f2f1ec 0%, #e9e7e0 100%);
 }
 
-.stageStack {
-  position: relative;
-  width: min(220px, 100%);
+.rowThumb > *,
+.rowThumb svg,
+.rowThumb img {
+  display: block;
+  max-width: 100%;
+  max-height: 40px;
 }
 
-.stageStack > :not(:first-child) {
-  position: absolute;
-  inset: 0;
-}
-
-.stageStack > :nth-child(2) {
-  transform: translate(10px, -8px) rotate(3deg);
-  opacity: 0.55;
-  z-index: -1;
-}
-
-.stageStack > :nth-child(3) {
-  transform: translate(18px, -15px) rotate(6deg);
-  opacity: 0.3;
-  z-index: -2;
-}
-
-.stageBadge > svg {
-  width: 100%;
+.rowThumb svg,
+.rowThumb img {
+  width: auto;
   height: auto;
-  filter: drop-shadow(0 10px 14px rgb(10 10 11 / 0.18));
+  object-fit: contain;
+  filter: drop-shadow(0 3px 4px rgb(10 10 11 / 0.18));
 }
 
-.stageCount {
-  position: absolute;
-  right: 12px;
-  bottom: 10px;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  background: rgb(10 10 11 / 0.72);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.cardBody {
+.rowMain {
   display: grid;
-  align-content: start;
-  gap: var(--space-2);
-  padding: var(--space-4) var(--space-5) var(--space-5);
+  gap: 2px;
+  min-width: 0;
 }
 
-.cardTop {
+.rowName {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rowName .orderNo {
+  flex: none;
+}
+
+/* På en bred skärm är status, belopp och knappar egna kolumner. */
+.rowTail {
+  display: contents;
+}
+
+.rowStatus {
+  display: flex;
+}
+
+.rowFact {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.listRows .amount {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.rowActions {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Smalare skärm: raden blir två rader, med status, belopp och knappar under namnet. */
+@media (max-width: 1000px) {
+  .listRows {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--space-3);
+  }
+
+  .listRows[data-kind="customers"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .listRow {
+    row-gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .rowThumb {
+    grid-row: span 2;
+    align-self: start;
+    width: 64px;
+    height: 44px;
+  }
+
+  .rowTail {
+    grid-column: -2 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .rowName {
+    white-space: normal;
+  }
+
+  .rowActions {
+    margin-left: auto;
+  }
 }
 
 .orderNo {
@@ -567,18 +663,6 @@
   gap: 4px 12px;
   font-size: var(--text-sm);
   color: var(--color-muted);
-}
-
-.cardFoot {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-line);
 }
 
 .amount {
@@ -635,19 +719,6 @@
 
 .repeat:disabled {
   opacity: 0.5;
-}
-
-/* Knapparna Godkänn och Neka i ett kort i listan: ovanför kortets länk, så att de går att trycka på. */
-.cardDecision {
-  position: relative;
-  z-index: 2;
-  margin-top: var(--space-3);
-}
-
-.cardActions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .iconDanger {
@@ -1173,68 +1244,6 @@
 }
 
 /* ───────────── Kunder ───────────── */
-
-.customerGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--space-4);
-}
-
-.customerCard {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-5);
-  border-radius: 20px;
-  background: var(--color-white);
-  box-shadow:
-    0 0 0 1px rgb(10 10 11 / 0.05),
-    0 12px 32px -22px rgb(10 10 11 / 0.28);
-  transition: transform 240ms var(--ease-out);
-}
-
-.customerCard:hover {
-  transform: translateY(-2px);
-}
-
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #0a0a0b, #57564f);
-  color: #fff;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.customerHead {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.customerStats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-2);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-line);
-}
-
-.customerStats div {
-  display: grid;
-  gap: 2px;
-}
-
-.customerStats strong {
-  font-variant-numeric: tabular-nums;
-}
-
-.customerStats span {
-  font-size: 11px;
-  color: var(--color-muted);
-}
 
 .designGrid {
   display: grid;
@@ -2098,18 +2107,6 @@
     position: static;
     max-width: 360px;
   }
-}
-
-.stageShot {
-  width: 100%;
-  height: 110px;
-  object-fit: contain;
-  filter: drop-shadow(0 10px 12px rgb(10 10 11 / 0.18));
-  transition: transform 500ms var(--ease-out);
-}
-
-.orderCard:hover .stageShot {
-  transform: scale(1.04) rotate(-0.6deg);
 }
 
 .shotHero {

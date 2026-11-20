@@ -152,6 +152,22 @@ describe("offertens delar, bilder och redigering", () => {
     assert.ok(quoteHtml(draftQuote(base), approxFonts, seller).includes('<p class="k">Kontakt</p><p class="v">Kim Ek · kim@exempel.se</p>'));
   });
 
+  it("ett utkast utan kund ritas utan kundrader, och rubriken nämner ingen kund", () => {
+    const html = quoteHtml(draftQuote({ ...base, customer: null, noCustomer: true, project: "" }), approxFonts, seller);
+    assert.ok(!html.includes('<p class="k">Kund</p>'));
+    assert.ok(!html.includes('<p class="k">Kontakt</p>'));
+    assert.ok(html.includes(">Namnskyltar</h1>"));
+    assert.ok(!html.includes("Kunden"));
+    // Dagarna står kvar.
+    assert.ok(html.includes('<p class="k">Giltig till</p>'));
+    // Med ett projektnamn står det som rubrik, utan "Offert till" över.
+    const named = quoteHtml(draftQuote({ ...base, customer: null, noCustomer: true, project: "Skyltar till mässan" }), approxFonts, seller);
+    assert.ok(named.includes(">Skyltar till mässan</h1>"));
+    assert.ok(!named.includes("Offert till"));
+    // Utan valet Utkast står platshållaren kvar tills kunden är vald.
+    assert.ok(quoteHtml(draftQuote({ ...base, customer: null, project: "" }), approxFonts, seller).includes("Namnskyltar till Kunden"));
+  });
+
   it("en avslutande text står under summan", () => {
     const html = quoteHtml(draftQuote({ ...base, options: { closing: "Vi hörs <snart>." } }), approxFonts, seller);
     assert.ok(html.includes('<p class="closing">Vi hörs &lt;snart&gt;.</p>'));
