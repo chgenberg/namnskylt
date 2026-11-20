@@ -282,7 +282,6 @@
 
 .typeRow {
   display: grid;
-  grid-template-columns: 1.5fr 1fr;
   gap: var(--space-3);
 }
 

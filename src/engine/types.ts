@@ -1,3 +1,5 @@
+import type { EXTRA_FONTS } from "./font-list";
+
 /**
  * Namnskyltmotorns domänmodell. Allt i mm, origo i skyltens övre vänstra hörn,
  * y nedåt. Dokumentet är sanningen för både 3D-vyn, ritningen och ordern
@@ -6,7 +8,11 @@
 
 export type Mm = number;
 
-export type FontId = "arial" | "arial-narrow";
+/**
+ * Skyltens typsnitt. Arial och Arial Narrow är verkstadens egna. Övriga är fria typsnitt från
+ * Google Fonts (`font-list.ts`), som skickas till verkstaden som färdiga banor.
+ */
+export type FontId = "arial" | "arial-narrow" | (typeof EXTRA_FONTS)[number]["id"];
 export type TextAlign = "left" | "center" | "right";
 export type BadgeShape = "rectangle" | "rounded" | "stadium" | "oval" | "round" | "hexagon" | "octagon" | "cushion" | "custom";
 /** Färdigskurna ämnen som skylten graveras på — fast form och fast mått. Metallens och plastens ämnen är olika. */

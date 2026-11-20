@@ -169,6 +169,7 @@ export function QuoteDecision({ token, totalInclVatSek, deliveryDraft, shippingO
                 onChange={setMethod}
                 methods={shippingOptions.map((option) => option.method)}
                 standardSek={shippingOptions.find((option) => option.method === "standard")?.shippingSek ?? null}
+                parcelSek={shippingOptions.find((option) => option.method === "parcel")?.shippingSek ?? null}
                 disabled={pending}
               />
             </div>

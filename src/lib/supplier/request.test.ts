@@ -78,6 +78,21 @@ describe("ordern till verkstaden", () => {
     assert.equal(buildSupplierRequest(input(one, { customerPo: "PO-77" })).orderRef, "NS-2001");
   });
 
+  it("följesedelns länk och packningen står som egna rader på varje skylt", () => {
+    const packing = { link: "www.namnskylt.com/f/0a1b2c3d4e5f", instruction: "Neutralt: återförsäljarens följesedel, inga egna loggor eller klistermärken" };
+    const request = buildSupplierRequest(input([named("Anna Lind"), named("Kalle Ek", 3)], { packing }));
+    for (const line of request.lines) {
+      assert.deepEqual(line.document.partnerSpecs?.slice(-2), [
+        { label: "Följesedel", value: packing.link },
+        { label: "Packning", value: packing.instruction },
+      ]);
+      // Skyltens egna rader står kvar före dem.
+      assert.equal(line.document.partnerSpecs?.[0]?.label, "Fäste");
+    }
+    // Utan följesedel har skylten bara sina egna rader.
+    assert.equal(buildSupplierRequest(input([named("Anna Lind")])).lines[0]?.document.partnerSpecs?.some((row) => row.label === "Följesedel"), false);
+  });
+
   it("en återförsäljares kund får sakna e-post: ordern går att skicka, med kunden som referens", () => {
     // En offert kan sparas med bara företagets namn (beslut av ägaren 2026-11-19). Verkstadens mottagare
     // godtar en tom e-post för slutkunden och använder bara namnet och företaget i sin anteckning.

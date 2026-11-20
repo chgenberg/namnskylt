@@ -390,6 +390,41 @@ describe("det som printas skickas som ett trycklager", () => {
     assert.equal(supplier.productionNote, "Märkningsmetod: Endast print. Namn: Print. Logotyp: Print.");
   });
 
+  it("en graverad text i ett typsnitt verkstaden inte har skickas som färdiga banor", () => {
+    const doc = { ...plastic(["Anna Lind", "Säljare"]), font: "pacifico" as const };
+    const supplier = toSupplierSignDocument(doc, fonts);
+    // Inget textlager: verkstadens motor har inte typsnittet. Banorna ligger i ett bildlager som graveras.
+    assert.deepEqual(supplier.layers.map((l) => (l.data.kind === "image" ? `${l.id}:${l.data.renderMode}` : l.data.kind)), ["engraved-text:engrave"]);
+    const [layer] = supplier.layers;
+    assert.ok(layer?.data.kind === "image" && layer.data.renderMode === "engrave");
+    assert.equal(layer.data.src, "");
+    assert.deepEqual([layer.data.widthMm, layer.data.heightMm, layer.data.vector.viewWidth, layer.data.vector.viewHeight], [75, 25, 75, 25]);
+    assert.match(layer.data.vector.markup, WORKSHOP_MARKUP);
+    // En bana per rad, svart: det är det verkstadens gravyrfil fräser.
+    assert.deepEqual(fills(layer.data.vector.markup), ["#000000", "#000000"]);
+    // Texten och typsnittet står i klartext, på orderpappret och i kommentaren.
+    assert.deepEqual(supplier.partnerSpecs, [
+      { label: "Fäste", value: "Nål" },
+      { label: "Typsnitt", value: "Pacifico" },
+      { label: "Graverad text", value: "Anna Lind / Säljare" },
+    ]);
+    assert.equal(supplier.productionNote, "Typsnitt: Pacifico. Text som graveras: Anna Lind / Säljare.");
+    // Ramen är fortfarande verkstadens eget ramlager.
+    const framed = toSupplierSignDocument({ ...doc, frame: { style: "solid" as const, insetMm: 1.5, thicknessMm: 0.4 } }, fonts);
+    assert.deepEqual(framed.layers.map((l) => l.data.kind), ["frame", "image"]);
+    // Verkstadens egna typsnitt skickas som text, som förut.
+    const own = toSupplierSignDocument(plastic(["Anna Lind"]), fonts);
+    assert.deepEqual(own.layers.map((l) => l.data.kind), ["text"]);
+    assert.equal(own.partnerSpecs?.some((row) => row.label === "Typsnitt"), false);
+    // Utan konturer skickas texten som text, i verkstadens Arial: deras motor känner inte typsnittets namn.
+    const rough = toSupplierSignDocument(doc, approxFonts);
+    assert.deepEqual(rough.layers.map((l) => (l.data.kind === "text" ? l.data.font : l.data.kind)), ["arial", "arial"]);
+    // Printas namnet ligger det i trycklagret som förut, och typsnittet står med på orderpappret.
+    const printed = toSupplierSignDocument({ ...doc, marking: "print" as const }, fonts);
+    assert.deepEqual(printed.layers.map((l) => (l.data.kind === "image" ? l.data.renderMode : l.data.kind)), ["print"]);
+    assert.deepEqual(printed.partnerSpecs?.map((row) => row.label), ["Fäste", "Märkning", "Typsnitt", "Tryckt text"]);
+  });
+
   it("en skylt som bara graveras har inget trycklager", () => {
     const supplier = toSupplierSignDocument(plastic(["Anna Lind"]), fonts);
     assert.equal(printLayerOf(supplier), undefined);

@@ -130,6 +130,8 @@ export interface StoredOrder {
   expressShippingSek: number | null;
   /** Koden i den hemliga länken till kundens ordersida. */
   customerToken: string;
+  /** Koden i följesedelns korta länk, som verkstaden öppnar från sitt orderpapper (`packing-slip.ts`). */
+  packingCode: string;
 }
 
 export function isOrderStatus(value: string): value is OrderStatus {

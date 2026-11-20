@@ -1,3 +1,4 @@
+import { EXTRA_FONTS } from "./font-list";
 import type {
   BadgeShape,
   BlankId,
@@ -314,39 +315,86 @@ export const MATERIAL_IDS = MATERIALS.map((m) => m.id) as [MaterialId, ...Materi
 
 export const OFFERED_MATERIALS: readonly BadgeMaterial[] = MATERIALS.filter((m) => m.offered);
 
+/** Typsnittens grupper i väljaren, i den ordning de visas. */
+export type FontCategory = "sans" | "narrow" | "serif" | "rounded" | "script" | "display" | "mono";
+
+export const FONT_CATEGORIES: readonly { id: FontCategory; name: string }[] = [
+  { id: "sans", name: "Raka" },
+  { id: "narrow", name: "Smala" },
+  { id: "serif", name: "Med seriffer" },
+  { id: "rounded", name: "Rundade" },
+  { id: "script", name: "Skrivstil" },
+  { id: "display", name: "Rubrikstil" },
+  { id: "mono", name: "Skrivmaskin" },
+];
+
 export interface BadgeFont {
   id: FontId;
   name: string;
+  category: FontCategory;
   /** Reservtypsnitt för `<text>` innan fontfilerna laddats. */
   css: string;
   /**
-   * Fontfiler under `public/fonts`: samma filer som verkstaden bäddar in i sina
-   * produktionsfiler, så att bokstäverna är identiska hos oss och i
-   * tillverkningen (beslut av ägaren 2026-11-17). Verkstaden ritar Arial med
-   * Roboto och Arial Narrow med Roboto Condensed. Filerna får distribueras
-   * (Apache 2.0).
+   * Verkstaden har typsnittet i sin egen motor, så en graverad rad skickas dit som text som
+   * personalen kan ändra. Övriga typsnitt skickas som färdiga banor (besked från Mats på
+   * verkstaden via ägaren 2026-11-20: typsnitten behöver inte begränsas, "så länge vi får
+   * färdiga filer").
    */
-  files: { regular: string; bold: string };
+  workshop: boolean;
+  /**
+   * Fontfiler under `public/fonts`. Verkstadens egna är samma filer som verkstaden bäddar in i
+   * sina produktionsfiler, så att bokstäverna är identiska hos oss och i tillverkningen (beslut
+   * av ägaren 2026-11-17): Arial ritas med Roboto och Arial Narrow med Roboto Condensed. De
+   * extra typsnitten ligger i `google/`. Saknar typsnittet en fet stil är `bold` tom, och en
+   * fet rad ritas då i normal stil.
+   */
+  files: { regular: string; bold: string | null };
 }
 
+const CATEGORY_CSS: Record<FontCategory, string> = {
+  sans: "Arial, 'Helvetica Neue', Helvetica, sans-serif",
+  narrow: "'Arial Narrow', 'Helvetica Neue Condensed', Arial, sans-serif",
+  serif: "Georgia, 'Times New Roman', serif",
+  rounded: "'Arial Rounded MT Bold', Arial, sans-serif",
+  script: "'Snell Roundhand', 'Brush Script MT', cursive",
+  display: "Impact, 'Arial Black', sans-serif",
+  mono: "'SFMono-Regular', Menlo, Consolas, monospace",
+};
+
 /**
- * Verkstaden tillverkar Arial-familjen. Namnen är verkstadens, och id:na
- * skickas rakt av i ordern.
+ * Verkstaden tillverkar Arial-familjen: namnen är verkstadens, och id:na skickas rakt av i
+ * ordern. De står först i väljaren. Därefter de fria typsnitten ur `font-list.ts`.
  */
 export const FONTS: readonly BadgeFont[] = [
   {
     id: "arial",
     name: "Arial",
+    category: "sans",
     css: "Roboto, Arial, 'Helvetica Neue', Helvetica, sans-serif",
+    workshop: true,
     files: { regular: "Roboto-Regular.ttf", bold: "Roboto-Bold.ttf" },
   },
   {
     id: "arial-narrow",
     name: "Arial Narrow",
+    category: "narrow",
     css: "'Roboto Condensed', 'Arial Narrow', 'Helvetica Neue Condensed', Arial, sans-serif",
+    workshop: true,
     files: { regular: "RobotoCondensed-Regular.ttf", bold: "RobotoCondensed-Bold.ttf" },
   },
+  ...EXTRA_FONTS.map(
+    (font): BadgeFont => ({
+      id: font.id,
+      name: font.name,
+      category: font.category,
+      css: `'${font.name}', ${CATEGORY_CSS[font.category]}`,
+      workshop: false,
+      files: { regular: `google/${font.regular}`, bold: font.bold ? `google/${font.bold}` : null },
+    }),
+  ),
 ];
+
+export const FONT_IDS = FONTS.map((font) => font.id) as [FontId, ...FontId[]];
 
 /**
  * Reservtypsnittet, Liberation Sans. Saknar radens typsnitt ett tecken ritas
@@ -594,8 +642,15 @@ export function isPartnerMade(id: MaterialId): boolean {
   return getMaterial(id).producer === "quickbutton";
 }
 
+const FONT_BY_ID = new Map(FONTS.map((font) => [font.id, font]));
+
 export function getFont(id: FontId): BadgeFont {
-  return FONTS.find((f) => f.id === id) ?? FONTS[0]!;
+  return FONT_BY_ID.get(id) ?? FONTS[0]!;
+}
+
+/** Har typsnittet en egen fet stil? Annars ritas en fet rad i normal stil. */
+export function hasBold(id: FontId): boolean {
+  return getFont(id).files.bold !== null;
 }
 
 export function getMounting(id: MountingId): Mounting {

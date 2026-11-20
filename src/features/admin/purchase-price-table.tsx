@@ -120,8 +120,12 @@ export function PurchasePriceTable({ purchase, list, marginPercent }: PurchasePr
                 {formatSek(shipping.letterSek)} eller {formatSek(shipping.parcelSek)}
               </dd>
               <small>
-                per order: {formatSek(shipping.letterSek)} när varorna kostar dig högst {formatSek(shipping.letterMaxSek)},
-                annars {formatSek(shipping.parcelSek)}. Din kund betalar samma frakt som du.
+                per order: {formatSek(shipping.letterSek)} som varubrev{" "}
+                {typeof shipping.letterMaxSigns === "number"
+                  ? `för högst ${shipping.letterMaxSigns} skyltar`
+                  : `när varorna kostar dig högst ${formatSek(shipping.letterMaxSek)}`}
+                , annars {formatSek(shipping.parcelSek)} som paket. Den som beställer kan välja paket i stället för
+                varubrev. Din kund betalar samma frakt som du.
               </small>
             </div>
           )}

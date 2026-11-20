@@ -674,6 +674,17 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       alter table quotes add column customer_po text;
     `,
   },
+  {
+    // Följesedelns korta kod (beslut av ägaren 2026-11-20). Verkstaden öppnar följesedeln via en
+    // kort länk på sitt orderpapper, så koden är tolv hextecken: kort nog att skriva av, och
+    // 48 slumpade bitar (de första tolv tecknen i en slumpad uuid är alla slumpade).
+    id: "036_packing_code",
+    sql: `
+      alter table orders add column packing_code text not null
+        default substr(replace(gen_random_uuid()::text, '-', ''), 1, 12);
+      create unique index orders_packing_code on orders (packing_code);
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

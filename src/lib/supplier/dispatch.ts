@@ -2,8 +2,10 @@ import "server-only";
 import { renderLogoPng } from "@/lib/ai/badge-image";
 import { loadNodeFontEngine } from "@/lib/fonts/load-node";
 import { requireDb } from "@/lib/db/client";
+import { publicOrigin } from "@/lib/http/public-url";
 import { withInlineLogoImages } from "@/lib/logo-images/repository";
 import { isDirectOrder, type StoredOrder } from "@/lib/orders/model";
+import { packingInstruction, packingSlipLink } from "@/lib/orders/packing-slip";
 import {
   claimForDispatch,
   getCompanyProfile,
@@ -11,6 +13,7 @@ import {
   markDispatched,
 } from "@/lib/orders/repository";
 import { accountEmail } from "@/lib/reseller-auth/accounts";
+import { isOwner } from "@/lib/tenants/model";
 import { createSupplierClient, supplierApiConfigured } from "./client";
 import { buildSupplierRequest, customerBuyer, dispatchProblems, MAX_REQUEST_BYTES, requestBytes, supplierBuyer } from "./request";
 import { isPermanentFailure, PermanentDispatchError } from "./retry-rules";
@@ -96,6 +99,8 @@ export async function supplierRequestFor(order: StoredOrder, party: DispatchPart
     ...(party.direct && { direct: { priceList: order.priceList, pricing: order.pricing, sellerEmail: party.direct.sellerEmail } }),
     fonts: await loadNodeFontEngine(),
     logoPng: renderLogoPng,
+    // Verkstaden skriver ut följesedeln härifrån. Säljs skylten av en återförsäljare packas den neutralt.
+    packing: { link: packingSlipLink(publicOrigin(), order.packingCode), instruction: packingInstruction(isOwner(order.resellerId)) },
   });
 }
 

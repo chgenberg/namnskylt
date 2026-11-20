@@ -112,7 +112,12 @@ export const priceModelSchema = z
     endMarginPercent: percentSchema,
     endMinOrderSek: sekSchema,
     // Frakten är hela kronor: slutkunden betalar den, och slutkundens belopp har inga ören.
-    shipping: z.object({ letterSek: sekSchema, parcelSek: sekSchema, letterMaxSek: sekSchema }),
+    shipping: z.object({
+      letterSek: sekSchema,
+      parcelSek: sekSchema,
+      letterMaxSek: sekSchema,
+      letterMaxSigns: z.number().int().min(1).max(100_000).nullable().optional(),
+    }),
   })
   .superRefine((model, ctx) => {
     if (model.tiers[0]?.moreThan !== 0) {
@@ -216,6 +221,15 @@ export function endPriceTable(model: PriceModel): PriceTable {
  */
 export function orderShippingSek(model: PriceModel, items: readonly PriceItem[], method: ShippingMethod = "standard"): number {
   return priceItems(items, withShippingMethod(resellerPriceTable(model), method)).shippingSek;
+}
+
+/**
+ * Standardfrakten för en order, och vad paketet kostar när det går att välja i stället för
+ * varubrevet (`parcelSek`, annars `null`). Samma belopp i alla led, som frakten i övrigt.
+ */
+export function orderShippingChoices(model: PriceModel, items: readonly PriceItem[]): { shippingSek: number; parcelSek: number | null } {
+  const price = priceItems(items, resellerPriceTable(model));
+  return { shippingSek: price.shippingSek, parcelSek: price.parcelChoiceSek };
 }
 
 export interface ProvisionSplit {

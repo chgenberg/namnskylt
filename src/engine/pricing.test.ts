@@ -11,6 +11,7 @@ import {
   lineUnitPrices,
   mountingPriceSek,
   optionPriceSek,
+  parcelChoiceSek,
   priceItems,
   priceOrder,
   resellerOrder,
@@ -27,6 +28,7 @@ import {
 import {
   endPriceSek,
   endPriceTable,
+  orderShippingChoices,
   orderShippingSek,
   parseStoredPriceModel,
   priceModelSchema,
@@ -392,10 +394,10 @@ describe("frakten", () => {
   });
 
   it("gränsen gäller varuvärdet: precis 500 kr går som varubrev, en krona till som paket", () => {
-    assert.equal(shippingKind(500, purchase), "letter");
-    assert.equal(shippingSek(500, purchase), 75);
-    assert.equal(shippingKind(501, purchase), "parcel");
-    assert.equal(shippingSek(500.01, purchase), 159);
+    assert.equal(shippingKind(500, purchase, 3), "letter");
+    assert.equal(shippingSek(500, purchase, 3), 75);
+    assert.equal(shippingKind(501, purchase, 3), "parcel");
+    assert.equal(shippingSek(500.01, purchase, 3), 159);
   });
 
   it("regeln finns bara i återförsäljarens lista, eftersom frakten räknas på det återförsäljaren betalar", () => {
@@ -461,14 +463,51 @@ describe("frakten", () => {
     assert.equal(order.unitSek, 130);
   });
 
+  it("den som beställer kan välja paket i stället för varubrevet", () => {
+    // 3 skyltar går som varubrev: paketet går att välja, till paketets pris.
+    const small = priceItems([premium(3)], purchase);
+    assert.deepEqual([small.shippingSek, small.parcelChoiceSek], [75, 159]);
+    const asParcel = priceItems([premium(3)], withShippingMethod(purchase, "parcel"));
+    assert.deepEqual([asParcel.shippingSek, asParcel.parcelChoiceSek, asParcel.goodsSek], [159, null, small.goodsSek]);
+    assert.equal(orderShippingSek(S, [premium(3)], "parcel"), 159);
+    assert.deepEqual(orderShippingChoices(S, [premium(3)]), { shippingSek: 75, parcelSek: 159 });
+    // En större order går redan som paket: då finns inget att välja.
+    assert.deepEqual(orderShippingChoices(S, [premium(10)]), { shippingSek: 159, parcelSek: null });
+    assert.equal(orderShippingSek(S, [premium(10)], "parcel"), 159);
+    // Upphämtning och express har ingen frakt alls, och en lista utan frakt har inget paket.
+    assert.equal(priceItems([premium(3)], withShippingMethod(purchase, "pickup")).parcelChoiceSek, null);
+    assert.equal(priceItems([premium(3)], PURCHASE).parcelChoiceSek, null);
+    assert.equal(parcelChoiceSek(400, { shipping: { letterSek: 159, parcelSek: 159, letterMaxSek: 500 } }, 3), null);
+  });
+
+  it("med ett antal i regeln avgör antalet skyltar, inte varuvärdet", () => {
+    const counted: PriceModel = { ...S, shipping: { ...S.shipping, letterMaxSigns: 10 } };
+    const table = resellerPriceTable(counted);
+    assert.equal(table.shipping?.letterMaxSigns, 10);
+    // Tio skyltar kostar 780 kr, över varuvärdets gräns, men går som varubrev. Elva går som paket.
+    assert.deepEqual(orderShippingChoices(counted, [premium(10)]), { shippingSek: 75, parcelSek: 159 });
+    assert.deepEqual(orderShippingChoices(counted, [premium(11)]), { shippingSek: 159, parcelSek: null });
+    assert.equal(shippingKind(5000, table, 10), "letter");
+    assert.equal(shippingKind(50, table, 11), "parcel");
+    // Antalet räknas på hela ordern, över alla designer.
+    assert.equal(orderShippingSek(counted, [premium(6), premium(5)]), 159);
+    // Paketet är paket också här, och utan antal gäller varuvärdet som förut.
+    assert.equal(orderShippingSek(counted, [premium(2)], "parcel"), 159);
+    assert.equal(orderShippingSek({ ...S, shipping: { ...S.shipping, letterMaxSigns: null } }, [premium(10)]), 159);
+    assert.equal(priceModelSchema.safeParse(counted).success, true);
+    assert.equal(priceModelSchema.safeParse({ ...S, shipping: { ...S.shipping, letterMaxSigns: null } }).success, true);
+    assert.equal(priceModelSchema.safeParse({ ...S, shipping: { ...S.shipping, letterMaxSigns: 0 } }).success, false);
+    assert.equal(priceModelSchema.safeParse({ ...S, shipping: { ...S.shipping, letterMaxSigns: 2.5 } }).success, false);
+  });
+
   it("en lista utan frakt, eller en tom order, har ingen frakt", () => {
-    assert.equal(shippingSek(1000, PURCHASE), 0);
-    assert.equal(shippingKind(1000, PURCHASE), null);
+    assert.equal(shippingSek(1000, PURCHASE, 10), 0);
+    assert.equal(shippingKind(1000, PURCHASE, 10), null);
     assert.equal(orderShippingSek(M, [premium(10)]), 0);
-    assert.equal(shippingSek(0, purchase), 0);
+    assert.equal(shippingSek(0, purchase, 0), 0);
     assert.equal(priceItems([], purchase).totalSek, 0);
     assert.equal(orderShippingSek(S, []), 0);
-    assert.equal(shippingSek(1000, { shipping: undefined }), 0);
+    assert.equal(shippingSek(1000, { shipping: undefined }, 10), 0);
   });
 
   it("modellen godtar bara hela kronor i frakten", () => {

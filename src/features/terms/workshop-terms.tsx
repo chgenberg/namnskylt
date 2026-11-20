@@ -80,6 +80,16 @@ export function WorkshopTerms({ shopName, privacyLink, cardPayments }: WorkshopT
       </section>
 
       <section className={styles.section}>
+        <h2>Färger i tryck</h2>
+        <p>
+          Färgen du väljer för text och logotyp räknas om till tryckfärger när skylten trycks. Nyansen kan därför skilja
+          sig något från det du ser på skärmen, mellan olika material och från en tidigare leverans. Vi kan inte lova en
+          exakt nyans, till exempel en viss Pantone-färg, och en mindre skillnad i nyans räknas inte som ett fel på
+          skylten. Skyltens egen färg är materialets.
+        </p>
+      </section>
+
+      <section className={styles.section}>
         <h2>{shopName ? `Om ${shopName}` : "Om namnskylt.com"}</h2>
         <p>
           {shopName

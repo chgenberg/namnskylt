@@ -9,6 +9,7 @@ import {
   getMaterial,
   mountingLabel,
   engravingHex,
+  engravingPaths,
   printColorLabel,
   printedPaths,
   hasStraightSides,
@@ -80,16 +81,57 @@ const PRINT_COLOR_PREFIX = "Tryckfärg ";
 function specRows(
   doc: BadgeDocument,
   article: ReturnType<typeof blankArticleOf>,
-  printedText: readonly string[],
+  text: { printed: readonly string[]; engraved: readonly string[] },
 ): SupplierSpecRow[] {
   const rows: SupplierSpecRow[] = [{ label: "Fäste", value: mountingLabel(doc) }];
   if (article) rows.push({ label: "Ämne", value: `${article.name}, ${article.thicknessMm.toLocaleString("sv-SE")} mm` });
-  if (markingOf(doc) === "engrave") return rows;
-  rows.push({ label: "Märkning", value: getMarkingMethod(markingOf(doc)).name });
-  const color = printColorLabel(doc);
-  if (color) rows.push({ label: "Tryckfärg", value: color.startsWith(PRINT_COLOR_PREFIX) ? color.slice(PRINT_COLOR_PREFIX.length) : color });
-  if (printedText.length > 0) rows.push({ label: "Tryckt text", value: printedText.join(" / ") });
+  if (markingOf(doc) !== "engrave") {
+    rows.push({ label: "Märkning", value: getMarkingMethod(markingOf(doc)).name });
+    const color = printColorLabel(doc);
+    if (color) rows.push({ label: "Tryckfärg", value: color.startsWith(PRINT_COLOR_PREFIX) ? color.slice(PRINT_COLOR_PREFIX.length) : color });
+  }
+  // Texten som skickas som banor finns inte som text hos verkstaden: då står den, och typsnittet, här.
+  if (text.printed.length > 0 || text.engraved.length > 0) rows.push({ label: "Typsnitt", value: getFont(doc.font).name });
+  if (text.printed.length > 0) rows.push({ label: "Tryckt text", value: text.printed.join(" / ") });
+  if (text.engraved.length > 0) rows.push({ label: "Graverad text", value: text.engraved.join(" / ") });
   return rows;
+}
+
+/**
+ * En graverad text i ett typsnitt som verkstaden inte har, som färdiga banor i ett bildlager som
+ * graveras (besked från Mats på verkstaden via ägaren 2026-11-20: typsnitten behöver inte
+ * begränsas, "så länge vi får färdiga filer"). Verkstadens gravyrfil ritar banorna som de är, så
+ * bokstäverna blir exakt de kunden såg. Ramen och loggan skickas som förut.
+ *
+ * `null` när typsnittet är verkstadens eget, när namnet printas (då ligger det i trycklagret) och
+ * när konturer saknas eller inte går att räkna om: då skickas texten som text, i verkstadens typsnitt.
+ */
+function engravedTextLayer(doc: BadgeDocument, layout: BadgeLayout, fonts: FontEngine): SupplierLayer | null {
+  if (getFont(doc.font).workshop || layout.namePrinted) return null;
+  const paths = fonts.outline ? engravingPaths(layout, fonts)?.filter((path) => path.kind === "text") : null;
+  if (!paths || paths.length === 0) return null;
+  let markup: string;
+  try {
+    markup = paths.map((path) => `<path d="${toCubicPath(path.d)}" fill="#000000"/>`).join("");
+  } catch {
+    return null;
+  }
+  const { widthMm, heightMm } = doc.size;
+  return {
+    id: "engraved-text",
+    transform: { position: { x: widthMm / 2, y: heightMm / 2 }, rotationDeg: 0 },
+    visible: true,
+    locked: false,
+    data: {
+      kind: "image",
+      src: "",
+      widthMm,
+      heightMm,
+      renderMode: "engrave",
+      lockAspect: true,
+      vector: { markup, viewWidth: widthMm, viewHeight: heightMm },
+    },
+  };
 }
 
 /**
@@ -167,8 +209,10 @@ export function toSupplierSignDocument(
   // Namnet och ramen ligger i trycklagret när namnet printas. Utan konturer (typsnittet inte laddat)
   // skickas de som förut, som text och ram, och metoden står bara i klartext.
   const nameInPrintLayer = print !== null && layout.namePrinted;
+  // En graverad text i ett typsnitt verkstaden inte har skickas som banor. Då finns inget textlager.
+  const engravedText = engravedTextLayer(doc, layout, fonts);
 
-  const textLayers: SupplierLayer[] = (nameInPrintLayer ? [] : layout.rows).map((row) => ({
+  const textLayers: SupplierLayer[] = (nameInPrintLayer || engravedText ? [] : layout.rows).map((row) => ({
     id: `text-${row.id}`,
     transform: {
       position: { x: row.xMm, y: row.baselineMm - row.capHeightMm / 2 },
@@ -178,7 +222,9 @@ export function toSupplierSignDocument(
     locked: false,
     data: {
       kind: "text",
-      font: font.id,
+      // Verkstadens motor har bara sina egna typsnitt. En rad i ett annat typsnitt hamnar bara här
+      // när dess konturer saknas, och ritas då i verkstadens Arial.
+      font: font.workshop ? font.id : "arial",
       lineHeightRatio: SUPPLIER_LINE_HEIGHT_RATIO,
       rows: [
         {
@@ -262,10 +308,13 @@ export function toSupplierSignDocument(
   // Ett färdigt ämne står med verkstadens egen benämning, så att rätt ämne plockas: ytorna heter
   // annat i deras katalog, och formatet går inte att läsa ur materialkoden.
   const article = blankArticleOf(doc);
-  const printedText = nameInPrintLayer ? layout.rows.map((row) => row.text) : [];
+  const rowTexts = layout.rows.map((row) => row.text);
+  const text = { printed: nameInPrintLayer ? rowTexts : [], engraved: engravedText ? rowTexts : [] };
   const notes = [
     article ? `Ämne: ${article.name}, ${article.thicknessMm.toLocaleString("sv-SE")} mm.` : null,
-    method !== "engrave" ? markingNote(doc, printedText) : null,
+    method !== "engrave" ? markingNote(doc, text.printed) : null,
+    // Verkstaden har inget textlager att läsa när texten är banor: texten och typsnittet står i klartext.
+    text.engraved.length > 0 ? `Typsnitt: ${font.name}. Text som graveras: ${text.engraved.join(" / ")}.` : null,
   ].filter((note): note is string => note !== null);
 
   return {
@@ -278,8 +327,8 @@ export function toSupplierSignDocument(
     // leverantören har en artikelkod per fäste.
     mounting: mountingLabel(doc),
     holes: { type: "none", count: 0, diameterMm: 3.2, placement: "none" },
-    layers: [...frameLayers, ...logoLayers, ...textLayers, ...(print ? [print] : [])],
+    layers: [...frameLayers, ...logoLayers, ...textLayers, ...(engravedText ? [engravedText] : []), ...(print ? [print] : [])],
     ...(notes.length > 0 && { productionNote: notes.join(" ") }),
-    partnerSpecs: specRows(doc, article, printedText),
+    partnerSpecs: specRows(doc, article, text),
   };
 }

@@ -54,16 +54,27 @@ export interface ShippingRule {
   parcelSek: number;
   /** Högsta varuvärde hos återförsäljaren, exkl. moms och frakt, som får gå som varubrev. */
   letterMaxSek: number;
+  /**
+   * Flest skyltar i en order som får gå som varubrev. När det är satt avgör antalet, och
+   * varuvärdet (`letterMaxSek`) gäller inte (beslut av ägaren 2026-11-20: varubrevet är förvalt
+   * upp till det antal verkstaden anger). Utan det gäller varuvärdet, som förut.
+   */
+  letterMaxSigns?: number | null;
 }
 
 export const NO_SHIPPING: ShippingRule = { letterSek: 0, parcelSek: 0, letterMaxSek: 0 };
 
 export type ShippingKind = "letter" | "parcel";
 
-/** Fraktsättet för ett varuvärde; `null` när listan saknar frakt eller ordern är tom. */
-export function shippingKind(goodsSek: number, table: Pick<PriceTable, "shipping">): ShippingKind | null {
+/**
+ * Standardfraktens fraktsätt för en order: varubrev upp till gränsen, annars paket. Gränsen är
+ * orderns antal skyltar när regeln har ett (`letterMaxSigns`), annars varuvärdet. `null` när
+ * listan saknar frakt eller ordern är tom.
+ */
+export function shippingKind(goodsSek: number, table: Pick<PriceTable, "shipping">, quantity: number): ShippingKind | null {
   const rule = table.shipping;
   if (!rule || goodsSek <= 0 || (rule.letterSek === 0 && rule.parcelSek === 0)) return null;
+  if (typeof rule.letterMaxSigns === "number") return quantity <= rule.letterMaxSigns ? "letter" : "parcel";
   return goodsSek <= rule.letterMaxSek ? "letter" : "parcel";
 }
 
@@ -73,25 +84,41 @@ export function shippingKind(goodsSek: number, table: Pick<PriceTable, "shipping
  * Bara återförsäljarens lista har regeln. Kunden betalar samma frakt, och får
  * beloppet färdigt i stället för regeln (`priceOrder`).
  */
-export function shippingSek(goodsSek: number, table: Pick<PriceTable, "shipping">): number {
-  const kind = shippingKind(goodsSek, table);
+export function shippingSek(goodsSek: number, table: Pick<PriceTable, "shipping">, quantity: number): number {
+  const kind = shippingKind(goodsSek, table, quantity);
   if (!kind || !table.shipping) return 0;
   return kind === "letter" ? table.shipping.letterSek : table.shipping.parcelSek;
 }
 
 /**
+ * Vad paketet kostar när den som beställer kan välja det i stället för varubrevet (beslut av
+ * ägaren 2026-11-20: varubrevet är förvalt, och kunden kan välja paket). `null` när
+ * standardfrakten redan är paket, när paketet inte kostar mer, eller när listan saknar frakt.
+ */
+export function parcelChoiceSek(goodsSek: number, table: Pick<PriceTable, "shipping">, quantity: number): number | null {
+  const rule = table.shipping;
+  if (!rule || shippingKind(goodsSek, table, quantity) !== "letter") return null;
+  return rule.parcelSek > rule.letterSek ? rule.parcelSek : null;
+}
+
+/**
  * Hur ordern lämnar verkstaden, samma val som i Skylt & Gravyrtekniks egen
  * kassa (beslut av ägaren 2026-11-15). `standard` följer fraktregeln: varubrev
- * eller paket. `pickup` hämtas hos verkstaden utan frakt. `express` är PostNord
- * Express, där verkstaden sätter priset efter storlek och vikt innan ordern
- * skickas, så ordern har ingen frakt när den läggs.
+ * eller paket. `parcel` är paket också för en order som annars hade gått som
+ * varubrev (beslut av ägaren 2026-11-20). `pickup` hämtas hos verkstaden utan
+ * frakt. `express` är PostNord Express, där verkstaden sätter priset efter
+ * storlek och vikt innan ordern skickas, så ordern har ingen frakt när den läggs.
  */
-export const SHIPPING_METHODS = ["standard", "express", "pickup"] as const;
+export const SHIPPING_METHODS = ["standard", "parcel", "express", "pickup"] as const;
 export type ShippingMethod = (typeof SHIPPING_METHODS)[number];
 
-/** Listan som gäller för ett fraktsätt: bara standardfrakten följer fraktregeln. */
+/**
+ * Listan som gäller för ett fraktsätt. Standardfrakten följer fraktregeln, paketet har regeln
+ * utan varubrev, och express och upphämtning har ingen regel alls.
+ */
 export function withShippingMethod(table: PriceTable, method: ShippingMethod): PriceTable {
   if (method === "standard" || !table.shipping) return table;
+  if (method === "parcel") return { ...table, shipping: { ...table.shipping, letterMaxSek: 0, letterMaxSigns: 0 } };
   const rest = { ...table };
   delete rest.shipping;
   return rest;
@@ -292,6 +319,8 @@ export interface TablePrice {
   goodsSek: number;
   /** Frakten enligt listans fraktregel. 0 kr för slutkundens lista, som saknar regeln. */
   shippingSek: number;
+  /** Paketets pris när den som beställer kan välja paket i stället för varubrevet, annars `null`. */
+  parcelChoiceSek: number | null;
   /** Varuvärdet plus frakten. */
   totalSek: number;
 }
@@ -309,7 +338,7 @@ export function priceItems(items: readonly PriceItem[], table: PriceTable): Tabl
   const badgesSek = toOre(items.reduce((total, item, i) => total + (unitSek[i] ?? 0) * quantityOf(item), 0));
   const minimumTopUpSek = quantity > 0 ? toOre(Math.max(0, table.minOrderSek - badgesSek)) : 0;
   const goodsSek = toOre(badgesSek + minimumTopUpSek);
-  const shipping = shippingSek(goodsSek, table);
+  const shipping = shippingSek(goodsSek, table, quantity);
   return {
     unitSek,
     quantity,
@@ -319,6 +348,7 @@ export function priceItems(items: readonly PriceItem[], table: PriceTable): Tabl
     minimumTopUpSek,
     goodsSek,
     shippingSek: shipping,
+    parcelChoiceSek: parcelChoiceSek(goodsSek, table, quantity),
     totalSek: toOre(goodsSek + shipping),
   };
 }

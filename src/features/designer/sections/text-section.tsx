@@ -6,10 +6,10 @@ import { PanelSection } from "@/components/ui/panel-section";
 import { useLogoColors } from "@/hooks/use-logo-colors";
 import { Segmented } from "@/components/ui/segmented";
 import {
-  FONTS,
   TEXT_LIMITS,
   colorNames,
   getColor,
+  hasBold,
   nameMarking,
   engravingHex,
   printColorName,
@@ -21,7 +21,8 @@ import {
 } from "@/engine";
 import { formatMm } from "@/lib/format";
 import type { DesignerAction } from "../state";
-import { TextColorField } from "./print-color-field";
+import { FontPicker } from "./font-picker";
+import { PRINT_COLOR_NOTE, TextColorField } from "./print-color-field";
 import styles from "./sections.module.css";
 
 const ROW_PLACEHOLDERS = ["Namn", "Titel", "Avdelning"];
@@ -57,6 +58,8 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
   const canAdd = doc.rows.length < TEXT_LIMITS.maxRows;
   // Färg per rad finns bara i tryck: gravyren får materialets färg, lika på alla rader.
   const namePrinted = nameMarking(doc) === "print";
+  /** Ett typsnitt utan egen fet stil ritar en fet rad i normal stil: då går Fet inte att välja. */
+  const boldFits = hasBold(doc.font);
   const color = getColor(doc.materialId, doc.colorId);
   /** Färgen texten visas i när ingen textfärg är vald: ytans förvalda. */
   const defaultInk = engravingHex(color);
@@ -102,8 +105,9 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
                     <button
                       type="button"
                       className={styles.iconButton}
-                      aria-pressed={row.bold}
-                      title="Fet"
+                      aria-pressed={row.bold && boldFits}
+                      title={boldFits ? "Fet" : "Typsnittet har ingen fet stil"}
+                      disabled={!boldFits}
                       onClick={() => dispatch({ type: "row/bold", id: row.id })}
                     >
                       <strong>B</strong>
@@ -174,8 +178,7 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
             onChange={(next) => dispatch({ type: "print/color", color: next })}
           />
           <p className={styles.hint}>
-            Färgen gäller alla rader. Rutan vid en rad ger just den raden en egen färg. Trycket kan skilja något från
-            skärmen.
+            Färgen gäller alla rader. Rutan vid en rad ger just den raden en egen färg. {PRINT_COLOR_NOTE}
           </p>
         </>
       ) : (
@@ -195,12 +198,7 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
       )}
 
       <div className={styles.typeRow}>
-        <Segmented
-          label="Typsnitt"
-          value={doc.font}
-          options={FONTS.map((f) => ({ id: f.id, label: f.name }))}
-          onChange={(font) => dispatch({ type: "font", font })}
-        />
+        <FontPicker value={doc.font} onChange={(font) => dispatch({ type: "font", font })} />
         <Segmented
           label="Justering"
           value={doc.align}

@@ -1,3 +1,4 @@
+import { getFont } from "./catalog";
 import type { FontEngine, MeasureFont } from "./layout";
 
 /**
@@ -25,7 +26,7 @@ export const approxFonts: FontEngine = {
   capHeightRatio: () => APPROX_CAP_HEIGHT_RATIO,
   measure(text: string, font: MeasureFont) {
     const em = [...text].reduce((sum, char) => sum + arialAdvanceEm(char), 0);
-    const narrow = font.fontId === "arial-narrow" ? NARROW_FACTOR : 1;
+    const narrow = getFont(font.fontId).category === "narrow" ? NARROW_FACTOR : 1;
     const bold = font.bold ? BOLD_FACTOR : 1;
     return em * font.sizeMm * narrow * bold;
   },

@@ -68,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1392 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1407 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -77,6 +77,7 @@ pnpm outreach:import         # läser kundlistan till outreach_leads
 pnpm outreach:prepare --wave A [--lead <uuid>] [--no-persona|--redo-persona]
 pnpm outreach:preview        # skriver mejlexempel till tmp/outreach-preview/
 pnpm email:preview           # skriver sajtens övriga mejl till tmp/mejl-forhandsvisning/, utan att skicka något
+pnpm fonts:fetch             # hämtar skyltmotorns extra typsnitt från Google Fonts och skriver om listan
 pnpm outreach:tick           # en körning av sändningskön (dry-run utan Resend-nyckel)
 pnpm reseller:create <id> "<namn>" <e-post> [lösenord]
 pnpm shops:build <sajter.json> <resultat.json> [parallellt]
@@ -112,6 +113,7 @@ pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
 | `src/lib/payments/` | Kortbetalning via Stripe bakom en strömbrytare: `stripe.ts` (anrop och signatur med `fetch`, utan SDK), `checkout.ts` (kassan som väntar på betalning och blir en order), `model.ts`. |
 | `src/lib/maintenance/` | Fellogg (`error-log.ts`), bakgrundsjobb i processen (`scheduler.ts`, `jobs.ts`) och driftsidans lägen (`status.ts`). |
 | `src/lib/designer-work/`, `designer-stats/`, `seo/` | Skyltmotorns sparade arbete i webbläsaren, tratten över var besök slutar, och reglerna för `robots.txt` och sitemapen. |
+| `src/lib/fonts/` | Typsnittsmotorn (`font-engine.ts`, opentype.js) och hur filerna laddas i webbläsaren och på servern. Se avsnittet Typsnitt. |
 | `src/lib/format/` | `formatSek`, `formatDate`, `formatDay`, `formatRelative` (Europe/Stockholm). |
 | `src/features/` | En mapp per vy: designer (3D), shop, shop-editor, admin, outreach, outreach-landing m.fl. |
 | `src/app/` | Routes. Publika vägar är svenska (`/skapa`, `/butik`, `/for/[token]`), API-vägar engelska. |
@@ -285,14 +287,22 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     är lika stor som den minsta skylt klämman får sitta på (`CLIP_MIN`), och reglerna ligger
     i `clipPlate` i `src/engine/hardware-fit.ts`.
     - På Lång rektangel täcker plattan hela baksidan och har skyltens hörnrundning.
-      Vikningen skärs av mot samma hörn (`foldGeometry` i `three/mounting.tsx`), så att
-      inget sticker ut utanför skylten.
+      Vikningen ligger utanför plattan, se nästa punkt.
     - På en större skylt är klämman fortfarande 80 × 25 mm och sitter mitt på.
     - På en egen form får klämman gå ända ut i kanten, och hörnen rundas så mycket som
       formens hörn kräver, högst 6 mm (`CLIP_FIT`, `fitHardware`). En egen form på 80 × 25 mm
       får alltså klämman kant i kant. Ryms den inte ens så förminskas den, som förut.
     - Att klämman är just 80 × 25 mm, och att dess hörn är rundade som skyltens, är min
       tolkning av beskedet. Ingen har gett klämmans mått.
+    - **Vikningen sticker ut 4 mm utanför skylten** (mått från ägaren 2026-11-20: "Skylt 80mm,
+      Klämma 84mm", efter att Mats på verkstaden sagt att skylten passar precis till där
+      böjningen börjar och att böjningen syns framifrån). Plattan är fortfarande 80 × 25 mm och
+      täcker skylten. Vikningen börjar vid plattans kortsida och går 4 mm ut
+      (`CLIP_FOLD_REACH_MM` i `hardware-fit.ts`, `foldGeometry` i `three/mounting.tsx`), som
+      ett utdraget halvt varv: 4 mm långt och 4 mm högt. Den sitter på den raka delen av
+      kortsidan, mellan de rundade hörnen. Från 2026-11-18 till 2026-11-20 skars vikningen av
+      mot plattans hörn, så att inget stack ut. Att varvet är utdraget och 4 mm högt är min
+      tolkning: ägaren gav bara de två längderna.
     - Förut ritades plattan 72 × 21 mm, alltså 4 mm innanför skyltens kortsidor och 2 mm
       innanför långsidorna.
   - Fästena ritas i mm i en grupp som är vänd som de ses bakifrån (x åt höger, z ut från
@@ -834,6 +844,26 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
     alltså i beställningsformuläret och i återförsäljarens leveranssteg, på en egen rad med
     summan under (`OrderTotals` i `order-section.tsx`). Återförsäljarens inköp, kundpris och
     marginal i skyltmotorn är också utan frakt.
+  - **Den som beställer kan välja paket i stället för varubrev** (beslut av ägaren 2026-11-20,
+    efter mötet med verkstaden: tre skyltar gav 159 kr i frakt, och Mats godtog att det
+    billigaste står förvalt och att kunden väljer). Fraktsättet `parcel` är paket också för en
+    order som annars går som varubrev (`withShippingMethod`), och verkstaden får `dhl-paket`.
+    - Paketet visas bara när det är ett annat val än standardfrakten, alltså när ordern går
+      som varubrev (`TablePrice.parcelChoiceSek`, `orderShippingChoices`). Då heter
+      standardfrakten "Varubrev, PostNord" i väljaren och står förvald, med "Paket, DHL"
+      bredvid. Går ordern redan som paket finns bara standardfrakten.
+    - Kundens webbläsare får paketets pris av `POST /api/shipping` (`parcelSek`), bredvid
+      standardfrakten (`useOrderShippingChoices`). Samma val finns när kunden godkänner en
+      offert (`shownShippingOptions`) och i panelens `DeliveryPanel`, där båda alltid visas.
+    - **Gränsen för varubrev kan sättas i antal skyltar** (`ShippingRule.letterMaxSigns`,
+      fältet "Varubrev upp till" i kortet Frakt i `/admin/prismodell`). Med ett antal där
+      avgör orderns antal skyltar, och varuvärdet gäller inte. **Fältet står tomt**, så
+      gränsen är fortfarande 500 kr i varuvärde: ägaren sa ja till "det antal Mats anger", och
+      Mats har inte angett något än. När antalet finns skrivs det in där, utan ny kod.
+      Sparade ordrar och offerter har sin egen modell och ändras inte.
+    - Provat lokalt 2026-11-20 i kundens kassa i Chrome: en skylt ger Varubrev 75 kr förvalt
+      och Paket 159 kr, och summan följer valet. Offertens val och panelen är bara provade i
+      tester.
   - **Leveranssättet väljs i kassan** (beslut av ägaren 2026-11-15, samma val som i verkstadens
     egen kassa): `standard` följer fraktregeln, `pickup` är "Hämta i Högsbo" utan frakt och
     `express` är PostNord Express, där verkstaden sätter priset i efterhand, så ordern har ingen
@@ -2339,6 +2369,126 @@ kontaktar"). Deras uppgifter ligger i `WORKSHOP_COMPANY` (`src/lib/company/works
   - Skyltmotorn, villkoren, integritetssidan, inloggningen och kontot har kvar den raka
     menyn över hela bredden. Skyltmotorn och panelen räknar sin höjd på den.
 
+## Typsnitt — läge 2026-11-20
+
+Skyltmotorn har 186 typsnitt: verkstadens två, Arial och Arial Narrow, och 184 fria från Google
+Fonts (besked från Mats på verkstaden via ägaren 2026-11-20: typsnitten behöver inte begränsas,
+"så länge vi får färdiga filer", och ägarens "Kör så många du kan hitta som går att använda och
+som är gratis").
+
+- **Urvalet** står i `scripts/fonts-fetch.ts`, i sju grupper: Raka, Smala, Med seriffer,
+  Rundade, Skrivstil, Rubrikstil och Skrivmaskin (`FONT_CATEGORIES`). `pnpm fonts:fetch`
+  hämtar varje familj som färdiga TTF-filer i normal och, där den finns, fet stil (119 av 184
+  har fet), kontrollerar att filen går att läsa och har å, ä, ö, æ, ø, é och ü, och skriver
+  `src/engine/font-list.ts`. **Ändra inte listan för hand**: lägg familjen i skriptet och kör
+  det. Vilka familjer som är med valde jag, efter läsbarhet och bredd i stil. Tre föll bort:
+  Orbitron saknar Ø, och licensen för Tinos och M PLUS Rounded 1c gick inte att hämta.
+  - Filerna ligger oförändrade i `public/fonts/google/` (16 MB), med varje familjs licens i
+    `licenses/` och en förteckning i `LICENSES.txt`. Licenserna (SIL OFL 1.1, Apache 2.0 och
+    Ubuntu Font Licence) tillåter att filerna sprids vidare när licensen följer med.
+    **Filerna görs inte om till delmängder**: en ändrad fil får inte alltid bära typsnittets
+    namn.
+- **Ett typsnitt hämtas först när det används.** Webbläsaren hämtar bara verkstadens två från
+  början (`CORE_FONT_FILES`). Ritas en rad i ett annat typsnitt begär motorn dess fil
+  (`onMissing` i `createFontEngine`, `fetchMissing` i `load-browser.ts`), raden ritas i Arial
+  så länge, och allt som använder `useFontEngine` ritas om när filen har kommit
+  (`onBrowserFontsChanged`). Servern läser filen från disk i samma stund (`read` i
+  `load-node.ts`). Ingen sida behöver veta vilka typsnitt den ritar.
+- **Typsnitt vars regler för sammansatta tecken biblioteket inte kan läsa ritas glyf för glyf**
+  (`plainRun`, `needsPlainRun` i `font-engine.ts`). opentype.js kastar annars ett fel för varje
+  rad på mer än ett tecken i 32 av familjerna, bland dem Oswald, Inter och DM Sans. Bredder och
+  parkerning är typsnittets egna. Ligaturer används inte, och det gör de inte för övriga
+  typsnitt heller. Verkstadens två ritas av biblioteket självt, exakt som förut, och ett test
+  vaktar det: en första version av kontrollen ritade av misstag alla typsnitt glyf för glyf.
+- **Väljaren** (`FontPicker` i `sections/font-picker.tsx`) är en knapp med det valda
+  typsnittet, som öppnar en rullista med sökruta ("scrollist som man har i typ Word"). Varje
+  namn står i sitt eget typsnitt, och filen till en rad hämtas först när raden rullas fram.
+  Listan står kvar öppen när ett typsnitt väljs, så att flera går att prova.
+- **Fet stil:** ett typsnitt utan egen fet stil ritar en fet rad i normal stil (`hasBold`,
+  `fontFileKey`), och knappen Fet går då inte att välja.
+- **Till verkstaden:** verkstadens motor har bara sina egna typsnitt.
+  - En **graverad** rad i ett annat typsnitt skickas som färdiga banor i ett bildlager som
+    graveras (`engravedTextLayer` i `src/lib/supplier/map.ts`), på samma sätt som en graverad
+    logga. Ramen är fortfarande deras ramlager.
+  - En **printad** rad ligger i trycklagret som förut, vilket typsnitt den än har.
+  - Texten och typsnittet står då i klartext på orderpappret ("Typsnitt", "Graverad text"
+    eller "Tryckt text") och i kommentaren. **Personalen kan inte ändra en sådan text hos
+    sig.** Jag frågade om det var okej och fick inget eget svar: jag läste Mats "färdiga
+    filer" som ett ja.
+  - Arial och Arial Narrow skickas som text, som förut.
+  - Prövat 2026-11-20 mot verkstadens egna regler och orderpapper genom att köra deras kod
+    (Pacifico och Oswald graverade i plast, Playfair Display printad på metall): alla
+    godkänns. **Ingen sådan order har gått till verkstaden på riktigt.**
+- Provat lokalt 2026-11-20 i Chrome, på dator och 390 px (20 kontroller): listan, sökningen,
+  att bara synliga rader hämtar sin fil, Pacifico och Oswald på skylten i ritning och 3D, och
+  Fet. Inte provat i Safari eller på en riktig telefon.
+- Kända brister: en skylt som fotograferas eller sparas i samma ögonblick som typsnittet
+  byts kan ritas i Arial, innan filen har kommit. Hämtningen från en hemsida väljer
+  fortfarande bara mellan Arial och Arial Narrow (`matchFont`). Tunna skrivstilar är inte
+  prövade i gravyr.
+
+## Följesedeln — läge 2026-11-20
+
+Varje order har en följesedel som verkstaden skriver ut och lägger i paketet (beslut av ägaren
+2026-11-20, efter mötet med verkstaden: "Ja" till en följesedel utan priser som verkstaden når
+via en länk, eftersom det inte kräver någon ändring hos dem).
+
+- **Sidan** är en PDF på `/f/<kod>` (`src/app/f/[code]/route.ts`, `packingSlipHtml` i
+  `src/lib/orders/packing-slip.ts`): säljarens logga, ordernummer, orderdatum, inköpsnummer
+  och märkning, mottagaren, beställaren, skyltarna design för design med text och antal, och
+  antalet skyltar i leveransen. **Inga priser.**
+  - Säljaren följer samma regel som övriga sidor kunden möter (`getSellerProfile`): en
+    återförsäljares följesedel bär dess logga och uppgifter och nämner aldrig namnskylt.com
+    eller verkstaden. Hos namnskylt.com bär den sajtens logga och Skylt & Gravyrtekniks
+    uppgifter. Ordernumret följer `customerOrderNumber`.
+  - Den är en PDF och inte en webbsida, så att utskriften aldrig bär webbläsarens sidhuvud
+    med adressen.
+- **Koden** är tolv hextecken (`orders.packing_code`, migrering 036), kort nog att skriva av
+  från ett papper. Den är behörigheten, som koden till kundens ordersida. Vägen är öppen förbi
+  sajtspärren, märkt `noindex`, och har ett tak på 120 försök per klient och timme.
+- **Verkstaden får länken på sitt orderpapper**, som två rader på varje skylt
+  (`packing` i `buildSupplierRequest`, satt i `supplierRequestFor`):
+  "Följesedel: www.namnskylt.com/f/<kod>" och "Packning: …". Packningen säger hur ordern ska
+  packas (`packingInstruction`): neutralt för en återförsäljares order, och med namnskylt.coms
+  följesedel och klistermärken för våra egna. **Raden Packning lade jag till själv**, eftersom
+  Mats bad om att det skulle vara "snortydligt"; ägaren sa bara följesedeln.
+- **I panelen** står länken under Detaljer på orderns sida ("Följesedel").
+- Provat lokalt 2026-11-20: två följesedlar med påhittade uppgifter ritade och sedda, och
+  länken ger en PDF för en riktig kod och 404 för en felaktig. **Ingen order med raderna har
+  gått till verkstaden**, och ingen där har skrivit ut en följesedel.
+- Kända brister och det som inte är gjort:
+  - Länken på orderpappret är text, inte klickbar: personalen kopierar eller skriver av den.
+    En klickbar länk kräver en ändring i deras orderpapper.
+  - **Verkstadens egen följesedel skrivs fortfarande ut av deras system**, med deras logga.
+    Mats bad om att den inte ska vara förvald för ordrar från namnskylt.com. Det är en ändring
+    i skyltmotor som väntar på ägarens ja.
+  - Fraktsedeln och transportörens avisering anger fortfarande verkstaden som avsändare.
+  - Följesedeln gäller hela ordern. Delleveranser finns inte.
+
+## Mötet med verkstaden 2026-11-20: gjort och kvar
+
+Ägaren och Pär hade möte med Mats på Skylt & Gravyrteknik. Det som är byggt står i sina
+avsnitt: typsnitten, följesedeln, paketvalet i frakten (Prismodellen), klämmans vikning
+(Sortimentet) och friskrivningen om färg.
+
+- **Friskrivningen om färg** (ägarens "Ja, sätt den på lämplig plats"): raden "Färgen i
+  trycket kan skilja sig något från skärmen. En exakt nyans kan vi inte lova." står vid
+  textfärgen och vid en logga som printas (`PRINT_COLOR_NOTE` i `print-color-field.tsx`).
+  Köpvillkoren har ett eget stycke, "Färger i tryck", både under verkstadens villkor och i
+  återförsäljarnas butiker. Meningen om att en mindre skillnad i nyans inte räknas som ett fel
+  skrev jag, och ingen jurist har läst den.
+- **Väntar på Mats:** om CMYK ska stå som text på orderpappret eller ligga i tryckfilen (i dag
+  väljs en skärmfärg, se Märkningsmetod), hur många skyltar som ryms i ett varubrev, om
+  fraktsedeln kan få en neutral avsändare, och vilket format klistermärkena ska ha.
+- **Väntar på ägaren:** ja till att läsa och ändra hur verkstadens egen följesedel skrivs ut,
+  bokningslänken för demo vid ansökan, när sajtlösenordet ska bort, och när den skarpa
+  testordern ska läggas.
+- **Inte påbörjat**, fast det inte kräver några svar: den röda förklaringen under
+  Märkningsmetod när ett val inte går att välja, knappen Återställ för loggans avlästa
+  färger, och felet Mats såg när en avläst färg byttes och Välj trycktes.
+- **Bestämt att inte göra nu:** ramen kostar inte extra, fast den tar lika lång tid att
+  gravera som hela skylten. Ett tillägg kan komma senare.
+
 ## Inköpsnummer — läge 2026-11-20
 
 Beställaren kan ange sitt eget inköpsnummer, som följer ordern och står på fakturan (besked av
@@ -2905,6 +3055,8 @@ Fortnox-följesedel vid Skickad, och `Company.collectiveInvoice` för samfakture
     namnskylt.coms egna (inte kontrollerat av någon annan än ägaren).
 
 **Det proven visade, och det som gjordes åt det (lokalt 2026-11-17, på ägarens begäran):**
+- **Fler typsnitt skickas som färdiga banor** sedan 2026-11-20, se avsnittet Typsnitt. Det
+  som står här nedanför gäller verkstadens egna två, Arial och Arial Narrow.
 - **Typsnitten är nu verkstadens.** Deras "Arial" ritas med Roboto och "Arial Narrow" med
   Roboto Condensed (`font-metrics.ts` hos dem). Vi använder samma filer, byte för byte
   (`public/fonts/Roboto-*.ttf`, `RobotoCondensed-*.ttf`, Apache 2.0), så plastskyltens

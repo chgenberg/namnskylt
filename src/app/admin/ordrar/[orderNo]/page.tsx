@@ -1,3 +1,4 @@
+import { packingSlipPath } from "@/lib/orders/packing-slip";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Fragment } from "react";
@@ -245,6 +246,13 @@ export default async function OrderPage({ params }: OrderPageProps) {
                   Öppna ↗
                 </a>{" "}
                 <span className={styles.muted}>Länken går att skicka till kunden, som följer ordern och beställer fler där.</span>
+              </dd>
+              <dt>Följesedel</dt>
+              <dd>
+                <a href={packingSlipPath(order.packingCode)} target="_blank" rel="noreferrer" className={styles.link}>
+                  Öppna ↗
+                </a>{" "}
+                <span className={styles.muted}>Utan priser, med {isOwner(tenant) ? "namnskylt.coms" : "din"} logga. Verkstaden skriver ut den och lägger den i paketet.</span>
               </dd>
               <dt>Betalning</dt>
               <dd>

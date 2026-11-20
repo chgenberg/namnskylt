@@ -51,6 +51,7 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     payment: null,
     expressShippingSek: null,
     customerToken: "0".repeat(64),
+    packingCode: "0".repeat(12),
     ...patch,
   };
 }

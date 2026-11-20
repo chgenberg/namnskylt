@@ -123,6 +123,13 @@ export function fitHardware(doc: BadgeDocument, footprint: HardwareFootprint): H
 const CLIP_CORNER_MM = 1.2;
 
 /**
+ * Så långt klämmans vikning sticker ut utanför plattan. Klämman är 84 mm lång och skylten
+ * 80 mm (mått från ägaren 2026-11-20): den plana plattan täcker skylten, och vikningen börjar
+ * vid skyltens kant och syns framifrån (besked från Mats på verkstaden samma dag).
+ */
+export const CLIP_FOLD_REACH_MM = 4;
+
+/**
  * Så passas klämman in på en egen form: ända ut i kanten, och med hörnen
  * rundade så mycket som formens hörn kräver.
  */
@@ -138,11 +145,11 @@ interface ClipPlate {
 }
 
 /**
- * Klämmans platta är 80 × 25 mm, lika stor som den minsta skylt klämman får
- * sitta på (`CLIP_MIN`): skylten ligger kant i kant med klämman, varken
- * innanför eller utanför (besked av ägaren 2026-11-18). På Lång rektangel
- * täcker plattan alltså hela baksidan och har skyltens hörnrundning. På en
- * större skylt är klämman lika stor som alltid och sitter mitt på.
+ * Klämmans plana platta är 80 × 25 mm, lika stor som den minsta skylt klämman
+ * får sitta på (`CLIP_MIN`): skylten ligger kant i kant med plattan (besked av
+ * ägaren 2026-11-18). På Lång rektangel täcker plattan alltså hela baksidan och
+ * har skyltens hörnrundning. På en större skylt är klämman lika stor som alltid
+ * och sitter mitt på. Vikningen ligger utanför plattan, se `CLIP_FOLD_REACH_MM`.
  *
  * En äldre skylt som är mindre än klämman får den i skyltens mått, och på en
  * oval eller kudde kortas den till det som ryms. En egen form passas in av

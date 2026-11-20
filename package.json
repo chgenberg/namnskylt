@@ -22,6 +22,7 @@
     "outreach:import": "tsx --env-file-if-exists=.env.local scripts/outreach-import.ts",
     "outreach:prepare": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/outreach-prepare.ts",
     "email:preview": "tsx --conditions=react-server scripts/email-preview.ts",
+    "fonts:fetch": "tsx --conditions=react-server scripts/fonts-fetch.ts",
     "outreach:preview": "tsx scripts/outreach-preview.ts",
     "outreach:tick": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/outreach-tick.ts"
   },

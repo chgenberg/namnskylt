@@ -26,7 +26,7 @@ import {
   type ShownPricePart,
 } from "@/engine";
 import { companyLookupNote, useCompanyLookup } from "@/hooks/use-company-lookup";
-import { useOrderShipping } from "@/hooks/use-order-shipping";
+import { useOrderShippingChoices } from "@/hooks/use-order-shipping";
 import { filled, withCompanyAddress, type CompanyHit } from "@/lib/company/lookup-model";
 import { accountPaths, type CustomerAccountView } from "@/lib/customer-auth/model";
 import { formatSek } from "@/lib/format";
@@ -233,9 +233,7 @@ export function OrderSection({
   // Återförsäljaren väljer mottagare och har båda adresserna förifyllda; en kund som beställer själv fyller i sin.
   const [deliverTo, setDeliverTo] = useState<DeliveryTo>("customer");
   const [chosenMethod, setMethod] = useState<ShippingMethod>("standard");
-  const methods: readonly ShippingMethod[] = shop ? SHOP_METHODS : privateCustomer ? CARD_METHODS : ALL_METHODS;
-  // Ett leveranssätt som inte finns för den som beställer faller tillbaka på standardfrakten.
-  const method = methods.includes(chosenMethod) ? chosenMethod : "standard";
+  const offered: readonly ShippingMethod[] = shop ? SHOP_METHODS : privateCustomer ? CARD_METHODS : ALL_METHODS;
   // En inloggad kund får adressen från sin senaste order.
   const [addresses, setAddresses] = useState<DeliveryOptions>(
     () => reseller?.delivery ?? { customer: draftFromAddress(account?.profile.delivery), reseller: EMPTY_DELIVERY_DRAFT },
@@ -333,7 +331,7 @@ export function OrderSection({
   // Frakten är samma för kunden och återförsäljaren. Återförsäljaren räknar den ur sin inköpslista,
   // en kund får den av servern när kassan öppnas.
   // Admin har ingen inköpslista och frågar servern som en kund, när leveransen ska fyllas i.
-  const standardShipping = useOrderShipping(badges, reseller?.purchaseList, Boolean(reseller?.purchaseList) || (formOpen && active));
+  const { standardSek: standardShipping, parcelSek: parcelShipping } = useOrderShippingChoices(badges, reseller?.purchaseList, Boolean(reseller?.purchaseList) || (formOpen && active));
   // Det kunden har fyllt i om sig själv. Det ligger här och inte i fälten, så att det står kvar
   // när formuläret försvinner en stund, till exempel när varukorgens enda skylt öppnas för ändring.
   // En inloggad kund får sina uppgifter ifyllda.
@@ -351,8 +349,16 @@ export function OrderSection({
     const saved = account.profile.delivery;
     if (saved) setAddresses((all) => ({ ...all, customer: draftFromAddress(saved) }));
   }, [account]);
+  // Går ordern som varubrev kan den som beställer välja paket i stället. Varubrevet står förvalt.
+  const methods = useMemo(
+    () => (parcelShipping === null ? offered : offered.flatMap((item): ShippingMethod[] => (item === "standard" ? ["standard", "parcel"] : [item]))),
+    [offered, parcelShipping],
+  );
+  // Ett leveranssätt som inte finns för den som beställer faller tillbaka på standardfrakten:
+  // också paketet, när ordern har vuxit så att standardfrakten redan är paket.
+  const method = methods.includes(chosenMethod) ? chosenMethod : "standard";
   // Upphämtning har ingen frakt. Expressfrakten sätter verkstaden i efterhand, så den är inte med i summan.
-  const shipping = method === "standard" ? standardShipping : 0;
+  const shipping = method === "standard" ? standardShipping : method === "parcel" ? parcelShipping : 0;
   const checkoutSek = price.totalSek + (shipping ?? 0);
   const checkoutInclVatSek = checkoutSek + Math.round(checkoutSek * VAT_RATE);
   // Specifikationen gäller skylten i editorn, på trappsteget för hela orderns antal.
@@ -717,7 +723,7 @@ export function OrderSection({
               </div>
               <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} phoneRequired={needsPhone(method)} />
               <p className={styles.specTitle}>Leveranssätt</p>
-              <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} disabled={order.status === "sending"} />
+              <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} parcelSek={parcelShipping} disabled={order.status === "sending"} />
               {/* Hos en återförsäljare är det återförsäljarens eget nummer: verkstaden fakturerar återförsäljaren. */}
               <label className="field">
                 <span className="visually-hidden">Inköpsnummer</span>
@@ -902,7 +908,7 @@ export function OrderSection({
             </div>
             <div className={styles.delivery}>
               <p className={styles.specTitle}>Leveranssätt</p>
-              <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} disabled={order.status === "sending"} />
+              <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} parcelSek={parcelShipping} disabled={order.status === "sending"} />
             </div>
             <OrderTotals label="Att betala" quantity={price.quantity} goodsSek={price.totalSek} shippingSek={shipping} method={method} vat />
             <p className={styles.payNote}>

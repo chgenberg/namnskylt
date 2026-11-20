@@ -7,7 +7,7 @@ import type { DeliveryAddress } from "@/lib/orders/delivery";
 import { priceListsFor, shippingFor } from "@/lib/orders/price-lists";
 import { acceptedDelivery } from "./accept";
 import { reorderMode, reorderPricing } from "./reorder-model";
-import { quoteShippingMethods } from "./shipping";
+import { quoteShippingMethods, shownShippingOptions } from "./shipping";
 
 const offered = toOfferedDocument(createBadgeDocument(["Anna Lind", "Säljare"]));
 const old: BadgeDocument = { ...offered, materialId: "brass" as BadgeDocument["materialId"] };
@@ -40,14 +40,26 @@ describe("leveranssättet när kunden godkänner en offert", () => {
   const stored: DeliveryAddress = { name: "Exempel AB", contactName: null, line1: "Lagervägen 2", line2: null, zip: "222 33", city: "Lund", country: "SE", phone: null };
   const typed: DeliveryAddress = { ...stored, line1: "Storgatan 1", zip: "111 22", city: "Stockholm" };
 
-  it("namnskylt.coms kunder väljer bland alla tre, en återförsäljares kund inte upphämtning", () => {
-    assert.deepEqual(quoteShippingMethods(true, "standard"), ["standard", "express", "pickup"]);
-    assert.deepEqual(quoteShippingMethods(false, "standard"), ["standard", "express"]);
+  it("namnskylt.coms kunder väljer bland alla sätt, en återförsäljares kund inte upphämtning", () => {
+    assert.deepEqual(quoteShippingMethods(true, "standard"), ["standard", "parcel", "express", "pickup"]);
+    assert.deepEqual(quoteShippingMethods(false, "standard"), ["standard", "parcel", "express"]);
   });
 
   it("det sätt som redan står på offerten finns alltid med", () => {
-    assert.deepEqual(quoteShippingMethods(false, "pickup"), ["standard", "express", "pickup"]);
-    assert.deepEqual(quoteShippingMethods(false, "express"), ["standard", "express"]);
+    assert.deepEqual(quoteShippingMethods(false, "pickup"), ["standard", "parcel", "express", "pickup"]);
+    assert.deepEqual(quoteShippingMethods(false, "express"), ["standard", "parcel", "express"]);
+  });
+
+  it("paketet visas bara när det är ett annat val än standardfrakten", () => {
+    const option = (method: "standard" | "parcel" | "express", shippingSek: number) => ({ method, shippingSek });
+    // Ordern går som varubrev: paketet är ett eget val.
+    const small = [option("standard", 75), option("parcel", 159), option("express", 0)];
+    assert.deepEqual(shownShippingOptions(small, "standard").map((o) => o.method), ["standard", "parcel", "express"]);
+    // Ordern går redan som paket: då finns inget att välja mellan.
+    const large = [option("standard", 159), option("parcel", 159), option("express", 0)];
+    assert.deepEqual(shownShippingOptions(large, "standard").map((o) => o.method), ["standard", "express"]);
+    // Står paketet redan på offerten visas det ändå.
+    assert.deepEqual(shownShippingOptions(large, "parcel").map((o) => o.method), ["standard", "parcel", "express"]);
   });
 
   it("kundens val gäller när skyltarna ska till kunden", () => {

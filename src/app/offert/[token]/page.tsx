@@ -15,7 +15,7 @@ import { priceWithPricing } from "@/lib/orders/pricing";
 import { displayStatus, showsElement, showsSellerLogo } from "@/lib/quotes/model";
 import { quoteAnswerOf, QUOTE_ANSWER_PARAM } from "@/lib/quotes/quote-email";
 import { getQuoteByToken, quotePriceModel } from "@/lib/quotes/repository";
-import { quoteShippingMethods } from "@/lib/quotes/shipping";
+import { quoteShippingMethods, shownShippingOptions } from "@/lib/quotes/shipping";
 import {
   QUOTE_PROMISES,
   allBadgesCaption,
@@ -76,10 +76,12 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
   let shippingOptions: QuoteShippingOption[] = [];
   if (status === "sent" && quote.delivery.to === "customer") {
     const model = await quotePriceModel(quote.id);
-    shippingOptions = quoteShippingMethods(isOwner(quote.resellerId), shippingMethodOf(quote.delivery)).map((method) => {
+    const current = shippingMethodOf(quote.delivery);
+    const options = quoteShippingMethods(isOwner(quote.resellerId), current).map((method) => {
       const shippingSek = shippingFor(model, quote.badges, method);
       return { method, shippingSek, totalInclVatSek: priceWithPricing(quote.badges, quote.pricing, quote.priceList, shippingSek).totalInclVatSek };
     });
+    shippingOptions = shownShippingOptions(options, current);
   }
 
   const head =

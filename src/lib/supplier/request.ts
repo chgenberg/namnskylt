@@ -38,12 +38,16 @@ const IMAGE_REF_PREFIX = "image:";
 
 const SHIPPING_METHOD = { letter: "postnord-varubrev", parcel: "dhl-paket" } as const satisfies Record<string, SupplierShippingMethod>;
 
-/** Verkstadens kod för orderns fraktsätt. Standardfrakten blir varubrev eller paket efter varuvärdet. */
-function supplierShippingMethod(delivery: Delivery, goodsSek: number, purchaseList: PriceTable): SupplierShippingMethod {
+/**
+ * Verkstadens kod för orderns fraktsätt. Standardfrakten blir varubrev eller paket efter
+ * fraktregeln, och den som har valt paket får paket.
+ */
+function supplierShippingMethod(delivery: Delivery, goodsSek: number, quantity: number, purchaseList: PriceTable): SupplierShippingMethod {
   const method = shippingMethodOf(delivery);
   if (method === "express") return "postnord-express";
   if (method === "pickup") return "pickup-hogsbo";
-  return SHIPPING_METHOD[shippingKind(goodsSek, purchaseList) ?? "letter"];
+  if (method === "parcel") return SHIPPING_METHOD.parcel;
+  return SHIPPING_METHOD[shippingKind(goodsSek, purchaseList, quantity) ?? "letter"];
 }
 
 /**
@@ -235,6 +239,11 @@ export interface SupplierRequestInput {
   fonts: FontEngine;
   /** Svartvit miniatyr av en graverad logga. */
   logoPng?: (logo: BadgeLogo) => string;
+  /**
+   * Följesedeln som verkstaden skriver ut och lägger i paketet: den korta länken dit, och hur
+   * ordern ska packas. Båda står som egna rader på verkstadens orderpapper, på varje skylt.
+   */
+  packing?: { link: string; instruction: string };
 }
 
 /**
@@ -264,6 +273,14 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
         ? input.logoPng?.(logoEngraved ? { ...thumbnailOf, d: logoEngravingPath(thumbnailOf) } : thumbnailOf)
         : undefined,
     });
+    // Följesedeln och packningen gäller hela ordern, men orderpappret ritar raderna per skylt.
+    if (input.packing) {
+      document.partnerSpecs = [
+        ...(document.partnerSpecs ?? []),
+        { label: "Följesedel", value: input.packing.link },
+        { label: "Packning", value: input.packing.instruction },
+      ];
+    }
     return [
       {
         document: withImageRefs(document, images),
@@ -284,7 +301,7 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
       ...(input.customer.company && { company: input.customer.company }),
     },
     shipping: {
-      method: supplierShippingMethod(input.delivery, price.goodsSek, input.purchaseList),
+      method: supplierShippingMethod(input.delivery, price.goodsSek, price.quantity, input.purchaseList),
       costSek: price.shippingSek,
       address: supplierAddress(input.delivery.address, notificationEmail(input)),
     },

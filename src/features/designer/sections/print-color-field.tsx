@@ -5,6 +5,13 @@ import { LOW_CONTRAST, PRINT_PALETTE, bestTextColor, contrastRatio, printColorNa
 import styles from "./sections.module.css";
 
 /**
+ * Friskrivningen om tryckets färg, vid varje val som printas: textfärgen och en logga som printas
+ * (besked av ägaren 2026-11-20, efter mötet med verkstaden: ingen exakt nyans lovas, och ingen
+ * Pantone-färg). Köpvillkoren säger samma sak med fler ord.
+ */
+export const PRINT_COLOR_NOTE = "Färgen i trycket kan skilja sig något från skärmen. En exakt nyans kan vi inte lova.";
+
+/**
  * Textfärgen väljs som en skärmfärg, som hos Skylt & Gravyrteknik (beslut av
  * ägaren 2026-11-18): en av verkstadens namngivna färger, en av loggans, eller
  * en egen. Här finns inga fält för CMYK eller PMS. Verkstadens tryckfil ritas

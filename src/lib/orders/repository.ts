@@ -74,6 +74,7 @@ interface OrderRow {
   payment: unknown;
   express_shipping_sek: number | null;
   customer_token: string;
+  packing_code: string;
   events: { status: string; note: string | null; at: string }[] | null;
 }
 
@@ -131,6 +132,7 @@ function toOrder(row: OrderRow, currentModel: PriceModel, audience: PriceAudienc
     payment: parsePayment(row.payment),
     expressShippingSek: row.express_shipping_sek,
     customerToken: row.customer_token,
+    packingCode: row.packing_code,
   };
 }
 
@@ -144,7 +146,7 @@ function selectOrders(sql: Sql) {
     select o.id, o.order_no, o.status, o.badges, o.pricing, o.price_model, o.total_sek, o.total_incl_vat_sek,
            o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo, o.supplier_synced_at,
            o.badge_shot is not null as has_badge_shot, o.shop_slug, o.project, o.customer_po, o.reseller_id,
-           o.delivery, o.supplier_sent_at, o.supplier_error, o.supplier_attempts, o.payment, o.express_shipping_sek, o.customer_token,
+           o.delivery, o.supplier_sent_at, o.supplier_error, o.supplier_attempts, o.payment, o.express_shipping_sek, o.customer_token, o.packing_code,
            r.order_no as repeat_of_order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email, c.is_demo as customer_demo,
            c.phone as customer_phone, c.org_number as customer_org_number, c.address as customer_address,
@@ -181,12 +183,25 @@ export async function customerOrderPath(orderNo: string): Promise<string | null>
 
 /** Koden i länken till kundens ordersida: 64 hex-tecken, olika för varje order. */
 export const CUSTOMER_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
+/** Koden i följesedelns länk: tolv hextecken, korta nog att skriva av från ett papper. */
+const PACKING_CODE_PATTERN = /^[0-9a-f]{12}$/;
 
 /** Ordern bakom kundens hemliga länk, läst åt kunden: aldrig med inköpspriser. */
 export async function getOrderByCustomerToken(token: string): Promise<StoredOrder | null> {
   if (!CUSTOMER_TOKEN_PATTERN.test(token)) return null;
   const sql = requireDb();
   const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.customer_token = ${token}`;
+  return row ? toOrder(row, await getPriceModel(), "customer") : null;
+}
+
+/**
+ * Ordern bakom följesedelns korta länk, läst utan inköpspriser. Koden är behörigheten, som för
+ * kundens ordersida: den står bara på verkstadens orderpapper och i panelen.
+ */
+export async function getOrderByPackingCode(code: string): Promise<StoredOrder | null> {
+  if (!PACKING_CODE_PATTERN.test(code)) return null;
+  const sql = requireDb();
+  const [row] = await sql<OrderRow[]>`${selectOrders(sql)} where o.packing_code = ${code}`;
   return row ? toOrder(row, await getPriceModel(), "customer") : null;
 }
 

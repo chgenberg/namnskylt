@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { BufferGeometry, Float32BufferAttribute, Path, Shape } from "three";
 import {
   CLIP_FIT,
+  CLIP_FOLD_REACH_MM,
   clipOrientationOf,
   clipPlate,
   fitHardware,
@@ -21,7 +22,8 @@ import { glyphShapes, UNITS_PER_MM } from "./geometry";
  *   rundade ändar och texten CAUTION MAGNETIC,
  * - klämman: en stålplatta på 80 × 25 mm med en fjäderarm vikt över ena änden,
  *   ett fönster med en tunga i armen och en uppvikt läpp längst ut. Skylten
- *   ligger kant i kant med plattan (`clipPlate` i motorn).
+ *   ligger kant i kant med plattan (`clipPlate` i motorn), och vikningen
+ *   sticker ut 4 mm utanför den: klämman är 84 mm lång och skylten 80.
  *
  * Ikonerna i panelen (`mounting-section.tsx`) är förenklade och ritas för sig.
  * Måtten är i mm och har tak, så fästet växer inte med en stor skylt. Samma
@@ -200,77 +202,60 @@ const slab = (depth: number, bevel = 0) => ({
   curveSegments: 24,
 });
 
-/** Skivorna vikningen delas i tvärs över klämman där plattans hörn är rundat. */
-const FOLD_SLICE_MM = 0.1;
 /** Segmenten i vikningens halva varv. */
 const FOLD_SEGMENTS = 40;
 
 interface FoldShape {
-  /** Linjen vikningen går runt: plåten är vikt ett halvt varv kring x = `foldX`, z = `bend`. */
+  /** Där vikningen börjar: plattans kortsida. Plåten är vikt ett halvt varv kring x = `foldX`, z = `bend`. */
   foldX: number;
-  /** Vikningens ytterradie. */
+  /** Vikningens halva höjd: armen kommer tillbaka `2 × bend` över plattans undersida. */
   bend: number;
+  /** Så långt vikningen sticker ut utanför plattan. */
+  reach: number;
   /** Plåtens tjocklek. */
   sheet: number;
   /** Vikningens bredd tvärs över klämman. */
   width: number;
-  /** Plattans kortsida på höjden `across` från mitten. Vikningen skärs av där. */
-  plateEdge: (across: number) => number;
-  /** Plattans kortsida är rak upp till den här höjden från mitten; utanför den är hörnet rundat. */
-  straightHalf: number;
 }
 
 /**
  * Klämmans vikning: plåten vikt ett halvt varv, från plattan och tillbaka som
- * fjäderarm. Kroppen byggs skiva för skiva tvärs över klämman och skärs av
- * mot plattans kortsida, så att den följer plattans rundade hörn och aldrig
- * sticker ut utanför skylten. Skivorna ligger tätt bara där hörnet är rundat.
- * Ändarna mot plattan och armen är öppna; de ligger dikt an och syns inte.
+ * fjäderarm. Vikningen börjar vid plattans kortsida och sticker ut utanför den,
+ * alltså utanför skylten, som på den riktiga klämman: den är 84 mm lång och
+ * skylten 80 (mått från ägaren 2026-11-20). Därför är varvet utdraget, längre
+ * än det är högt. Ändarna mot plattan och armen är öppna; de ligger dikt an
+ * och syns inte.
  */
-function foldGeometry({ foldX, bend, sheet, width, plateEdge, straightHalf }: FoldShape): BufferGeometry {
+function foldGeometry({ foldX, bend, reach, sheet, width }: FoldShape): BufferGeometry {
   const half = width / 2;
-  const straight = Math.min(Math.max(straightHalf, 0), half);
-  const dense = Math.ceil((half - straight) / FOLD_SLICE_MM);
-  const slices: number[] = [];
-  for (let i = 0; i < dense; i++) slices.push(-half + ((half - straight) * i) / dense);
-  slices.push(-straight);
-  if (straight > 0) slices.push(straight);
-  for (let i = 1; i <= dense; i++) slices.push(straight + ((half - straight) * i) / dense);
-
   const positions: number[] = [];
   const indices: number[] = [];
   const ring = FOLD_SEGMENTS + 1;
-  // En vägg: ett rutnät av punkter, en rad per skiva. Väggarna delar inga punkter, så kanten mellan dem blir skarp.
-  const wall = (radius: number, rows: readonly number[]): number => {
+  // En vägg: två rader punkter, en längs var kant. Väggarna delar inga punkter, så kanten mellan dem blir skarp.
+  const wall = (inset: number): number => {
     const first = positions.length / 3;
-    for (const across of rows) {
-      const edge = plateEdge(across);
+    for (const across of [-half, half]) {
       for (let k = 0; k < ring; k++) {
         const angle = Math.PI / 2 + (Math.PI * k) / FOLD_SEGMENTS;
-        positions.push(Math.max(foldX + radius * Math.cos(angle), edge), across, bend + radius * Math.sin(angle));
+        positions.push(foldX + (reach - inset) * Math.cos(angle), across, bend + (bend - inset) * Math.sin(angle));
       }
     }
     return first;
   };
   const quad = (a: number, b: number, c: number, d: number) => indices.push(a, b, c, b, d, c);
 
-  const outer = wall(bend, slices);
-  const inner = wall(bend - sheet, slices);
-  for (let s = 0; s + 1 < slices.length; s++) {
-    for (let k = 0; k < FOLD_SEGMENTS; k++) {
-      const at = s * ring + k;
-      quad(outer + at, outer + at + ring, outer + at + 1, outer + at + ring + 1);
-      quad(inner + at, inner + at + 1, inner + at + ring, inner + at + ring + 1);
-    }
+  const outer = wall(0);
+  const inner = wall(sheet);
+  for (let k = 0; k < FOLD_SEGMENTS; k++) {
+    quad(outer + k, outer + k + ring, outer + k + 1, outer + k + ring + 1);
+    quad(inner + k, inner + k + 1, inner + k + ring, inner + k + ring + 1);
   }
-  // Gavlarna: plåtens tvärsnitt i vikningens båda ändar, med egna punkter så att de får en plan yta.
-  const ends = [-half, half];
-  const outerEnd = wall(bend, ends);
-  const innerEnd = wall(bend - sheet, ends);
-  const last = ring;
+  // Gavlarna: plåtens tvärsnitt längs vikningens båda kanter, med egna punkter så att de får en plan yta.
+  const outerEnd = wall(0);
+  const innerEnd = wall(sheet);
   for (let k = 0; k < FOLD_SEGMENTS; k++) {
     quad(outerEnd + k, outerEnd + k + 1, innerEnd + k, innerEnd + k + 1);
-    quad(outerEnd + last + k, innerEnd + last + k, outerEnd + last + k + 1, innerEnd + last + k + 1);
+    quad(outerEnd + ring + k, innerEnd + ring + k, outerEnd + ring + k + 1, innerEnd + ring + k + 1);
   }
 
   const geometry = new BufferGeometry();
@@ -453,8 +438,9 @@ function Magnet({ size, fonts }: { size: HardwareSize; fonts: FontEngine }) {
  * och går tillbaka som en fjäderarm, som trycker mot plattan. Armen har ett
  * fönster med en tunga som pekar ner mot plattan, och slutar i en uppvikt läpp.
  *
- * Plattans hörn har skyltens rundning när klämman ligger kant i kant med den,
- * och vikningen och armen hålls innanför samma hörn.
+ * Plattans hörn har skyltens rundning när klämman ligger kant i kant med den.
+ * Vikningen sitter på den raka delen av plattans kortsida, mellan hörnen, och
+ * sticker ut utanför plattan (`CLIP_FOLD_REACH_MM`).
  */
 function Clip({ size }: { size: HardwareSize }) {
   const { longMm, wideMm } = size;
@@ -462,12 +448,10 @@ function Clip({ size }: { size: HardwareSize }) {
   const sheet = 0.5;
   const bend = 2;
   const armMm = longMm * 0.64;
-  // Plattans halva bredd `inMm` in från kortsidan: i det rundade hörnet är den smalare.
-  const halfWideAt = (inMm: number) =>
-    wideMm / 2 - cornerMm + Math.sqrt(Math.max(0, cornerMm ** 2 - Math.max(0, cornerMm - inMm) ** 2));
-  // Armen börjar där vikningen slutar, och får inte vara bredare än plattan är där.
-  const armWideMm = Math.min(wideMm - 0.8, 2 * halfWideAt(bend) - 0.3);
-  const foldX = -longMm / 2 + bend;
+  // Vikningen och armen sitter på den raka delen av plattans kortsida, mellan de rundade hörnen.
+  const armWideMm = Math.max(wideMm * 0.5, Math.min(wideMm - 0.8, wideMm - 2 * cornerMm - 0.3));
+  // Vikningen börjar vid plattans kortsida och sticker ut utanför den.
+  const foldX = -longMm / 2;
   const armZ = bend * 2 - sheet;
   // Armen lutar från vikningens höjd ner mot plattan, som den nästan når längst ut.
   const tilt = Math.atan((armZ - sheet - 0.15) / armMm);
@@ -500,14 +484,9 @@ function Clip({ size }: { size: HardwareSize }) {
     lipShape.absarc(lipMm - corner, half - corner, corner, 0, Math.PI / 2, false);
     lipShape.lineTo(0, half);
     lipShape.lineTo(0, -half);
-    // Plattans kortsida på höjden `across` från mitten: rak, och indragen i det rundade hörnet.
-    const plateEdge = (across: number) => {
-      const intoCorner = Math.max(0, Math.abs(across) - (wideMm / 2 - cornerMm));
-      return -longMm / 2 + cornerMm - Math.sqrt(Math.max(0, cornerMm ** 2 - intoCorner ** 2));
-    };
     return {
       base: roundedRectShape(longMm, wideMm, cornerMm),
-      fold: foldGeometry({ foldX, bend, sheet, width: armWideMm, plateEdge, straightHalf: wideMm / 2 - cornerMm }),
+      fold: foldGeometry({ foldX, bend, reach: CLIP_FOLD_REACH_MM, sheet, width: armWideMm }),
       arm: armShape,
       lip: lipShape,
       tongue: roundedRectShape(tongueMm, windowWideMm * 0.56, 0.7, -tongueMm / 2),

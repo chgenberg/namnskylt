@@ -1,5 +1,5 @@
 import { preload } from "react-dom";
-import { FONT_FILES } from "@/lib/fonts/font-files";
+import { CORE_FONT_FILES } from "@/lib/fonts/font-files";
 
 /** Poly Haven, CC0. Studio med mjuka softboxar — ger reflexerna i kant och gravyr. */
 export const STUDIO_HDRI = "/hdri/studio_small_08.hdr";
@@ -11,5 +11,5 @@ export const STUDIO_HDRI = "/hdri/studio_small_08.hdr";
 export function preloadDesignerAssets() {
   const options = { as: "fetch", crossOrigin: "anonymous" } as const;
   preload(STUDIO_HDRI, options);
-  for (const { file } of FONT_FILES) preload(`/fonts/${file}`, options);
+  for (const { file } of CORE_FONT_FILES) preload(`/fonts/${file}`, options);
 }

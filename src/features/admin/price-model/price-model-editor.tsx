@@ -352,7 +352,18 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
               max={MAX_PRICE_SEK}
               onChange={(letterMaxSek) => setDraft({ ...draft, shipping: { ...draft.shipping, letterMaxSek } })}
             />
-            <small>Det återförsäljaren betalar för varorna, exkl. moms och frakt</small>
+            <small>Det återförsäljaren betalar för varorna, exkl. moms och frakt. Gäller när antalet här bredvid står på 0</small>
+          </div>
+          <div className={styles.orderField}>
+            <span className={styles.controlLabel}>Varubrev upp till</span>
+            <NumberField
+              label="Flest skyltar i ett varubrev"
+              value={draft.shipping.letterMaxSigns ?? 0}
+              unit="st"
+              max={100_000}
+              onChange={(count) => setDraft({ ...draft, shipping: { ...draft.shipping, letterMaxSigns: count >= 1 ? Math.round(count) : null } })}
+            />
+            <small>Antal skyltar i ordern. Med ett antal här avgör det, inte varuvärdet. Kunden kan alltid välja paket i stället</small>
           </div>
           <div className={styles.orderField}>
             <span className={styles.controlLabel}>Paket</span>

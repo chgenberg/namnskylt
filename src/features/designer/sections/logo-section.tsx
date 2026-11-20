@@ -27,7 +27,7 @@ import { traceImage, type LogoTrace } from "../logo/trace-image";
 import { useLogoEngraving } from "../logo/use-logo-engraving";
 import type { DesignerAction } from "../state";
 import { LogoColors } from "./logo-colors";
-import { TextColorField } from "./print-color-field";
+import { PRINT_COLOR_NOTE, TextColorField } from "./print-color-field";
 import styles from "./sections.module.css";
 
 const ACCEPTED_TYPES = "image/png,image/jpeg,image/webp,image/svg+xml,image/gif";
@@ -68,8 +68,8 @@ const LOGO_HINT: Record<LogoLook, string> = {
   "engrave-color":
     "Loggan är i färg och graveras i en färg, samma som texten: färgerna blir gravyr, och vitt och detaljer inuti loggan sparas ur. Stämmer formen inte, prova Invertera.",
   // Färgen är textfärgen när namnet också printas. Printas bara loggan väljs färgen här under.
-  print: "Loggan printas i en färg.",
-  "print-color": "Loggan är i färg och printas som den är i filen.",
+  print: `Loggan printas i en färg. ${PRINT_COLOR_NOTE}`,
+  "print-color": `Loggan är i färg och printas som den är i filen. ${PRINT_COLOR_NOTE}`,
 };
 
 /** Filen som loggan på skylten lästes från, och dess id på servern när den har sparats. */

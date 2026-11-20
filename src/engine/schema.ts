@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CUSTOM_SHAPE_LIMITS, LOGO_LIMITS, MATERIALS, MATERIAL_IDS, SHAPE_IDS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
+import { CUSTOM_SHAPE_LIMITS, FONT_IDS, LOGO_LIMITS, MATERIALS, MATERIAL_IDS, SHAPE_IDS, SIZE_LIMITS, TEXT_LIMITS } from "./catalog";
 import { CUSTOM_OUTLINE_ISSUE_TEXT, customOutlineIssue } from "./custom-outline";
 import { LOGO_PRINT_COLOR_MAX, MARKING_METHOD_IDS, PRINT_COLOR_MAX } from "./marking";
 import { LOGO_IMAGE_PATTERN, LOGO_IMAGE_REF_PATTERN, LOGO_ORIGINAL_ID_PATTERN, LOGO_PATH_PATTERN } from "./logo";
@@ -44,7 +44,7 @@ export const badgeDocumentSchema = z
       insetMm: z.number().min(0.5).max(6),
       thicknessMm: z.number().min(0.2).max(1.5),
     }),
-    font: z.enum(["arial", "arial-narrow"]),
+    font: z.enum(FONT_IDS),
     align: z.enum(["left", "center", "right"]),
     rows: z
       .array(
