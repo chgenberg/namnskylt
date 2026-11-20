@@ -2071,6 +2071,11 @@ och `emailAdminNotice` (`notify.ts`).
   stället för Resend, och bara på samma dator.
 - Provat lokalt 2026-11-20 mot en låtsasmottagare: en ansökan och en återförsäljares order
   gav var sitt mejl till två adresser, och inga andra mejl gick iväg.
+- **Påslaget och provat i drift 2026-11-20** (`dc27fc2`): driftsidan visar strömbrytaren som
+  på, till två adresser, och sajtens övriga mejl som av. En påhittad ansökan skickades in
+  genom formuläret, Resend tog emot mejlet (`notices.emailed_at` sattes), och ansökan togs
+  bort i panelen efteråt. Att mejlen faktiskt kom fram i de två brevlådorna har bara
+  mottagarna sett.
 - Kända brister: går ett mejl inte iväg görs inget nytt försök, och det syns bara i
   serverns logg. Beskedet står ändå i panelen. Adminens två inloggade delar på samma panel,
   så ett besked som den ena har öppnat är läst också för den andra.
@@ -2356,7 +2361,8 @@ Reglerna ligger i `src/lib/orders/customer-po.ts`, och numret sparas i `orders.c
   att ändra på en order i panelen, bara på en offert.
 - Provat lokalt 2026-11-20 utan kopplingen till verkstaden (12 kontroller): kundens kassa,
   kundens ordersida, panelen, sökningen, underlaget till verkstaden, offertvyn, PDF:en och
-  kundens godkännande med ett ändrat nummer. Inte provat i drift, och ingen order med ett
+  kundens godkännande med ett ändrat nummer. Pushat 2026-11-20 (`dc27fc2`), och migrering
+  035 är tillämpad i drift. Fälten är inte provade i drift, och ingen order med ett
   inköpsnummer har gått till verkstaden.
 
 ## Kundens ordersida — läge 2026-11-15
