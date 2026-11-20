@@ -61,7 +61,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1365 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1366 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -703,9 +703,31 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   ämne graveras ingenting: namnet är också hjälplinjer i arkvyn. En äldre metallskylt utan
   vald metod läggs fortfarande upp med sin text som gravyr.
 - **Inspirationsbanken** har fyra exempel, alla i dagens sortiment: tre på rektangeln 60 × 30 mm
-  och ett på ovalen 63 × 32 mm, med skyltbilder från fotoläget tagna 2026-11-17. Personbilderna
-  är äldre och visar skyltar i de tidigare proportionerna. Bilderna för de fyra borttagna
-  exemplen ligger kvar i `public/inspiration/`.
+  och ett på ovalen 63 × 32 mm. Personbilderna är äldre och visar skyltar i de tidigare
+  proportionerna.
+  - **Exemplen står under varandra, med närbilder på valen till höger** (besked från Pär via
+    ägaren 2026-11-20, som först föreslog en egen flik med alla val och sedan detta: "4 bilder
+    under varandra o till höger om resp visar närbilder på de val vi gjort", "inte massa lull
+    lull utan bara tydligt o enkelt överskådat"). Förut stod fotona två i bredd, och skylten
+    och valen låg bakom ett klick, i en dialog. Dialogen och brödtexten är borta.
+  - **Tre närbilder per exempel: Yta, Form och Fäste** (`InspirationDetail`, `details` i
+    `src/lib/inspiration/catalog.ts`). Texten under varje bild läses ur skylten själv, så att
+    den alltid stämmer med skylten som "Gör en liknande" öppnar. Vilka tre val som visas valde
+    jag: Pär sa "de val vi gjort".
+  - **Närbilderna är tagna ur skyltmotorns egen 3D-vy**, inga AI-bilder:
+    `public/inspiration/<exempel>-yta.jpg`, `-form.jpg` och `-faste.jpg`, 960 × 720. De togs
+    genom att öppna varje exempel i skyltmotorn som inloggad, öppna offertvyn, som tar en bild
+    i tre kvart och tre vinklar, och läsa bilderna ur förhandsvisningen. Ytan är bilden i tre
+    kvart inzoomad, formen är skylten rakt framifrån och fästet är baksidan. Ändras ett
+    exempels skylt ska dess tre bilder tas om på samma sätt.
+  - Länken "Gör en liknande" räknas på servern (`encodeShareCode` i sidan), så sidan behöver
+    inget eget skript.
+  - **Alla fyra exempel är metall**, med magnet eller nål. Plasten, klämman och övriga former
+    syns alltså inte här. Nya exempel kräver nya personbilder, som är AI-bilder och kostar
+    pengar: fråga först.
+  - De äldre skyltbilderna från fotoläget (`<exempel>-badge.jpg`) används inte längre men
+    ligger kvar i `public/inspiration/`, som bilderna för de fyra borttagna exemplen.
+  - Provat lokalt 2026-11-20 i Chrome, på dator och på 390 och 320 px. Inte provat i drift.
 - **Preliminärt tills verkstaden bekräftat:**
   - Metallämnenas mått och tjocklek är verkstadens egna sedan 2026-11-17. Uppskattade är
     fortfarande rektanglarnas hörnrundning (3 och 2 mm) och TV-brickans form.
@@ -1957,6 +1979,11 @@ som i Merchins offertverktyg (dokumentet i mitten, inmatningen bredvid). Koden l
     I produktion), och **Avbruten**. En order som väntar står under filtret I produktion.
     En demoorder visas som I produktion, fast den aldrig skickas.
   - Lokalt, utan kopplingen till verkstaden, står därför varje riktig order som Väntar.
+- **Kontrollerat i drift 2026-11-20 efter pushen (`ebbcee1`), bara läsning**, som provkontot
+  för återförsäljare och som admin: orderlistan har de två filtren och ingen papperskorg för
+  återförsäljaren, listorna ritas som rader, Video och Offert finns i Ritning, kundvalet har
+  Utkast och utkastet ritas utan kund, och kundens offertsida för demoofferten OF-1019 har
+  PDF:ens rubrik och rader. Spara, Godkänn, Neka och Ta bort trycktes aldrig i drift.
 
 ## Besked — läge 2026-11-15
 

@@ -1,136 +1,74 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import type { CSSProperties } from "react";
 import { getMaterial, isPartnerMade } from "@/engine";
-import { encodeShareCode } from "@/lib/share/share-link";
-import { INSPIRATION, type InspirationEntry } from "@/lib/inspiration/catalog";
+import { DETAIL_IMAGE, INSPIRATION } from "@/lib/inspiration/catalog";
 import styles from "./inspiration.module.css";
 
-function Frame({ entry, onOpen }: { entry: InspirationEntry; onOpen: () => void }) {
-  return (
-    <button type="button" className={styles.card} onClick={onOpen} aria-haspopup="dialog">
-      <span className={styles.frame} style={{ "--accent": entry.accent } as CSSProperties}>
-        <span className={styles.mat}>
-          <Image
-            src={entry.photo}
-            alt={`${entry.company}: ${entry.lead}`}
-            width={entry.photoWidth}
-            height={entry.photoHeight}
-            className={styles.photo}
-            sizes="(max-width: 720px) 100vw, 50vw"
-            priority
-          />
-          <span className={styles.shine} aria-hidden="true" />
-        </span>
-        <span className={styles.caption}>
-          <span className={styles.company}>{entry.company}</span>
-          <span className={styles.captionLead}>{entry.title}</span>
-        </span>
-      </span>
-    </button>
-  );
+interface InspirationGalleryProps {
+  /** Länken som öppnar exemplets skylt i skyltmotorn, per exempel. */
+  links: Readonly<Record<string, string>>;
 }
 
-function Dialog({ entry, onClose }: { entry: InspirationEntry; onClose: () => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const router = useRouter();
-  const [opening, setOpening] = useState(false);
-  const material = getMaterial(entry.doc.materialId);
-
-  useEffect(() => {
-    const dialog = ref.current;
-    if (dialog && !dialog.open) dialog.showModal();
-  }, []);
-
-  const openDesigner = async () => {
-    setOpening(true);
-    try {
-      const { code } = await encodeShareCode(entry.doc);
-      router.push(`/skapa?d=${code}`);
-    } catch {
-      setOpening(false);
-    }
-  };
-
+/**
+ * Exemplen under varandra, med närbilder på valen till höger om varje bild (besked från Pär via
+ * ägaren 2026-11-20: i stället för 2 × 2 bilder, "4 bilder under varandra" och "närbilder på de val
+ * vi gjort", "tydligt och enkelt överskådat"). Förut låg allt bakom ett klick, i en dialog.
+ * Närbilderna visar ytan, formen och fästet, och är tagna ur skyltmotorns 3D-vy.
+ */
+export function InspirationGallery({ links }: InspirationGalleryProps) {
   return (
-    <dialog
-      ref={ref}
-      className={styles.dialog}
-      aria-labelledby="inspiration-title"
-      onClose={onClose}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) ref.current?.close();
-      }}
-    >
-      <div className={styles.panel}>
-        <div className={styles.hero} style={{ "--accent": entry.accent } as CSSProperties}>
-          <Image
-            src={entry.photo}
-            alt=""
-            fill
-            className={styles.heroPhoto}
-            sizes="(max-width: 860px) 100vw, 42vw"
-          />
-        </div>
-        <div className={styles.detail}>
-          <header className={styles.detailHeader}>
-            <p className={styles.eyebrow}>
+    <div className={styles.list}>
+      {INSPIRATION.map((entry, index) => (
+        <article key={entry.slug} className={styles.row} aria-labelledby={`inspiration-${entry.slug}`}>
+          <div className={styles.frame} style={{ "--accent": entry.accent } as CSSProperties}>
+            <Image
+              src={entry.photo}
+              alt={`${entry.company}: ${entry.lead}`}
+              width={entry.photoWidth}
+              height={entry.photoHeight}
+              className={styles.photo}
+              sizes="(max-width: 860px) 100vw, 320px"
+              priority={index === 0}
+            />
+          </div>
+          <div className={styles.text}>
+            <p className="eyebrow">
               {entry.company} · {entry.industry}
             </p>
-            <h2 id="inspiration-title" className={styles.detailTitle}>
+            <h2 id={`inspiration-${entry.slug}`} className={styles.rowTitle}>
               {entry.title}
             </h2>
-            <button type="button" className={styles.close} aria-label="Stäng" onClick={() => ref.current?.close()}>
-              ×
-            </button>
-          </header>
-          <p className={styles.lead}>{entry.lead}</p>
-          <p className={styles.body}>{entry.body}</p>
-          <Image
-            src={entry.badgePhoto}
-            alt={`Namnskylten: ${entry.lead}`}
-            width={1200}
-            height={750}
-            className={styles.badge}
-            sizes="(max-width: 860px) 100vw, 480px"
-          />
-          <ul className={styles.highlights}>
-            {entry.highlights.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-          {isPartnerMade(entry.doc.materialId) && (
-            <p className={styles.note}>
-              {material.name} tillverkas av vår partner — pris och leveranstid bekräftas via e-post.
-            </p>
-          )}
-          <footer className={styles.footer}>
-            <button type="button" className="btn btn--ghost" onClick={() => ref.current?.close()}>
-              Stäng
-            </button>
-            <button type="button" className="btn btn--primary" disabled={opening} onClick={() => void openDesigner()}>
-              {opening ? "Öppnar…" : "Gör en liknande"}
-            </button>
-          </footer>
-        </div>
-      </div>
-    </dialog>
-  );
-}
-
-export function InspirationGallery() {
-  const [open, setOpen] = useState<InspirationEntry | null>(null);
-
-  return (
-    <>
-      <div className={styles.grid}>
-        {INSPIRATION.map((entry) => (
-          <Frame key={entry.slug} entry={entry} onOpen={() => setOpen(entry)} />
-        ))}
-      </div>
-      {open && <Dialog entry={open} onClose={() => setOpen(null)} />}
-    </>
+            <p className={styles.lead}>{entry.lead}</p>
+            <ul className={styles.details}>
+              {entry.details.map((detail) => (
+                <li key={detail.kind} className={styles.detail}>
+                  <Image
+                    src={detail.image}
+                    alt={detail.alt}
+                    width={DETAIL_IMAGE.width}
+                    height={DETAIL_IMAGE.height}
+                    className={styles.detailImage}
+                    sizes="(max-width: 860px) 33vw, 260px"
+                  />
+                  <span className={styles.detailLabel}>{detail.label}</span>
+                  <strong className={styles.detailValue}>{detail.value}</strong>
+                </li>
+              ))}
+            </ul>
+            {isPartnerMade(entry.doc.materialId) && (
+              <p className={styles.note}>
+                {getMaterial(entry.doc.materialId).name} tillverkas av vår partner — pris och leveranstid bekräftas via e-post.
+              </p>
+            )}
+            <div>
+              <Link href={links[entry.slug] ?? "/skapa"} className="btn btn--primary">
+                Gör en liknande
+              </Link>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
   );
 }
