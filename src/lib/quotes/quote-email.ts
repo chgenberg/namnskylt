@@ -16,6 +16,7 @@ import {
   quoteRow,
   signatureRow,
   type EmailBrand,
+  withParentLine,
 } from "@/lib/email/layout";
 import { fromWithName, oneLine } from "@/lib/email/transactional";
 import { formatDay, formatSek } from "@/lib/format";
@@ -198,6 +199,7 @@ export function composeQuoteEmail(quote: QuoteMail, sender: QuoteMailSender): Em
       END_ROW,
     ].filter((part) => part !== null),
     footer: footerLines(sender.footer),
+    brand,
   });
   return {
     from: fromWithName(seller, sender.fromAddress),
@@ -205,7 +207,7 @@ export function composeQuoteEmail(quote: QuoteMail, sender: QuoteMailSender): Em
     replyTo: sender.replyTo,
     subject,
     html,
-    text,
+    text: withParentLine(text, brand),
     headers: { "Auto-Submitted": "auto-generated" },
     // Samma utskick ger aldrig två mejl. Skickas offerten igen är det ett nytt utskick.
     idempotencyKey: `quote:${quote.quoteNo}:${quote.sentAt}`,

@@ -38,9 +38,30 @@ export interface EmailDocument {
   rows: string[];
   /** Rader under kortet, i liten text. */
   footer: string[];
+  /**
+   * Vem mejlet kommer ifrån. Ett mejl från namnskylt.com får raden om att sajten är en del av
+   * Skylt & Gravyrteknik, och deras logga längst ner (`EmailBrand.parent`). En återförsäljares mejl
+   * får ingetdera.
+   */
+  brand?: EmailBrand;
 }
 
-export function emailDocument({ title, preheader, rows, footer }: EmailDocument): string {
+/** Raden under kortet och loggan längst ner, i ett mejl från namnskylt.com. */
+function parentRows(brand: EmailBrand | undefined): { line: string; logo: string } | null {
+  const parent = brand?.parent;
+  if (!parent) return null;
+  const width = Math.round(Number(parent.logo.width)) || 1;
+  const height = Math.round(Number(parent.logo.height)) || 1;
+  return {
+    line: `<tr><td class="pad ink" style="padding:18px 24px 0;font-family:${SANS};font-size:12px;line-height:18px;font-weight:bold;color:${INK};text-align:center;">${esc(parent.line)}</td></tr>`,
+    // Plattan syns bara i mörkt läge, där den mörkblå loggan annars försvinner mot bakgrunden.
+    // Loggans rutor går ända ut i hörnen, så bilden har inga rundade hörn: de skulle klippa rutorna.
+    logo: `<tr><td align="center" style="padding:18px 24px 0;"><img class="paper plate" src="${esc(parent.logo.url)}" width="${width}" height="${height}" alt="${esc(parent.name)}" style="display:block;width:${width}px;height:${height}px;font-family:${SANS};font-size:12px;line-height:${height}px;color:${FAINT};"></td></tr>`,
+  };
+}
+
+export function emailDocument({ title, preheader, rows, footer, brand }: EmailDocument): string {
+  const parent = parentRows(brand);
   return `<!doctype html>
 <html lang="sv" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
@@ -58,7 +79,7 @@ img{-ms-interpolation-mode:bicubic;border:0;}
 a{color:${INK};}
 @media (max-width:620px){.wrap{width:100%!important}.pad{padding-left:22px!important;padding-right:22px!important}h1{font-size:25px!important;line-height:31px!important}.btn{display:block!important;text-align:center}.tile{display:block!important;width:100%!important;padding:0 0 12px!important}}
 @media (max-width:620px){.actions{width:100%!important}.stack{display:block!important;width:100%!important;padding:0 0 10px!important}.stack .btn{display:block!important}.fact{font-size:14px!important}}
-@media (prefers-color-scheme:dark){.bg{background:#0f1115!important}.card{background:#171a20!important}.ink{color:#f3f4f6!important}.muted{color:#a3a9b3!important}.line{border-color:#2a2f37!important}.paper{background:${PAPER}!important}.plate{padding:8px 12px!important}.btn-ink{background:#f3f4f6!important;color:${INK}!important}.btn-ghost{background:#171a20!important;color:#f3f4f6!important;border-color:#4a4f58!important}}
+@media (prefers-color-scheme:dark){.bg{background:#0f1115!important}.card{background:#171a20!important}.ink{color:#f3f4f6!important}.muted{color:#a3a9b3!important}.line{border-color:#2a2f37!important}.paper{background:${PAPER}!important}.plate{padding:8px 12px!important;border-radius:8px!important}.btn-ink{background:#f3f4f6!important;color:${INK}!important}.btn-ghost{background:#171a20!important;color:#f3f4f6!important;border-color:#4a4f58!important}}
 [data-ogsc] .ink{color:#f3f4f6!important}[data-ogsc] .muted{color:#a3a9b3!important}
 </style>
 </head>
@@ -72,7 +93,9 @@ a{color:${INK};}
 ${rows.join("\n")}
 </table>
 </td></tr>
+${parent ? parent.line : ""}
 ${footer.map((line) => `<tr><td class="pad muted" style="padding:14px 24px 0;font-family:${SANS};font-size:11px;line-height:17px;color:${FAINT};text-align:center;">${line}</td></tr>`).join("\n")}
+${parent ? parent.logo : ""}
 </table>
 </td></tr>
 </table>
@@ -94,15 +117,43 @@ export interface EmailBrand {
   logo: { url: string; width: number; height: number } | null;
   /** Knappens färg, som hex. */
   accent: string;
+  /**
+   * Bara namnskylt.com: bolaget sajten hör till, som står under kortet och med sin logga längst ner
+   * (besked av ägaren 2026-11-20). En återförsäljares mejl nämner aldrig verkstaden.
+   */
+  parent?: { name: string; line: string; logo: { url: string; width: number; height: number } };
 }
 
 /** Sajtens logga för mejl: en PNG, eftersom Gmail och Outlook inte visar SVG. Tre gånger visningsmåtten. */
 const SITE_LOGO_PATH = "/logo-namnskylt-mejl.png";
 const SITE_LOGO = { width: 168, height: 32 };
 
-/** namnskylt.com som avsändare: sajtens logga och bläcksvart knapp. `origin` är sajtens publika adress. */
+/**
+ * Raden som säger vem namnskylt.com hör till. Den står i varje mejl från namnskylt.com, också i
+ * textversionen (`withParentLine`).
+ */
+export const PARENT_LINE = "namnskylt.com – en del av Skylt & Gravyrteknik AB";
+/** Skylt & Gravyrtekniks logga för mejl: en PNG i tre gånger visningsmåtten, kopierad ur deras eget material. */
+const PARENT_LOGO_PATH = "/logo-skyltochgravyr-mejl.png";
+const PARENT_LOGO = { width: 77, height: 50 };
+
+/**
+ * namnskylt.com som avsändare: sajtens logga och bläcksvart knapp, och under kortet raden om att
+ * sajten är en del av Skylt & Gravyrteknik, med deras logga längst ner. `origin` är sajtens publika adress.
+ */
 export function siteBrand(origin: string): EmailBrand {
-  return { name: "namnskylt.com", logo: { url: `${origin.replace(/\/+$/, "")}${SITE_LOGO_PATH}`, ...SITE_LOGO }, accent: INK };
+  const base = origin.replace(/\/+$/, "");
+  return {
+    name: "namnskylt.com",
+    logo: { url: `${base}${SITE_LOGO_PATH}`, ...SITE_LOGO },
+    accent: INK,
+    parent: { name: "Skylt & Gravyrteknik", line: PARENT_LINE, logo: { url: `${base}${PARENT_LOGO_PATH}`, ...PARENT_LOGO } },
+  };
+}
+
+/** Textversionen av ett mejl, med raden om vem namnskylt.com hör till sist när mejlet kommer från sajten. */
+export function withParentLine(text: string, brand: EmailBrand | undefined): string {
+  return brand?.parent ? `${text}\n\n${brand.parent.line}` : text;
 }
 
 /** En säljare utan logga i mejlet: namnet som ordmärke och säljarens egen färg på knappen. */

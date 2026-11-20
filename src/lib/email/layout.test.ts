@@ -12,7 +12,9 @@ import {
   noteLink,
   pictureRow,
   quoteRow,
+  PARENT_LINE,
   siteBrand,
+  withParentLine,
   type EmailBrand,
 } from "./layout";
 
@@ -20,7 +22,7 @@ const SITE = siteBrand("https://www.namnskylt.com/");
 
 describe("mejlmallens avsändare", () => {
   test("namnskylt.com har sajtens logga som PNG och bläcksvart knapp", () => {
-    assert.deepEqual(SITE, { name: "namnskylt.com", logo: { url: "https://www.namnskylt.com/logo-namnskylt-mejl.png", width: 168, height: 32 }, accent: "#0a0a0b" });
+    assert.deepEqual({ name: SITE.name, logo: SITE.logo, accent: SITE.accent }, { name: "namnskylt.com", logo: { url: "https://www.namnskylt.com/logo-namnskylt-mejl.png", width: 168, height: 32 }, accent: "#0a0a0b" });
     assert.match(brandRow(SITE), /<img class="paper plate" src="https:\/\/www\.namnskylt\.com\/logo-namnskylt-mejl\.png" width="168" height="32" alt="namnskylt\.com"/);
   });
 
@@ -35,6 +37,34 @@ describe("mejlmallens avsändare", () => {
     const row = brandRow(brand);
     assert.doesNotMatch(row, /" onerror="|onload="x/);
     assert.match(row, /width="1" height="20"/);
+  });
+});
+
+describe("namnskylt.com är en del av Skylt & Gravyrteknik", () => {
+  const document = (brand?: EmailBrand) => emailDocument({ title: "Rubrik", preheader: "Förhandstext", rows: [brandRow(brand ?? SITE), END_ROW], footer: ["Sidfotens rad"], brand });
+
+  test("ett mejl från namnskylt.com har raden under kortet och deras logga längst ner", () => {
+    assert.equal(PARENT_LINE, "namnskylt.com – en del av Skylt & Gravyrteknik AB");
+    const html = document(SITE);
+    assert.ok(html.includes("namnskylt.com – en del av Skylt &amp; Gravyrteknik AB"));
+    assert.match(html, /<img class="paper plate" src="https:\/\/www\.namnskylt\.com\/logo-skyltochgravyr-mejl\.png" width="77" height="50" alt="Skylt &amp; Gravyrteknik"/);
+    // Ordningen: sajtens logga överst, raden under kortet, sidfoten, och deras logga sist.
+    const order = ["logo-namnskylt-mejl.png", "en del av Skylt", "Sidfotens rad", "logo-skyltochgravyr-mejl.png"].map((part) => html.indexOf(part));
+    assert.deepEqual(order, [...order].sort((a, b) => a - b));
+    assert.ok(order.every((at) => at > 0));
+  });
+
+  test("en återförsäljares mejl nämner aldrig Skylt & Gravyrteknik", () => {
+    const reseller = nameBrand("Profilbolaget AB", "#0057b8");
+    const html = document(reseller);
+    assert.doesNotMatch(html, /Gravyrteknik|skyltochgravyr|en del av/);
+    assert.equal(withParentLine("Hej!", reseller), "Hej!");
+    // Utan märke i anropet ändras ingenting, som i utskickets mejl.
+    assert.doesNotMatch(document(undefined), /en del av/);
+  });
+
+  test("textversionen av ett mejl från namnskylt.com slutar med raden", () => {
+    assert.equal(withParentLine("Hej!", SITE), "Hej!\n\nnamnskylt.com – en del av Skylt & Gravyrteknik AB");
   });
 });
 

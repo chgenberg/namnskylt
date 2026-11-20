@@ -1,5 +1,5 @@
 import { emailMode, type EmailMessage } from "@/lib/email";
-import { actionsRow, brandRow, emailDocument, END_ROW, esc, headRow, quoteRow, siteBrand } from "@/lib/email/layout";
+import { actionsRow, brandRow, emailDocument, END_ROW, esc, headRow, quoteRow, siteBrand, withParentLine } from "@/lib/email/layout";
 import { noticeView, type PanelNotice } from "./model";
 
 type Env = Record<string, string | undefined>;
@@ -101,6 +101,7 @@ export function composeNoticeEmail(notice: PanelNotice, to: string, settings: No
       END_ROW,
     ].filter((part) => part !== null),
     footer: [esc(FOOTER)],
+    brand,
   });
   return {
     from: settings.from,
@@ -108,7 +109,7 @@ export function composeNoticeEmail(notice: PanelNotice, to: string, settings: No
     replyTo: settings.replyTo,
     subject: title,
     html,
-    text,
+    text: withParentLine(text, brand),
     headers: { "Auto-Submitted": "auto-generated" },
     // Samma besked ger aldrig två mejl, även om utskicket skulle göras om.
     idempotencyKey: `notice:${notice.id}`,

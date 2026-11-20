@@ -16,6 +16,7 @@ import {
   textRow,
   type EmailAction,
   type EmailBrand,
+  withParentLine,
 } from "@/lib/email/layout";
 import { fromWithName, oneLine } from "@/lib/email/transactional";
 import { formatSek } from "@/lib/format";
@@ -103,6 +104,7 @@ export function composeOrderConfirmation(order: ConfirmedOrder, sender: Confirma
       END_ROW,
     ].filter((part) => part !== null),
     footer: [],
+    brand,
   });
   return {
     from: fromWithName(sender.sellerName, sender.fromAddress),
@@ -110,7 +112,7 @@ export function composeOrderConfirmation(order: ConfirmedOrder, sender: Confirma
     replyTo: sender.replyTo,
     subject,
     html,
-    text,
+    text: withParentLine(text, brand),
     headers: { "Auto-Submitted": "auto-generated" },
     // Samma order ger aldrig två bekräftelser, även om utskicket skulle göras om.
     idempotencyKey: `order-confirmation:${order.orderNo}`,
@@ -163,6 +165,7 @@ export function composeShippedEmail(order: ShippedOrder, sender: Omit<Confirmati
       END_ROW,
     ],
     footer: [],
+    brand,
   });
   return {
     from: fromWithName(sender.sellerName, sender.fromAddress),
@@ -170,7 +173,7 @@ export function composeShippedEmail(order: ShippedOrder, sender: Omit<Confirmati
     replyTo: sender.replyTo,
     subject: oneLine(`Dina namnskyltar är skickade (${order.orderNo})`),
     html,
-    text,
+    text: withParentLine(text, brand),
     headers: { "Auto-Submitted": "auto-generated" },
     idempotencyKey: `order-shipped:${order.orderNo}`,
   };

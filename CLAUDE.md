@@ -68,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1388 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1391 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -2141,6 +2141,20 @@ olika utskick som går via Resend"). Mallen ligger i `src/lib/email/layout.ts`.
     offertsidan.
   - Säljarens färg går rakt in i mejlets stil. Bara en hexkod släpps igenom, på ett
     ställe (`actionButton`), annars blir knappen bläcksvart.
+- **Ett mejl från namnskylt.com säger att sajten är en del av Skylt & Gravyrteknik** (besked
+  av ägaren 2026-11-20: mejlen ska ha "vår brandbook och vår logo fast ändå typ
+  'namnskylt.com - en del av Skylt och Gravyrteknik AB'. Kanske även Skylt och Gravyrs logo
+  längst ner"). Under kortet står raden "namnskylt.com – en del av Skylt & Gravyrteknik AB"
+  (`PARENT_LINE`), och längst ner deras logga (`EmailBrand.parent`, som bara `siteBrand`
+  sätter). Textversionen slutar med samma rad (`withParentLine`).
+  - Det gäller alla mejl där namnskylt.com är avsändare: offertmejlet från admin, beskeden
+    till admin, och de avstängda orderbekräftelsen, fraktbeskedet och lösenordsmejlet.
+    **En återförsäljares mejl får varken raden eller loggan.** Ett mejl måste skicka med
+    sitt märke till `emailDocument` (`brand`) för att få dem.
+  - Loggan är `public/logo-skyltochgravyr-mejl.png`, en beskuren kopia av `logo-navy.png`
+    ur verkstadens projekt i tre gånger visningsmåtten. Ändrar de sin logga ska filen göras
+    om. Bilden har inga rundade hörn i ljust läge, eftersom loggans rutor går ända ut i
+    hörnen.
 - **Bilder i mejl ska ligga på en öppen adress**, som PNG eller JPEG. Data-URL:er, SVG och
   WebP visas inte av alla e-postklienter. Sajtens statiska filer släpps förbi sajtspärren,
   och offertens egna vägar är öppna för den som har länken.
@@ -2958,6 +2972,27 @@ Luckor i kontraktet:
   ingen har bekräftat att verkstaden trycker namnskyltar eller vilken upplösning som krävs.
 - Lambda tar högst 6 MB per anrop. Bilderna skickas en gång och anropet stoppas vid 5,5 MB,
   men en order med många olika loggor i färg kan ändå bli för stor.
+
+**Ägarens besked 2026-11-20 om vad som får ändras där:** "vi ska inte röra skyltmotorns
+funktionalitet men dom produktionsdokument som skickas från namnskylt.com till skylt och
+gravyrs produktion/admin dashboard ska ändras. Men ingenting i hur skylt och gravyrs egen
+motor fungerar." Jag frågade om jag fick ändra i skyltmotor, och svaret började med nej.
+Två önskemål samma dag väntar därför på ett tydligt svar:
+
+- **Fästet som egen rad på produktionsordern** ("där ska det inte vara 'kommentar' för typ
+  fäste osv. utan en egen 'rad' där det står typ fäste och exempelvis 'nål'"). Läst i deras
+  kod, inget ändrat: raderna på deras orderpapper ritas av `orderPaperSpecs` i
+  `apps/web/src/lib/order-paper.ts`, ur fasta fält i dokumentet. Fästet hamnar i raden
+  "Kommentar" därför att deras mottagare (`partnerDocument`) flyttar ett fäste som inte är en
+  av deras monteringskoder till `productionNote`, tillsammans med vår text om ämne,
+  märkningsmetod och tryckfärg. Radbrytningar i kommentaren ritas inte ut. **Det går alltså
+  inte att få en rad "Fäste" bara genom att ändra det vi skickar**: rubriken sätts av deras
+  orderpapper. Det som krävs är att deras orderpapper ritar extra rader för dokument som bär
+  dem, och att vi skickar raderna var för sig. Deras egna ordrar skulle inte påverkas.
+- **Orderbekräftelsen i namnskylt.coms utseende.** Den bekräftelse och de statusmejl kunden
+  får i dag skickas av verkstadens system, i deras utseende (`branded-email.ts`). Vår egen
+  orderbekräftelse finns, i vår mejlmall, men är avstängd. Slås den på får kunden två
+  bekräftelser, om inte verkstadens stängs av för ordrar från namnskylt.com.
 
 Det projektet har egna, strikta regler i `Skyltochgravyr/.cursor/rules/`:
 - Ändra inget under `skyltmotor/` utan ett uttryckligt ja i samma meddelande.

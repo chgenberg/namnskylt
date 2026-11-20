@@ -1,5 +1,5 @@
 import type { EmailMessage } from "@/lib/email";
-import { actionsRow, brandRow, emailDocument, END_ROW, esc, headRow, noteRow, siteBrand } from "@/lib/email/layout";
+import { actionsRow, brandRow, emailDocument, END_ROW, esc, headRow, noteRow, siteBrand, withParentLine } from "@/lib/email/layout";
 
 /** Så länge gäller länken i mejlet. Kort, eftersom den går till en brevlåda och inte lämnas över av en människa. */
 export const RESET_LINK_HOURS = 2;
@@ -16,7 +16,7 @@ export function composeResetEmail(input: { to: string; url: string; from: string
     to: input.to,
     replyTo: input.replyTo,
     subject: "Välj ett nytt lösenord",
-    text: [lead, "", `Välj ett nytt lösenord: ${input.url}`, "", valid, ignore].join("\n"),
+    text: withParentLine([lead, "", `Välj ett nytt lösenord: ${input.url}`, "", valid, ignore].join("\n"), brand),
     html: emailDocument({
       title: "Välj ett nytt lösenord",
       preheader: `${lead} ${valid}`,
@@ -28,6 +28,7 @@ export function composeResetEmail(input: { to: string; url: string; from: string
         END_ROW,
       ],
       footer: [esc("Mejlet skickas från namnskylt.com när någon ber om ett nytt lösenord.")],
+      brand,
     }),
     headers: { "Auto-Submitted": "auto-generated" },
     // Adressen är hemlig och unik per länk, så två förfrågningar ger två mejl med var sin länk.
