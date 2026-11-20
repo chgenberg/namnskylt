@@ -3,6 +3,7 @@
 import type { Dispatch } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { OFFERED_MATERIALS, getColor, getMaterial, isPartnerMade, thicknessOf, type BadgeDocument } from "@/engine";
+import { panelStep } from "../panel-steps";
 import { ColorPicker, MaterialPicker } from "../pickers";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
@@ -17,7 +18,7 @@ export function MaterialSection({ doc, dispatch }: MaterialSectionProps) {
   const color = getColor(doc.materialId, doc.colorId);
 
   return (
-    <PanelSection step={4} title={OFFERED_MATERIALS.length > 1 ? "Material & färg" : "Yta"} aside={color.name}>
+    <PanelSection step={panelStep("material")} title={OFFERED_MATERIALS.length > 1 ? "Material & färg" : "Yta"} aside={color.name}>
       <MaterialPicker
         value={doc.materialId}
         layoutId="material-active"

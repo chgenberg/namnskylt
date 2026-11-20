@@ -24,6 +24,7 @@ import {
   type TextAlign,
 } from "@/engine";
 import { formatMm } from "@/lib/format";
+import { panelStep } from "../panel-steps";
 import type { DesignerAction } from "../state";
 import { FontPicker } from "./font-picker";
 import { PRINT_COLOR_NOTE, TextColorField } from "./print-color-field";
@@ -79,7 +80,7 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
 
   return (
     <PanelSection
-      step={1}
+      step={panelStep("text")}
       title="Text"
       aside={`${doc.rows.length}/${TEXT_LIMITS.maxRows} rader${namePrinted ? ` · ${printColorName(textColor) ?? "Egen färg"}` : ""}`}
     >

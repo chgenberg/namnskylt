@@ -17,6 +17,7 @@ import {
   type Mounting,
   type MountingId,
 } from "@/engine";
+import { panelStep } from "../panel-steps";
 import { fromPriceLabel, useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
@@ -81,7 +82,7 @@ export function MountingSection({ doc, dispatch }: MountingSectionProps) {
   const orientation = clipOrientationOf(doc);
   const fitting = clipOrientations(doc.size);
   return (
-    <PanelSection step={6} title="Fäste" aside={getMounting(doc.mounting).description}>
+    <PanelSection step={panelStep("mounting")} title="Fäste" aside={getMounting(doc.mounting).description}>
       <div className={styles.mountingGrid} role="radiogroup" aria-label="Fäste">
         {OFFERED_MOUNTINGS.map((m) => {
           const active = m.id === doc.mounting;

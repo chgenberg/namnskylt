@@ -2,17 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import styles from "./designer.module.css";
+import { PANEL_SECTIONS } from "./panel-steps";
 
 /** Panelens sektioner i den ordning de står. Stegen är dem `PanelSection` bär i sina rubriker. */
-const SECTIONS = [
-  { step: 1, label: "Text" },
-  { step: 2, label: "Metod" },
-  { step: 3, label: "Logga" },
-  { step: 4, label: "Material" },
-  { step: 5, label: "Form" },
-  { step: 6, label: "Fäste" },
-  { step: 7, label: "Fler namn" },
-] as const;
+const SECTIONS = PANEL_SECTIONS;
+/** Sektionen som är markerad innan sidan har rullats: den första. */
+const FIRST_STEP = 1;
 
 function sectionOf(step: number): HTMLElement | null {
   return document.getElementById(`section-${step}`)?.closest("section") ?? null;
@@ -26,7 +21,7 @@ function sectionOf(step: number): HTMLElement | null {
  */
 export function SectionNav() {
   const navRef = useRef<HTMLElement>(null);
-  const [active, setActive] = useState<number>(SECTIONS[0].step);
+  const [active, setActive] = useState<number>(FIRST_STEP);
 
   useEffect(() => {
     let frame = 0;
@@ -36,7 +31,7 @@ export function SectionNav() {
       // Raden visas bara på telefon. Dold har den ingen ruta, och då finns inget att markera.
       if (!nav || nav.offsetParent === null) return;
       const line = nav.getBoundingClientRect().bottom + 12;
-      let current: number = SECTIONS[0].step;
+      let current: number = FIRST_STEP;
       for (const { step } of SECTIONS) {
         const section = sectionOf(step);
         if (section && section.getBoundingClientRect().top <= line) current = step;

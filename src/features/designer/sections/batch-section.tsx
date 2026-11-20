@@ -16,6 +16,7 @@ import {
   type Roster,
 } from "@/engine";
 import { readTable, SpreadsheetError } from "@/lib/spreadsheet/read-table";
+import { panelStep } from "../panel-steps";
 import styles from "./sections.module.css";
 
 const ACCEPT = ".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv";
@@ -158,7 +159,7 @@ export function BatchSection({
 
   return (
     <PanelSection
-      step={7}
+      step={panelStep("batch")}
       title="Fler namn"
       aside={badges.length > 0 ? `${badges.length + 1} skyltar` : "Samma design"}
     >

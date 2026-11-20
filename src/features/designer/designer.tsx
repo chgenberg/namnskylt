@@ -87,9 +87,32 @@ type View = "3d" | "drawing" | "person" | "quote";
 
 /** Fältet för skyltens första rad i panelen (`TextSection`). Dit ställs markören när skylten saknar namn. */
 const FIRST_ROW_LABEL = "Rad 1";
-function focusFirstRow({ onlyEmpty = false }: { onlyEmpty?: boolean } = {}): void {
+/** Om fältet syns: mitt på det ligger inget annat, och det är inte bortrullat ur panelen. */
+function isShown(element: HTMLElement): boolean {
+  const box = element.getBoundingClientRect();
+  return document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) === element;
+}
+/**
+ * Ställer markören i skyltens första rad. Texten står efter material och form i panelen, och
+ * webbläsaren rullar annars själv fram fältet: då hamnar det mitt i panelen, med material och form
+ * utanför bild. Panelen står därför still, så att den börjar på material, och textens sektion
+ * rullas fram först när något skrivs i fältet. Med `reveal` rullas den fram direkt, för den som
+ * redan har valt material och form.
+ */
+function focusFirstRow({ onlyEmpty = false, reveal = false }: { onlyEmpty?: boolean; reveal?: boolean } = {}): void {
   const input = document.querySelector<HTMLInputElement>(`input[aria-label="${FIRST_ROW_LABEL}"]`);
-  if (input && (!onlyEmpty || input.value.trim() === "")) input.focus();
+  if (!input || (onlyEmpty && input.value.trim() !== "")) return;
+  // Utan mjuk rullning (globals.css): nästa tecken avbryter annars rullningen halvvägs.
+  const show = () => input.closest("section")?.scrollIntoView({ block: "start", behavior: "instant" });
+  if (reveal) show();
+  else {
+    // Läget läses innan tecknet skrivs: webbläsaren rullar själv fram markören, men bara till panelens kant.
+    const showIfHidden = () => {
+      if (!isShown(input)) requestAnimationFrame(show);
+    };
+    input.addEventListener("beforeinput", showIfHidden, { once: true });
+  }
+  input.focus({ preventScroll: true });
 }
 /** Ordern är lagd: `igen` tas ur adressen, så att en omladdning inte öppnar samma order i varukorgen en gång till. */
 function forgetReorderInAddress(): void {
@@ -364,11 +387,13 @@ export function Designer({
   const finishOnboarding = useCallback(() => {
     setOnboarding(false);
     setEngrave(performance.now());
-    // Kom besökaren hit utan namn skrivs det nu: markören ställs i skyltens första rad.
-    if (!hasText) requestAnimationFrame(() => focusFirstRow());
+    // Kom besökaren hit utan namn skrivs det nu: markören ställs i skyltens första rad. Material och
+    // form är valda i startrutan, så panelen fortsätter på texten.
+    if (!hasText) requestAnimationFrame(() => focusFirstRow({ reveal: true }));
   }, [hasText]);
 
-  // En återförsäljare kommer rakt in i editorn, utan startruta, och skriver namnet direkt.
+  // En återförsäljare kommer rakt in i editorn, utan startruta, och skriver namnet direkt. Panelen
+  // står kvar på material, och textens sektion rullas fram när något skrivs.
   // Med en öppnad order börjar hen i varukorgen, inte med att skriva ett namn.
   const resellerStart = Boolean(reseller) && !copy && saved.ready && !onboarding;
   useEffect(() => {
@@ -761,6 +786,12 @@ export function Designer({
             </h1>
           </div>
           <SectionNav />
+          {/*
+            Skylten byggs uppifrån (besked från Mats på verkstaden via ägaren 2026-11-20): material och form
+            sätter förutsättningarna, sedan text, metod, logga och fäste. Ordningen är `PANEL_SECTIONS`.
+          */}
+          <MaterialSection doc={doc} dispatch={update} />
+          <FormatSection doc={doc} dispatch={update} />
           <TextSection
             doc={doc}
             layout={layout}
@@ -771,8 +802,6 @@ export function Designer({
           {/* Metoden väljs före loggan (besked via ägaren 2026-11-16): den avgör hur loggan sedan märks. */}
           <MarkingSection doc={doc} dispatch={update} tierIndex={tierIndex} />
           <LogoSection doc={doc} dispatch={update} />
-          <MaterialSection doc={doc} dispatch={update} />
-          <FormatSection doc={doc} dispatch={update} />
           <MountingSection doc={doc} dispatch={update} />
           <BatchSection
             current={doc}

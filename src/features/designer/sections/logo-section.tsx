@@ -23,6 +23,7 @@ import { storeLogoImage } from "../logo/store-image";
 import { storeLogoOriginal } from "../logo/store-original";
 import { traceImage, type LogoTrace } from "../logo/trace-image";
 import { useLogoEngraving } from "../logo/use-logo-engraving";
+import { panelStep } from "../panel-steps";
 import type { DesignerAction } from "../state";
 import { LogoColors } from "./logo-colors";
 import { PRINT_COLOR_NOTE, TextColorField } from "./print-color-field";
@@ -202,7 +203,7 @@ export function LogoSection({ doc, dispatch }: LogoSectionProps) {
   const logoHeight = Math.min(logoMax, Math.max(LOGO_LIMITS.minHeightMm, Math.round((limits?.drawnMm ?? LOGO_LIMITS.defaultHeightMm) * 2) / 2));
 
   return (
-    <PanelSection step={3} title="Logga" aside={doc.logo ? LOGO_ASIDE[logoLook] : "Valfritt"}>
+    <PanelSection step={panelStep("logo")} title="Logga" aside={doc.logo ? LOGO_ASIDE[logoLook] : "Valfritt"}>
       {/* Rutan tar emot en fil som dras dit, och öppnar filväljaren vid ett klick eller med tangentbordet. */}
       <label
         className={styles.logoDrop}

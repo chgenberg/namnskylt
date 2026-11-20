@@ -7,6 +7,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { FRAME_STYLES, blankOf, frameFits, nameMarking, type BadgeDocument } from "@/engine";
 import { useCustomShapeChoice } from "../custom-shape-choice";
 import { CustomShapeEditor } from "../custom-shape/custom-shape-editor";
+import { panelStep } from "../panel-steps";
 import { BlankPicker } from "../pickers";
 import { fromPriceLabel, useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
@@ -32,7 +33,7 @@ export function FormatSection({ doc, dispatch }: FormatSectionProps) {
   const { frameFrom } = useShopPrices();
 
   return (
-    <PanelSection step={5} title="Form" aside={`${widthMm} × ${heightMm} mm`}>
+    <PanelSection step={panelStep("format")} title="Form" aside={`${widthMm} × ${heightMm} mm`}>
       <BlankPicker
         value={blankOf(doc)?.id ?? null}
         materialId={doc.materialId}

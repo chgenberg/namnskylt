@@ -12,6 +12,7 @@ import {
   type BadgeDocument,
 } from "@/engine";
 import { formatSek } from "@/lib/format";
+import { panelStep } from "../panel-steps";
 import { fromPriceLabel, useShopPrices } from "../shop-price";
 import type { DesignerAction } from "../state";
 import styles from "./sections.module.css";
@@ -44,7 +45,7 @@ export function MarkingSection({ doc, dispatch, tierIndex }: MarkingSectionProps
   const selected = getMarkingMethod(markingOf(doc));
   const printOnly = isPrintOnly(doc.materialId);
   return (
-    <PanelSection step={2} title="Märkningsmetod" aside="1 metod ingår">
+    <PanelSection step={panelStep("marking")} title="Märkningsmetod" aside="1 metod ingår">
       <div className={styles.markingList} role="radiogroup" aria-label="Märkningsmetod">
         {MARKING_METHODS.map((method) => {
           const available = markingFits(method.id, doc);

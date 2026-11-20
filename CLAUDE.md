@@ -68,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1446 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1446 tester, grönt 2026-11-21).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -405,10 +405,10 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       går att räkna om (en logga med trasig bana): ordern stoppas aldrig av trycklagret.
     - En logga i färg som printas är fortfarande en bild.
   - En logga i färg som graveras behåller sina banor i en delad länk; ryms de inte tappas loggan.
-  - Sektionen ligger som nummer 02 i panelen, före Logga (03, hette Logga & varumärke till 2026-11-20), eftersom metoden
-    avgör hur loggan sedan märks (besked via ägaren 2026-11-16). Därefter Material 04, Form 05,
-    Fäste 06 och Fler namn 07. Varukorgen är ingen sektion i panelen längre, se Ordern till
-    verkstaden.
+  - Sektionen ligger före Logga (hette Logga & varumärke till 2026-11-20), eftersom metoden
+    avgör hur loggan sedan märks (besked via ägaren 2026-11-16). Sedan 2026-11-21 är den
+    nummer 04 och Logga 05, se Panelens ordning under Skyltmotorns knappar. Varukorgen är
+    ingen sektion i panelen längre, se Ordern till verkstaden.
   - **Färgen på trycket är en skärmfärg, som hos Skylt & Gravyrteknik** (beslut av ägaren
     2026-11-18: "bygg om så att det fungerar som hos skylt och gravyr"). Kunden väljer en av sju
     standardfärger eller en egen färg, och den sparas som `#RRGGBB`. Det finns inga fält för
@@ -1744,6 +1744,37 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
 
 ## Skyltmotorns knappar, telefon och surfplatta — läge 2026-11-19
 
+- **Panelens ordning: skylten byggs uppifrån** (förslag från Mats på verkstaden 2026-11-20, som
+  ägaren bad mig bygga "utan att ändra funktionen": material och färg först, "så att man
+  först sätter förutsättningarna för vad som kan göras innan finjusteringarna kommer").
+  Sektionerna står så här sedan 2026-11-21: **01 Material & färg, 02 Form, 03 Text,
+  04 Märkningsmetod, 05 Logga, 06 Fäste, 07 Fler namn.** Förut stod Text, Märkningsmetod och
+  Logga först, och Material och Form som 04 och 05.
+  - **Ordningen står på ett ställe**, `PANEL_SECTIONS` i `src/features/designer/panel-steps.ts`:
+    varje sektion läser sitt nummer därifrån (`panelStep`), och genvägarna på telefon läser
+    samma lista. Ordningen sektionerna ritas i står i `designer.tsx` och ska vara densamma.
+  - Mats lista var "Material, Färg, Namn, Titel, typsnitt, Logga, fästmetod". **Var Form och
+    Märkningsmetod hamnar valde jag:** Form direkt efter materialet, eftersom formen också
+    sätter förutsättningarna (klämman, ramen, textens yta), och Märkningsmetod kvar före
+    Logga, som ägaren bestämde 2026-11-16. Det enda som har flyttats är alltså att Material
+    och Form står före Text. Inget val, ingen text och inget pris är ändrat.
+  - **Markören ställs fortfarande i skyltens första rad**, men namnfältet står inte längre
+    först, och webbläsaren rullar annars själv fram ett fält som får markören: då hamnade
+    fältet mitt i panelen med material och form utanför bild (`focusFirstRow` i `designer.tsx`).
+    - **Efter startrutan**, där material, färg och form just har valts, rullas textens sektion
+      fram till panelens början (`reveal`), så att kunden fortsätter på namnet.
+    - **En säljare som kommer rakt in i editorn** ser panelen från början, alltså material.
+      Markören står ändå i första raden, så namnet går att skriva direkt, och textens sektion
+      rullas fram när första tecknet skrivs. Ett fält som redan syns flyttas inte.
+    - Rullningen görs utan mjuk rörelse: sidan rullar annars mjukt (`globals.css`), och nästa
+      tecken avbryter då rullningen halvvägs.
+    - Att säljaren möts av material och inte av namnfältet valde jag: annars hade den som
+      använder motorn mest aldrig sett den nya ordningen.
+  - Provat lokalt 2026-11-21 i Chrome (86 kontroller) och i Safaris motor (71) på 1366 × 900,
+    1366 × 700, 820, 390 och 320 px: ordning och nummer, genvägarna, de tre vägarna in
+    (direkt, från startsidan och som säljare) och att varje sektion har kvar sina val. Säljarens
+    väg är inte provad i Safaris motor, som inte sparar inloggningens kaka över http lokalt.
+    Inte provat på en riktig telefon.
 - **Över skylten finns bara Video, och Offert för den som är inloggad i panelen** (besked av
   ägaren 2026-11-19, i två omgångar: först togs Gravera, Vänd och Snurra bort, sedan Fotoläge
   och Dela). Skylten vrids fortfarande genom att dra i den, vänds av sig själv när ett fäste
@@ -1769,8 +1800,8 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
     med vyväljaren ovanför och knapparna under. Måttraden och tipsen visas inte där, bara
     varningar (`data-tip` på tipsen). Rubriken "Din namnskylt" är dold för ögat.
     - **Genvägar mellan sektionerna** står fast under skylten (`SectionNav` i
-      `section-nav.tsx`): Text, Metod, Logga, Material, Form, Fäste, Fler namn. Ett tryck
-      rullar fram sektionen (`scroll-margin-top` ur `--panel-sticky-top`), och den man står i
+      `section-nav.tsx`), i panelens ordning: Material, Form, Text, Metod, Logga, Fäste,
+      Fler namn. Ett tryck rullar fram sektionen (`scroll-margin-top` ur `--panel-sticky-top`), och den man står i
       är markerad. Raden finns bara på telefon.
     - **Prisdelen är en rad** (`sections.module.css`): antal, pris och "Lägg i varukorgen",
       med "exkl. moms och frakt" och knappen Prisdetaljer under. Prisets delar fälls ut med
@@ -2189,6 +2220,11 @@ till höger"). Koden ligger i `src/app/api/quotes/`, `src/features/designer/quot
 - Kontrollerat i drift 2026-11-20 efter den första pushen (`8a214da`), bara läsning: migrering 038
   och 039, ramens pris i den sparade prismodellen, släppytan, och att en utloggad besökare får
   knappen Offert och kundens offertvy. Den versionen krävde kassans uppgifter vid nedladdningen.
+- Kontrollerat i drift samma dag efter den andra pushen (`7c2cd76`), bara läsning, med alla anrop
+  som sparar stoppade i webbläsaren: migrering 040 är tillämpad, städjobbet har körts, och en
+  utloggad besökare får offertvyn utan kundrader, med "Era uppgifter (valfritt)" och knappen
+  "Ladda ner offert" tryckbar utan uppgifter. **Ingen offert har sparats i drift**: nedladdningen,
+  mejlet till adminens adresser och godkännandet på offertsidan är bara provade lokalt.
 - Det jag valde själv: att offerten sparas (ägaren sa "ladda hem"), att varukorgen står kvar,
   att filmen hämtas med en knapp, att butikerna är med, att uppgifterna som fylls i är
   frivilliga fält i stället för att tas bort helt, att också en besökare utan uppgifter ger
