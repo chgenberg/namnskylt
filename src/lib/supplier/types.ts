@@ -74,6 +74,16 @@ export type SupplierLayer =
           };
     };
 
+/**
+ * En rad på verkstadens orderpapper, som "Fäste" och "Nål". Verkstaden ritar varje rad för sig,
+ * bland skyltens övriga uppgifter (besked av ägaren 2026-11-20: fästet ska ha en egen rad, inte
+ * stå under Kommentar).
+ */
+export interface SupplierSpecRow {
+  label: string;
+  value: string;
+}
+
 export interface SupplierSignDocument {
   productType: "sign";
   material: string;
@@ -86,7 +96,13 @@ export interface SupplierSignDocument {
   mounting: string;
   holes: { type: "none"; count: 0; diameterMm: number; placement: "none" };
   layers: SupplierLayer[];
+  /**
+   * Samma uppgifter som `partnerSpecs`, i löptext. Verkstadens orderpapper ritar den som
+   * "Kommentar" när raderna saknas, och de arbetsmoment som grupperar skyltar läser den.
+   */
   productionNote?: string;
+  /** Det verkstaden ska läsa om skylten utöver ritningen, en rad per uppgift. Fästet står alltid med. */
+  partnerSpecs?: SupplierSpecRow[];
 }
 
 export interface SupplierOrderLine {

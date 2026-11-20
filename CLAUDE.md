@@ -68,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1391 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1392 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -2854,8 +2854,9 @@ Fortnox-följesedel vid Skickad, och `Company.collectiveInvoice` för samfakture
     igen på första statushändelsens aktör, `namnskylt:<orderRef>`. Ingen databasändring.
   - Upphämtning sparas utan leveransadress hos dem, som i deras kassa.
 - **Fästet står i kommentaren till produktionen** ("Fäste: Nål."), eftersom deras
-  monteringskoder bara är tejp, vägg och stolpe. Det görs i mottagaren, så vårt anrop är
-  oförändrat. Kommentaren syns på deras orderpapper.
+  monteringskoder bara är tejp, vägg och stolpe. Det görs i mottagaren. Kommentaren syns på
+  deras orderpapper tills raderna från 2026-11-20 är utrullade (se Ägarens besked nedan): då
+  ritas fästet på en egen rad.
 - **Svaren följer våra omförsök:** 400 och 422 är ett nej som måste rättas (formfel, summan
   stämmer inte med raderna, en bild saknas, dokumentet går inte igenom märkskyltens regler),
   401 fel nyckel, 413 för stort och 5xx tillfälligt fel.
@@ -2954,7 +2955,8 @@ Luckor i kontraktet:
   `customShapePoints`). Deras designer säljer inte fri form i plast; det är mottagaren som
   släpper igenom den för våra ordrar.
 - Fästet skickas som text i stället för artikelkod. Deras mottagare lägger det i kommentaren
-  till produktionen.
+  till produktionen, och sedan 2026-11-20 skickar vi det också som en egen rad till
+  orderpappret (`partnerSpecs`, se nedan).
 - Beställarens eget inköpsnummer har inget fält i deras mottagare. Vi skickar det i orderns
   märkning (`orderName`), se avsnittet Inköpsnummer. Deras `customerPo` är vårt ordernummer.
 - Deras text- och ramlager har inget läge för print. Vi går runt det med ett trycklager av
@@ -2976,24 +2978,74 @@ Luckor i kontraktet:
 **Ägarens besked 2026-11-20 om vad som får ändras där:** "vi ska inte röra skyltmotorns
 funktionalitet men dom produktionsdokument som skickas från namnskylt.com till skylt och
 gravyrs produktion/admin dashboard ska ändras. Men ingenting i hur skylt och gravyrs egen
-motor fungerar." Jag frågade om jag fick ändra i skyltmotor, och svaret började med nej.
-Två önskemål samma dag väntar därför på ett tydligt svar:
+motor fungerar." Samma dag sa ägaren ja till två avgränsade ändringar där, som båda bara
+gäller ordrar från namnskylt.com, och sedan till att rulla ut dem ("Kör båda"). **Skyltmotor
+är deployad till produktion 2026-11-20 cirka 12:17**, efter deras bug-hunt (0 CRITICAL,
+0 HIGH, 2 MEDIUM), och Namnskylts del pushades samma dag.
 
-- **Fästet som egen rad på produktionsordern** ("där ska det inte vara 'kommentar' för typ
-  fäste osv. utan en egen 'rad' där det står typ fäste och exempelvis 'nål'"). Läst i deras
-  kod, inget ändrat: raderna på deras orderpapper ritas av `orderPaperSpecs` i
-  `apps/web/src/lib/order-paper.ts`, ur fasta fält i dokumentet. Fästet hamnar i raden
-  "Kommentar" därför att deras mottagare (`partnerDocument`) flyttar ett fäste som inte är en
-  av deras monteringskoder till `productionNote`, tillsammans med vår text om ämne,
-  märkningsmetod och tryckfärg. Radbrytningar i kommentaren ritas inte ut. **Det går alltså
-  inte att få en rad "Fäste" bara genom att ändra det vi skickar**: rubriken sätts av deras
-  orderpapper. Det som krävs är att deras orderpapper ritar extra rader för dokument som bär
-  dem, och att vi skickar raderna var för sig. Deras egna ordrar skulle inte påverkas.
-- **Orderbekräftelsen i namnskylt.coms utseende.** Den bekräftelse och de statusmejl kunden
-  får i dag skickas av verkstadens system, i deras utseende (`branded-email.ts`). Vår egen
-  orderbekräftelse finns, i vår mejlmall, men är avstängd. Slås den på får kunden två
-  bekräftelser, om inte verkstadens stängs av för ordrar från namnskylt.com.
+- **Utrullningen hos verkstaden:** bara de nio filer som hör till ändringarna hade ändrats
+  sedan deras förra utrullning (kontrollerat på filernas tider). Sajten svarade likadant före
+  och efter på elva kontroller (start, skyltmotor, kassa, villkor, om oss, kontakt, inloggning,
+  admin och mottagaren utan nyckel), och start, skyltmotor, kassa och inloggning laddade i en
+  webbläsare utan fel. Testmiljön (destage) hoppades över: dess databas ligger efter i
+  migreringar, så en utrullning dit hade gett en trasig testsajt.
+- **Inget är sett på en riktig order.** Ingen riktig order har gått från namnskylt.com sedan
+  utrullningen, så raderna är inte sedda på ett riktigt orderpapper och mejlen inte i en
+  riktig brevlåda. Första skarpa testordern är första provet.
+- **Två följdpunkter ur bug-hunten är inte åtgärdade** och väntar på ägarens ja, eftersom de
+  är ändringar i skyltmotor:
+  - Orderpappret läser `partnerSpecs` på alla dokument, inte bara på ordrar från namnskylt.com.
+    En kund hos verkstaden som bygger sitt eget anrop kan alltså lägga egna rader på sitt eget
+    orderpapper. Värdena rensas, så ingen kod kan smugglas in. Förslag: läs fältet bara för
+    partnerordrar.
+  - Kommentaren döljs så fort en rad går att rita, också om rader har kapats (högst 12 rader
+    och 300 tecken), och grupperingen läser bara kommentaren. Det går inte att nå med det vi
+    skickar i dag: högst fem korta rader, och kommentaren ändras när raderna gör det.
 
+- **Fästet, ämnet och märkningen står på egna rader på verkstadens orderpapper** ("där ska
+  det inte vara 'kommentar' för typ fäste osv. utan en egen 'rad' där det står typ fäste och
+  exempelvis 'nål'"). Förut stod allt i en enda rad, Kommentar, som löptext.
+  - **Vi skickar raderna** i dokumentet, som `partnerSpecs` (`SupplierSpecRow`, `specRows` i
+    `src/lib/supplier/map.ts`): Fäste (alltid), Ämne (metallens benämning och tjocklek) och,
+    när något printas, Märkning, Tryckfärg och Tryckt text. Rubrikerna är korta, eftersom
+    orderpapprets kolumn för rubriker är smal. Att "Namn: Print" och "Logotyp: Print" inte
+    har egna rader valde jag: metodens namn säger samma sak.
+  - **`productionNote` skickas som förut**, med samma innehåll i löptext. Den behövs:
+    verkstadens papper ritar den som Kommentar när raderna saknas, och deras gruppering av
+    skyltar till samma maskinuppsättning läser den. Ändras det som står i kommentaren ska
+    raderna ändras på samma sätt, annars tappas uppgiften på pappret.
+  - **Hos verkstaden** ritar `documentSpecs` i `apps/web/src/lib/order-paper.ts` raderna där
+    Kommentar stod, och hoppar då över kommentaren (`partnerSpecs`, läst defensivt: högst 12
+    rader, 24 tecken i rubriken och 300 i värdet). Deras mottagare, märkskyltens regler och
+    deras egna dokument är orörda. Raden "Tejp: Nej" står kvar på pappret; den är deras egen.
+  - Ordningen de två sidorna rullas ut i spelar ingen roll: deras mottagare godtar redan ett
+    okänt fält och sparar det, och utan fältet ritas Kommentar som i dag.
+  - Provat lokalt 2026-11-20 med tre riktiga dokument från Namnskylt (metall med magnet och
+    tryckfärg, plast med nål, plast med klämma) genom deras egna funktioner: mottagarens
+    omskrivning, märkskyltens regler och orderpappret. Alla godkänns, och pappret visar
+    "Fäste: Magnet | Ämne: … | Märkning: Endast print | Tryckfärg: #0057B8 | Tryckt text: …".
+- **Verkstadens mejl om en order från namnskylt.com har namnskylt.coms utseende** (ägarens ja
+  på frågan om verkstadens mejl skulle få vårt utseende, i stället för två bekräftelser).
+  Det gäller orderbekräftelsen (också en uppdaterad), "har skickats" med spårningslänken och
+  "klar för upphämtning" i Högsbo. Kunden får fortfarande ett enda mejl per händelse, från
+  verkstadens system.
+  - Mallen är `apps/web/src/lib/partner-email.ts` hos dem (`renderPartnerEmail`,
+    `partnerEmailText`): namnskylt.coms logga överst, rubrik i serif och svart knapp, raden
+    "namnskylt.com – en del av Skylt & Gravyrteknik AB" under kortet, verkstadens adress,
+    telefon och orderbrevlåda, och deras logga längst ner. Valet görs av `orderMailLook` i
+    `apps/web/src/server/partner-email.ts`, som känner igen ordern på samma sätt som resten
+    av deras kod (`isPartnerOrder`). Deras egna ordrar får exakt samma mejl som förut.
+  - **Loggan ligger som en kopia hos dem** (`apps/web/src/server/partner-logo.ts`, bäddad i
+    mejlet), tagen ur `public/logo-namnskylt-mejl.png`. Ändras sajtens logga ska den filen
+    göras om också.
+  - Oförändrat, med flit: innehållet, ämnesraden, avsändaren (verkstadens adress) och den
+    bifogade orderbekräftelsen som PDF, som är verkstadens eget dokument i deras utseende.
+    Raden "Ert IO-nummer: NS-…" i bekräftelsen är deras text och visar vårt ordernummer.
+  - Vår egen orderbekräftelse och vårt fraktbesked ska därför förbli avstängda: annars får
+    kunden två mejl.
+  - Provat lokalt 2026-11-20 genom att rita de tre mejlen med påhittade uppgifter och se dem
+    i Chrome på 700 och 390 px. **Inget mejl har skickats, och inget är provat i en riktig
+    e-postklient.** Knappen ritas med VML i Outlook, som ingen har sett.
 Det projektet har egna, strikta regler i `Skyltochgravyr/.cursor/rules/`:
 - Ändra inget under `skyltmotor/` utan ett uttryckligt ja i samma meddelande.
 - Det finns ingen GitHub; "pusha" betyder AWS-deploy där.

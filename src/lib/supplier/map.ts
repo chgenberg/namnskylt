@@ -22,7 +22,7 @@ import {
   type FontEngine,
 } from "@/engine";
 import { toCubicPath } from "./cubic-path";
-import type { SupplierLayer, SupplierSignDocument } from "./types";
+import type { SupplierLayer, SupplierSignDocument, SupplierSpecRow } from "./types";
 
 const round3 = (value: number) => Number(value.toFixed(3));
 
@@ -66,6 +66,30 @@ function markingNote(doc: BadgeDocument, printedText: readonly string[] = []): s
   if (color) parts.push(color);
   if (printedText.length > 0) parts.push(`Text som printas: ${printedText.join(" / ")}`);
   return `Märkningsmetod: ${getMarkingMethod(markingOf(doc)).name}. ${parts.join(". ")}.`;
+}
+
+const PRINT_COLOR_PREFIX = "Tryckfärg ";
+
+/**
+ * Raderna verkstaden ritar på sitt orderpapper, en per uppgift: fästet, ämnet och, när något
+ * printas, märkningsmetoden, tryckfärgen och texten som printas. Samma uppgifter som i
+ * `productionNote`, som ritas som en enda rad, Kommentar, när raderna saknas.
+ *
+ * Rubrikerna är korta, eftersom orderpapprets kolumn för rubriker är smal.
+ */
+function specRows(
+  doc: BadgeDocument,
+  article: ReturnType<typeof blankArticleOf>,
+  printedText: readonly string[],
+): SupplierSpecRow[] {
+  const rows: SupplierSpecRow[] = [{ label: "Fäste", value: mountingLabel(doc) }];
+  if (article) rows.push({ label: "Ämne", value: `${article.name}, ${article.thicknessMm.toLocaleString("sv-SE")} mm` });
+  if (markingOf(doc) === "engrave") return rows;
+  rows.push({ label: "Märkning", value: getMarkingMethod(markingOf(doc)).name });
+  const color = printColorLabel(doc);
+  if (color) rows.push({ label: "Tryckfärg", value: color.startsWith(PRINT_COLOR_PREFIX) ? color.slice(PRINT_COLOR_PREFIX.length) : color });
+  if (printedText.length > 0) rows.push({ label: "Tryckt text", value: printedText.join(" / ") });
+  return rows;
 }
 
 /**
@@ -238,9 +262,10 @@ export function toSupplierSignDocument(
   // Ett färdigt ämne står med verkstadens egen benämning, så att rätt ämne plockas: ytorna heter
   // annat i deras katalog, och formatet går inte att läsa ur materialkoden.
   const article = blankArticleOf(doc);
+  const printedText = nameInPrintLayer ? layout.rows.map((row) => row.text) : [];
   const notes = [
     article ? `Ämne: ${article.name}, ${article.thicknessMm.toLocaleString("sv-SE")} mm.` : null,
-    method !== "engrave" ? markingNote(doc, nameInPrintLayer ? layout.rows.map((row) => row.text) : []) : null,
+    method !== "engrave" ? markingNote(doc, printedText) : null,
   ].filter((note): note is string => note !== null);
 
   return {
@@ -255,5 +280,6 @@ export function toSupplierSignDocument(
     holes: { type: "none", count: 0, diameterMm: 3.2, placement: "none" },
     layers: [...frameLayers, ...logoLayers, ...textLayers, ...(print ? [print] : [])],
     ...(notes.length > 0 && { productionNote: notes.join(" ") }),
+    partnerSpecs: specRows(doc, article, printedText),
   };
 }
