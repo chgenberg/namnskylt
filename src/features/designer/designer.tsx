@@ -261,6 +261,14 @@ export function Designer({
     if (hasText) track("text");
   }, [hasText, track]);
   const cartBadges = useMemo(() => cart.flatMap((group) => groupBadges(group)), [cart]);
+  /**
+   * Skylten som visas i 3D när allt som är designat ligger i varukorgen: den senast tillagda.
+   * Skylten i editorn är då ny och tom, och förut var det den som syntes bakom varukorgen
+   * (besked av ägaren 2026-11-20: "när jag klickar på varukorg så blir skylten tom, namnet
+   * försvinner"). Så fort nästa skylt påbörjas visas den i stället.
+   */
+  const shownFromCart = pending && cart.length > 0 ? (cart[cart.length - 1]?.doc ?? null) : null;
+  const stageDoc = shownFromCart ?? doc;
   const batchEntries = useMemo(() => parseBatchInput(batchText, Infinity), [batchText]);
   const batch = useMemo(
     // Ordern rymmer MAX_ORDER_BADGES skyltar, med dem som redan ligger där inräknade.
@@ -524,8 +532,6 @@ export function Designer({
    */
   const engraves = (!layout.namePrinted && (layout.rows.length > 0 || layout.frames.length > 0)) || Boolean(layout.logo && !layout.logo.printed);
 
-  const material = getMaterial(doc.materialId);
-  const color = getColor(doc.materialId, doc.colorId);
 
   return (
     <div className={styles.shell} data-view={view}>
@@ -594,7 +600,7 @@ export function Designer({
           >
             {view === "3d" ? (
               <Badge3D
-                doc={doc}
+                doc={stageDoc}
                 fonts={fonts}
                 spinning={false}
                 focus={focus}
@@ -629,13 +635,19 @@ export function Designer({
 
         <footer className={styles.stageBottom}>
           <p className={`mono ${styles.spec}`}>
-            {doc.size.widthMm} × {doc.size.heightMm} mm · {material.name} · {color.name}
+            {stageDoc.size.widthMm} × {stageDoc.size.heightMm} mm · {getMaterial(stageDoc.materialId).name} ·{" "}
+            {getColor(stageDoc.materialId, stageDoc.colorId).name}
           </p>
           {view === "3d" && recording ? (
             <p className={styles.hint} data-tip>Rör inte skylten medan filmen spelas in</p>
           ) : view === "3d" && stageNote ? (
             <p className={styles.hint} role="status">
               {stageNote}
+            </p>
+          ) : view === "3d" && shownFromCart ? (
+            // Skylten på bilden ligger redan i varukorgen: fälten i panelen gäller nästa skylt.
+            <p className={styles.hint} data-tip role="status">
+              Skylten ligger i varukorgen. Skriv ett namn för att börja på nästa.
             </p>
           ) : view === "drawing" ? (
             // Varningen visas överallt. Tipset om hur man drar visas inte på telefon, där det tar skyltens plats.

@@ -68,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1414 tester, grönt 2026-11-20).
+# Kvalitetsgrinden. Kör den innan något lämnas (1426 tester, grönt 2026-11-20).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -174,8 +174,9 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       aldrig på en kod. Metallens ytor har ingen färgkod.
     - En skylt i äldre plast behåller sin färg när den flyttas till dagens plast
       (`toOfferedDocument`), eftersom id:na är desamma.
-    - När kunden hämtar sin logga från hemsidan väljs den kombination som ligger närmast
-      loggans färg (`logoColorCombo`, se De avlästa färgerna under Märkningsmetod).
+    - När kunden hämtar sin logga från hemsidan föreslås den kombination som ligger närmast
+      loggans färg (`logoColorCombo`, se De avlästa färgerna under Märkningsmetod). Sedan
+      2026-11-20 väljs den inte av sig själv.
 - **Ämnen:** metallen och plasten har olika ämnen (`BLANKS`, `BadgeBlank.finishes`, `blankFits`),
   och formväljaren visar bara dem som finns på materialet.
   - **Metallens ämnen är verkstadens egna** (underlag från ägaren 2026-11-17, en lista med
@@ -466,8 +467,9 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
         nu, för vi har ju inte köpt det ännu"). Koden är en skärmfärg, som i hela färgvalet.
         Gissa aldrig en Pantone-kod ur en bild.
       - Under färgerna står vad de leder till: "Närmast i plast: Vit / Röd", med knappen Välj
-        eller ordet Vald. Raden och valet vid hämtning från en hemsida följer samma regel,
-        `logoColorCombo` i `src/lib/brand/match.ts`: loggans egna färger styr, och hemsidans
+        eller ordet Vald. Raden följer regeln
+        `logoColorCombo` i `src/lib/brand/match.ts` (till 2026-11-20 valdes färgen också av sig
+        själv vid en hämtning från en hemsida): loggans egna färger styr, och hemsidans
         bara när loggan är svart, vit eller grå. **En logga som trycks i sina egna färger får
         aldrig en yta som dess huvudfärg syns dåligt mot** (kontrast under `GOOD_CONTRAST`):
         en röd logga ger vit skylt med röd gravyr, inte röd skylt. En logga som graveras tar
@@ -655,6 +657,55 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   - Känd brist: utan AI-modellen (lokalt, eller när den inte svarar) kom också sidans runda
     språkflagga och kontoikon med som alternativ. `flagLike` känner inte igen en rund flagga
     på vit botten. I drift väljer modellen bort dem.
+- **Hämtningen från en hemsida lägger bara loggan på skylten** (besked av ägaren 2026-11-20: "Dessutom
+  så ändrar skylten färg om man hämtar en ny URL. Den ska bara hämta logo. Inget annat."). Förut
+  bytte den också typsnitt och skyltens färg (`fetchBrand` i `logo-section.tsx`), så att en ny
+  hämtning ändrade det kunden redan hade valt. Märkningsmetodens förslag och loggans plats
+  följer fortfarande med loggan, som vid en uppladdning.
+  - Färgen som passar loggan föreslås som förut under loggans avlästa färger ("Närmast i plast …
+    Välj"), men väljs aldrig av sig själv. **Följden är att en logga med vit text hamnar osynlig
+    på en vit skylt** tills kunden byter färg. Förut valde hämtningen en yta loggan syntes mot.
+  - Sammanfattningen efter hämtningen visar Företag, Hemsidan (färger) och Bransch. Raden
+    Typsnitt är borta. Arbetsplatsen till personbilden (`onWorkplace`) följer fortfarande med,
+    eftersom den inte ändrar skylten. Det valde jag.
+- **Loggan spåras i dubbel upplösning, med kanten lagd mellan pixlarna** (samma besked: ägaren
+  hämtade en logga från en hemsida och fick kantiga, hackiga bokstäver, "kan vi skapa en ännu
+  mer detaljerad logo-hämtare"). Felet återskapades med en logga i färg som graverades på en röd
+  plastskylt: gravyrformen spårades i 640 px, där en bokstav bara var ett fyrtiotal pixlar hög,
+  så att ett G blev en tolvhörning. Fyra ändringar:
+  - **Alla banor spåras ur en bild på 1040 px** (`TRACE_MAX_PX` i `trace-image.ts`), förut 520 px
+    för en svartvit logga och 640 px för en i färg. **Bilden som trycks är fortfarande högst
+    640 px** (`COLOR_MAX_PX`, `encodePng`): banorna och bilden delar ruta men inte upplösning,
+    så `viewWidth` är inte bildens bredd i pixlar.
+  - **Reglerna för brus räknar som förut** (`grain` i `inkMask`, `inkTrace`, `engravingMask`,
+    `traceLogoEngraving` och `carveEnclosedDetail`): måtten i pixlar växer med upplösningen, så
+    att samma fläck och samma smala rand räknas som brus. En finare bild ger jämnare kanter,
+    inte fler smådelar. Utan `grain` gäller de gamla måtten, som servern (utskicket) använder.
+  - **Kanten läggs där den faktiskt går** (`TraceOptions.soft`, `crossing` i `contours` i
+    `src/engine/logo.ts`): spåraren får bildens genomskinlighet eller ljushet som mjuk mask och
+    flyttar varje punkt längs sin pixelkant, högst en halv pixel. Vad som är bläck avgör masken
+    ensam, och en mjuk mask som säger emot masken används inte. En sned linje blir två punkter
+    i stället för ett trappsteg. Toleransen är 0,5 px (`TOLERANCE_PX`). Utan `soft` spåras
+    exakt som förut: egen form, utskicket och äldre tester är orörda.
+  - **En bild som är mindre än 1040 px jämnas till innan den spåras** (`smoothPixels`, bara
+    den svartvita vägen), och **en suddig kant tas inte för en platta** (`isBlurredRim` i
+    `logo-mask.ts`): en liten JPEG med mörk text på vitt spårades annars som ihåliga
+    konturer, eftersom den grå randen runt bokstaven togs för en platta med bokstaven som
+    detalj. Loggan i färg jämnas inte till, eftersom samma pixlar blir bilden som trycks.
+  - **Servern hämtar den största bilden** när sidan läses utan Chrome (`largestInSrcset` i
+    `parse-html.ts`, förut `src`, alltså den minsta), och ritar en SVG i 1200 px i stället för
+    800 (`SVG_RASTER_PX`).
+  - En logga som redan ligger på en skylt ändras inte: den spåras om först när den läggs in
+    igen. Banan blir ungefär lika lång som förut, eftersom raka kanter behöver färre punkter.
+  - Mätt i Node på en kvadratisk logga i 1040 px: siluetten 26 ms, gravyrformen 285 ms och en
+    svartvit logga 292 ms. Inte mätt på en telefon.
+  - Provat lokalt 2026-11-20 i Chrome: en logga i färg hämtad från en hemsida, graverad på röd
+    plast och tryckt på blå (ritning och 3D), och fyra påhittade loggor, varav två små JPEG.
+    **Ägarens egen hemsida är inte provad**: adressen stod inte i beskedet, och provet gjordes
+    med en sida som gav samma ord i loggan. Inte provat i Safari eller på en telefon.
+  - Kända brister: i en mycket liten bild (110 px bred i provet) kan två bokstäver som står
+    tätt flyta ihop. Kanten mellan två färger inuti en logga förfinas bara när den ena är
+    ljus och den andra bläck. Loggor som spåras på servern (utskicket) får inget av detta.
 - **Loggans storlek och ritningens handtag** (besked via ägaren 2026-11-18, som drog reglaget
   i botten utan att loggan växte mer än marginellt, och ville dra i kanten på logga och text):
   - **`BadgeLogo.sizing: "free"`** sätts när kunden själv ändrar storleken, med reglaget eller
@@ -1408,6 +1459,13 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
     listan, och då gick inget att lägga i varukorgen. Namn som skrivs eller klistras in
     flyttas upp först när kunden lämnar rutan, eftersom första tecknet annars skulle hoppa
     upp i editorn (se En skylt med bara logga).
+- **Skylten syns kvar i 3D när den har lagts i varukorgen** (besked av ägaren 2026-11-20: "när
+  jag klickar på varukorg så blir skylten tom, namnet försvinner"). Skylten i editorn läggs
+  undan och nästa börjar utan text, så förut syntes en tom skylt bakom varukorgen. Nu visar
+  3D-vyn den senast tillagda skylten så länge skylten i editorn är ny och orörd
+  (`shownFromCart`, `stageDoc` i `designer.tsx`), med raden "Skylten ligger i varukorgen.
+  Skriv ett namn för att börja på nästa." Så fort nästa skylt påbörjas visas den. Ritningen
+  och På person visar fortfarande skylten i editorn, eftersom det är den som ändras där.
 - **Listan under "Fler namn" står kvar när bara en skylt är kvar** (besked av ägaren
   2026-11-18: "tar jag bort 3 av 4 så försvinner även den 4e"). Listan visades bara med flera
   skyltar, så när den näst sista togs bort försvann hela listan, fast skylten i editorn fanns
@@ -2434,7 +2492,8 @@ som är gratis").
   Fet. Inte provat i Safari eller på en riktig telefon.
 - Kända brister: en skylt som fotograferas eller sparas i samma ögonblick som typsnittet
   byts kan ritas i Arial, innan filen har kommit. Hämtningen från en hemsida väljer
-  fortfarande bara mellan Arial och Arial Narrow (`matchFont`). Tunna skrivstilar är inte
+  inget typsnitt längre (sedan 2026-11-20, se Sortimentet); servern räknar fortfarande ut ett
+  förslag mellan Arial och Arial Narrow (`matchFont`), som ingen sida använder. Tunna skrivstilar är inte
   prövade i gravyr.
 
 ## Följesedeln — läge 2026-11-20

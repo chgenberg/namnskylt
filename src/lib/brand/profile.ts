@@ -35,8 +35,8 @@ const CSS_LIMITS = { maxBytes: 1_000_000, timeoutMs: 4_000, accept: "text/css,*/
 const LOGO_ACCEPT = "image/webp,image/png,image/svg+xml,image/*;q=0.8";
 const LOGO_LIMITS = { maxBytes: 3_000_000, timeoutMs: 5_000, accept: LOGO_ACCEPT };
 const LOGO_ATTEMPTS = 4;
-/** Bredd på en SVG-logga renderad till PNG — gott om pixlar för spårningen. */
-const SVG_RASTER_PX = 800;
+/** Bredd på en SVG-logga renderad till PNG: lika många pixlar som en bildlogga får ha (`LOGO_MAX_PX`). */
+const SVG_RASTER_PX = 1200;
 const RASTER_TYPES = /^image\/(png|jpe?g|webp|gif|avif|x-icon|vnd\.microsoft\.icon)/i;
 /** Hela hämtningen ska rymmas i API-routens 60 s. */
 const RENDER_BUDGET_MS = 28_000;

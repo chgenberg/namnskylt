@@ -101,6 +101,30 @@ describe("inkMask — en logga ska synas, inte bli en svart klump", () => {
     assert.equal(at(logo, inkMask(logo), 40, 30), 1);
   });
 
+  it("en suddig mörk logga på vit botten graveras fylld, inte som ihåliga konturer", () => {
+    // En liten JPEG har en grå kant runt varje bokstav. Kanten är ingen platta med bokstaven som detalj.
+    const GREY: Rgba = [118, 118, 118, 255];
+    const logo = image(120, 60, (x, y) => {
+      if (!inside(x, y, 20, 20, 100, 40)) return WHITE;
+      return inside(x, y, 22, 22, 98, 38) ? BLACK : GREY;
+    });
+    const mask = inkMask(logo);
+    assert.equal(at(logo, mask, 60, 30), 1, "bokstavens kärna graveras");
+    assert.equal(at(logo, mask, 20, 30), 1, "kanten hör till bokstaven");
+    assert.equal(at(logo, mask, 5, 5), 0, "botten lämnas");
+  });
+
+  it("en bred grå platta med svart text på vit botten är en platta: texten tas ur", () => {
+    const GREY: Rgba = [118, 118, 118, 255];
+    const logo = image(120, 60, (x, y) => {
+      if (!inside(x, y, 10, 8, 110, 52)) return WHITE;
+      return inside(x, y, 40, 24, 80, 36) ? BLACK : GREY;
+    });
+    const mask = inkMask(logo);
+    assert.equal(at(logo, mask, 20, 16), 1, "plattan graveras");
+    assert.equal(at(logo, mask, 60, 30), 0, "texten lämnas");
+  });
+
   it("invertering vänder på hela masken", () => {
     const logo = image(40, 40, (x, y) => (inside(x, y, 10, 10, 30, 30) ? NAVY : CLEAR));
     const mask = inkMask(logo, true);

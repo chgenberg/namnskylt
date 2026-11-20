@@ -23,6 +23,14 @@ export interface TraceOptions {
    * i färg, där banorna ska ligga exakt över bilden.
    */
   keepFrame?: boolean;
+  /**
+   * Mjuka masker, ett värde 0–1 per pixel där över 0,5 är bläck: bildens genomskinlighet eller
+   * ljushet innan den delades i bläck och botten. Med dem läggs konturen där kanten faktiskt går
+   * mellan två pixlar, i stället för mitt emellan dem, så att sneda linjer blir raka och bågar
+   * jämna. Vilka pixlar som är bläck avgör fortfarande masken ensam: den mjuka masken flyttar
+   * bara punkterna, högst en halv pixel. Den första som håller med masken om en kant används.
+   */
+  soft?: readonly ArrayLike<number>[];
 }
 
 type Point = readonly [number, number];
@@ -77,27 +85,49 @@ function pointKey(x2: number, y2: number, stride: number): number {
  * Marching squares över masken (utanför bilden = botten). Varje kantmittpunkt
  * delas av exakt två segment, så konturerna kan följas utan riktningstabell.
  */
-function contours(mask: ArrayLike<number>, width: number, height: number): Point[][] {
-  const inked = (x: number, y: number) =>
-    x >= 0 && y >= 0 && x < width && y < height && (mask[y * width + x] ?? 0) > 0;
+function contours(mask: ArrayLike<number>, width: number, height: number, soft: readonly ArrayLike<number>[] = []): Point[][] {
+  const within = (x: number, y: number) => x >= 0 && y >= 0 && x < width && y < height;
+  const inked = (x: number, y: number) => within(x, y) && (mask[y * width + x] ?? 0) > 0;
   const stride = 2 * width + 6;
   const neighbours = new Map<number, number[]>();
   const coords = new Map<number, Point>();
 
-  const adjacent = (key: number, point: Point): number[] => {
+  /**
+   * Var konturen korsar sträckan mellan två pixlars mitt, 0–1 från den första. Utan mjuk mask, eller
+   * när ingen av dem håller med masken om vilken av de två som är bläck, är det mitt emellan.
+   */
+  const crossing = (ax: number, ay: number, bx: number, by: number): number => {
+    const aInk = inked(ax, ay);
+    for (const field of soft) {
+      const a = within(ax, ay) ? (field[ay * width + ax] ?? 0) : 0;
+      const b = within(bx, by) ? (field[by * width + bx] ?? 0) : 0;
+      const ink = aInk ? a : b;
+      const ground = aInk ? b : a;
+      // Hälften hör till båda sidor: en pixel som ligger precis på gränsen har kanten i sin mitt.
+      if (!(ink >= 0.5 && ground <= 0.5 && ink > ground)) continue;
+      const fromInk = (ink - 0.5) / (ink - ground);
+      return aInk ? fromInk : 1 - fromInk;
+    }
+    return 0.5;
+  };
+
+  /** Punkten på en cellkant. Nyckeln är kantens mittpunkt, så att cellerna på var sin sida delar punkten. */
+  const adjacent = (key: number, point: () => Point): number[] => {
     let list = neighbours.get(key);
     if (!list) {
       list = [];
       neighbours.set(key, list);
-      coords.set(key, point);
+      coords.set(key, point());
     }
     return list;
   };
-  const link = (a: Point, b: Point) => {
-    const ka = pointKey(a[0], a[1], stride);
-    const kb = pointKey(b[0], b[1], stride);
-    adjacent(ka, a).push(kb);
-    adjacent(kb, b).push(ka);
+  interface Edge {
+    key: number;
+    point: () => Point;
+  }
+  const link = (a: Edge, b: Edge) => {
+    adjacent(a.key, a.point).push(b.key);
+    adjacent(b.key, b.point).push(a.key);
   };
 
   for (let cy = -1; cy < height; cy++) {
@@ -106,10 +136,24 @@ function contours(mask: ArrayLike<number>, width: number, height: number): Point
       const tr = inked(cx + 1, cy);
       const br = inked(cx + 1, cy + 1);
       const bl = inked(cx, cy + 1);
-      const top: Point = [2 * cx + 1, 2 * cy];
-      const right: Point = [2 * cx + 2, 2 * cy + 1];
-      const bottom: Point = [2 * cx + 1, 2 * cy + 2];
-      const left: Point = [2 * cx, 2 * cy + 1];
+      // De flesta celler ligger helt i bläck eller helt i botten, och har ingen kontur.
+      if (tl === tr && tr === br && br === bl) continue;
+      const top: Edge = {
+        key: pointKey(2 * cx + 1, 2 * cy, stride),
+        point: () => [2 * cx + 2 * crossing(cx, cy, cx + 1, cy), 2 * cy],
+      };
+      const right: Edge = {
+        key: pointKey(2 * cx + 2, 2 * cy + 1, stride),
+        point: () => [2 * cx + 2, 2 * cy + 2 * crossing(cx + 1, cy, cx + 1, cy + 1)],
+      };
+      const bottom: Edge = {
+        key: pointKey(2 * cx + 1, 2 * cy + 2, stride),
+        point: () => [2 * cx + 2 * crossing(cx, cy + 1, cx + 1, cy + 1), 2 * cy + 2],
+      };
+      const left: Edge = {
+        key: pointKey(2 * cx, 2 * cy + 1, stride),
+        point: () => [2 * cx, 2 * cy + 2 * crossing(cx, cy, cx, cy + 1)],
+      };
 
       if (tl === br && tr === bl && tl !== tr) {
         // Sadel: hörnen med bläck hålls isär, så två diagonala pixlar blir två öar.
@@ -122,7 +166,7 @@ function contours(mask: ArrayLike<number>, width: number, height: number): Point
         }
         continue;
       }
-      const crossings: Point[] = [];
+      const crossings: Edge[] = [];
       if (tl !== tr) crossings.push(top);
       if (tr !== br) crossings.push(right);
       if (bl !== br) crossings.push(bottom);
@@ -241,28 +285,104 @@ const TRANSPARENT_SHARE = 0.02;
 const ALPHA_INK = 128;
 
 /**
+ * Bilden utjämnad med en mjuk oskärpa, `radius` pixlar. En liten eller hårt komprimerad bild som
+ * förstoras har trappsteg och brus i kanterna, och spårningen följer dem: bokstäverna blir
+ * hackiga. Utjämnad först får kanten en jämn övergång, och tröskeln lägger konturen mitt i den.
+ *
+ * Färgerna räknas med genomskinligheten som vikt, så att en frilagd bilds osynliga pixlar inte
+ * färgar kanten. Två svep åt varje håll ger en form nära en gaussisk oskärpa.
+ */
+export function smoothPixels(pixels: RgbaPixels, radius: number): RgbaPixels {
+  const { width, height } = pixels;
+  const size = Math.floor(radius);
+  if (size < 1 || width < 2 || height < 2) return pixels;
+  const count = width * height;
+  // Fyra kanaler med färgen gånger genomskinligheten, och genomskinligheten för sig.
+  let current = new Float32Array(count * 4);
+  for (let i = 0; i < count; i++) {
+    const alpha = (pixels.data[i * 4 + 3] ?? 0) / 255;
+    current[i * 4] = (pixels.data[i * 4] ?? 0) * alpha;
+    current[i * 4 + 1] = (pixels.data[i * 4 + 1] ?? 0) * alpha;
+    current[i * 4 + 2] = (pixels.data[i * 4 + 2] ?? 0) * alpha;
+    current[i * 4 + 3] = alpha;
+  }
+  let next = new Float32Array(count * 4);
+  const pass = (lines: number, length: number, at: (line: number, step: number) => number) => {
+    for (let line = 0; line < lines; line++) {
+      for (let channel = 0; channel < 4; channel++) {
+        let sum = 0;
+        // Fönstret börjar utanför bilden: kanten upprepas, så att bilden inte mörknar mot sidorna.
+        for (let k = -size; k <= size; k++) sum += current[at(line, Math.min(length - 1, Math.max(0, k))) * 4 + channel] ?? 0;
+        for (let step = 0; step < length; step++) {
+          next[at(line, step) * 4 + channel] = sum / (size * 2 + 1);
+          const leave = at(line, Math.max(0, step - size));
+          const enter = at(line, Math.min(length - 1, step + size + 1));
+          sum += (current[enter * 4 + channel] ?? 0) - (current[leave * 4 + channel] ?? 0);
+        }
+      }
+    }
+    [current, next] = [next, current];
+  };
+  for (let round = 0; round < 2; round++) {
+    pass(height, width, (y, x) => y * width + x);
+    pass(width, height, (x, y) => y * width + x);
+  }
+  const data = new Uint8ClampedArray(count * 4);
+  for (let i = 0; i < count; i++) {
+    const alpha = current[i * 4 + 3] ?? 0;
+    const scale = alpha > 0 ? 1 / alpha : 0;
+    data[i * 4] = (current[i * 4] ?? 0) * scale;
+    data[i * 4 + 1] = (current[i * 4 + 1] ?? 0) * scale;
+    data[i * 4 + 2] = (current[i * 4 + 2] ?? 0) * scale;
+    data[i * 4 + 3] = alpha * 255;
+  }
+  return { data, width, height };
+}
+
+/**
  * Bläck eller botten per pixel. Genomskinlig bild: allt synligt är loggan.
  * Ogenomskinlig: ljusheten delas med Otsus tröskel, och den klass som
  * dominerar kanten räknas som botten — så både mörk logga på vitt och vit
  * logga på färg blir rätt. Text eller symbol i en annan färg inuti en fylld
  * form blir urtag (`carveEnclosedDetail`), annars graveras loggan som en klump.
+ * `grain` är hur många gånger finare bilden är än den reglerna för brus är inställda för.
  */
-export function inkMask(pixels: RgbaPixels, invert = false): Uint8Array {
-  const foreground = foregroundMask(pixels);
-  const mask = carveEnclosedDetail(pixels, foreground) ?? foreground;
-  if (invert) for (let i = 0; i < mask.length; i++) mask[i] = mask[i] ? 0 : 1;
-  return mask;
+export function inkMask(pixels: RgbaPixels, invert = false, grain = 1): Uint8Array {
+  return inkTrace(pixels, invert, grain).mask;
 }
 
-/** Loggan mot botten, före urtag: allt synligt, eller det som skiljer sig från bildens kant. */
-function foregroundMask({ data, width, height }: RgbaPixels): Uint8Array {
+/**
+ * Bläcket som mask, och den mjuka mask som konturen förfinas med (`TraceOptions.soft`): bildens
+ * genomskinlighet när den är frilagd, annars ljusheten kring tröskeln.
+ */
+export function inkTrace(pixels: RgbaPixels, invert = false, grain = 1): { mask: Uint8Array; soft: Float32Array } {
+  const { mask: foreground, soft } = foregroundOf(pixels);
+  const mask = carveEnclosedDetail(pixels, foreground, grain) ?? foreground;
+  if (invert) {
+    for (let i = 0; i < mask.length; i++) {
+      mask[i] = mask[i] ? 0 : 1;
+      soft[i] = 1 - (soft[i] ?? 0);
+    }
+  }
+  return { mask, soft };
+}
+
+/**
+ * Loggan mot botten, före urtag: allt synligt, eller det som skiljer sig från bildens kant.
+ * `soft` är samma sak innan den delades i två: över 0,5 är logga.
+ */
+function foregroundOf({ data, width, height }: RgbaPixels): { mask: Uint8Array; soft: Float32Array } {
   const count = width * height;
   const mask = new Uint8Array(count);
+  const soft = new Float32Array(count);
   let transparent = 0;
   for (let i = 0; i < count; i++) if ((data[i * 4 + 3] ?? 0) < ALPHA_INK) transparent++;
 
   if (transparent / count > TRANSPARENT_SHARE) {
-    for (let i = 0; i < count; i++) mask[i] = (data[i * 4 + 3] ?? 0) >= ALPHA_INK ? 1 : 0;
+    for (let i = 0; i < count; i++) {
+      mask[i] = (data[i * 4 + 3] ?? 0) >= ALPHA_INK ? 1 : 0;
+      soft[i] = (data[i * 4 + 3] ?? 0) / 255;
+    }
   } else {
     const luminance = new Uint8Array(count);
     for (let i = 0; i < count; i++) {
@@ -287,9 +407,12 @@ function foregroundMask({ data, width, height }: RgbaPixels): Uint8Array {
     for (let i = 0; i < count; i++) {
       const dark = (luminance[i] ?? 0) <= threshold;
       mask[i] = dark === darkIsInk ? 1 : 0;
+      // Hur långt från tröskeln ljusheten ligger, åt bläckets håll. Tröskeln ligger mellan två heltal.
+      const darker = (threshold + 0.5 - (luminance[i] ?? 0)) / 510;
+      soft[i] = 0.5 + (darkIsInk ? darker : -darker);
     }
   }
-  return mask;
+  return { mask, soft };
 }
 
 /**
@@ -304,7 +427,7 @@ export function traceLogoMask(
   options: TraceOptions = {},
 ): TracedLogo | null {
   const minArea = options.minAreaPx ?? DEFAULT_MIN_AREA_PX;
-  const raw = contours(mask, width, height).filter((loop) => Math.abs(signedArea(loop)) >= minArea);
+  const raw = contours(mask, width, height, options.soft).filter((loop) => Math.abs(signedArea(loop)) >= minArea);
   if (raw.length === 0) return null;
 
   let minX = Infinity;

@@ -55,13 +55,45 @@ function absolute(href: string | undefined, base: URL): string | null {
   }
 }
 
-/** Första bilden i `srcset` — oftast den minsta, men loggor är vektor eller små ändå. */
+/**
+ * Den största bilden i `srcset`. En adress får innehålla kommatecken (bildtjänsters `w_300,h_80`),
+ * så listan läses som webbläsaren gör: adressen går fram till första blanksteget, och ett
+ * kommatecken skiljer bara bilder åt när det står sist i adressen eller efter måttet.
+ */
+export function largestInSrcset(srcset: string | undefined): string | undefined {
+  let best: { url: string; size: number } | undefined;
+  let rest = srcset ?? "";
+  for (;;) {
+    rest = rest.replace(/^[\s,]+/, "");
+    if (!rest) break;
+    const token = /^\S+/.exec(rest)?.[0] ?? "";
+    rest = rest.slice(token.length);
+    let size = 1;
+    let url = token;
+    if (token.endsWith(",")) {
+      url = token.replace(/,+$/, "");
+    } else {
+      const comma = rest.indexOf(",");
+      size = Number.parseFloat(comma < 0 ? rest : rest.slice(0, comma)) || 1;
+      rest = comma < 0 ? "" : rest.slice(comma + 1);
+    }
+    if (url && (!best || size > best.size)) best = { url, size };
+  }
+  return best?.url;
+}
+
+/**
+ * Bildens adress. Finns bilden i flera storlekar tas den största (besked av ägaren 2026-11-20, som
+ * fick en hackig logga från en hemsida): en logga som visas liten ligger ofta i dubbel storlek i
+ * `srcset`, och den spåras skarpare. Förut togs `src`, alltså den minsta.
+ */
 function imageSource(attrs: Map<string, string>): string | undefined {
+  const largest = largestInSrcset(attrs.get("srcset") ?? attrs.get("data-srcset"));
+  if (largest && !largest.startsWith("data:")) return largest;
   const lazy = attrs.get("data-src") ?? attrs.get("data-lazy-src");
   const src = attrs.get("src");
   if (src && !src.startsWith("data:image/gif")) return src;
-  if (lazy) return lazy;
-  return attrs.get("srcset")?.split(",")[0]?.trim().split(/\s+/)[0];
+  return lazy;
 }
 
 /** Var `<header>` och `<footer>` ligger, för att väga loggor efter placering. */

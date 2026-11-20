@@ -10,7 +10,6 @@ import {
   LOGO_PLACEMENTS,
   engravingHex,
   getColor,
-  getFont,
   logoEngravingPath,
   logoMarking,
   logoPrintInkOf,
@@ -20,7 +19,6 @@ import {
   type BadgeDocument,
   type LogoPlacement,
 } from "@/engine";
-import { logoColorCombo } from "@/lib/brand/match";
 import { requestBrand, type BrandProfile } from "../logo/brand-api";
 import { storeLogoImage } from "../logo/store-image";
 import { FETCHED_LOGO_NAME, dataUrlFile, storeLogoOriginal } from "../logo/store-original";
@@ -41,8 +39,7 @@ const SCRAPE_EXPECTED_MS = 16_000;
 const SCRAPE_STEPS = [
   [0, "Öppnar er hemsida…"],
   [14, "Letar upp loggan…"],
-  [38, "Mäter typsnittet…"],
-  [58, "Läser av branschen…"],
+  [46, "Hämtar loggan i full storlek…"],
   [82, "Lägger loggan på skylten…"],
 ] as const;
 const UPLOAD_EXPECTED_MS = 1_500;
@@ -191,18 +188,10 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
       const found = await requestBrand(url.trim(), controller.signal);
       if (controller.signal.aborted) return;
       setProfile(found);
+      // Hämtningen lägger bara loggan på skylten (besked av ägaren 2026-11-20: "Den ska bara hämta logo.
+      // Inget annat."). Förut bytte den också typsnitt och skyltens färg, så att en ny hämtning ändrade
+      // det kunden redan hade valt. Färgen som passar loggan föreslås under loggans avlästa färger.
       const trace = found.logo ? await adoptImage(found.logo).catch(() => null) : null;
-      dispatch({ type: "font", font: found.font.fontId });
-      // Samma regel som raden under loggans avlästa färger, så att det som väljs här står som valt där.
-      // En ny logga i färg printas, och ska synas mot ytan.
-      const colorId = logoColorCombo({
-        materialId: doc.materialId,
-        logoColors: trace?.colors ?? [],
-        siteColors: found.colors,
-        printedInColor: Boolean(trace?.image),
-        neutralSite: true,
-      });
-      if (colorId) dispatch({ type: "color", colorId });
       if (found.company?.workplace) onWorkplace(found.company.workplace);
       setStatus(
         trace
@@ -268,7 +257,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
       aside={doc.logo ? LOGO_ASIDE[logoLook] : "Valfritt"}
     >
       <p className={styles.batchLead}>
-        Skriv in er hemsida, så hämtar vi loggan och väljer typsnitt och färg som liknar er.
+        Skriv in er hemsida, så hämtar vi loggan och lägger den på skylten.
       </p>
       <form className={styles.brandForm} onSubmit={fetchBrand}>
         <label className="field">
@@ -293,7 +282,7 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
         title={job === "scrape" ? "Hämtar från hemsidan" : "Läser in loggan"}
         expectedMs={job === "scrape" ? SCRAPE_EXPECTED_MS : UPLOAD_EXPECTED_MS}
         steps={job === "scrape" ? SCRAPE_STEPS : UPLOAD_STEPS}
-        doneLabel={job === "scrape" ? "Klart — loggan, typsnittet och färgen är på plats" : "Klart — loggan är på plats"}
+        doneLabel="Klart — loggan är på plats"
         onCancel={job === "scrape" ? cancelScrape : undefined}
       />
       {status.kind === "error" && (
@@ -307,13 +296,6 @@ export function LogoSection({ doc, dispatch, onWorkplace }: LogoSectionProps) {
           <div>
             <dt>Företag</dt>
             <dd>{profile.siteName}</dd>
-          </div>
-          <div>
-            <dt>Typsnitt</dt>
-            <dd>
-              {profile.font.sourceFamily ? `${profile.font.sourceFamily} → ` : ""}
-              {getFont(profile.font.fontId).name}
-            </dd>
           </div>
           {/* Hemsidans egna färger, med kod. Vad loggans färg ledde till står under loggan, vid Avlästa färger. */}
           {profile.colors.length > 0 && (

@@ -4,7 +4,7 @@ import { colorDistance, isBrandColor, parseCssColor } from "./color";
 import { isPublicAddress } from "./ip";
 import { logoColorCombo, matchColorCombo, matchFont, pickedColorCombo, quoteColorsFromLogo } from "./match";
 import { brandColors, fontFamilies } from "./parse-css";
-import { parsePage } from "./parse-html";
+import { largestInSrcset, parsePage } from "./parse-html";
 import { parsePublicUrl } from "./url";
 
 describe("isPublicAddress", () => {
@@ -99,10 +99,38 @@ describe("parsePage", () => {
     assert.doesNotMatch(signals.text, /font-family/);
   });
 
+  it("tar den största bilden i srcset, inte den lilla i src", () => {
+    const page = parsePage(
+      `<header><a href="/"><img class="logo" src="/logo-150.png" srcset="/logo-150.png 1x, /logo-300.png 2x, /logo-450.png 3x" alt="Firman"></a></header>`,
+      "https://a.se",
+    );
+    const urls = page.logos.flatMap((l) => (l.kind === "url" ? [l.url] : []));
+    assert.equal(urls[0], "https://a.se/logo-450.png");
+  });
+
   it("tar en inbäddad svg-logga", () => {
     const path = `<path d="${"M0 0L10 10".repeat(30)}"/>`;
     const page = parsePage(`<header><a class="logo" href="/"><svg viewBox="0 0 10 10">${path}</svg></a></header>`, "https://a.se");
     assert.equal(page.logos[0]?.kind, "svg");
+  });
+});
+
+describe("largestInSrcset", () => {
+  it("väljer på bredd och på täthet, och klarar listor utan blanksteg", () => {
+    assert.equal(largestInSrcset("a.png 200w, b.png 800w, c.png 400w"), "b.png");
+    assert.equal(largestInSrcset("a.png 1x,b.png 2x"), "b.png");
+    assert.equal(largestInSrcset("a.png, b.png 1.5x"), "b.png");
+    assert.equal(largestInSrcset("ensam.png"), "ensam.png");
+  });
+
+  it("delar inte en adress vid kommatecken inuti den", () => {
+    const srcset = "https://bild.se/w_300,h_80/logo.png 300w, https://bild.se/w_600,h_160/logo.png 600w";
+    assert.equal(largestInSrcset(srcset), "https://bild.se/w_600,h_160/logo.png");
+  });
+
+  it("ger inget för en tom lista", () => {
+    assert.equal(largestInSrcset(undefined), undefined);
+    assert.equal(largestInSrcset("  "), undefined);
   });
 });
 

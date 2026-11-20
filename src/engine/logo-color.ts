@@ -112,6 +112,13 @@ export function visibleMask({ data, width, height }: RgbaPixels): Uint8Array {
   return mask;
 }
 
+/** Det som syns som mjuk mask, 0–1: bildens genomskinlighet. Med den förfinas siluettens kant (`TraceOptions.soft`). */
+export function visibleSoftness({ data, width, height }: RgbaPixels): Float32Array {
+  const soft = new Float32Array(width * height);
+  for (let i = 0; i < soft.length; i++) soft[i] = (data[i * 4 + 3] ?? 0) / 255;
+  return soft;
+}
+
 /** Bilden beskuren till det som syns, med en pixels marginal för utjämnade kanter. `null` = inget syns. */
 function cropToVisible({ data, width, height }: LogoPixels): LogoPixels | null {
   let left = width;

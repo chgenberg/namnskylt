@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { approxFonts, badgeDocumentSchema, createBadgeDocument, layoutBadge, renderBadgeSvg } from "./index";
-import { otsuThreshold, placeLogoPath, traceLogoMask } from "./logo";
+import { otsuThreshold, placeLogoPath, smoothPixels, traceLogoMask, type RgbaPixels } from "./logo";
 import { engravedBadge } from "./testing";
 import type { BadgeDocument, BadgeLogo } from "./types";
 
@@ -23,6 +23,106 @@ function withLogo(logo: Partial<BadgeLogo> = {}): BadgeDocument {
   // Utan vald metod, som skyltar sparades förut: namnet och en svartvit logga graveras.
   return { ...engravedBadge(["Anna Lindqvist", "Projektledare"]), logo: { ...SQUARE_LOGO, ...logo } };
 }
+
+describe("smoothPixels — en liten bild jämnas till innan den spåras", () => {
+  const picture = (width: number, height: number, paint: (x: number, y: number) => [number, number, number, number]): RgbaPixels => {
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) data.set(paint(x, y), (y * width + x) * 4);
+    return { data, width, height };
+  };
+  const red = (pixels: RgbaPixels, x: number, y: number) => pixels.data[(y * pixels.width + x) * 4] ?? 0;
+  const alpha = (pixels: RgbaPixels, x: number, y: number) => pixels.data[(y * pixels.width + x) * 4 + 3] ?? 0;
+
+  it("gör en trappstegskant till en jämn övergång och lämnar ytorna orörda", () => {
+    // En sned kant i steg om fyra pixlar, som en liten bild som har förstorats.
+    const stepped = picture(48, 48, (x, y) => (x < 16 + Math.floor(y / 4) ? [0, 0, 0, 255] : [255, 255, 255, 255]));
+    const smooth = smoothPixels(stepped, 3);
+    assert.equal(red(smooth, 2, 24), 0, "svart långt från kanten");
+    assert.equal(red(smooth, 45, 24), 255, "vitt långt från kanten");
+    const edge = red(smooth, 22, 24);
+    assert.ok(edge > 40 && edge < 215, `kanten är en övergång, ${edge}`);
+    // Tröskeln mitt i övergången flyttar sig jämnt per rad, inte i steg om fyra rader.
+    const crossing = (y: number) => {
+      for (let x = 0; x < 48; x++) if (red(smooth, x, y) >= 128) return x;
+      return 48;
+    };
+    const jumps = [16, 20, 24, 28, 32].map((y) => crossing(y + 1) - crossing(y));
+    assert.ok(jumps.every((jump) => jump >= 0 && jump <= 1), `hopp per rad ${jumps.join(",")}`);
+  });
+
+  it("låter inte osynliga pixlars färg färga kanten", () => {
+    // Frilagd svart form: de genomskinliga pixlarna är vita i filen.
+    const cut = picture(40, 40, (x) => (x < 20 ? [0, 0, 0, 255] : [255, 255, 255, 0]));
+    const smooth = smoothPixels(cut, 3);
+    assert.ok(alpha(smooth, 20, 20) > 0 && alpha(smooth, 20, 20) < 255, "kanten är halvgenomskinlig");
+    assert.ok(red(smooth, 20, 20) < 8, `kanten är fortfarande svart, ${red(smooth, 20, 20)}`);
+    assert.equal(alpha(smooth, 38, 20), 0, "det genomskinliga är kvar");
+  });
+
+  it("lämnar bilden orörd utan radie", () => {
+    const flat = picture(4, 4, () => [10, 20, 30, 255]);
+    assert.equal(smoothPixels(flat, 0), flat);
+  });
+});
+
+describe("traceLogoMask med mjuk mask — kanten läggs mellan pixlarna", () => {
+  // En sned kant, x = 12,3 + 0,37·y, med varje pixels täckning som genomskinlighet.
+  const WIDTH = 40;
+  const HEIGHT = 40;
+  const edgeAt = (y: number) => 12.3 + 0.37 * y;
+  const coverage = (x: number, y: number) => Math.min(1, Math.max(0, edgeAt(y) - (x - 0.5)));
+  const soft = new Float32Array(WIDTH * HEIGHT);
+  const hard = new Uint8Array(WIDTH * HEIGHT);
+  for (let y = 0; y < HEIGHT; y++) {
+    for (let x = 0; x < WIDTH; x++) {
+      soft[y * WIDTH + x] = coverage(x, y);
+      hard[y * WIDTH + x] = coverage(x, y) >= 128 / 255 ? 1 : 0;
+    }
+  }
+  /** Största avståndet i x mellan banans punkter på den sneda kanten och den riktiga kanten. */
+  const worst = (d: string) => {
+    const numbers = (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+    let far = 0;
+    for (let i = 0; i + 1 < numbers.length; i += 2) {
+      const x = numbers[i] ?? 0;
+      const y = numbers[i + 1] ?? 0;
+      // Punkterna längs bildens kant hör inte till den sneda kanten.
+      if (x < 6 || y < 2 || y > HEIGHT - 3) continue;
+      far = Math.max(far, Math.abs(x - edgeAt(y)));
+    }
+    return far;
+  };
+
+  it("följer en sned kant på en dryg tiondels pixel när, mot uppåt en halv utan", () => {
+    const plain = traceLogoMask(hard, WIDTH, HEIGHT, { keepFrame: true, tolerancePx: 0.05 });
+    const fine = traceLogoMask(hard, WIDTH, HEIGHT, { keepFrame: true, tolerancePx: 0.05, soft: [soft] });
+    assert.ok(plain && fine);
+    assert.ok(worst(plain.d) > 0.3, `utan mjuk mask ${worst(plain.d)}`);
+    // Banans tal har en decimal, så en tjugondel går bort i avrundningen.
+    assert.ok(worst(fine.d) < 0.15, `med mjuk mask ${worst(fine.d)}`);
+  });
+
+  it("gör en rak kant till få punkter, där pixelkanten ger många", () => {
+    const corners = (d: string) => d.split("L").length;
+    const plain = traceLogoMask(hard, WIDTH, HEIGHT, { keepFrame: true, tolerancePx: 0.3 });
+    const fine = traceLogoMask(hard, WIDTH, HEIGHT, { keepFrame: true, tolerancePx: 0.3, soft: [soft] });
+    assert.ok(plain && fine);
+    // Fyra hörn, vart och ett avfasat av spåraren: åtta eller nio punkter.
+    assert.ok(corners(fine.d) <= 10, `med mjuk mask ${corners(fine.d)} hörn`);
+    assert.ok(corners(plain.d) > corners(fine.d) * 2, `utan ${corners(plain.d)}, med ${corners(fine.d)}`);
+  });
+
+  it("ändrar aldrig vad som är bläck: en mjuk mask som säger emot masken används inte", () => {
+    const wrong = Float32Array.from(soft, (v) => 1 - v);
+    const plain = traceLogoMask(hard, WIDTH, HEIGHT, { keepFrame: true });
+    const same = traceLogoMask(hard, WIDTH, HEIGHT, { keepFrame: true, soft: [wrong] });
+    assert.equal(same?.d, plain?.d);
+    // Den första som håller med masken används.
+    const fine = traceLogoMask(hard, WIDTH, HEIGHT, { keepFrame: true, soft: [soft] });
+    const second = traceLogoMask(hard, WIDTH, HEIGHT, { keepFrame: true, soft: [wrong, soft] });
+    assert.equal(second?.d, fine?.d);
+  });
+});
 
 describe("otsuThreshold", () => {
   it("lägger gränsen mellan två tydliga grupper", () => {
