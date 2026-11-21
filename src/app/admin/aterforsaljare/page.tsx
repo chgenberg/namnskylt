@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { DeleteAccountButton } from "@/features/admin/delete-account-button";
 import { DeleteApplicationButton } from "@/features/admin/delete-application-button";
 import { adminTenant } from "@/features/admin/guard";
@@ -17,7 +18,8 @@ export const dynamic = "force-dynamic";
 export default async function ResellersPage() {
   const tenant = await adminTenant();
   // Ansökningar och konton är namnskylt.coms. En återförsäljare får aldrig se andra återförsäljare.
-  if (!tenant || !isOwner(tenant)) return null;
+  if (!tenant) return null;
+  if (!isOwner(tenant)) notFound();
   const [applications, accounts, unread] = await Promise.all([
     listApplications(),
     listAccounts(),

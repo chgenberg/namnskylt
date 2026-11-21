@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import adminStyles from "@/features/admin/admin.module.css";
 import { adminTenant } from "@/features/admin/guard";
@@ -47,7 +48,8 @@ function isTickResult(value: unknown): value is TickResult {
 
 export default async function OutreachPage({ searchParams }: { searchParams: Promise<Filters> }) {
   const tenant = await adminTenant();
-  if (!tenant || !isOwner(tenant)) return null;
+  if (!tenant) return null;
+  if (!isOwner(tenant)) notFound();
   const params = await searchParams;
   const wave = pick<Wave | "none">(params.wave, [...WAVES, "none"]);
   const status = pick<LeadStatus>(params.status, LEAD_STATUSES);

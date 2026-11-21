@@ -1171,6 +1171,28 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
 
 ## Inlogg — läge 2026-11-14
 
+- **Fel inloggning ger en begriplig sida, inte "404"** (2026-11-21). Pär öppnade länken i
+  ett besked till admin, "…har lagt en order", på en telefon som var inloggad som
+  återförsäljare, och fick webbramverkets engelska "404 This page could not be found".
+  Ordern fanns och hörde till namnskylt.coms panel. Panelen har en inloggning i taget (kakan
+  `ns_admin` bär antingen admin eller en återförsäljare), och ordersidan letar bara bland
+  den inloggades ordrar. **Den runda symbolen i sidhuvudet visar vem som är inloggad: "A" för
+  admin och "Å" för en återförsäljare.**
+  - `src/app/admin/not-found.tsx` säger nu "Sidan finns inte i din panel", att man är
+    inloggad som återförsäljare, och har knappen **Logga in som admin** (`SwitchToAdmin`),
+    som loggar ut och laddar om samma adress. Där står då adminens inloggning, och efter
+    lösenordet öppnas sidan man försökte nå. För admin säger sidan att ordern eller offerten
+    inte finns längre.
+  - Sidan säger aldrig om en order finns hos någon annan: svaret är detsamma för varje
+    adress som inte hör till den inloggade.
+  - **Adminens egna sidor** (Tillverkning, Återförsäljare, Butiker, Utskick, Prismodell,
+    Provision, Drift) visade förut en tom sida för en inloggad återförsäljare. De ger nu
+    samma "finns inte i din panel". Två av dem är mål för länkar i adminens besked.
+  - **Sajten har en egen sida för adresser som inte finns** (`src/app/not-found.tsx`), på
+    svenska, i stället för ramverkets.
+  - Provat lokalt 2026-11-21 i Chrome på 390 px och dator (26 kontroller): fel inloggning,
+    bytet till admin på samma adress, ordern efter inloggningen, och adminens egna sidor.
+
 Slutkunden har sedan 2026-11-17 ett eget konto, se avsnittet Kundkonton. Det ger aldrig
 tillträde till panelen.
 
@@ -2492,8 +2514,12 @@ en order via en återförsäljares sida eller om en återförsäljare skickar en
   (8 av 8): driftsidan visar "Mejl till återförsäljare och butikskunder" som på, utskicket
   som av, offertmejlet och adminens besked som på och kortbetalningen som av. Inloggningen för
   återförsäljare har länken Glömt lösenordet, och formuläret svarar likadant för en adress
-  utan konto. Det finns inget återförsäljarkonto i drift, så det första riktiga mejlet går
-  först när ett konto finns.
+  utan konto.
+  - **Det finns tre återförsäljarkonton i drift** (räknat 2026-11-21, inte läst; det senaste
+    skapades 2026-11-19). Jag skrev först att det inte fanns något, vilket var fel: jag gick
+    på städningen 2026-11-16 utan att räkna. De tre får alltså besked och lösenordsmejl
+    sedan strömbrytaren slogs på. Inget sådant mejl hade gått vid kontrollen samma kväll:
+    dagens två besked var båda adminens. Ingen butik har en ägare.
 - Exempel på de fyra mejlen ligger i exempelmappen på ägarens skrivbord (se Leverantören och
   systerprojektet), i mapp 3.
 - Länkar byggs på `publicOrigin()` (`src/lib/http/public-url.ts`, `NOTICE_PUBLIC_URL`), aldrig

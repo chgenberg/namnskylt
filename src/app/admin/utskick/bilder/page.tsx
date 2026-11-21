@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import adminStyles from "@/features/admin/admin.module.css";
 import { adminTenant } from "@/features/admin/guard";
@@ -13,7 +14,8 @@ export const dynamic = "force-dynamic";
 
 export default async function PersonaReviewPage({ searchParams }: { searchParams: Promise<{ visa?: string }> }) {
   const tenant = await adminTenant();
-  if (!tenant || !isOwner(tenant)) return null;
+  if (!tenant) return null;
+  if (!isOwner(tenant)) notFound();
   const requested = (await searchParams).visa;
   const review: AssetReview = ASSET_REVIEWS.find((r) => r === requested) ?? "pending";
   const sql = store.outreachDb();

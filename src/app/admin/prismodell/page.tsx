@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { adminTenant } from "@/features/admin/guard";
 import { LazyPriceModelEditor } from "@/features/admin/price-model-editor-lazy";
@@ -8,7 +9,8 @@ import { isOwner } from "@/lib/tenants/model";
 export default async function PriceModelPage() {
   const tenant = await adminTenant();
   // Prismodellen är namnskylt.coms — återförsäljarna ser sina inköpspriser på en egen sida.
-  if (!tenant || !isOwner(tenant)) return null;
+  if (!tenant) return null;
+  if (!isOwner(tenant)) notFound();
   return (
     <>
       <header className={styles.pageHead}>

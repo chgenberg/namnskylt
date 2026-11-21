@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { DispatchQueue, type DispatchRow } from "@/features/admin/dispatch-queue";
 import { adminTenant } from "@/features/admin/guard";
 import { NoticesSeen } from "@/features/admin/notices-seen";
@@ -14,7 +15,8 @@ export const dynamic = "force-dynamic";
 export default async function DispatchPage() {
   const tenant = await adminTenant();
   // Översikten visar alla återförsäljares ordrar. Bara namnskylt.com får se den.
-  if (!tenant || !isOwner(tenant)) return null;
+  if (!tenant) return null;
+  if (!isOwner(tenant)) notFound();
   const orders = await listOrdersForDispatch();
   // Varje återförsäljares uppgifter läses en gång. En direktorder har kunden som beställare.
   const sellers = new Map<string, SupplierBuyer>();

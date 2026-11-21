@@ -1725,6 +1725,11 @@ a.listRow:focus-visible {
   margin: var(--space-8) auto;
 }
 
+/* Flera stycken och en rad knappar i samma ruta, som panelens "finns inte här". */
+.notice .pageLead > * + * {
+  margin-top: var(--space-4);
+}
+
 @media (max-width: 1100px) {
   .detail,
   .twoCol {

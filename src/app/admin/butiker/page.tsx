@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { adminTenant } from "@/features/admin/guard";
 import { ShopBuilder } from "@/features/admin/shop-builder";
 import { ShopCardActions } from "@/features/admin/shop-card-actions";
@@ -25,7 +26,8 @@ function matches(haystack: string, query: string): boolean {
 export default async function ShopsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const tenant = await adminTenant();
   // Demobutikerna är namnskylt.coms säljverktyg — andra återförsäljare ser dem inte.
-  if (!tenant || !isOwner(tenant)) return null;
+  if (!tenant) return null;
+  if (!isOwner(tenant)) notFound();
   const query = ((await searchParams).q ?? "").trim().slice(0, 100);
   const [allShops, origin] = await Promise.all([listShops(), siteOrigin()]);
   const shops = query

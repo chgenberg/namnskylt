@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { adminTenant } from "@/features/admin/guard";
 import styles from "@/features/admin/admin.module.css";
 import { OpsOverview } from "@/features/admin/ops/ops-overview";
@@ -9,7 +10,8 @@ export const dynamic = "force-dynamic";
 export default async function OpsPage() {
   const tenant = await adminTenant();
   // Felloggen och driftens lägen gäller hela sajten. Bara namnskylt.com får se dem.
-  if (!tenant || !isOwner(tenant)) return null;
+  if (!tenant) return null;
+  if (!isOwner(tenant)) notFound();
   return (
     <>
       <header className={styles.pageHead}>

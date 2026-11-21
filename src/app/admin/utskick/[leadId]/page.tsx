@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
 
 export default async function OutreachLeadPage({ params }: { params: Promise<{ leadId: string }> }) {
   const tenant = await adminTenant();
-  if (!tenant || !isOwner(tenant)) return null;
+  if (!tenant) return null;
+  if (!isOwner(tenant)) notFound();
   const id = z.uuid().safeParse((await params).leadId);
   if (!id.success) notFound();
 

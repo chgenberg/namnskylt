@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { adminTenant } from "@/features/admin/guard";
 import { ResellerOrders } from "@/features/admin/reseller-orders";
@@ -17,7 +18,8 @@ const PAGE_PATH = "/admin/provision";
 export default async function ProvisionPage({ searchParams }: ProvisionPageProps) {
   const tenant = await adminTenant();
   // Provisionen är namnskylt.coms — en återförsäljare får aldrig se sidan eller datat bakom den.
-  if (!tenant || !isOwner(tenant)) return null;
+  if (!tenant) return null;
+  if (!isOwner(tenant)) notFound();
   const model = await getPriceModel();
   const real = await listResellerOrders(requireDb(), model);
   const { period: asked, exempel } = await searchParams;
