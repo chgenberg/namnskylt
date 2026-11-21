@@ -122,8 +122,15 @@ export const INSPIRATION: readonly InspirationEntry[] = [
     title: "Oval i butiken",
     lead: "Emma Svensson, butikssäljare. En oval i nickel sticker ut i butiken, och ger loggan mer höjd ovanför namnet.",
   }),
-  // Tre i plast (besked via ägaren 2026-11-21): en med nål där allt graveras, en med magnet där namnet
-  // graveras och loggan printas, och en i egen form.
+  // Fyra i plast (besked via ägaren 2026-11-21): den klassiska med klämma, en med nål där allt graveras,
+  // en med magnet där namnet graveras och loggan printas, och en i egen form.
+  entry("lakare", {
+    company: "Capio",
+    industry: "Vård",
+    accent: "#111111",
+    title: "Klassisk vit plast i vården",
+    lead: "Maria Lindberg, leg. läkare. Vit plast med svart gravyr, den klassiska namnskylten. Klämman sitter på rockens ficka, utan hål i tyget.",
+  }),
   entry("ica", {
     company: "ICA",
     industry: "Dagligvaror",

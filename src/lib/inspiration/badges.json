@@ -430,5 +430,39 @@
     ],
     "mounting": "magnet",
     "quantity": 1
+  },
+  "lakare": {
+    "version": 1,
+    "materialId": "plastic",
+    "colorId": "white-black",
+    "shape": "rounded",
+    "size": {
+      "widthMm": 80,
+      "heightMm": 25
+    },
+    "cornerRadiusMm": 3,
+    "frame": {
+      "style": "none",
+      "insetMm": 1.5,
+      "thicknessMm": 0.4
+    },
+    "font": "arial",
+    "align": "center",
+    "rows": [
+      {
+        "id": "row-0",
+        "text": "Maria Lindberg",
+        "capHeightMm": 6,
+        "bold": true
+      },
+      {
+        "id": "row-1",
+        "text": "Leg. läkare",
+        "capHeightMm": 3.4,
+        "bold": false
+      }
+    ],
+    "mounting": "clip",
+    "quantity": 1
   }
 }

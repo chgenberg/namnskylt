@@ -4,13 +4,16 @@ import { test } from "node:test";
 import { INSPIRATION } from "./catalog";
 import { badgeDocumentSchema, isOfferedDocument } from "@/engine";
 
+/** Exemplen som med flit saknar logga. */
+const WITHOUT_LOGO = new Set(["lakare", "bil"]);
+
 test("varje inspirationsskylt är ett giltigt dokument med foto och beskrivning", () => {
-  assert.equal(INSPIRATION.length, 7);
+  assert.equal(INSPIRATION.length, 8);
   const slugs = new Set<string>();
   for (const entry of INSPIRATION) {
     assert.equal(badgeDocumentSchema.safeParse(entry.doc).success, true, entry.slug);
-    // Skylten i egen form bär ingen logga: formen är det den visar.
-    if (entry.doc.shape !== "custom") assert.ok(entry.doc.logo, `${entry.slug} saknar logga`);
+    // Skylten i egen form och den klassiska bär ingen logga: formen och den rena texten är det de visar.
+    if (!WITHOUT_LOGO.has(entry.slug)) assert.ok(entry.doc.logo, `${entry.slug} saknar logga`);
     assert.ok(entry.photo.endsWith(`/${entry.slug}.jpg`));
     assert.ok(existsSync(`public${entry.photo}`), entry.photo);
     assert.ok(entry.lead.length > 40);
@@ -22,7 +25,7 @@ test("varje inspirationsskylt är ett giltigt dokument med foto och beskrivning"
     }
     slugs.add(entry.slug);
   }
-  assert.equal(slugs.size, 7);
+  assert.equal(slugs.size, 8);
 });
 
 test("varje exempel går att beställa i dag, så att Gör en liknande ger samma skylt", () => {
@@ -52,11 +55,12 @@ test("texten under närbilderna är läst ur skylten, och lovar ingen gravyr i m
   }
 });
 
-test("de tre plastexemplen visar nål med gravyr, magnet med printad logga och en egen form", () => {
+test("plastexemplen visar den klassiska med klämma, nål med gravyr, magnet med printad logga och en egen form", () => {
   const values = (slug: string) => {
     const entry = INSPIRATION.find((candidate) => candidate.slug === slug);
     return [...(entry?.details.map((detail) => detail.value) ?? []), entry?.marking];
   };
+  assert.deepEqual(values("lakare"), ["Vit / Svart · plast 1,5 mm", "Lång rektangel 80 × 25 mm", "Klämma, horisontellt", "Endast gravyr"]);
   assert.deepEqual(values("ica"), ["Röd / Vit · plast 1,5 mm", "Rektangel 75 × 25 mm", "Nål", "Endast gravyr"]);
   assert.deepEqual(values("ikea"), ["Gul / Svart · plast 1,5 mm", "Kudde 75 × 35 mm", "Magnet", "Namn graveras · logotyp printas"]);
   assert.deepEqual(values("bil"), ["Blå / Vit · plast 1,5 mm", "Egen form 92 × 44 mm", "Magnet", "Endast gravyr"]);
