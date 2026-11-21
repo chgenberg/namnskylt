@@ -2487,6 +2487,15 @@ en order via en återförsäljares sida eller om en återförsäljare skickar en
   med bekräftelse i butikens utseende och besked till återförsäljaren, fraktbeskedet med
   spårningslänk, och att en order hos namnskylt.com inte ger något mejl härifrån.
   **Inget riktigt mejl har skickats**, och ingen butik har en ägare i drift än.
+- **Påslaget i drift 2026-11-21** (`2636c2f`): `NOTICE_RESEND_API_KEY` och `NOTICE_FROM_EMAIL`
+  är satta på Railway, och `RESEND_API_KEY` är fortfarande tom. Kontrollerat samma dag
+  (8 av 8): driftsidan visar "Mejl till återförsäljare och butikskunder" som på, utskicket
+  som av, offertmejlet och adminens besked som på och kortbetalningen som av. Inloggningen för
+  återförsäljare har länken Glömt lösenordet, och formuläret svarar likadant för en adress
+  utan konto. Det finns inget återförsäljarkonto i drift, så det första riktiga mejlet går
+  först när ett konto finns.
+- Exempel på de fyra mejlen ligger i exempelmappen på ägarens skrivbord (se Leverantören och
+  systerprojektet), i mapp 3.
 - Länkar byggs på `publicOrigin()` (`src/lib/http/public-url.ts`, `NOTICE_PUBLIC_URL`), aldrig
   på förfrågans värdnamn. Kundens namn och butikens namn rensas från radbrytningar innan de
   hamnar i ämnesrad och avsändare.
