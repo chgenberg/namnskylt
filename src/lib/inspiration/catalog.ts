@@ -129,7 +129,7 @@ export const INSPIRATION: readonly InspirationEntry[] = [
     industry: "Vård",
     accent: "#111111",
     title: "Klassisk vit plast i vården",
-    lead: "Maria Lindberg, leg. läkare. Vit plast med svart gravyr, den klassiska namnskylten. Klämman sitter på rockens ficka, utan hål i tyget.",
+    lead: "Maria Lindberg, leg. läkare. Vit plast med svart gravyr, den klassiska namnskylten. Klämman fäster på fickan eller kragen, utan hål i tyget.",
   }),
   entry("ica", {
     company: "ICA",

@@ -827,10 +827,21 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     - **Personbilderna för ICA och IKEA är de äldre AI-bilderna från oktober**, som låg kvar
       från när de två exemplen fanns förra gången. De visar plastskyltar i rätt färg, men
       inte exakt dagens skyltar: IKEA-loggan är mörk på bilden och blå på skylten.
-    - **Bilen och läkarskylten har ingen personbild.** `public/inspiration/bil.jpg` och
-      `lakare.jpg` är skylten i tre kvart ur 3D-vyn på ljus botten, 800 × 1200, i stället för
-      ett foto. En personbild kräver en ny AI-bild, som kostar pengar: ägaren är tillfrågad
-      2026-11-21 och har inte svarat.
+    - **Bilen och läkarskylten har personbilder gjorda 2026-11-21** (ägarens besked samma
+      dag, på frågan om AI-bilder: "Gör så att både bil-bilden och läkarskylten får en person
+      per bild"). Två bildgenereringar, en per exempel, på samma väg som sajtens "På person":
+      skylten ritad som referens (`renderBadgePng`), uppdraget ur `personaPrompt` och
+      `editImage` i medelkvalitet, 1024 × 1536, nedskalade till 800 × 1200. Skriptet är
+      `tmp/insp-plast/person.ts` (gitignorerat). Kön och ålder satte jag själv efter namnen,
+      och miljön beskrevs utan företagsnamn och utan loggor: en bilhall och ett
+      undersökningsrum på en vårdcentral.
+      - Namnen på skyltarna är rätt i bilderna. Titelraden är liten och inte skarp när man
+        zoomar in, som på de äldre bilderna.
+      - Läkarens skylt sitter strax ovanför bröstfickan i bilden, inte på fickans kant som en
+        klämma gör i verkligheten. Jag gjorde ingen ny bild för det.
+      - De första timmarna visades skyltarna i tre kvart ur 3D-vyn i stället för foton
+        (commit `e8efc0b` och `9435c7a`).
+      - Priset per bild är inte kontrollerat mot OpenAI-kontot.
     - **Läkarskylten** är den klassiska: vit plast med svart gravyr, namn och "Leg. läkare",
       utan logga, på klämmans format. Företaget (Capio), namnet och titeln valde jag. Närbilden
       på fästet visar klämman som den ritas i 3D, med vikningen till vänster sett framifrån,
@@ -842,9 +853,11 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     - Provat lokalt 2026-11-21 i Chrome på dator, 390 och 320 px (35 kontroller): åtta exempel,
       alla bilder, texterna under närbilderna, och att "Gör en liknande" öppnar var och en av
       de fyra i skyltmotorn med rätt material, form och namn.
-    - Kontrollerat i drift 2026-11-21 efter pushen (`e8efc0b`), bara läsning (8 av 8): sju
-      exempel, alla 28 bilder laddas, och "Gör en liknande" öppnar de tre plastskyltarna.
-      Skärmbilder ligger i mappen `Namnskylt-plastexempel-2026-11-21` på ägarens skrivbord.
+    - Kontrollerat i drift 2026-11-21 efter pusharna (`e8efc0b` och `9435c7a`), bara läsning
+      (10 av 10): åtta exempel, alla 32 bilder laddas, och "Gör en liknande" öppnar de fyra
+      plastskyltarna. Skärmbilder ligger i mappen
+      `Namnskylt-inspirationsbank-atta-exempel-2026-11-21` på ägarens skrivbord. Mappen
+      `Namnskylt-plastexempel-2026-11-21` där är från före läkarskylten.
   - **Exemplen står under varandra, med närbilder på valen till höger** (besked från Pär via
     ägaren 2026-11-20, som först föreslog en egen flik med alla val och sedan detta: "4 bilder
     under varandra o till höger om resp visar närbilder på de val vi gjort", "inte massa lull
