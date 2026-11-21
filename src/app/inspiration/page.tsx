@@ -8,7 +8,7 @@ import { encodeShareCode } from "@/lib/share/share-link";
 export const metadata: Metadata = {
   title: "Inspirationsbank",
   description:
-    "Fyra namnskyltar för kända svenska företag, med närbilder på valen: ytan, formen och fästet.",
+    "Sju namnskyltar för kända svenska företag, i metall och plast, med närbilder på valen: ytan, formen och fästet.",
 };
 
 export default async function InspirationPage() {
@@ -23,7 +23,7 @@ export default async function InspirationPage() {
           <p className="eyebrow">Inspirationsbank</p>
           <h1 className={styles.title}>Så ser en namnskylt ut på riktigt</h1>
           <p className={styles.lede}>
-            Fyra namnskyltar i mässing och nickel. Bredvid varje bild ser du valen på nära håll: ytan, formen och
+            Sju namnskyltar i metall och plast. Bredvid varje bild ser du valen på nära håll: ytan, formen och
             fästet.
           </p>
         </header>

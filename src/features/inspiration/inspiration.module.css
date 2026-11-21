@@ -125,6 +125,14 @@
   overflow-wrap: anywhere;
 }
 
+/* Märkningsmetoden på en rad under närbilderna, med samma rubrikstil som deras. */
+.method {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+}
+
 .note {
   font-size: var(--text-sm);
   color: var(--color-muted);

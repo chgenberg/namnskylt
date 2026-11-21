@@ -14,7 +14,8 @@ interface InspirationGalleryProps {
  * Exemplen under varandra, med närbilder på valen till höger om varje bild (besked från Pär via
  * ägaren 2026-11-20: i stället för 2 × 2 bilder, "4 bilder under varandra" och "närbilder på de val
  * vi gjort", "tydligt och enkelt överskådat"). Förut låg allt bakom ett klick, i en dialog.
- * Närbilderna visar ytan, formen och fästet, och är tagna ur skyltmotorns 3D-vy.
+ * Närbilderna visar ytan, formen och fästet, och är tagna ur skyltmotorns 3D-vy. Under dem står
+ * märkningsmetoden, som skiljer plastexemplen åt (gravyr, eller graverat namn med printad logga).
  */
 export function InspirationGallery({ links }: InspirationGalleryProps) {
   return (
@@ -56,6 +57,10 @@ export function InspirationGallery({ links }: InspirationGalleryProps) {
                 </li>
               ))}
             </ul>
+            <p className={styles.method}>
+              <span className={styles.detailLabel}>Märkning</span>
+              <strong className={styles.detailValue}>{entry.marking}</strong>
+            </p>
             {isPartnerMade(entry.doc.materialId) && (
               <p className={styles.note}>
                 {getMaterial(entry.doc.materialId).name} tillverkas av vår partner — pris och leveranstid bekräftas via e-post.

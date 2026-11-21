@@ -68,7 +68,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1446 tester, grönt 2026-11-21).
+# Kvalitetsgrinden. Kör den innan något lämnas (1447 tester, grönt 2026-11-21).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -799,9 +799,42 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
   korrektur men aldrig skrivs till maskinfilerna. Sedan 2026-11-18 printas metallen, så på ett
   ämne graveras ingenting: namnet är också hjälplinjer i arkvyn. En äldre metallskylt utan
   vald metod läggs fortfarande upp med sin text som gravyr.
-- **Inspirationsbanken** har fyra exempel, alla i dagens sortiment: tre på rektangeln 60 × 30 mm
-  och ett på ovalen 63 × 32 mm. Personbilderna är äldre och visar skyltar i de tidigare
-  proportionerna.
+- **Inspirationsbanken** har sju exempel, alla i dagens sortiment: fyra i metall (tre på
+  rektangeln 60 × 30 mm och ett på ovalen 63 × 32 mm) och sedan 2026-11-21 tre i plast, se
+  nedan. Metallens personbilder är äldre och visar skyltar i de tidigare proportionerna.
+  - **Tre exempel i plast** (besked via ägaren 2026-11-21: "lägger du till 3 st gjorda i plast
+    också", en med nål och enbart gravyr, en med magnet, graverat namn och printad logga, och
+    en i egen design, "typ en bil"). De står efter de fyra i metall:
+
+    | Exempel | Skylt | Fäste | Märkning |
+    | --- | --- | --- | --- |
+    | `ica` | Röd / Vit, rektangel 75 × 25 mm, loggan till vänster | Nål | Endast gravyr |
+    | `ikea` | Gul / Svart, kudde 75 × 35 mm, loggan ovanför | Magnet | Namn graveras · logotyp printas |
+    | `bil` | Blå / Vit, egen form 92 × 44 mm, utan logga | Magnet | Endast gravyr |
+
+    - **Märkningsmetoden står på en egen rad under närbilderna**, för alla sju exempel
+      (`InspirationEntry.marking`, läst ur skylten med `markingOf`). Den skiljer plastexemplen
+      åt, och metallens säger "Endast print". Raden lade jag till själv.
+    - **IKEA-loggan printas i en färg, blått (#0057B8), ur sina banor**, inte som en bild i
+      färg. Då bär länken "Gör en liknande" hela skylten: en bild i färg hade behövt ligga i
+      driftens databas, där loggor som ingen order pekar på städas bort efter 30 dagar. Lägg
+      inte in en logga med `image` i katalogen.
+    - **Bilen är en egen kontur på 36 punkter som jag ritade själv**, ingen AI-bild och inget
+      formförslag i skyltmotorn. Den ligger i `badges.json`. Företaget (Bilia), namnen,
+      färgerna och att bilen har magnet valde jag; skylten bär ingen logga.
+    - **Personbilderna för ICA och IKEA är de äldre AI-bilderna från oktober**, som låg kvar
+      från när de två exemplen fanns förra gången. De visar plastskyltar i rätt färg, men
+      inte exakt dagens skyltar: IKEA-loggan är mörk på bilden och blå på skylten.
+    - **Bilen har ingen personbild.** `public/inspiration/bil.jpg` är skylten i tre kvart ur
+      3D-vyn på ljus botten, 800 × 1200, i stället för ett foto. En personbild kräver en ny
+      AI-bild, som kostar pengar: ägaren är tillfrågad 2026-11-21 och har inte svarat.
+    - Loggorna för ICA och IKEA är de spårade banorna från första versionen av banken
+      (commit `0c18064`).
+    - Skyltarna byggdes med motorns egna funktioner i ett skript, `tmp/insp-plast/bygg.ts`
+      (gitignorerat), som också prövar dem mot schemat och sortimentet.
+    - Provat lokalt 2026-11-21 i Chrome på dator, 390 och 320 px (30 kontroller): sju exempel,
+      alla bilder, texterna under närbilderna, och att "Gör en liknande" öppnar var och en av
+      de tre i skyltmotorn med rätt material, form och namn.
   - **Exemplen står under varandra, med närbilder på valen till höger** (besked från Pär via
     ägaren 2026-11-20, som först föreslog en egen flik med alla val och sedan detta: "4 bilder
     under varandra o till höger om resp visar närbilder på de val vi gjort", "inte massa lull
@@ -819,11 +852,11 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     exempels skylt ska dess tre bilder tas om på samma sätt.
   - Länken "Gör en liknande" räknas på servern (`encodeShareCode` i sidan), så sidan behöver
     inget eget skript.
-  - **Alla fyra exempel är metall**, med magnet eller nål. Plasten, klämman och övriga former
-    syns alltså inte här. Nya exempel kräver nya personbilder, som är AI-bilder och kostar
-    pengar: fråga först.
+  - Klämman och plastens övriga former (oval, stor rektangel, lång rektangel) syns inte här.
+    Nya exempel kräver nya personbilder, som är AI-bilder och kostar pengar: fråga först.
   - De äldre skyltbilderna från fotoläget (`<exempel>-badge.jpg`) används inte längre men
-    ligger kvar i `public/inspiration/`, som bilderna för de fyra borttagna exemplen.
+    ligger kvar i `public/inspiration/`, som personbilderna för de två borttagna exempel som
+    inte har kommit tillbaka (MAX och Spotify).
   - Provat lokalt 2026-11-20 i Chrome, på dator och på 390 och 320 px, och kontrollerat i
     drift samma dag efter pushen (`bc007f1`): fyra exempel under varandra, alla bilder laddas,
     och "Gör en liknande" öppnar exemplets skylt.
@@ -1775,6 +1808,11 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
     (direkt, från startsidan och som säljare) och att varje sektion har kvar sina val. Säljarens
     väg är inte provad i Safaris motor, som inte sparar inloggningens kaka över http lokalt.
     Inte provat på en riktig telefon.
+  - Kontrollerat i drift 2026-11-21 efter pushen (`879756a`), bara läsning, med alla anrop som
+    sparar stoppade i webbläsaren (7 av 7): ordningen och numren, genvägarna på telefon,
+    markören efter startrutan, och som admin att panelen börjar på material och att textens
+    sektion rullas fram när namnet skrivs. Åtta skärmbilder ligger i mappen
+    `Namnskylt-ny-ordning-2026-11-21` på ägarens skrivbord (utanför repot).
 - **Över skylten finns bara Video, och Offert för den som är inloggad i panelen** (besked av
   ägaren 2026-11-19, i två omgångar: först togs Gravera, Vänd och Snurra bort, sedan Fotoläge
   och Dela). Skylten vrids fortfarande genom att dra i den, vänds av sig själv när ett fäste

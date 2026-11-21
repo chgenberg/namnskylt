@@ -2,7 +2,9 @@ import {
   shapeLabel,
   badgeDocumentSchema,
   getColor,
+  getMarkingMethod,
   getMaterial,
+  markingOf,
   thicknessOf,
   mountingLabel,
   type BadgeDocument,
@@ -41,6 +43,8 @@ export interface InspirationEntry {
   lead: string;
   /** Valen i exemplet, vart och ett med sin närbild: ytan, formen och fästet. */
   details: readonly InspirationDetail[];
+  /** Märkningsmetoden, läst ur skylten: "Endast gravyr", "Namn graveras · logotyp printas" och så vidare. */
+  marking: string;
   doc: BadgeDocument;
 }
 
@@ -73,7 +77,7 @@ function details(slug: string, doc: BadgeDocument): InspirationDetail[] {
 
 function entry(
   slug: string,
-  fields: Omit<InspirationEntry, "slug" | "photo" | "photoWidth" | "photoHeight" | "doc" | "details">,
+  fields: Omit<InspirationEntry, "slug" | "photo" | "photoWidth" | "photoHeight" | "doc" | "details" | "marking">,
 ): InspirationEntry {
   const doc = documentOf(slug);
   return {
@@ -82,6 +86,7 @@ function entry(
     photoWidth: 1024,
     photoHeight: 1536,
     details: details(slug, doc),
+    marking: getMarkingMethod(markingOf(doc)).name,
     doc,
     ...fields,
   };
@@ -116,5 +121,28 @@ export const INSPIRATION: readonly InspirationEntry[] = [
     accent: "#F47B20",
     title: "Oval i butiken",
     lead: "Emma Svensson, butikssäljare. En oval i nickel sticker ut i butiken, och ger loggan mer höjd ovanför namnet.",
+  }),
+  // Tre i plast (besked via ägaren 2026-11-21): en med nål där allt graveras, en med magnet där namnet
+  // graveras och loggan printas, och en i egen form.
+  entry("ica", {
+    company: "ICA",
+    industry: "Dagligvaror",
+    accent: "#E31C23",
+    title: "Röd plast i butiken",
+    lead: "Johan Nilsson, butikschef. Namn och logga är graverade: gravyren frilägger plastens vita kärna. Nål på baksidan.",
+  }),
+  entry("ikea", {
+    company: "IKEA",
+    industry: "Möbelhandel",
+    accent: "#FFDA1A",
+    title: "Gul plast med printad logga",
+    lead: "Lisa Andersson, säljare. Namnet är graverat i svart och loggan printad i blått ovanför. Magnet så att tröjan inte får hål.",
+  }),
+  entry("bil", {
+    company: "Bilia",
+    industry: "Bilhandel",
+    accent: "#0057B8",
+    title: "Egen form i bilhallen",
+    lead: "Oscar Lund, bilsäljare. Plasten skärs ur ark och kan få vilken form som helst: här en bil i blått med vit gravyr.",
   }),
 ];

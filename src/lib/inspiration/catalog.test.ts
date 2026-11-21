@@ -5,11 +5,12 @@ import { INSPIRATION } from "./catalog";
 import { badgeDocumentSchema, isOfferedDocument } from "@/engine";
 
 test("varje inspirationsskylt är ett giltigt dokument med foto och beskrivning", () => {
-  assert.equal(INSPIRATION.length, 4);
+  assert.equal(INSPIRATION.length, 7);
   const slugs = new Set<string>();
   for (const entry of INSPIRATION) {
     assert.equal(badgeDocumentSchema.safeParse(entry.doc).success, true, entry.slug);
-    assert.ok(entry.doc.logo, `${entry.slug} saknar logga`);
+    // Skylten i egen form bär ingen logga: formen är det den visar.
+    if (entry.doc.shape !== "custom") assert.ok(entry.doc.logo, `${entry.slug} saknar logga`);
     assert.ok(entry.photo.endsWith(`/${entry.slug}.jpg`));
     assert.ok(existsSync(`public${entry.photo}`), entry.photo);
     assert.ok(entry.lead.length > 40);
@@ -21,7 +22,7 @@ test("varje inspirationsskylt är ett giltigt dokument med foto och beskrivning"
     }
     slugs.add(entry.slug);
   }
-  assert.equal(slugs.size, 4);
+  assert.equal(slugs.size, 7);
 });
 
 test("varje exempel går att beställa i dag, så att Gör en liknande ger samma skylt", () => {
@@ -43,5 +44,27 @@ test("texten under närbilderna är läst ur skylten, och lovar ingen gravyr i m
   const oval = INSPIRATION.find((entry) => entry.slug === "clas-ohlson");
   assert.deepEqual(oval?.details.map((detail) => detail.value), ["Nickel · metall 0,5 mm", "Oval 63 × 32 mm", "Nål"]);
   // Metallen printas: texterna får inte säga att skylten graveras.
-  for (const entry of INSPIRATION) assert.doesNotMatch([entry.title, entry.lead].join(" "), /grav/i, entry.slug);
+  const metal = INSPIRATION.filter((entry) => entry.doc.materialId === "metal");
+  assert.equal(metal.length, 4);
+  for (const entry of metal) {
+    assert.doesNotMatch([entry.title, entry.lead].join(" "), /grav/i, entry.slug);
+    assert.equal(entry.marking, "Endast print", entry.slug);
+  }
+});
+
+test("de tre plastexemplen visar nål med gravyr, magnet med printad logga och en egen form", () => {
+  const values = (slug: string) => {
+    const entry = INSPIRATION.find((candidate) => candidate.slug === slug);
+    return [...(entry?.details.map((detail) => detail.value) ?? []), entry?.marking];
+  };
+  assert.deepEqual(values("ica"), ["Röd / Vit · plast 1,5 mm", "Rektangel 75 × 25 mm", "Nål", "Endast gravyr"]);
+  assert.deepEqual(values("ikea"), ["Gul / Svart · plast 1,5 mm", "Kudde 75 × 35 mm", "Magnet", "Namn graveras · logotyp printas"]);
+  assert.deepEqual(values("bil"), ["Blå / Vit · plast 1,5 mm", "Egen form 92 × 44 mm", "Magnet", "Endast gravyr"]);
+  // Loggan som printas är i en färg, så att länken "Gör en liknande" bär hela skylten utan en bild på servern.
+  const ikea = INSPIRATION.find((entry) => entry.slug === "ikea")?.doc;
+  assert.equal(ikea?.logo?.image, undefined);
+  assert.equal(ikea?.printColor, "#0057B8");
+  const car = INSPIRATION.find((entry) => entry.slug === "bil")?.doc;
+  assert.equal(car?.shape, "custom");
+  assert.ok((car?.customOutline?.length ?? 0) > 20);
 });
