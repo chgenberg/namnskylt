@@ -853,7 +853,8 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     - Provat lokalt 2026-11-21 i Chrome på dator, 390 och 320 px (35 kontroller): åtta exempel,
       alla bilder, texterna under närbilderna, och att "Gör en liknande" öppnar var och en av
       de fyra i skyltmotorn med rätt material, form och namn.
-    - Kontrollerat i drift 2026-11-21 efter pusharna (`e8efc0b` och `9435c7a`), bara läsning
+    - Kontrollerat i drift 2026-11-21 efter pusharna (`e8efc0b`, `9435c7a` och, med
+      personbilderna, `9ab5c41`), bara läsning
       (10 av 10): åtta exempel, alla 32 bilder laddas, och "Gör en liknande" öppnar de fyra
       plastskyltarna. Skärmbilder ligger i mappen
       `Namnskylt-inspirationsbank-atta-exempel-2026-11-21` på ägarens skrivbord. Mappen
@@ -3595,9 +3596,33 @@ gäller ordrar från namnskylt.com, och sedan till att rulla ut dem ("Kör båda
   - **Loggan ligger som en kopia hos dem** (`apps/web/src/server/partner-logo.ts`, bäddad i
     mejlet), tagen ur `public/logo-namnskylt-mejl.png`. Ändras sajtens logga ska den filen
     göras om också.
-  - Oförändrat, med flit: innehållet, ämnesraden, avsändaren (verkstadens adress) och den
-    bifogade orderbekräftelsen som PDF, som är verkstadens eget dokument i deras utseende.
+  - Oförändrat, med flit: innehållet, ämnesraden och avsändaren (verkstadens adress).
     Raden "Ert IO-nummer: NS-…" i bekräftelsen är deras text och visar vårt ordernummer.
+  - **Den bifogade orderbekräftelsen som PDF har också vårt utseende sedan 2026-11-21**
+    (ägarens "Ja tack" på frågan, och sedan "Pusha när du är klar"). Till dess var den
+    verkstadens eget dokument i marinblått och orange. Bara för ordrar från namnskylt.com:
+    - namnskylt.coms logga överst på ljus botten, bläck och papper i stället för marinblått
+      och orange, loggans guld (#B8934A) som accent, och i sidfoten raden "namnskylt.com – en
+      del av Skylt & Gravyrteknik AB", verkstadens uppgifter som säljare och deras logga till
+      höger. Samma rader, belopp och uppgifter som förut.
+    - Hos verkstaden: `OrderPdfLook` och fältet `look` i
+      `packages/production/src/order-confirmation-pdf.ts`, och `confirmationLook` i
+      `apps/web/src/server/order-confirmation.ts`, som frågar `isPartnerOrder`. Samma PDF
+      visas när personalen öppnar bekräftelsen i deras admin. Går vår logga inte att läsa
+      ritas deras eget utseende, så att bekräftelsen aldrig uteblir.
+    - **Deras egna ordrar och offerter är orörda**: ritade före och efter med samma uppgifter
+      är sidorna identiska pixel för pixel.
+    - Rubrikerna är i verkstadens typsnitt, inte i vårt seriftypsnitt (Instrument Serif): det
+      finns inte i deras paket, och jag lade inte in en ny typsnittsfil där. Det valde jag.
+    - Deployat till deras produktion 2026-11-21 cirka 16:25, efter bug-hunt utan allvarliga
+      fynd (två uppföljningar, se deras dagbok). Sajten svarade likadant före och efter på
+      elva kontroller. **Ingen sådan PDF är sedd i drift**: det kräver en riktig order.
+    - **Fakturan är fortfarande verkstadens**, ur deras Fortnox, i deras utseende.
+  - **Exempel på alla mejl och dokument** ligger i mappen
+    `Namnskylt-exempel-mejl-och-dokument-2026-11-21` på ägarens skrivbord (utanför repot),
+    med påhittade uppgifter: offertmejlen, offertens PDF, kundens offertsida och ordersida,
+    följesedeln, beskeden till admin, verkstadens tre mejl och bekräftelsens PDF, och de fyra
+    avstängda mejlen. Skripten som tog fram dem ligger i `tmp/exempel/` (gitignorerat).
   - Vår egen orderbekräftelse och vårt fraktbesked ska därför förbli avstängda: annars får
     kunden två mejl.
   - Provat lokalt 2026-11-20 genom att rita de tre mejlen med påhittade uppgifter och se dem
