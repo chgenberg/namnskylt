@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { customerOrderNumber, isDirectOrder } from "./model";
+import { customerGetsSiteMail, customerOrderNumber, isDirectOrder, isPlacedByCustomer } from "./model";
 
 describe("vem verkstaden fakturerar", () => {
   it("en order hos namnskylt.com utan återförsäljare är en direktorder: kunden faktureras", () => {
@@ -39,5 +39,33 @@ describe("ordernumret kunden ser", () => {
   it("är vårt eget på en demoorder och på en order betald med kort", () => {
     assert.deepEqual(customerOrderNumber({ ...received, demo: true, supplierOrderNo: "DEMO" }), { number: "NS-1200", reference: null });
     assert.deepEqual(customerOrderNumber({ ...received, payment: { provider: "stripe" } }), { number: "NS-1200", reference: null });
+  });
+});
+
+describe("sajtens egna mejl till kunden", () => {
+  it("en kund som beställer i en återförsäljares butik får bekräftelse och fraktbesked härifrån", () => {
+    assert.equal(customerGetsSiteMail({ resellerId: "exempelprofil", payment: null, source: "shop" }), true);
+  });
+
+  it("en direktorder får aldrig mejl härifrån: verkstadens system bekräftar den", () => {
+    // Annars får kunden två bekräftelser, en från oss och en från Skylt & Gravyrteknik.
+    assert.equal(customerGetsSiteMail({ resellerId: "namnskylt", payment: null, source: "web" }), false);
+    // En butik utan ägare säljer åt namnskylt.com: också en direktorder.
+    assert.equal(customerGetsSiteMail({ resellerId: "namnskylt", payment: null, source: "shop" }), false);
+  });
+
+  it("en order som säljaren har lagt åt kunden ger inget mejl till kunden", () => {
+    for (const source of ["reseller", "quote", "repeat", "staff", "template"] as const) {
+      assert.equal(isPlacedByCustomer(source), false, source);
+      assert.equal(customerGetsSiteMail({ resellerId: "exempelprofil", payment: null, source }), false, source);
+    }
+  });
+
+  it("en demoorder ger aldrig mejl", () => {
+    assert.equal(customerGetsSiteMail({ resellerId: "exempelprofil", payment: null, source: "shop", demo: true }), false);
+  });
+
+  it("en order betald med kort hos namnskylt.com bekräftas härifrån, eftersom verkstaden då fakturerar oss", () => {
+    assert.equal(customerGetsSiteMail({ resellerId: "namnskylt", payment: { provider: "stripe" }, source: "web" }), true);
   });
 });

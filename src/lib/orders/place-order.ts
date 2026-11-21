@@ -10,7 +10,7 @@ import { OWNER_TENANT, isOwner } from "@/lib/tenants/model";
 import { dispatchOrder } from "@/lib/supplier/dispatch";
 import { sendOrderConfirmation } from "./confirmation";
 import type { Delivery } from "./delivery";
-import { NOT_OFFERED_ERROR, allOffered, type OrderSource } from "./model";
+import { NOT_OFFERED_ERROR, allOffered, isPlacedByCustomer, type OrderSource } from "./model";
 import type { Pricing } from "./pricing";
 import { partnerRequestNumber, splitByProducer } from "./partner";
 import { createOrder, databaseConfigured, getCompanyProfile } from "./repository";
@@ -135,7 +135,7 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
   });
 
   // En order kunden själv har lagt, i webbshoppen eller i en butik, kommer utan att panelens ägare har gjort något.
-  const placedByCustomer = input.source === "web" || input.source === "shop";
+  const placedByCustomer = isPlacedByCustomer(input.source);
   if (!input.demo && placedByCustomer) {
     await notify({
       tenant: input.tenant,
@@ -144,7 +144,8 @@ export async function placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResu
       detail: badgeCountLabel(input.badges.reduce((sum, badge) => sum + badge.quantity, 0)),
       orderId: saved.id,
     });
-    // Kunden får sin bekräftelse som mejl när sajtens mejl är påslagna. Mejlet väntar kunden inte på.
+    // En kund i en återförsäljares butik får sin bekräftelse som mejl härifrån (`customerGetsSiteMail`).
+    // Mejlet väntar kunden inte på.
     void sendOrderConfirmation(saved.orderNo);
   }
   // namnskylt.com får besked om varje ny order på plattformen (beslut av ägaren 2026-11-20).

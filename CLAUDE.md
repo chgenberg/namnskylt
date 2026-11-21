@@ -21,14 +21,13 @@ Läs dessa när du arbetar i respektive område:
 
 - **Committa, pusha eller deploya aldrig** utan att användaren ber om det. Det finns mycket
   ocommittat arbete. Kör aldrig `git checkout -- <fil>`, `git stash`, `reset` eller `clean`.
-- **Skicka aldrig mejl.** `RESEND_API_KEY` ska vara tom tills användaren säger annat.
-  Utskicket står i `dry_run` och är pausat. Sätt inte heller `NOTICE_FROM_EMAIL`, som slår på
-  sajtens egna mejl: besked till återförsäljarna, kundens orderbekräftelse, fraktbeskedet och
-  länken för glömt lösenord (se avsnittet Mejl från sajten).
-  - **Enda undantaget är offertmejlet**, som ägaren bad om och slog på 2026-11-17. Det har sin
+- **Skicka aldrig mejl utöver de tre undantagen nedan.** `RESEND_API_KEY` ska vara tom tills
+  användaren säger annat: den gäller sedan 2026-11-21 bara utskicket till återförsäljare, som
+  står i `dry_run` och är pausat. Lägg aldrig någon av de andra nycklarna där.
+  - **Det första undantaget är offertmejlet**, som ägaren bad om och slog på 2026-11-17. Det har sin
     egen strömbrytare, `QUOTE_RESEND_API_KEY` och `QUOTE_FROM_EMAIL`, satta på Railway på
     ägarens begäran. Ändra dem inte och ta inte bort dem utan att ägaren säger till, och lägg
-    aldrig offertmejlets nyckel i `RESEND_API_KEY`: då slås övriga mejl och utskicket på. Se
+    aldrig offertmejlets nyckel i `RESEND_API_KEY`: då slås utskicket på. Se
     avsnittet Offertmejlet.
   - **Det andra undantaget är adminens besked som mejl**, som ägaren bad om och slog på
     2026-11-20: ett mejl till adminens adresser när ett företag ansöker om att bli
@@ -37,6 +36,14 @@ Läs dessa när du arbetar i respektive område:
     Railway på ägarens begäran. Ändra dem inte och ta inte bort dem utan att ägaren säger
     till. **Mottagarnas adresser står bara i `ADMIN_NOTICE_TO` på Railway: skriv dem aldrig i
     koden, i den här filen eller i en commit.** Se avsnittet Besked.
+  - **Det tredje undantaget är mejlen till återförsäljare och butikskunder**, som ägaren bad
+    om och slog på 2026-11-21: besked till en återförsäljares panel, länken för glömt
+    lösenord, och orderbekräftelsen och fraktbeskedet till en kund som har beställt i en
+    återförsäljares butik. De har sin egen strömbrytare, `NOTICE_RESEND_API_KEY` och
+    `NOTICE_FROM_EMAIL`, satta på Railway på ägarens begäran. Ändra dem inte och ta inte
+    bort dem utan att ägaren säger till. **En direktorder hos namnskylt.com får aldrig
+    orderbekräftelse eller fraktbesked härifrån**: verkstadens system mejlar kunden, och
+    annars får kunden två mejl. Se avsnittet Mejl från sajten.
 - **Slå aldrig på kortbetalningen.** `STRIPE_SECRET_KEY` och `STRIPE_WEBHOOK_SECRET` ska vara
   tomma i driften tills användaren har ett Stripe-konto och säger till. Med dem satta betalar
   privatpersoner med kort på riktigt. Se avsnittet Kassan, betalning och köpvillkor.
@@ -68,7 +75,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1447 tester, grönt 2026-11-21).
+# Kvalitetsgrinden. Kör den innan något lämnas (1454 tester, grönt 2026-11-21).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -1198,8 +1205,8 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
   - **Glömt lösenord** (2026-11-15): `/aterforsaljare/glomt` mejlar en länk som gäller i två
     timmar (`requestPasswordReset` i `src/lib/reseller-auth/forgot.ts`). Svaret är detsamma
     oavsett om adressen har ett konto, och formuläret har en gräns per klient och per adress.
-    Sidan fungerar först när sajtens mejl är påslagna; tills dess hänvisar den och
-    inloggningen till namnskylt.com.
+    Mejlet är påslaget sedan 2026-11-21 (se Mejl från sajten). Med strömbrytaren av
+    hänvisar sidan och inloggningen till namnskylt.com.
   - Lösenordets minsta längd ligger i `src/lib/reseller-auth/limits.ts`, en fil utan
     Node-moduler, eftersom formulären i webbläsaren läser den.
 - Vägarna tar bara emot sina egna fält (`z.strictObject`), så det ena formuläret kan aldrig ge det
@@ -2364,12 +2371,16 @@ som syns i panelen. Det återförsäljaren gör själv ger inget besked.
   (`countPendingApplications`).
 - **Verkstaden har skickat** ger också ett besked (`order-shipped`, 2026-11-15), eftersom det
   är något som hänt utan att panelens ägare gjort det (`announceShipped`).
-- **Mejl om besked är byggt men avstängt.** Det skickas först när `RESEND_API_KEY` är satt och
-  avsändaren står i `NOTICE_FROM_EMAIL` (`noticeEmailSettings`); `OUTREACH_DISABLED=true` stänger
-  också av det. Mottagaren är adressen i företagets uppgifter, annars kontots inloggningsadress.
-  Länken byggs på `NOTICE_PUBLIC_URL` (standard `https://www.namnskylt.com`), aldrig på
-  förfrågans värdnamn. Mejlet väntar kunden inte på, och `notices.emailed_at` sätts när Resend
-  har tagit emot det. Aldrig provat mot Resend.
+- **En återförsäljares besked går som mejl sedan 2026-11-21** (ägarens beslut, se Mejl från
+  sajten): strömbrytaren är `NOTICE_RESEND_API_KEY` och `NOTICE_FROM_EMAIL`
+  (`noticeEmailSettings`); `OUTREACH_DISABLED=true` stänger också av det. Mottagaren är
+  adressen i återförsäljarens företagsuppgifter, annars kontots inloggningsadress. Länken
+  byggs på `NOTICE_PUBLIC_URL` (standard `https://www.namnskylt.com`), aldrig på förfrågans
+  värdnamn. Mejlet väntar kunden inte på, och `notices.emailed_at` sätts när Resend har tagit
+  emot det.
+  - **namnskylt.coms egna besked går bara via adminens strömbrytare** (`emailNotice` i
+    `notify.ts`), aldrig via den här. Adressen under adminens Inställningar är inte adminens
+    brevlåda: den tillhör företaget som stod där förut. Ändra inte det.
 - Kända brister: lästa besked visas ingenstans (historiken står i orderns och offertens
   tidslinje) och tas aldrig bort.
 
@@ -2423,31 +2434,59 @@ och `emailAdminNotice` (`notify.ts`).
   serverns logg. Beskedet står ändå i panelen. Adminens två inloggade delar på samma panel,
   så ett besked som den ena har öppnat är läst också för den andra.
 
-## Mejl från sajten — läge 2026-11-15
+## Mejl från sajten — läge 2026-11-21
 
-**Sajten ska inte skicka egna mejl** (besked av ägaren 2026-11-17: "vi ska inte ha någonting
-med Resend att göra"). Samma kväll bad ägaren om ett undantag: offerten mejlas till kunden,
-via Skylt & Gravyrtekniks Resend-konto och med en egen nyckel, se avsnittet Offertmejlet. Kundens orderbekräftelse, statusmejl och faktura kommer från Skylt &
-Gravyrtekniks system, till beställaren på ordern: kunden på en direktorder, återförsäljaren
-annars. Mejlen nedan ligger kvar i koden men ska förbli avstängda tills ägaren säger annat.
-Om beskedet också gäller utskicket till återförsäljare är inte sagt: fråga innan något görs där.
+Sajten har, utöver offertmejlet, adminens besked och utskicket, fyra egna mejl. **De är
+påslagna sedan 2026-11-21** (ägaren frågade "Kan vi inte sätta på dessa?" om de fyra
+avstängda mejlen, och svarade på mitt förslag: "Ja, slå på dom två och bygg så att
+orderbekräftelse och fraktbesked går ut för butiksordrar. Men i de fall där en slutkund lägger
+en order via en återförsäljares sida eller om en återförsäljare skickar en offert osv. så ska
+återförsäljarens design vara med deras färger, logo osv."). Det upphäver beskedet från
+2026-11-17 om att sajten inte skulle skicka egna mejl, för just de här mejlen.
 
-Sajten har fyra egna mejl utöver utskicket. Alla är byggda och avstängda, bakom samma
-strömbrytare: `RESEND_API_KEY` och `NOTICE_FROM_EMAIL` (`noticeEmailSettings`,
-`sendTransactional` i `src/lib/email/transactional.ts`). Inget av dem är provat mot Resend.
-
-- **Besked** till panelens ägare, se avsnittet Besked.
-- **Orderbekräftelse** till en kund som har beställt själv, i webbshoppen eller en butik
-  (`sendOrderConfirmation`, `composeOrderConfirmation` i `src/lib/orders/`): skyltar, frakt,
-  moms, summa, betalning, leveransadress och länken till kundens ordersida. Avsändarens namn
-  är säljaren (butiken, återförsäljaren eller, hos namnskylt.com, Skylt & Gravyrteknik) och svar
-  går till säljarens adress (`getSellerProfile`).
-  `orders.confirmation_emailed_at` sätts när Resend har tagit emot mejlet. En order som
-  återförsäljaren lägger åt kunden, eller en godkänd offert, ger ingen bekräftelse.
-- **Fraktbesked** till kunden när verkstaden har skickat (`announceShipped`,
-  `composeShippedEmail`), med spårningslänken och länken till ordersidan. Går skyltarna till
-  återförsäljaren får kunden inget mejl; återförsäljaren får beskedet i panelen.
-- **Glömt lösenord**, se avsnittet Inlogg.
+- **Egen strömbrytare:** `NOTICE_RESEND_API_KEY` och `NOTICE_FROM_EMAIL`
+  (`noticeEmailSettings` i `src/lib/notices/email.ts`, `sendTransactional` i
+  `src/lib/email/transactional.ts`). Båda krävs, och `OUTREACH_DISABLED=true` stänger av
+  dem. **De är skilda från `RESEND_API_KEY`**, som bara gäller utskicket: förut delade mejlen
+  den nyckeln, så att de inte gick att slå på utan att utskicket fick sin sändare.
+  - Mejlen går via Skylt & Gravyrtekniks Resend-konto, som offertmejlet och adminens besked.
+    Nyckeln har samma värde som offertmejlets, och avsändaren är
+    `namnskylt.com <besked@skyltochgravyr.com>`. I butikens mejl byts namnet mot butikens,
+    men adressen är densamma.
+  - `NOTICE_RESEND_API_URL` är bara till för prov på datorn: en låtsasmottagare i stället för
+    Resend, och bara på samma dator.
+- **Besked** till en återförsäljare, se avsnittet Besked.
+- **Glömt lösenord** för en återförsäljare, se avsnittet Inlogg.
+- **Orderbekräftelse och fraktbesked går bara till en kund som själv har beställt i en
+  återförsäljares butik** (`customerGetsSiteMail` i `src/lib/orders/model.ts`):
+  - **En direktorder får aldrig mejl härifrån.** Hos namnskylt.com, och i en butik utan
+    ägare, bekräftar och aviserar Skylt & Gravyrtekniks system ordern mot kunden, i vårt
+    utseende. Med vårt mejl också hade kunden fått två.
+  - I en återförsäljares butik går verkstadens mejl till återförsäljaren, som är beställare
+    hos dem. Butikens kund fick förut inget mejl alls.
+  - En order som återförsäljaren har lagt åt kunden, eller en godkänd offert, ger inget mejl
+    till kunden. Återförsäljaren har kontakten där och får beskedet. Det valde jag: ägaren sa
+    butiksordrar.
+  - Regeln ger också mejl för en order betald med kort hos namnskylt.com, eftersom verkstaden
+    då fakturerar oss och inte mejlar kunden. Kortbetalningen är avstängd.
+- **Butikens mejl har butikens utseende**: dess logga, namn och färg på knappen, och ingenting
+  om namnskylt.com eller verkstaden utom i länkarnas adress (`sellerBrand` med butikens
+  profil, `shop.profile`). Svar går till butikens e-post, annars återförsäljarens.
+  - Loggan hämtas från `/order/<kod>/logga.png` (ny väg 2026-11-21), som är öppen för den
+    som har orderns kod, som ordersidan själv. Förut stod bara butikens namn som ordmärke.
+  - **Orderbekräftelsen** (`sendOrderConfirmation`, `composeOrderConfirmation` i
+    `src/lib/orders/`): skyltar, frakt, moms, summa, betalning, leveransadress och länken
+    till kundens ordersida. `orders.confirmation_emailed_at` sätts när Resend har tagit emot
+    mejlet.
+  - **Fraktbeskedet** (`announceShipped`, `composeShippedEmail`): spårningslänken och länken
+    till ordersidan. Går skyltarna till återförsäljaren får kunden inget mejl.
+- **Offertmejlet från en återförsäljare hade redan återförsäljarens logga och färg**, liksom
+  offertens PDF, offertsidan, ordersidan och följesedeln. Inget ändrades där.
+- Provat lokalt 2026-11-21 mot en låtsasmottagare i stället för Resend, med en provbutik och
+  ett provkonto med påhittade uppgifter (18 kontroller): lösenordsmejlet, en order i butiken
+  med bekräftelse i butikens utseende och besked till återförsäljaren, fraktbeskedet med
+  spårningslänk, och att en order hos namnskylt.com inte ger något mejl härifrån.
+  **Inget riktigt mejl har skickats**, och ingen butik har en ägare i drift än.
 - Länkar byggs på `publicOrigin()` (`src/lib/http/public-url.ts`, `NOTICE_PUBLIC_URL`), aldrig
   på förfrågans värdnamn. Kundens namn och butikens namn rensas från radbrytningar innan de
   hamnar i ämnesrad och avsändare.
@@ -2469,9 +2508,8 @@ olika utskick som går via Resend"). Mallen ligger i `src/lib/email/layout.ts`.
   adress), `actionsRow` (knappar), `noteRow`, `signatureRow` och `footerLines`. Ett nytt mejl
   byggs av dem, aldrig med egen HTML.
 - **Fem mejl ritas med byggstenarna:** offertmejlet, orderbekräftelsen, fraktbeskedet,
-  beskedet till panelens ägare och mejlet för nytt lösenord. Bara offertmejlet skickas i
-  dag; de övriga fyra är fortfarande avstängda (se Mejl från sajten). Textdelen i varje
-  mejl är densamma som förut.
+  beskedet till panelens ägare och mejlet för nytt lösenord. Alla skickas sedan 2026-11-21,
+  orderbekräftelsen och fraktbeskedet bara för butiksordrar (se Mejl från sajten).
 - **Vem mejlet kommer ifrån** (`EmailBrand`, `sellerBrand` i `seller-brand.ts`):
   - namnskylt.com har sajtens logga (`siteBrand`) och bläcksvart knapp. Loggan är en PNG,
     `public/logo-namnskylt-mejl.png`, ritad ur SVG:n i tre gånger visningsmåtten, eftersom
@@ -3271,8 +3309,9 @@ och testdata går att städa bort. Reglerna ligger i `src/lib/orders/erase-model
   högst 6 försök. Ett nej från verkstaden (4xx utom 408 och 429, eller en för stor order) är
   slutgiltigt och provas inte om. Ordrar som bara väntar skickas aldrig av sig själva; det
   manuella utskicket från Tillverkning är oförändrat.
-- **Driftsidan** `/admin/drift` (bara admin): strömbrytarna (verkstaden, mejl, besked som
-  mejl, kortbetalning) som av eller på utan värden, jobbens senaste körning, misslyckade
+- **Driftsidan** `/admin/drift` (bara admin): strömbrytarna (verkstaden, offertmejl, adminens
+  besked, utskicket, mejl till återförsäljare och butikskunder, kortbetalning) som av eller på
+  utan värden, jobbens senaste körning, misslyckade
   utskick och de senaste felen.
 - **CI:** `.github/workflows/ci.yml` kör kvalitetsgrinden mot en tom Postgres på push och pull
   request. Den körs på GitHub vid varje push, och de fem senaste körningarna var gröna 2026-11-18.
@@ -3623,8 +3662,8 @@ gäller ordrar från namnskylt.com, och sedan till att rulla ut dem ("Kör båda
     med påhittade uppgifter: offertmejlen, offertens PDF, kundens offertsida och ordersida,
     följesedeln, beskeden till admin, verkstadens tre mejl och bekräftelsens PDF, och de fyra
     avstängda mejlen. Skripten som tog fram dem ligger i `tmp/exempel/` (gitignorerat).
-  - Vår egen orderbekräftelse och vårt fraktbesked ska därför förbli avstängda: annars får
-    kunden två mejl.
+  - Vår egen orderbekräftelse och vårt fraktbesked skickas därför aldrig för en direktorder:
+    annars får kunden två mejl (`customerGetsSiteMail`, se Mejl från sajten).
   - Provat lokalt 2026-11-20 genom att rita de tre mejlen med påhittade uppgifter och se dem
     i Chrome på 700 och 390 px. **Inget mejl har skickats, och inget är provat i en riktig
     e-postklient.** Knappen ritas med VML i Outlook, som ingen har sett.

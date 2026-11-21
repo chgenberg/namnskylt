@@ -1,28 +1,30 @@
 import "server-only";
 import { requireDb } from "@/lib/db/client";
-import { nameBrand } from "@/lib/email/layout";
 import { sellerBrand } from "@/lib/email/seller-brand";
 import { sendTransactional } from "@/lib/email/transactional";
 import { noticeEmailSettings } from "@/lib/notices/email";
 import { getShop } from "@/lib/shops/repository";
 import { composeOrderConfirmation } from "./confirmation-email";
-import { badgeCount } from "./model";
+import { badgeCount, customerGetsSiteMail } from "./model";
 import { priceWithPricing } from "./pricing";
 import { databaseConfigured, getOrderForDispatch, getSellerProfile } from "./repository";
 
 /**
- * Mejlar orderbekräftelsen till en kund som har beställt själv. Gör ingenting
- * förrän sajtens mejl är påslagna (`RESEND_API_KEY` och `NOTICE_FROM_EMAIL`).
- * Kastar aldrig: ordern är redan lagd, och ett mejl som inte går iväg får inte
- * ge kunden ett fel.
+ * Mejlar orderbekräftelsen till en kund som har beställt själv i en återförsäljares butik
+ * (`customerGetsSiteMail`), i butikens utseende: dess logga, namn och färg. En direktorder hos
+ * namnskylt.com bekräftas av Skylt & Gravyrtekniks system och får inget mejl härifrån. Gör
+ * ingenting förrän mejlen är påslagna (`noticeEmailSettings`). Kastar aldrig: ordern är redan
+ * lagd, och ett mejl som inte går iväg får inte ge kunden ett fel.
  */
 export async function sendOrderConfirmation(orderNo: string): Promise<void> {
   try {
     const settings = noticeEmailSettings();
     if (!settings || !databaseConfigured()) return;
     const order = await getOrderForDispatch(orderNo);
-    if (!order || order.demo) return;
+    if (!order || !customerGetsSiteMail(order)) return;
     const [company, shop] = await Promise.all([getSellerProfile(order.resellerId), order.shopSlug ? getShop(order.shopSlug) : null]);
+    // Kunden möter säljaren som i butiken: butikens egen logga, namn och färg.
+    const face = shop ? shop.profile : company;
     const price = priceWithPricing(order.badges, order.pricing, order.priceList, order.shippingSek);
     const sent = await sendTransactional(
       composeOrderConfirmation(
@@ -38,14 +40,14 @@ export async function sendOrderConfirmation(orderNo: string): Promise<void> {
           orderUrl: `${settings.origin}/order/${order.customerToken}`,
         },
         {
-          sellerName: shop?.profile.name || company.name,
-          replyTo: company.email || settings.replyTo,
+          sellerName: face.name || company.name,
+          replyTo: face.email || company.email || settings.replyTo,
           fromAddress: settings.replyTo,
           termsUrl: `${settings.origin}${shop ? `/butik/${shop.slug}/villkor` : "/villkor"}`,
-          // En butik syns med sitt eget namn och sin färg, namnskylt.com med sajtens logga.
-          brand: shop ? nameBrand(shop.profile.name, shop.profile.primaryColor) : await sellerBrand(company, settings.origin),
+          brand: await sellerBrand(face, settings.origin, `${settings.origin}/order/${order.customerToken}/logga.png`),
         },
       ),
+      settings,
     );
     if (sent) await requireDb()`update orders set confirmation_emailed_at = now() where order_no = ${orderNo}`;
   } catch (error) {

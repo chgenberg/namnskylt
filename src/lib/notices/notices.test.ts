@@ -86,15 +86,21 @@ describe("beskedets text", () => {
 });
 
 describe("mejl om besked", () => {
-  const on = { RESEND_API_KEY: "re_x", NOTICE_FROM_EMAIL: "namnskylt.com <besked@mail.namnskylt.com>" };
+  const on = { NOTICE_RESEND_API_KEY: "re_notice", NOTICE_FROM_EMAIL: "namnskylt.com <besked@mail.namnskylt.com>" };
 
-  test("är avstängt utan Resend-nyckel, även med avsändare", () => {
+  test("är avstängt utan sin egen nyckel, även med avsändare", () => {
     assert.equal(noticeEmailSettings({ NOTICE_FROM_EMAIL: on.NOTICE_FROM_EMAIL }), null);
+    assert.equal(noticeEmailSettings({ ...on, NOTICE_RESEND_API_KEY: "  " }), null);
   });
 
-  test("är avstängt utan avsändare, även med Resend-nyckel", () => {
-    assert.equal(noticeEmailSettings({ RESEND_API_KEY: "re_x" }), null);
-    assert.equal(noticeEmailSettings({ RESEND_API_KEY: "re_x", NOTICE_FROM_EMAIL: "  " }), null);
+  test("utskickets nyckel slår inte på det", () => {
+    // RESEND_API_KEY gäller bara utskicket till återförsäljare. Förut delade mejlen den nyckeln.
+    assert.equal(noticeEmailSettings({ RESEND_API_KEY: "re_x", NOTICE_FROM_EMAIL: on.NOTICE_FROM_EMAIL }), null);
+  });
+
+  test("är avstängt utan avsändare, även med nyckel", () => {
+    assert.equal(noticeEmailSettings({ NOTICE_RESEND_API_KEY: "re_notice" }), null);
+    assert.equal(noticeEmailSettings({ NOTICE_RESEND_API_KEY: "re_notice", NOTICE_FROM_EMAIL: "  " }), null);
   });
 
   test("nödstoppet stänger av det", () => {
@@ -105,15 +111,23 @@ describe("mejl om besked", () => {
     assert.equal(noticeEmailSettings({ ...on, NOTICE_FROM_EMAIL: "namnskylt.com" }), null);
   });
 
-  test("med båda satta gäller avsändaren, och länkarna går till sajten", () => {
+  test("med båda satta gäller nyckeln och avsändaren, och länkarna går till sajten", () => {
     assert.deepEqual(noticeEmailSettings(on), {
+      apiKey: "re_notice",
       from: "namnskylt.com <besked@mail.namnskylt.com>",
       replyTo: "besked@mail.namnskylt.com",
       origin: "https://www.namnskylt.com",
+      apiUrl: null,
     });
     assert.equal(noticeEmailSettings({ ...on, NOTICE_PUBLIC_URL: "https://exempel.se/" })?.origin, "https://exempel.se");
     assert.equal(noticeEmailSettings({ ...on, NOTICE_PUBLIC_URL: "exempel.se" }), null);
     assert.equal(noticeEmailSettings({ ...on, NOTICE_FROM_EMAIL: "besked@mail.namnskylt.com" })?.replyTo, "besked@mail.namnskylt.com");
+  });
+
+  test("en låtsasmottagare för prov får bara ligga på samma dator", () => {
+    assert.equal(noticeEmailSettings({ ...on, NOTICE_RESEND_API_URL: "http://localhost:3998/emails" })?.apiUrl, "http://localhost:3998/emails");
+    // En adress någon annanstans stänger av mejlet, hellre än att nyckeln skickas dit.
+    assert.equal(noticeEmailSettings({ ...on, NOTICE_RESEND_API_URL: "https://exempel.se/emails" }), null);
   });
 
   test("mejlet bär beskedets mening, kundens ord och länken till panelen", () => {

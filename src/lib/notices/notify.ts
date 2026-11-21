@@ -1,6 +1,7 @@
 import "server-only";
 import { isRealEmailSend } from "@/lib/email";
 import { ResendEmailSender, type FetchLike } from "@/lib/email/resend-sender";
+import { sendTransactional } from "@/lib/email/transactional";
 import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
 import { accountEmail } from "@/lib/reseller-auth/accounts";
 import { isOwner } from "@/lib/tenants/model";
@@ -25,11 +26,10 @@ export async function notify(input: NewNotice): Promise<void> {
   }
 }
 
-/** Dit beskedet mejlas: adressen i företagets uppgifter, annars adressen kontot loggar in med. */
+/** Dit en återförsäljares besked mejlas: adressen i företagets uppgifter, annars adressen kontot loggar in med. */
 async function recipientFor(tenant: string): Promise<string | null> {
   const company = await getCompanyProfile(tenant);
-  if (company.email) return company.email;
-  return isOwner(tenant) ? null : accountEmail(tenant);
+  return company.email || accountEmail(tenant);
 }
 
 /**
@@ -53,20 +53,20 @@ export async function emailAdminNotice(notice: PanelNotice, settings: AdminNotic
 
 async function emailNotice(tenant: string, notice: PanelNotice): Promise<void> {
   try {
-    // namnskylt.coms egna besked har sin egen strömbrytare och sina egna mottagare.
-    const admin = isOwner(tenant) ? adminNoticeEmailSettings() : null;
-    if (admin) {
-      if (await emailAdminNotice(notice, admin)) await markNoticeEmailed(notice.id);
+    // namnskylt.coms egna besked har sin egen strömbrytare och sina egna mottagare, och går aldrig
+    // någon annan väg: adressen under Inställningar är inte adminens brevlåda. Med den strömbrytaren
+    // av mejlas de inte alls, också när återförsäljarnas mejl är på.
+    if (isOwner(tenant)) {
+      const admin = adminNoticeEmailSettings();
+      if (admin && (await emailAdminNotice(notice, admin))) await markNoticeEmailed(notice.id);
       return;
     }
+    // En återförsäljares besked går till adressen i dess företagsuppgifter, annars till kontots.
     const settings = noticeEmailSettings();
     if (!settings) return;
     const to = await recipientFor(tenant);
     if (!to) return;
-    const sender = new ResendEmailSender(process.env.RESEND_API_KEY?.trim() ?? "");
-    const result = await sender.send(composeNoticeEmail(notice, to, settings));
-    if (isRealEmailSend(result)) await markNoticeEmailed(notice.id);
-    else console.error("Beskedet kunde inte mejlas", result.status, result.error);
+    if (await sendTransactional(composeNoticeEmail(notice, to, settings), settings)) await markNoticeEmailed(notice.id);
   } catch (error) {
     console.error("Beskedet kunde inte mejlas", error);
   }

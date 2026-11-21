@@ -168,6 +168,25 @@ export function isDirectOrder(order: { resellerId: string; payment?: unknown }):
   return isOwner(order.resellerId) && !order.payment;
 }
 
+/** En order kunden själv har lagt, i webbshoppen eller i en butik: ingen i panelen har gjort något. */
+export function isPlacedByCustomer(source: OrderSource): boolean {
+  return source === "web" || source === "shop";
+}
+
+/**
+ * Om kunden får sajtens egna mejl om ordern: orderbekräftelsen och beskedet om att den är
+ * skickad (beslut av ägaren 2026-11-21: de ska gå ut för butiksordrar). Det gäller en order som
+ * kunden själv har lagt och som verkstaden inte sköter mot kunden, alltså i en återförsäljares
+ * butik: där går verkstadens bekräftelse till återförsäljaren, och kunden fick förut inget mejl.
+ *
+ * En direktorder får aldrig mejl härifrån: Skylt & Gravyrtekniks system bekräftar och aviserar
+ * den, och kunden skulle annars få två mejl om samma sak. En order som återförsäljaren har lagt
+ * åt kunden, eller en godkänd offert, ger inte heller något: där har säljaren själv kontakten.
+ */
+export function customerGetsSiteMail(order: { resellerId: string; payment?: unknown; source: OrderSource; demo?: boolean }): boolean {
+  return !order.demo && isPlacedByCustomer(order.source) && !isDirectOrder(order);
+}
+
 /** Ordernumret kunden ser, och vårt eget som referens när de skiljer sig. */
 export interface CustomerOrderNumber {
   number: string;

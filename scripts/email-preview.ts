@@ -94,8 +94,8 @@ async function main() {
     },
     {
       file: "orderbekraftelse",
-      title: "Orderbekräftelse (avstängd)",
-      note: "Skickas inte i dag. Sajtens egna mejl är avstängda.",
+      title: "Orderbekräftelse till en butikskund",
+      note: "Går till en kund som har beställt i en återförsäljares butik, i butikens utseende. En order hos namnskylt.com bekräftas av verkstadens system.",
       message: withSiteLogo(
         composeOrderConfirmation(
           {
@@ -104,7 +104,7 @@ async function main() {
             customerEmail: "karin@hotellkronan.example",
             quantity: 12,
             goodsSek: 1896,
-            shippingSek: 159,
+            shippingSek: 75,
             delivery: {
               to: "customer",
               method: "standard",
@@ -113,29 +113,29 @@ async function main() {
             payment: null,
             orderUrl: ORDER_URL,
           },
-          { sellerName: "Skylt & Gravyrteknik", replyTo: "order@skyltochgravyr.com", fromAddress: "order@namnskylt.com", termsUrl: `${SITE}/villkor`, brand: site },
+          { sellerName: "Profilhuset i Göteborg AB", replyTo: "kontakt@profilhuset.example", fromAddress: "besked@skyltochgravyr.com", termsUrl: `${SITE}/butik/profilhuset/villkor`, brand: reseller },
         ),
       ),
     },
     {
       file: "fraktbesked",
-      title: "Fraktbesked (avstängt)",
-      note: "Skickas inte i dag.",
+      title: "Fraktbesked till en butikskund",
+      note: "Går till butikens kund när verkstaden har skickat ordern, i butikens utseende.",
       message: composeShippedEmail(
         { orderNo: "NS-1107", customerName: "Karin Berg", customerEmail: "karin@hotellkronan.example", trackingUrl: "https://tracking.postnord.com/se/?id=EXEMPEL", orderUrl: ORDER_URL },
-        { sellerName: "Skylt & Gravyrteknik", replyTo: "order@skyltochgravyr.com", fromAddress: "order@namnskylt.com", brand: site },
+        { sellerName: "Profilhuset i Göteborg AB", replyTo: "kontakt@profilhuset.example", fromAddress: "besked@skyltochgravyr.com", brand: reseller },
       ),
     },
     {
       file: "besked",
-      title: "Besked till panelens ägare (avstängt)",
-      note: "Skickas inte i dag. Går till återförsäljaren när en kund har svarat.",
+      title: "Besked till en återförsäljare",
+      note: "Går till återförsäljaren när en kund har svarat, beställt i butiken eller när ordern har skickats.",
       message: withSiteLogo(composeNoticeEmail(notice("quote-declined", "För dyrt just nu, vi återkommer efter årsskiftet."), "saljare@profilhuset.example", noticeSettings)),
     },
     {
       file: "nytt-losenord",
-      title: "Nytt lösenord (avstängt)",
-      note: "Skickas inte i dag. Går till en återförsäljare som har glömt sitt lösenord.",
+      title: "Nytt lösenord",
+      note: "Går till en återförsäljare som har glömt sitt lösenord.",
       message: withSiteLogo(composeResetEmail({ to: "saljare@profilhuset.example", url: `${SITE}/aterforsaljare/konto/exempelkodexempelkodexempelkod12`, from: noticeSettings.from, replyTo: noticeSettings.replyTo })),
     },
   ];

@@ -31,6 +31,7 @@ export async function requestPasswordReset(email: string): Promise<void> {
         from: settings.from,
         replyTo: settings.replyTo,
       }),
+      settings,
     );
   } catch (error) {
     console.error("Länken för nytt lösenord kunde inte mejlas", error);

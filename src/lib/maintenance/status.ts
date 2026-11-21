@@ -74,16 +74,16 @@ export async function getOpsStatus(): Promise<OpsStatus> {
           : "Adminens besked syns bara i panelen.",
       },
       {
-        label: "Mejl",
+        label: "Utskicket till återförsäljare",
         on: mail,
-        text: mail ? "Resend är inkopplat för sajtens övriga mejl och utskicket." : "Inga andra mejl lämnar servern.",
+        text: mail ? "Resend är inkopplat för utskicket." : "Utskicket skickar inga mejl.",
       },
       {
-        label: "Besked som mejl",
+        label: "Mejl till återförsäljare och butikskunder",
         on: noticeMail,
         text: noticeMail
-          ? "Besked, orderbekräftelser, fraktbesked och länkar för nytt lösenord går som mejl."
-          : "Besked syns bara i panelen. Kunden får inga mejl.",
+          ? "Återförsäljarnas besked och länken för nytt lösenord går som mejl, och en kund som beställer i en återförsäljares butik får orderbekräftelse och fraktbesked."
+          : "Återförsäljarnas besked syns bara i panelen, och butikernas kunder får inga mejl.",
       },
       {
         label: "Kortbetalning",
