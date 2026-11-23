@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { SIGNATURE_HEADER, supplierOrderStateSchema, verifyWebhookSignature } from "@/lib/supplier/status";
 import { applySupplierState } from "@/lib/supplier/sync";
 
-const MAX_BODY_BYTES = 16_000;
+/**
+ * Ett besked med leveranser (högst 50, varje fält med tak i schemat) kan bli runt 25 kB. Gränsen ger
+ * god marginal: ett besked som nekas här tappar statusbytet tills ordersidan hämtar läget igen.
+ */
+const MAX_BODY_BYTES = 128_000;
 
 /**
  * Leverantören meddelar statusändringar här. Signaturen är enda behörigheten,

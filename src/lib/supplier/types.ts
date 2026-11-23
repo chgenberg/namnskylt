@@ -216,6 +216,17 @@ export interface SupplierShipping {
   /** Frakten återförsäljaren betalar, exkl. moms. Samma belopp som leverantörens egen prislista ger. */
   costSek: number;
   address: SupplierAddress;
+  /**
+   * Leveransspecifikationen: kundens fritext om hur skyltarna ska skickas, till exempel vilka namn
+   * som ska till vilken adress. Verkstaden delar upp ordern i leveranser efter den. Saknas när
+   * kunden inte skrev något.
+   */
+  instructions?: string;
+  /**
+   * Frakten för varje leveransadress utöver den första, i hela kronor exkl. moms. Verkstaden lägger
+   * den på ordern när den delar upp den i leveranser (beslut av ägaren 2026-11-23).
+   */
+  extraDeliverySek?: number;
 }
 
 export interface SupplierOrderRequest {
@@ -281,8 +292,34 @@ export interface SupplierOrderState {
    * Läses bara för en order med expressfrakt, där priset inte är känt när ordern läggs.
    */
   shippingCost?: number | null;
+  /**
+   * Leveranserna när personalen har delat ordern på flera adresser (fliken Namnskylt hos
+   * verkstaden, beslut av ägaren 2026-11-23). Tom när allt går till orderns adress. Saknas
+   * fältet har verkstaden inte skickat något om leveranser, och det vi har sparat står kvar.
+   */
+  deliveries?: SupplierDelivery[];
+  /** Frakten för leveranserna utöver den första, hela kronor exkl. moms. 0 när ordern inte är uppdelad. */
+  extraDeliveryCost?: number;
   /** När statusen sattes hos leverantören (ISO 8601). */
   changedAt: string;
+}
+
+/** En leverans av en uppdelad order, som verkstaden har den. */
+export interface SupplierDelivery {
+  /** Leveransens nummer, från 1. Följesedeln för leveransen är `/f/<kod>?leverans=<position>`. */
+  position: number;
+  name: string;
+  contactName: string | null;
+  line1: string;
+  line2: string | null;
+  zip: string;
+  city: string;
+  country: string;
+  phone: string | null;
+  email: string | null;
+  /** Radernas nummer i anropet, från 1: rad n är orderns n:te skylt som verkstaden gör. */
+  lines: number[];
+  trackingUrl: string | null;
 }
 
 export interface SupplierClient {

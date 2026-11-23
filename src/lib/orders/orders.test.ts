@@ -50,6 +50,8 @@ function order(patch: Partial<StoredOrder>): StoredOrder {
     supplierAttempts: 0,
     payment: null,
     expressShippingSek: null,
+    supplierDeliveries: [],
+    extraDeliverySek: 0,
     customerToken: "0".repeat(64),
     packingCode: "0".repeat(12),
     ...patch,

@@ -526,6 +526,33 @@
   color: var(--color-ink);
 }
 
+/* Leveranserna när verkstaden har delat ordern på flera adresser. */
+.splitDeliveries {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.splitDeliveries ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.splitDeliveries li {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  overflow-wrap: anywhere;
+}
+
+.splitDeliveries a {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
 /* ── Kundens ordersida ── */
 .timeline {
   display: grid;

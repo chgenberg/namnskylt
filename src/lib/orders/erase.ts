@@ -5,11 +5,13 @@ import { requireDb } from "@/lib/db/client";
 import { isTrackableSupplierOrder } from "@/lib/supplier/status";
 import { isOwner } from "@/lib/tenants/model";
 import { parseDelivery } from "./delivery";
+import { parseSupplierDeliveries } from "./supplier-deliveries";
 import {
   ERASED_CUSTOMER_NAME,
   erasedBadges,
   erasedCustomerEmail,
   erasedDelivery,
+  erasedSupplierDeliveries,
   isBookkeepingOrder,
   type CustomerErasure,
 } from "./erase-model";
@@ -25,6 +27,7 @@ interface OrderFacts {
   paid: boolean;
   badges: unknown;
   delivery: unknown;
+  supplier_deliveries: unknown;
 }
 
 /** Samma fråga som adminens översikt ställer: har verkstaden ordern? */
@@ -39,7 +42,7 @@ function keeps(order: OrderFacts): boolean {
 /** Kundens ordrar med det som avgör om de hör till bokföringen. Låser raderna när `lock` är satt. */
 async function customerOrders(sql: Sql | TransactionSql, customerId: string, lock: boolean): Promise<OrderFacts[]> {
   return sql<OrderFacts[]>`
-    select id, status, is_demo, supplier_sent_at, supplier_order_no, (payment is not null) as paid, badges, delivery
+    select id, status, is_demo, supplier_sent_at, supplier_order_no, (payment is not null) as paid, badges, delivery, supplier_deliveries
       from orders where customer_id = ${customerId} ${lock ? sql`for update` : sql``}`;
 }
 
@@ -105,12 +108,17 @@ export async function eraseCustomerIn(tx: TransactionSql, tenant: string, custom
     await tx`delete from orders where id in ${tx(removed)}`;
   }
   for (const order of kept) {
-    const delivery = erasedDelivery(parseDelivery(order.delivery), Boolean(customer.company?.trim()));
+    const hasCompany = Boolean(customer.company?.trim());
+    const original = parseDelivery(order.delivery);
+    const delivery = erasedDelivery(original, hasCompany);
+    const split = parseSupplierDeliveries(order.supplier_deliveries);
+    const deliveries = split.length > 0 ? erasedSupplierDeliveries(split, original?.to ?? null, hasCompany) : null;
     // En order som står kvar för bokföringen visas inte längre på något kundkonto.
     await tx`
       update orders set badge_shot = null, account_id = null,
              badges = ${tx.json(erasedBadges(order.badges) as Json)},
-             delivery = ${delivery ? tx.json(delivery as unknown as Json) : null}
+             delivery = ${delivery ? tx.json(delivery as unknown as Json) : null},
+             supplier_deliveries = ${deliveries ? tx.json(deliveries as unknown as Json) : null}
        where id = ${order.id}`;
   }
   if (kept.length > 0) {

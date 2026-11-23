@@ -3,12 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { DeliveryFields } from "@/components/delivery-fields";
+import { DeliveryInstructionsField } from "@/components/delivery-instructions-field";
 import { ShippingMethodPicker } from "@/components/shipping-method-picker";
 import { Segmented } from "@/components/ui/segmented";
 import { SHIPPING_METHODS, type ShippingMethod } from "@/engine";
 import {
   addressFromDraft,
   DELIVERY_TO_LABEL,
+  deliveryInstructionsOf,
   deliveryLines,
   draftFromAddress,
   SHIPPING_METHOD_INFO,
@@ -31,7 +33,7 @@ interface DeliveryPanelProps {
   /** Ordern eller offerten leveransen hör till. */
   target: { kind: "order"; orderNo: string } | { kind: "quote"; quoteNo: string };
   /** Nuvarande leverans. `null` på en order från före leveransadressen. */
-  delivery: { to: DeliveryTo; address: DeliveryAddress | null; method?: ShippingMethod } | null;
+  delivery: { to: DeliveryTo; address: DeliveryAddress | null; method?: ShippingMethod; instructions?: string | null } | null;
   /** Förifyllda adresser för de två valen. */
   options: DeliveryOptions;
   /** Varför leveransen inte går att ändra längre; `null` när den går att ändra. */
@@ -51,6 +53,7 @@ export function DeliveryPanel({ target, delivery, options, locked }: DeliveryPan
   const [editing, setEditing] = useState(false);
   const [to, setTo] = useState<DeliveryTo>(delivery?.to ?? "customer");
   const [method, setMethod] = useState<ShippingMethod>(shippingMethodOf(delivery));
+  const [instructions, setInstructions] = useState(delivery?.instructions ?? "");
   const [drafts, setDrafts] = useState<DeliveryOptions>(() =>
     delivery?.address ? { ...options, [delivery.to]: draftFromAddress(delivery.address) } : options,
   );
@@ -71,12 +74,14 @@ export function DeliveryPanel({ target, delivery, options, locked }: DeliveryPan
       setError(parsed.error);
       return;
     }
+    // Leveransspecifikationen gäller bara när skyltarna fraktas.
+    const written = method !== "pickup" && instructions.trim() ? instructions.trim() : null;
     startTransition(async () => {
       const result =
         target.kind === "quote"
-          ? await updateQuoteDeliveryAction(target.quoteNo, { to, address: parsed?.address ?? null, method })
+          ? await updateQuoteDeliveryAction(target.quoteNo, { to, address: parsed?.address ?? null, method, instructions: written })
           : parsed
-            ? await updateOrderDeliveryAction(target.orderNo, { to, address: parsed.address, method })
+            ? await updateOrderDeliveryAction(target.orderNo, { to, address: parsed.address, method, instructions: written })
             : { ok: false as const, error: "Fyll i leveransadressen" };
       if (!result.ok) {
         setError(result.error);
@@ -102,6 +107,7 @@ export function DeliveryPanel({ target, delivery, options, locked }: DeliveryPan
           <p className={styles.muted}>Lämna adressen tom om du inte har den. Kunden fyller då i den när offerten godkänns.</p>
         )}
         <ShippingMethodPicker value={method} onChange={setMethod} methods={SHIPPING_METHODS} disabled={pending} />
+        {method !== "pickup" && <DeliveryInstructionsField value={instructions} onChange={setInstructions} disabled={pending} />}
         {error && (
           <p className={styles.error} role="alert">
             {error}
@@ -140,6 +146,12 @@ export function DeliveryPanel({ target, delivery, options, locked }: DeliveryPan
       ) : (
         <p className={styles.error} role="status">
           Leveransadress saknas. Ordern kan inte gå till verkstaden förrän den är ifylld.
+        </p>
+      )}
+      {deliveryInstructionsOf(delivery) && (
+        <p>
+          <strong>Leveransspecifikation</strong>
+          <span style={{ display: "block", whiteSpace: "pre-wrap" }}>{deliveryInstructionsOf(delivery)}</span>
         </p>
       )}
       {shippingMethodOf(delivery) !== "standard" && (

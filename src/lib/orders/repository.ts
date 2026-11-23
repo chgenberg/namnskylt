@@ -20,6 +20,8 @@ import {
 import { priceListsFor, shippingFor, storedPriceModel, type PriceAudience } from "./price-lists";
 import { isCustomPricing, isLineInvoiceable, parsePricing, priceWithPricing, type Pricing } from "./pricing";
 import { cleanCustomerPo } from "./customer-po";
+import { parseSupplierDeliveries } from "./supplier-deliveries";
+import type { SupplierDelivery } from "@/lib/supplier/types";
 import { UNASSIGNED_CUSTOMER_EMAIL, UNASSIGNED_CUSTOMER_NAME } from "./unassigned-customer";
 import { companyProfileSchema, DEFAULT_COMPANY, type CompanyProfile } from "@/lib/company/profile";
 import { workshopSeller, type SellerProfile } from "@/lib/company/seller";
@@ -73,6 +75,8 @@ interface OrderRow {
   supplier_attempts: number;
   payment: unknown;
   express_shipping_sek: number | null;
+  supplier_deliveries: unknown;
+  extra_delivery_sek: number;
   customer_token: string;
   packing_code: string;
   events: { status: string; note: string | null; at: string }[] | null;
@@ -108,6 +112,7 @@ function toOrder(row: OrderRow, currentModel: PriceModel, audience: PriceAudienc
       badges.success ? badges.data : [],
       shippingMethodOf(parseDelivery(row.delivery)),
       row.express_shipping_sek,
+      row.extra_delivery_sek ?? 0,
     ),
     totalSek: row.total_sek,
     totalInclVatSek: row.total_incl_vat_sek,
@@ -131,6 +136,8 @@ function toOrder(row: OrderRow, currentModel: PriceModel, audience: PriceAudienc
     supplierAttempts: row.supplier_attempts,
     payment: parsePayment(row.payment),
     expressShippingSek: row.express_shipping_sek,
+    supplierDeliveries: parseSupplierDeliveries(row.supplier_deliveries),
+    extraDeliverySek: row.extra_delivery_sek ?? 0,
     customerToken: row.customer_token,
     packingCode: row.packing_code,
   };
@@ -147,6 +154,7 @@ function selectOrders(sql: Sql) {
            o.supplier_order_no, o.partner_request_no, o.tracking_url, o.source, o.placed_at, o.is_demo, o.supplier_synced_at,
            o.badge_shot is not null as has_badge_shot, o.shop_slug, o.project, o.customer_po, o.reseller_id,
            o.delivery, o.supplier_sent_at, o.supplier_error, o.supplier_attempts, o.payment, o.express_shipping_sek, o.customer_token, o.packing_code,
+           o.supplier_deliveries, o.extra_delivery_sek,
            r.order_no as repeat_of_order_no,
            c.id as customer_id, c.name as customer_name, c.company as customer_company, c.email as customer_email, c.is_demo as customer_demo,
            c.phone as customer_phone, c.org_number as customer_org_number, c.address as customer_address,
@@ -500,6 +508,10 @@ export interface SupplierUpdate {
   trackingUrl?: string | null;
   /** Expressfraktens pris i hela kronor, exklusive moms, när verkstaden har satt det. */
   expressShippingSek?: number | null;
+  /** Leveranserna när verkstaden har delat ordern; tom när allt går till en adress. Saknas: orört. */
+  deliveries?: SupplierDelivery[];
+  /** Frakten för leveranserna utöver den första, hela kronor exkl. moms. Saknas: orörd. */
+  extraDeliverySek?: number;
   at: string;
 }
 
@@ -547,6 +559,52 @@ export async function setExpressShipping(orderNo: string, sek: number): Promise<
 }
 
 /**
+ * Leveranserna och deras extra frakt, när verkstaden har delat ordern på flera adresser. Summan
+ * räknas om med frakten, och tidslinjen får en rad när uppdelningen eller frakten ändras.
+ */
+async function applyDeliveries(
+  tx: TransactionSql,
+  orderId: string,
+  deliveries: SupplierDelivery[] | undefined,
+  extraSek: number | undefined,
+  currentModel: PriceModel,
+): Promise<void> {
+  const [row] = await tx<
+    { status: string; badges: unknown; pricing: unknown; price_model: unknown; delivery: unknown; express_shipping_sek: number | null; supplier_deliveries: unknown; extra_delivery_sek: number }[]
+  >`
+    select status, badges, pricing, price_model, delivery, express_shipping_sek, supplier_deliveries, extra_delivery_sek
+      from orders where id = ${orderId} for update`;
+  if (!row) return;
+  const method = shippingMethodOf(parseDelivery(row.delivery));
+  const before = parseSupplierDeliveries(row.supplier_deliveries);
+  const after = deliveries ?? before;
+  // Expressfrakten och en upphämtning har ingen fast extra frakt.
+  const extra = method === "express" || method === "pickup" ? 0 : Math.max(0, Math.round(extraSek ?? row.extra_delivery_sek));
+  const sameDeliveries = JSON.stringify(before) === JSON.stringify(after);
+  if (sameDeliveries && extra === row.extra_delivery_sek) return;
+  const badges = badgesSchema.safeParse(row.badges);
+  const model = storedPriceModel(row.price_model, currentModel);
+  const price = badges.success
+    ? priceWithPricing(badges.data, parsePricing(row.pricing), endPriceTable(model), shippingFor(model, badges.data, method, row.express_shipping_sek, extra))
+    : null;
+  await tx`
+    update orders set supplier_deliveries = ${after.length > 0 ? tx.json(after as unknown as Json) : null},
+           extra_delivery_sek = ${extra},
+           total_sek = ${price ? price.totalSek : tx`total_sek`},
+           total_incl_vat_sek = ${price ? price.totalInclVatSek : tx`total_incl_vat_sek`}
+     where id = ${orderId}`;
+  // Ändrades bara spårningen är uppdelningen densamma: säg det, i stället för att upprepa uppdelningen.
+  const withoutTracking = (list: SupplierDelivery[]) => JSON.stringify(list.map(({ trackingUrl: _t, ...rest }) => rest));
+  const onlyTracking = before.length > 0 && extra === row.extra_delivery_sek && withoutTracking(before) === withoutTracking(after);
+  const note = onlyTracking
+    ? "Spårning per leverans från verkstaden"
+    : after.length > 1
+      ? `Uppdelad hos verkstaden i ${after.length} leveranser${extra > 0 ? `, extra frakt ${extra} kr` : ""}`
+      : "Hela ordern går till en adress";
+  await tx`insert into order_events (order_id, status, note) values (${orderId}, ${row.status}, ${note})`;
+}
+
+/**
  * Leverantörens läge för en order. Statusen flyttas bara framåt (`canAdvance`
  * avgör), spårningslänken och expressfraktens pris fylls på och
  * avstämningstiden sparas oavsett.
@@ -577,6 +635,9 @@ export async function applySupplierUpdate(
     }
     if (update.expressShippingSek != null) {
       await applyExpressPrice(tx, order.id, update.expressShippingSek, currentModel, "satt av verkstaden");
+    }
+    if (update.deliveries !== undefined || update.extraDeliverySek !== undefined) {
+      await applyDeliveries(tx, order.id, update.deliveries, update.extraDeliverySek, currentModel);
     }
     return next ? { found: true, changed: true, orderNo: order.order_no, status: next } : { found: true, changed: false };
   });
@@ -739,13 +800,14 @@ export async function updateOrderPricing(tenant: string, orderNo: string, pricin
         price_model: unknown;
         delivery: unknown;
         express_shipping_sek: number | null;
+        extra_delivery_sek: number;
         payment: unknown;
         is_demo: boolean;
         sent: boolean;
         claimed: boolean;
       }[]
     >`
-      select id, badges, status, price_model, delivery, express_shipping_sek, payment, is_demo,
+      select id, badges, status, price_model, delivery, express_shipping_sek, extra_delivery_sek, payment, is_demo,
              supplier_sent_at is not null as sent,
              coalesce(supplier_claimed_at > now() - interval '2 minutes', false) as claimed
         from orders
@@ -760,7 +822,7 @@ export async function updateOrderPricing(tenant: string, orderNo: string, pricin
     const custom = isCustomPricing(pricing) ? pricing : null;
     const model = storedPriceModel(row.price_model, currentModel);
     const method = shippingMethodOf(parseDelivery(row.delivery));
-    const price = priceWithPricing(badges.data, custom, endPriceTable(model), shippingFor(model, badges.data, method, row.express_shipping_sek));
+    const price = priceWithPricing(badges.data, custom, endPriceTable(model), shippingFor(model, badges.data, method, row.express_shipping_sek, row.extra_delivery_sek));
     await tx`
       update orders set pricing = ${custom ? tx.json(custom as unknown as Json) : null},
              total_sek = ${price.totalSek}, total_incl_vat_sek = ${price.totalInclVatSek}

@@ -101,4 +101,36 @@ describe("följesedeln", () => {
     assert.match(packingInstruction(false), /^Neutralt: /);
     assert.doesNotMatch(packingInstruction(false), /namnskylt/);
   });
+
+  it("en uppdelad order har en följesedel per leverans, med dess namn och adress", () => {
+    const delivery = (position: number, lines: number[], city: string) => ({
+      position,
+      name: "Hotell Exempel AB",
+      contactName: null,
+      line1: `Kontoret ${position}`,
+      line2: null,
+      zip: "411 14",
+      city,
+      country: "SE",
+      phone: null,
+      email: null,
+      lines,
+      trackingUrl: null,
+    });
+    const split = { ...ORDER, supplierDeliveries: [delivery(1, [1, 3], "Göteborg"), delivery(2, [2], "Malmö")] };
+    const second = packingSlipHtml(split, RESELLER, null, 2);
+    assert.match(second, /<dt>Leverans<\/dt><dd>2 av 2<\/dd>/);
+    assert.match(second, /Levereras till<\/p><p>Hotell Exempel AB<\/p><p>Kontoret 2<\/p><p>411 14 Malmö<\/p>/);
+    // Rad 2 i anropet är orderns andra skylt: bara Kalle Ek ligger i leverans 2.
+    assert.match(second, /Kalle Ek/);
+    assert.doesNotMatch(second, /Anna Lind \/|Maria Öberg/);
+    assert.match(second, /Antal skyltar i leveransen<\/span><span>1 st/);
+    // Utan nummer blir det alla leveranser, en per sida.
+    const all = packingSlipHtml(split, RESELLER);
+    assert.equal(all.match(/<h1>Följesedel<\/h1>/g)?.length, 2);
+    assert.match(all, /class="page-break"/);
+    assert.match(all, /Antal skyltar i leveransen<\/span><span>5 st/);
+    // En order som inte är uppdelad är en enda följesedel, också med ett nummer.
+    assert.equal(packingSlipHtml(ORDER, RESELLER, null, 1).match(/<h1>Följesedel<\/h1>/g)?.length, 1);
+  });
 });

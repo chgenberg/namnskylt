@@ -38,11 +38,18 @@ export function acceptedDelivery(
   quote: Pick<StoredQuote, "delivery">,
   fromCustomer: DeliveryAddress | null,
   chosen: ShippingMethod | null = null,
+  /**
+   * Leveransspecifikationen kunden skrev när den godkände. Utelämnad (`undefined`) = offertens text;
+   * tom eller `null` = ingen, så att kunden kan ta bort en text som stod på offerten.
+   */
+  written: string | null | undefined = undefined,
 ): Delivery | null {
   const toCustomer = quote.delivery.to === "customer";
   const address = toCustomer ? (fromCustomer ?? quote.delivery.address) : quote.delivery.address;
   const method = (toCustomer ? chosen : null) ?? shippingMethodOf(quote.delivery);
-  return address ? { to: quote.delivery.to, address, ...(method !== "standard" && { method }) } : null;
+  const instructions =
+    method === "pickup" ? null : written === undefined ? quote.delivery.instructions?.trim() || null : written?.trim() || null;
+  return address ? { to: quote.delivery.to, address, ...(method !== "standard" && { method }), ...(instructions && { instructions }) } : null;
 }
 
 /**
@@ -70,6 +77,8 @@ export async function acceptQuote(
   method: ShippingMethod | null = null,
   /** Inköpsnumret kunden skrev när den godkände. Utelämnat eller tomt = det som står på offerten. */
   customerPo: string | null = null,
+  /** Leveransspecifikationen kunden skrev när den godkände. Utelämnad = offertens, tom = ingen. */
+  instructions: string | null | undefined = undefined,
 ): Promise<AcceptResult> {
   const before = await getQuote(tenant, quoteNo);
   if (!before) return { ok: false, error: "Offerten finns inte" };
@@ -80,7 +89,7 @@ export async function acceptQuote(
   if (method && !quoteShippingMethods(isOwner(tenant), shippingMethodOf(before.delivery)).includes(method)) {
     return { ok: false, error: "Leveranssättet går inte att välja för den här offerten." };
   }
-  const delivery = acceptedDelivery(before, address, method);
+  const delivery = acceptedDelivery(before, address, method, instructions);
   const issue = acceptanceIssue(delivery, byReseller);
   if (!delivery || issue) return { ok: false, error: issue ?? MISSING_DELIVERY_ERROR };
   const quote = await claimForAcceptance(tenant, quoteNo, byReseller);

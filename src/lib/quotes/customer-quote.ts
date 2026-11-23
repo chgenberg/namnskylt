@@ -90,6 +90,8 @@ export async function acceptCustomerQuote(
   address: DeliveryAddress | null,
   method: ShippingMethod | null,
   customerPo: string | null,
+  /** Utelämnad = offertens leveransspecifikation, tom = ingen. */
+  instructions: string | null | undefined = undefined,
 ): Promise<AcceptResult> {
   if (quote.noCustomer) {
     // Bara en offert som kunden själv har laddat ner får sin kund den här vägen. Ett utkast väljer säljaren kund till.
@@ -110,5 +112,5 @@ export async function acceptCustomerQuote(
     // Någon annan hann före, till exempel säljaren i panelen: då gäller den kunden.
     if (!assigned) return { ok: false, error: "Offerten har ändrats. Ladda om sidan och försök igen." };
   }
-  return acceptQuote(quote.resellerId, quote.quoteNo, false, address, method, customerPo);
+  return acceptQuote(quote.resellerId, quote.quoteNo, false, address, method, customerPo, instructions);
 }

@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { resellerOrder, type BadgeDocument, type PriceTable } from "@/engine";
+import { extraDeliverySekOf, resellerOrder, type BadgeDocument, type PriceTable } from "@/engine";
 import { SHIPPING_PATH, shippingItems } from "@/lib/orders/shipping";
 
 /** Väntan efter senaste ändringen, så att varje tangenttryck i antalsfältet inte blir en fråga. */
 const WAIT_MS = 150;
-const UNKNOWN: OrderShippingChoices = { standardSek: null, parcelSek: null };
+const UNKNOWN: OrderShippingChoices = { standardSek: null, parcelSek: null, extraDeliverySek: null };
 
 /**
  * Frakten för skyltarna, för en order som inte är lagd än. Den är samma i alla
@@ -27,6 +27,8 @@ interface OrderShippingChoices {
   standardSek: number | null;
   /** Paketets pris när det går att välja i stället för varubrevet, annars `null`. */
   parcelSek: number | null;
+  /** Frakten för varje extra leveransadress, när ordern ska till flera ställen. `null` när den inte är känd. */
+  extraDeliverySek: number | null;
 }
 
 /**
@@ -46,12 +48,18 @@ export function useOrderShippingChoices(badges: readonly BadgeDocument[], purcha
     const timer = window.setTimeout(
       () => {
         fetch(SHIPPING_PATH, { method: "POST", headers: { "content-type": "application/json" }, body, signal: controller.signal })
-          .then((response) => (response.ok ? (response.json() as Promise<{ shippingSek?: unknown; parcelSek?: unknown }>) : null))
+          .then((response) =>
+            response.ok ? (response.json() as Promise<{ shippingSek?: unknown; parcelSek?: unknown; extraDeliverySek?: unknown }>) : null,
+          )
           .then((data) => {
             answered.current = true;
             setAnswer(
               typeof data?.shippingSek === "number"
-                ? { standardSek: data.shippingSek, parcelSek: typeof data.parcelSek === "number" ? data.parcelSek : null }
+                ? {
+                    standardSek: data.shippingSek,
+                    parcelSek: typeof data.parcelSek === "number" ? data.parcelSek : null,
+                    extraDeliverySek: typeof data.extraDeliverySek === "number" ? data.extraDeliverySek : null,
+                  }
                 : UNKNOWN,
             );
           })
@@ -70,8 +78,8 @@ export function useOrderShippingChoices(badges: readonly BadgeDocument[], purcha
 
   if (purchaseList) {
     const order = resellerOrder(badges, purchaseList);
-    return { standardSek: order.shippingSek, parcelSek: order.parcelChoiceSek };
+    return { standardSek: order.shippingSek, parcelSek: order.parcelChoiceSek, extraDeliverySek: extraDeliverySekOf(purchaseList.shipping) };
   }
-  if (badges.length === 0) return { standardSek: 0, parcelSek: null };
+  if (badges.length === 0) return { standardSek: 0, parcelSek: null, extraDeliverySek: null };
   return answer;
 }

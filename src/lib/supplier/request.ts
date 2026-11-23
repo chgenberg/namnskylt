@@ -11,11 +11,12 @@ import {
   type BadgeLogo,
   type FontEngine,
   type PriceTable,
+  extraDeliverySekOf,
 } from "@/engine";
 import { orgNumberDigits } from "@/lib/company/org-number";
 import type { CompanyProfile } from "@/lib/company/profile";
 import { cleanCustomerPo } from "@/lib/orders/customer-po";
-import { guessAddress, shippingMethodOf, type Delivery, type DeliveryAddress } from "@/lib/orders/delivery";
+import { deliveryInstructionsOf, guessAddress, shippingMethodOf, type Delivery, type DeliveryAddress } from "@/lib/orders/delivery";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import type { Customer } from "@/lib/orders/model";
 import { splitByProducer } from "@/lib/orders/partner";
@@ -304,6 +305,9 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
       method: supplierShippingMethod(input.delivery, price.goodsSek, price.quantity, input.purchaseList),
       costSek: price.shippingSek,
       address: supplierAddress(input.delivery.address, notificationEmail(input)),
+      // Kundens fritext om hur skyltarna ska skickas, och vad varje extra adress kostar när verkstaden delar upp ordern.
+      ...(deliveryInstructionsOf(input.delivery) && { instructions: deliveryInstructionsOf(input.delivery) as string }),
+      extraDeliverySek: extraDeliverySekOf(input.purchaseList.shipping),
     },
     lines,
     minimumTopUpSek: sale ? sale.minimumTopUpSek : price.minimumTopUpSek,

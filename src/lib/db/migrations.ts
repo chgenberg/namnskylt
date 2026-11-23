@@ -730,6 +730,17 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
     id: "040_quotes_requester",
     sql: `alter table quotes add column if not exists requester jsonb;`,
   },
+  {
+    // Leveranser hos verkstaden (beslut av ägaren 2026-11-23): personalen kan dela en order i flera
+    // leveranser med var sin adress. Verkstaden skickar tillbaka leveranserna och den extra frakten.
+    // - orders.supplier_deliveries: leveranserna som verkstaden har dem, tom när ordern går till en adress.
+    // - orders.extra_delivery_sek: frakten för leveranserna utöver den första, hela kronor exkl. moms.
+    id: "041_orders_supplier_deliveries",
+    sql: `
+      alter table orders add column if not exists supplier_deliveries jsonb;
+      alter table orders add column if not exists extra_delivery_sek integer not null default 0 check (extra_delivery_sek >= 0);
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

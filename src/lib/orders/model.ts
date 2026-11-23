@@ -3,6 +3,7 @@ import type { OrderPayment } from "@/lib/payments/model";
 import { isOwner } from "@/lib/tenants/model";
 import type { Delivery } from "./delivery";
 import type { Pricing } from "./pricing";
+import type { SupplierDelivery } from "@/lib/supplier/types";
 
 export const ORDER_STATUSES = [
   "received",
@@ -128,6 +129,10 @@ export interface StoredOrder {
   payment: OrderPayment | null;
   /** Expressfraktens pris när verkstaden har satt det; `null` = inte satt, eller ordern har ett annat fraktsätt. */
   expressShippingSek: number | null;
+  /** Leveranserna när verkstaden har delat ordern på flera adresser; tom när allt går till en adress. */
+  supplierDeliveries: SupplierDelivery[];
+  /** Frakten för leveranserna utöver den första, hela kronor exkl. moms. */
+  extraDeliverySek: number;
   /** Koden i den hemliga länken till kundens ordersida. */
   customerToken: string;
   /** Koden i följesedelns korta länk, som verkstaden öppnar från sitt orderpapper (`packing-slip.ts`). */

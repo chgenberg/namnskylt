@@ -1,3 +1,4 @@
+import type { SupplierDelivery } from "@/lib/supplier/types";
 import type { Delivery, DeliveryAddress } from "./delivery";
 
 /**
@@ -86,7 +87,26 @@ export function erasedDelivery(delivery: Delivery | null, hasCompany: boolean): 
     delivery.to === "customer" && !hasCompany
       ? { name: ERASED_CUSTOMER_NAME, contactName: null, line1: ERASED_TEXT, line2: null, zip: "000 00", city: ERASED_TEXT, country: "SE", phone: null }
       : { ...delivery.address, contactName: null, phone: null };
-  return { ...delivery, address };
+  // Leveransspecifikationen är fri text, som ofta nämner de anställda vid namn.
+  const rest: Delivery = { ...delivery, address };
+  delete rest.instructions;
+  return rest;
+}
+
+/**
+ * Verkstadens leveranser utan personuppgifter, efter samma regel som `erasedDelivery`: kontaktperson,
+ * telefon och e-post tas alltid bort, och hela adressen när skyltarna gick till en kund utan företag.
+ * Leveransernas rader och spårning står kvar, och den extra frakten rörs inte, så summan står kvar.
+ */
+export function erasedSupplierDeliveries(deliveries: readonly SupplierDelivery[], to: Delivery["to"] | null, hasCompany: boolean): SupplierDelivery[] {
+  const replaceAddress = to === "customer" && !hasCompany;
+  return deliveries.map((delivery) => ({
+    ...delivery,
+    contactName: null,
+    phone: null,
+    email: null,
+    ...(replaceAddress && { name: ERASED_CUSTOMER_NAME, line1: ERASED_TEXT, line2: null, zip: "000 00", city: ERASED_TEXT }),
+  }));
 }
 
 /** Vad en radering av en kund tar bort och behåller. */

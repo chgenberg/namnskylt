@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { MARKING_METHODS, MARKING_OPTION, tierRangeLabel, type PriceOptionId, type SignClass } from "@/engine";
+import { extraDeliverySekOf, MARKING_METHODS, MARKING_OPTION, tierRangeLabel, type PriceOptionId, type SignClass } from "@/engine";
 import {
   MAX_MARGIN_PERCENT,
   MAX_PRICE_SEK,
@@ -376,6 +376,17 @@ export function PriceModelEditor({ model }: PriceModelEditorProps) {
               onChange={(parcelSek) => setDraft({ ...draft, shipping: { ...draft.shipping, parcelSek } })}
             />
             <small>DHL, för en order över gränsen</small>
+          </div>
+          <div className={styles.orderField}>
+            <span className={styles.controlLabel}>Extra leveransadress</span>
+            <NumberField
+              label="Frakt per extra leveransadress"
+              value={extraDeliverySekOf(draft.shipping)}
+              unit="kr"
+              max={MAX_PRICE_SEK}
+              onChange={(extraDeliverySek) => setDraft({ ...draft, shipping: { ...draft.shipping, extraDeliverySek: Math.round(extraDeliverySek) } })}
+            />
+            <small>Läggs på ordern för varje adress utöver den första, när verkstaden delar upp en order som ska till flera ställen</small>
           </div>
         </div>
       </section>

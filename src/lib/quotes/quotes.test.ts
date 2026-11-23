@@ -141,6 +141,16 @@ describe("leveransen när offerten godkänns", () => {
     });
   });
 
+  it("leveransspecifikationen: utelämnad ger offertens, tom tar bort den, och upphämtning har ingen", () => {
+    const withText = quote({ delivery: { to: "customer", address: stored, instructions: "Anna till Göteborg" } });
+    assert.equal(acceptedDelivery(withText, typed)?.instructions, "Anna till Göteborg");
+    assert.equal(acceptedDelivery(withText, typed, null, "Allt till Stockholm")?.instructions, "Allt till Stockholm");
+    // Kunden tömde fältet: då ska ingen text följa med till verkstaden.
+    assert.equal(acceptedDelivery(withText, typed, null, "")?.instructions, undefined);
+    assert.equal(acceptedDelivery(withText, typed, null, null)?.instructions, undefined);
+    assert.equal(acceptedDelivery(withText, typed, "pickup")?.instructions, undefined);
+  });
+
   it("till kunden utan ny adress: offertens adress gäller, och utan någon adress stoppas godkännandet", () => {
     assert.deepEqual(acceptedDelivery(quote({ delivery: { to: "customer", address: stored } }), null), { to: "customer", address: stored });
     assert.equal(acceptedDelivery(quote(), null), null);

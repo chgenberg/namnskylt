@@ -50,8 +50,10 @@ export function orderShare(
   method: ShippingMethod = "standard",
   /** Expressfraktens pris när verkstaden har satt det. */
   expressSek: number | null = null,
+  /** Frakten för leveranserna utöver den första, när verkstaden har delat ordern. */
+  extraDeliverySek = 0,
 ): OrderShare {
-  const { purchase, shippingSek } = purchaseOf(badges, model, method, expressSek);
+  const { purchase, shippingSek } = purchaseOf(badges, model, method, expressSek, extraDeliverySek);
   return {
     quantity: purchase.quantity,
     resellerSek: purchase.goodsSek,
@@ -64,9 +66,10 @@ export function orderShare(
  * Orderns inköp och frakt. Frakten är densamma i alla led och räknas på inköpet.
  * Expressfrakten följer ingen regel: den är beloppet verkstaden satte, och 0 tills dess.
  */
-function purchaseOf(badges: readonly BadgeDocument[], model: PriceModel, method: ShippingMethod, expressSek: number | null) {
+function purchaseOf(badges: readonly BadgeDocument[], model: PriceModel, method: ShippingMethod, expressSek: number | null, extraDeliverySek: number) {
   const purchase = resellerOrder(badges, withShippingMethod(resellerPriceTable(model), method));
-  return { purchase, shippingSek: method === "express" ? (expressSek ?? 0) : purchase.shippingSek };
+  const extra = method === "pickup" ? 0 : Math.max(0, extraDeliverySek);
+  return { purchase, shippingSek: method === "express" ? (expressSek ?? 0) : purchase.shippingSek + extra };
 }
 
 /**
@@ -83,8 +86,10 @@ export function directOrderShare(
   method: ShippingMethod = "standard",
   /** Expressfraktens pris när verkstaden har satt det. */
   expressSek: number | null = null,
+  /** Frakten för leveranserna utöver den första, när verkstaden har delat ordern. */
+  extraDeliverySek = 0,
 ): OrderShare {
-  const { purchase, shippingSek } = purchaseOf(badges, model, method, expressSek);
+  const { purchase, shippingSek } = purchaseOf(badges, model, method, expressSek, extraDeliverySek);
   const sale = priceWithPricing(badges, pricing, endPriceTable(model), shippingSek);
   const provisionSek = toOre((sale.goodsSek * model.endMarginPercent) / 100);
   return {

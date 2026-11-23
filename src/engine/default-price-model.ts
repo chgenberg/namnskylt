@@ -42,5 +42,5 @@ export const DEFAULT_PRICE_MODEL: PriceModel = {
   endMinOrderSek: 299,
   // Frakten (beslut av ägaren 2026-11-20): varubrev 75 kr är standard för varje order, och den som
   // beställer kan välja paket för 159 kr. Från 2026-11-14 gick varubrevet bara upp till 500 kr i varuvärde.
-  shipping: { letterSek: 75, parcelSek: 159, letterMaxSek: LETTER_ALWAYS_SEK },
+  shipping: { letterSek: 75, parcelSek: 159, letterMaxSek: LETTER_ALWAYS_SEK, extraDeliverySek: 75 },
 };

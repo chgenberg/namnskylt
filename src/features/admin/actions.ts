@@ -9,7 +9,7 @@ import { insertDemoData, removeDemoData } from "@/lib/orders/demo-data";
 import { DIRECT_PRICE_LOCKED_ERROR, DIRECT_PRICING_ERROR, pricingSchema, type Pricing } from "@/lib/orders/pricing";
 import { formattedOrgNumber } from "@/lib/company/org-number";
 import { companyProfileSchema, type CompanyProfile } from "@/lib/company/profile";
-import { deliveryPhoneIssue, deliverySchema, type Delivery } from "@/lib/orders/delivery";
+import { deliveryPhoneIssue, deliverySchema, withoutInstructions, type Delivery } from "@/lib/orders/delivery";
 import { ERASED_CUSTOMER_ERROR, isBookkeepingOrder, isErasedCustomer } from "@/lib/orders/erase-model";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { placeOrder } from "@/lib/orders/place-order";
@@ -71,7 +71,8 @@ export async function repeatOrderAction(orderNo: string): Promise<ActionResult> 
       repeatOf: original.id,
       note: `Beställd igen från ${original.orderNo}`,
       // Samma leverans som förra gången. Saknas den fylls den i på ordern innan den går till verkstaden.
-      delivery: original.delivery,
+      // Leveransspecifikationen ärvs inte: ingen ser den här, och varje extra adress kostar frakt.
+      delivery: withoutInstructions(original.delivery),
       demo: original.demo,
       badgeShot: original.hasBadgeShot ? await getBadgeShot(tenant, original.orderNo) : null,
     });
@@ -99,7 +100,8 @@ export async function staffOrderAction(orderNo: string, names: string, quantity:
       source: "staff",
       repeatOf: original.id,
       note: `Ny personal, samma design som ${original.orderNo}`,
-      delivery: original.delivery,
+      // Specifikationen gällde förra orderns namn, inte de nya.
+      delivery: withoutInstructions(original.delivery),
       demo: original.demo,
     });
     return done(placed.orderNumber);

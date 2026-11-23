@@ -21,6 +21,7 @@ interface ShareRow {
   delivery: unknown;
   payment: unknown;
   express_shipping_sek: number | null;
+  extra_delivery_sek: number;
   total_sek: number;
   placed_at: Date;
   reseller_id: string;
@@ -42,7 +43,7 @@ interface ShareRow {
  */
 export async function listResellerOrders(sql: Sql | TransactionSql, currentModel: PriceModel): Promise<ResellerOrderRow[]> {
   const rows = await sql<ShareRow[]>`
-    select o.order_no, o.status, o.badges, o.pricing, o.price_model, o.delivery, o.payment, o.express_shipping_sek, o.total_sek, o.placed_at, o.reseller_id,
+    select o.order_no, o.status, o.badges, o.pricing, o.price_model, o.delivery, o.payment, o.express_shipping_sek, o.extra_delivery_sek, o.total_sek, o.placed_at, o.reseller_id,
            a.name as reseller_name, c.name as customer_name, c.company as customer_company
       from orders o
       join customers c on c.id = o.customer_id
@@ -71,8 +72,8 @@ export async function listResellerOrders(sql: Sql | TransactionSql, currentModel
         customerSek: row.total_sek,
         // En direktorder faktureras kunden, till kundens pris. Då är plattformens del marginalen.
         share: direct
-          ? directOrderShare(badges.data, parsePricing(row.pricing), model, method, row.express_shipping_sek)
-          : orderShare(badges.data, model, method, row.express_shipping_sek),
+          ? directOrderShare(badges.data, parsePricing(row.pricing), model, method, row.express_shipping_sek, row.extra_delivery_sek)
+          : orderShare(badges.data, model, method, row.express_shipping_sek, row.extra_delivery_sek),
       },
     ];
   });

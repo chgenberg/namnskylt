@@ -12,7 +12,7 @@ import { currentCustomer, signInCustomer, type CustomerCookie } from "@/lib/cust
 import { badgeShotUploadSchema, normalizeBadgeShot } from "@/lib/images/badge-shot";
 import { MISSING_LOGO_IMAGE_ERROR, missingLogoImages } from "@/lib/logo-images/repository";
 import { customerPoSchema } from "@/lib/orders/customer-po";
-import { deliveryAddressSchema, deliveryPhoneIssue, shippingMethodSchema } from "@/lib/orders/delivery";
+import { deliveryAddressSchema, deliveryInstructionsSchema, deliveryPhoneIssue, shippingMethodSchema } from "@/lib/orders/delivery";
 import { NOT_OFFERED_ERROR, allOffered } from "@/lib/orders/model";
 import { splitByProducer } from "@/lib/orders/partner";
 import { placeOrder } from "@/lib/orders/place-order";
@@ -43,6 +43,8 @@ const orderRequestSchema = z.object({
   delivery: deliveryAddressSchema,
   /** Leveranssättet kunden valde i kassan. Utelämnat = standardfrakt. */
   shippingMethod: shippingMethodSchema.optional(),
+  /** Leveransspecifikationen: kundens fritext om hur skyltarna ska skickas, till exempel till flera ställen. */
+  deliveryInstructions: deliveryInstructionsSchema.optional(),
   /** Kundens eget inköpsnummer, som ska stå på fakturan. */
   customerPo: customerPoSchema,
   /** Kunden har kryssat i att köpvillkoren gäller. */
@@ -94,7 +96,13 @@ export async function POST(request: Request) {
       return bad(OUTREACH_PREVIEW_ORDER_ERROR, 409);
     }
     const priceModel = await getPriceModel();
-    const orderDelivery = { to: "customer" as const, address: delivery, ...(shippingMethod !== "standard" && { method: shippingMethod }) };
+    const instructions = parsed.data.deliveryInstructions ?? null;
+    const orderDelivery = {
+      to: "customer" as const,
+      address: delivery,
+      ...(shippingMethod !== "standard" && { method: shippingMethod }),
+      ...(instructions && { instructions }),
+    };
     // Kundens konto gäller på namnskylt.com eller i just den här butiken.
     const scope = shop?.slug ?? null;
     const signedIn = databaseConfigured() ? await currentCustomer(scope) : null;

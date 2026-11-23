@@ -1,6 +1,7 @@
 import "server-only";
 import { MAX_ORDER_BADGES } from "@/engine";
 import { endPriceTable } from "@/engine/price-model";
+import { withoutInstructions } from "@/lib/orders/delivery";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { getOrderByCustomerToken, getPriceModel } from "@/lib/orders/repository";
 import { staffBadges } from "@/lib/orders/repeat";
@@ -36,8 +37,9 @@ export async function createReorderQuote(orderToken: string, names: string, quan
     badges,
     demo: order.demo,
     project: `Fler skyltar, samma design som ${order.orderNo}`,
-    // Samma leverans som sist. Kunden bekräftar eller ändrar den när offerten godkänns.
-    delivery: order.delivery,
+    // Samma leverans som sist, utan specifikationen, som gällde förra orderns namn. Kunden bekräftar
+    // eller ändrar leveransen när offerten godkänns.
+    delivery: withoutInstructions(order.delivery),
     pricing,
     reorderOf: { orderId: order.id, orderNo: order.orderNo },
   });

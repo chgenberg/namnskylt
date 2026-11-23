@@ -19,6 +19,6 @@ export async function POST(request: Request) {
   const parsed = shippingRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Ogiltiga skyltar" }, { status: 400 });
   if (!perClient.take(clientKey(request))) return NextResponse.json({ error: "För många frågor" }, { status: 429 });
-  const { shippingSek, parcelSek } = orderShippingChoices(await priceModelOrDefault(), parsed.data.items);
-  return NextResponse.json({ shippingSek, parcelSek }, { headers: { "cache-control": "no-store" } });
+  const { shippingSek, parcelSek, extraDeliverySek } = orderShippingChoices(await priceModelOrDefault(), parsed.data.items);
+  return NextResponse.json({ shippingSek, parcelSek, extraDeliverySek }, { headers: { "cache-control": "no-store" } });
 }

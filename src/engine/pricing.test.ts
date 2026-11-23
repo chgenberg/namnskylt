@@ -393,10 +393,10 @@ describe("frakten", () => {
   const list = endPriceTable(S);
 
   it("kalkylen har varubrev för 75 kr som standard för varje order, och paket för 159 kr som val", () => {
-    assert.deepEqual(KALKYL.shipping, { letterSek: 75, parcelSek: 159, letterMaxSek: LETTER_ALWAYS_SEK });
+    assert.deepEqual(KALKYL.shipping, { letterSek: 75, parcelSek: 159, letterMaxSek: LETTER_ALWAYS_SEK, extraDeliverySek: 75 });
     // Också en stor order går som varubrev, och den som beställer kan välja paketet.
     for (const quantity of [1, 10, 100, 600]) {
-      assert.deepEqual(orderShippingChoices(KALKYL, [premium(quantity)]), { shippingSek: 75, parcelSek: 159 }, String(quantity));
+      assert.deepEqual(orderShippingChoices(KALKYL, [premium(quantity)]), { shippingSek: 75, parcelSek: 159, extraDeliverySek: 75 }, String(quantity));
       assert.equal(orderShippingSek(KALKYL, [premium(quantity)], "parcel"), 159);
     }
     assert.equal(priceModelSchema.safeParse(KALKYL).success, true);
@@ -479,9 +479,9 @@ describe("frakten", () => {
     const asParcel = priceItems([premium(3)], withShippingMethod(purchase, "parcel"));
     assert.deepEqual([asParcel.shippingSek, asParcel.parcelChoiceSek, asParcel.goodsSek], [159, null, small.goodsSek]);
     assert.equal(orderShippingSek(S, [premium(3)], "parcel"), 159);
-    assert.deepEqual(orderShippingChoices(S, [premium(3)]), { shippingSek: 75, parcelSek: 159 });
+    assert.deepEqual(orderShippingChoices(S, [premium(3)]), { shippingSek: 75, parcelSek: 159, extraDeliverySek: 75 });
     // En större order går redan som paket: då finns inget att välja.
-    assert.deepEqual(orderShippingChoices(S, [premium(10)]), { shippingSek: 159, parcelSek: null });
+    assert.deepEqual(orderShippingChoices(S, [premium(10)]), { shippingSek: 159, parcelSek: null, extraDeliverySek: 75 });
     assert.equal(orderShippingSek(S, [premium(10)], "parcel"), 159);
     // Upphämtning och express har ingen frakt alls, och en lista utan frakt har inget paket.
     assert.equal(priceItems([premium(3)], withShippingMethod(purchase, "pickup")).parcelChoiceSek, null);
@@ -494,8 +494,8 @@ describe("frakten", () => {
     const table = resellerPriceTable(counted);
     assert.equal(table.shipping?.letterMaxSigns, 10);
     // Tio skyltar kostar 780 kr, över varuvärdets gräns, men går som varubrev. Elva går som paket.
-    assert.deepEqual(orderShippingChoices(counted, [premium(10)]), { shippingSek: 75, parcelSek: 159 });
-    assert.deepEqual(orderShippingChoices(counted, [premium(11)]), { shippingSek: 159, parcelSek: null });
+    assert.deepEqual(orderShippingChoices(counted, [premium(10)]), { shippingSek: 75, parcelSek: 159, extraDeliverySek: 75 });
+    assert.deepEqual(orderShippingChoices(counted, [premium(11)]), { shippingSek: 159, parcelSek: null, extraDeliverySek: 75 });
     assert.equal(shippingKind(5000, table, 10), "letter");
     assert.equal(shippingKind(50, table, 11), "parcel");
     // Antalet räknas på hela ordern, över alla designer.

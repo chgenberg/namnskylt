@@ -49,6 +49,19 @@ describe("prislistor per part", () => {
     assert.equal(shippingFor(M, [{ ...THREE[0]!, quantity: 4 }]), 159);
   });
 
+  it("en order som verkstaden har delat på flera leveranser får den extra frakten, i alla led", () => {
+    const customer = priceListsFor(M, M, "customer", THREE, "standard", null, 150);
+    const reseller = priceListsFor(M, M, "reseller", THREE, "standard", null, 150);
+    assert.equal(customer.shippingSek, 75 + 150);
+    assert.equal(reseller.shippingSek, 75 + 150);
+    // Inköpslistan bär frakten som ett fast belopp, så att allt som räknas ur den får samma frakt.
+    assert.equal(reseller.purchaseList && engine.resellerOrder(THREE, reseller.purchaseList).shippingSek, 225);
+    assert.equal(shippingFor(M, THREE, "parcel", null, 75), 159 + 75);
+    // Expressfrakten prissätts för hand för alla paket, och en upphämtning skickas inte.
+    assert.equal(shippingFor(M, THREE, "express", 300, 150), 300);
+    assert.equal(shippingFor(M, THREE, "pickup", null, 150), 0);
+  });
+
   it("en rad från före frakten har ingen frakt", () => {
     const beforeShipping: Record<string, unknown> = { ...M };
     delete beforeShipping.shipping;

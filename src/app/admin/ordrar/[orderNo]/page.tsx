@@ -1,4 +1,5 @@
 import { packingSlipPath } from "@/lib/orders/packing-slip";
+import { deliveryQuantity, supplierDeliveryLines } from "@/lib/orders/supplier-deliveries";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Fragment } from "react";
@@ -319,6 +320,45 @@ export default async function OrderPage({ params }: OrderPageProps) {
               options={addresses}
               locked={order.demo ? "Demoorder, skickas inte." : deliveryLocked}
             />
+            {order.supplierDeliveries.length > 1 && (
+              <div className={styles.splitDeliveries}>
+                <p>
+                  <strong>Uppdelad hos verkstaden i {order.supplierDeliveries.length} leveranser</strong>
+                  {order.extraDeliverySek > 0 && (
+                    <span className={styles.muted} style={{ display: "block" }}>
+                      Extra frakt {formatSek(order.extraDeliverySek)} för leveranserna utöver den första.
+                    </span>
+                  )}
+                </p>
+                <ol role="list">
+                  {order.supplierDeliveries.map((delivery) => (
+                    <li key={delivery.position}>
+                      <strong>
+                        Leverans {delivery.position} · {plural(deliveryQuantity(order.badges, delivery), "skylt", "skyltar")}
+                      </strong>
+                      {supplierDeliveryLines(delivery).map((line) => (
+                        <span key={line} style={{ display: "block" }}>
+                          {line}
+                        </span>
+                      ))}
+                      <span style={{ display: "block" }}>
+                        <a href={`${packingSlipPath(order.packingCode)}?leverans=${delivery.position}`} target="_blank" rel="noreferrer" className={styles.link}>
+                          Följesedel ↗
+                        </a>
+                        {delivery.trackingUrl && (
+                          <>
+                            {" · "}
+                            <a href={delivery.trackingUrl} target="_blank" rel="noreferrer" className={styles.link}>
+                              Följ paketet ↗
+                            </a>
+                          </>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </section>
           <section className={styles.panel}>
             <h2 className={styles.sectionTitle}>Tidslinje</h2>

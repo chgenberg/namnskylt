@@ -62,9 +62,23 @@ export interface ShippingRule {
    * upp till det antal verkstaden anger). Utan det gäller varuvärdet, som förut.
    */
   letterMaxSigns?: number | null;
+  /**
+   * Frakten för varje extra leveransadress, när verkstaden delar upp en order som ska till flera
+   * ställen (beslut av ägaren 2026-11-23: "fast pris per extra adress"). Hela kronor exkl. moms,
+   * samma i alla led som övrig frakt. Saknas i modeller sparade före priset: läs med `extraDeliverySekOf`.
+   */
+  extraDeliverySek?: number;
 }
 
 export const NO_SHIPPING: ShippingRule = { letterSek: 0, parcelSek: 0, letterMaxSek: 0 };
+
+/** Förvalet för en extra leveransadress, när prismodellen inte har något eget pris. */
+const DEFAULT_EXTRA_DELIVERY_SEK = 75;
+
+/** Frakten för en extra leveransadress, i hela kronor exkl. moms. */
+export function extraDeliverySekOf(rule: Pick<ShippingRule, "extraDeliverySek"> | null | undefined): number {
+  return rule?.extraDeliverySek ?? DEFAULT_EXTRA_DELIVERY_SEK;
+}
 
 /**
  * Gränsen i varuvärde som betyder att varubrevet gäller varje order: det högsta värde gränsen kan

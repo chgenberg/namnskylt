@@ -2,8 +2,10 @@ import { getColor, getMaterial, mountingLabel, orderDesigns, sameDesign, shapeLa
 import type { SellerProfile } from "@/lib/company/seller";
 import { formatDay } from "@/lib/format";
 import { badgeText } from "@/lib/quotes/view";
+import type { SupplierDelivery } from "@/lib/supplier/types";
 import { deliveryLines, shippingMethodOf, type Delivery } from "./delivery";
 import { customerOrderNumber } from "./model";
+import { deliveryBadges, supplierDeliveryLines } from "./supplier-deliveries";
 
 /**
  * Följesedeln som läggs i paketet (beslut av ägaren 2026-11-20, efter mötet med verkstaden):
@@ -49,6 +51,8 @@ export interface PackingSlipOrder {
   customer: { name: string; company: string | null };
   delivery: Delivery | null;
   badges: readonly BadgeDocument[];
+  /** Leveranserna när verkstaden har delat ordern på flera adresser. */
+  supplierDeliveries?: readonly SupplierDelivery[];
 }
 
 const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -81,37 +85,27 @@ function recipientLines(order: PackingSlipOrder): string[] {
  * namnen under. `seller.logo` ska vara data (som i offertens PDF), eftersom sidan ritas utan
  * tillgång till sajten. `plate` är färgen bakom en ljus logga.
  */
-export function packingSlipHtml(order: PackingSlipOrder, seller: SellerProfile, plate: string | null = null): string {
+export function packingSlipHtml(
+  order: PackingSlipOrder,
+  seller: SellerProfile,
+  plate: string | null = null,
+  /** Leveransens nummer, för följesedeln till en av leveranserna i en uppdelad order. */
+  position: number | null = null,
+): string {
   const number = customerOrderNumber(order);
   const sellerName = seller.site ? "namnskylt.com" : seller.name;
   const brand = seller.logo
     ? `<img class="logo${plate ? " plate" : ""}" src="${esc(seller.logo)}" alt="${esc(sellerName)}"${plate ? ` style="background:${esc(plate)}"` : ""}>`
     : `<span class="name">${esc(sellerName)}</span>`;
-  const facts: [string, string][] = [
-    ["Ordernummer", number.number],
-    ...(number.reference ? ([["Referens", number.reference]] as [string, string][]) : []),
-    ["Orderdatum", formatDay(order.placedAt)],
-    ...(order.customerPo ? ([["Inköpsnummer", order.customerPo]] as [string, string][]) : []),
-    ...(order.project ? ([["Märkning", order.project]] as [string, string][]) : []),
-  ];
-  const customer = [order.customer.company, order.customer.name].filter((line, i, all): line is string => Boolean(line) && all.indexOf(line) === i);
-  const designs = orderDesigns(order.badges);
-  const total = order.badges.reduce((sum, badge) => sum + badge.quantity, 0);
-  const groups = designs
-    .map((design, index) => {
-      // Namnen i just den här designen, i orderns ordning.
-      const key = designLine(design.doc);
-      const rows = order.badges
-        .filter((badge) => sameDesign([design.doc, badge]))
-        .map((badge) => `<tr><td>${esc(badgeText(badge) || "Utan text")}</td><td class="qty">${badge.quantity} st</td></tr>`)
-        .join("");
-      return (
-        `<section class="design"><h2>${designs.length > 1 ? `Design ${index + 1}: ` : ""}${esc(key)}<span>${design.count} st</span></h2>` +
-        `<table><thead><tr><th>Text på skylten</th><th class="qty">Antal</th></tr></thead><tbody>${rows}</tbody></table></section>`
-      );
-    })
-    .join("");
-
+  const deliveries = order.supplierDeliveries ?? [];
+  // En uppdelad order har en följesedel per leverans. Utan nummer blir det alla, en per sida.
+  const parts: (SupplierDelivery | null)[] =
+    deliveries.length > 1
+      ? position === null
+        ? [...deliveries]
+        : deliveries.filter((delivery) => delivery.position === position)
+      : [null];
+  const pages = parts.map((part) => slipPage(order, number, brand, seller, part, deliveries.length)).join('<div class="page-break"></div>');
   return `<!doctype html>
 <html lang="sv">
 <head>
@@ -142,20 +136,60 @@ tr{break-inside:avoid}
 .total{display:flex;justify-content:space-between;margin-top:6mm;padding-top:3mm;border-top:.3mm solid #0a0a0b;font-weight:bold}
 footer{margin-top:12mm;font-size:8.5pt;color:#75746c}
 footer p{margin:0}
+.page-break{break-after:page}
 </style>
 </head>
 <body>
-<header>
+${pages}
+</body>
+</html>`;
+}
+
+/** En sida av följesedeln: hela ordern, eller en av leveranserna i en uppdelad order. */
+function slipPage(
+  order: PackingSlipOrder,
+  number: ReturnType<typeof customerOrderNumber>,
+  brand: string,
+  seller: SellerProfile,
+  part: SupplierDelivery | null,
+  deliveryCount: number,
+): string {
+  const badges = part ? deliveryBadges(order.badges, part) : order.badges;
+  const facts: [string, string][] = [
+    ["Ordernummer", number.number],
+    ...(number.reference ? ([["Referens", number.reference]] as [string, string][]) : []),
+    ["Orderdatum", formatDay(order.placedAt)],
+    ...(order.customerPo ? ([["Inköpsnummer", order.customerPo]] as [string, string][]) : []),
+    ...(order.project ? ([["Märkning", order.project]] as [string, string][]) : []),
+    ...(part ? ([["Leverans", `${part.position} av ${deliveryCount}`]] as [string, string][]) : []),
+  ];
+  const customer = [order.customer.company, order.customer.name].filter((line, i, all): line is string => Boolean(line) && all.indexOf(line) === i);
+  const designs = orderDesigns(badges);
+  const total = badges.reduce((sum, badge) => sum + badge.quantity, 0);
+  const groups = designs
+    .map((design, index) => {
+      // Namnen i just den här designen, i orderns ordning.
+      const key = designLine(design.doc);
+      const rows = badges
+        .filter((badge) => sameDesign([design.doc, badge]))
+        .map((badge) => `<tr><td>${esc(badgeText(badge) || "Utan text")}</td><td class="qty">${badge.quantity} st</td></tr>`)
+        .join("");
+      return (
+        `<section class="design"><h2>${designs.length > 1 ? `Design ${index + 1}: ` : ""}${esc(key)}<span>${design.count} st</span></h2>` +
+        `<table><thead><tr><th>Text på skylten</th><th class="qty">Antal</th></tr></thead><tbody>${rows}</tbody></table></section>`
+      );
+    })
+    .join("");
+  const recipient = part ? supplierDeliveryLines(part) : recipientLines(order);
+  return `<header>
 <div>${brand}</div>
 <div><h1>Följesedel</h1><dl class="facts">${facts.map(([label, value]) => `<dt>${esc(label)}</dt><dd>${esc(value)}</dd>`).join("")}</dl></div>
 </header>
 <div class="parties">
-<div><p class="label">Levereras till</p>${recipientLines(order).map((line) => `<p>${esc(line)}</p>`).join("")}</div>
+<div><p class="label">Levereras till</p>${recipient.map((line) => `<p>${esc(line)}</p>`).join("")}</div>
 <div><p class="label">Beställare</p>${customer.map((line) => `<p>${esc(line)}</p>`).join("")}</div>
 </div>
 ${groups}
 <div class="total"><span>Antal skyltar i leveransen</span><span>${total} st</span></div>
-<footer>${sellerLines(seller).map((line) => `<p>${esc(line)}</p>`).join("")}</footer>
-</body>
-</html>`;
+<footer>${sellerLines(seller).map((line) => `<p>${esc(line)}</p>`).join("")}</footer>`;
 }

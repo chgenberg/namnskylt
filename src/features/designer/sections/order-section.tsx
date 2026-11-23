@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent } from "react";
 import { DeliveryFields } from "@/components/delivery-fields";
+import { DeliveryInstructionsField } from "@/components/delivery-instructions-field";
 import { ShippingMethodPicker } from "@/components/shipping-method-picker";
 import { usePriceList } from "@/components/price-list-provider";
 import { ProgressBanner } from "@/components/ui/progress-banner";
@@ -247,6 +248,8 @@ export function OrderSection({
   const [customerError, setCustomerError] = useState<string | null>(null);
   /** Beställarens eget inköpsnummer (besked av ägaren 2026-11-20). Det står på fakturan. */
   const [customerPo, setCustomerPo] = useState("");
+  /** Leveransspecifikationen: vilka namn som ska vart, när skyltarna ska till flera ställen (beslut av ägaren 2026-11-23). */
+  const [instructions, setInstructions] = useState("");
   /** Det registret fyllde i senast. Byts numret ersätts det som registret fyllde i, aldrig det som är skrivet för hand. */
   const autofilled = useRef<CompanyHit | null>(null);
   // Företagets namn och adress fylls i ur registret när organisationsnumret är skrivet (besked av
@@ -333,7 +336,7 @@ export function OrderSection({
   // Frakten är samma för kunden och återförsäljaren. Återförsäljaren räknar den ur sin inköpslista,
   // en kund får den av servern när kassan öppnas.
   // Admin har ingen inköpslista och frågar servern som en kund, när leveransen ska fyllas i.
-  const { standardSek: standardShipping, parcelSek: parcelShipping } = useOrderShippingChoices(badges, reseller?.purchaseList, Boolean(reseller?.purchaseList) || (formOpen && active));
+  const { standardSek: standardShipping, parcelSek: parcelShipping, extraDeliverySek } = useOrderShippingChoices(badges, reseller?.purchaseList, Boolean(reseller?.purchaseList) || (formOpen && active));
   // Det kunden har fyllt i om sig själv. Det ligger här och inte i fälten, så att det står kvar
   // när formuläret försvinner en stund, till exempel när varukorgens enda skylt öppnas för ändring.
   // En inloggad kund får sina uppgifter ifyllda.
@@ -429,7 +432,7 @@ export function OrderSection({
           badgeShot: captureShot?.() ?? undefined,
           project: context.project,
           ...(customerPo.trim() && { customerPo: customerPo.trim() }),
-          delivery: { to: deliverTo, address: delivery.address, method },
+          delivery: { to: deliverTo, address: delivery.address, method, ...(instructions.trim() && { instructions: instructions.trim() }) },
           // En tidigare order som öppnades för ändring: den nya ordern pekar tillbaka på den.
           ...(context.copy && { copyOf: context.copy.orderNo }),
         }),
@@ -469,6 +472,7 @@ export function OrderSection({
           shop: shop?.slug,
           delivery: delivery.address,
           shippingMethod: method,
+          ...(instructions.trim() && { deliveryInstructions: instructions.trim() }),
           // Bara ett företag faktureras, och har ett inköpsnummer att se igen på fakturan.
           ...(!privateCustomer && customerPo.trim() && { customerPo: customerPo.trim() }),
           acceptedTerms: form.get("acceptedTerms") === "on",
@@ -724,6 +728,9 @@ export function OrderSection({
                 <Segmented label="Skyltarna skickas" value={deliverTo} options={DELIVERY_TO_OPTIONS} onChange={setDeliverTo} />
               </div>
               <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} phoneRequired={needsPhone(method)} />
+              {method !== "pickup" && (
+                <DeliveryInstructionsField value={instructions} onChange={setInstructions} disabled={order.status === "sending"} extraDeliverySek={extraDeliverySek} />
+              )}
               <p className={styles.specTitle}>Leveranssätt</p>
               <ShippingMethodPicker value={method} onChange={setMethod} methods={methods} standardSek={standardShipping} parcelSek={parcelShipping} disabled={order.status === "sending"} />
               {/* Hos en återförsäljare är det återförsäljarens eget nummer: verkstaden fakturerar återförsäljaren. */}
@@ -907,6 +914,9 @@ export function OrderSection({
             <div className={styles.delivery}>
               <p className={styles.specTitle}>Leveransadress</p>
               <DeliveryFields value={address} onChange={setAddress} disabled={order.status === "sending"} phoneRequired={needsPhone(method)} />
+              {method !== "pickup" && (
+                <DeliveryInstructionsField value={instructions} onChange={setInstructions} disabled={order.status === "sending"} extraDeliverySek={extraDeliverySek} />
+              )}
             </div>
             <div className={styles.delivery}>
               <p className={styles.specTitle}>Leveranssätt</p>

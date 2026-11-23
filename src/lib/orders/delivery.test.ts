@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   addressFromDraft,
+  deliveryInstructionsOf,
   deliveryLines,
   deliveryPhoneIssue,
   deliverySchema,
@@ -10,6 +11,7 @@ import {
   EMPTY_DELIVERY_DRAFT,
   guessAddress,
   needsPhone,
+  withoutInstructions,
   parseDelivery,
   PHONE_INVALID_TEXT,
   PHONE_REQUIRED_TEXT,
@@ -17,6 +19,7 @@ import {
   shippingAddressFromDraft,
   shippingMethodOf,
   shippingNote,
+  type Delivery,
   type DeliveryAddress,
 } from "./delivery";
 
@@ -182,5 +185,25 @@ describe("sparad leverans", () => {
 
   it("schemat godtar inga andra länder än Sverige", () => {
     assert.equal(deliverySchema.safeParse({ to: "customer", address: { ...ADDRESS, country: "NO" } }).success, false);
+  });
+});
+
+describe("leveransspecifikationen", () => {
+  const address: DeliveryAddress = { name: "Kafé Ett", contactName: null, line1: "Storgatan 1", line2: null, zip: "111 22", city: "Stockholm", country: "SE", phone: "070-000 00 00" };
+
+  it("tom text sparas inte, och en upphämtning har ingen", () => {
+    assert.equal(deliveryInstructionsOf({ instructions: "  " }), null);
+    assert.equal(deliveryInstructionsOf({ instructions: " Anna till Malmö " }), "Anna till Malmö");
+    assert.equal(deliveryInstructionsOf({ instructions: "Anna till Malmö", method: "pickup" }), null);
+    assert.equal(deliverySchema.parse({ to: "customer", address, instructions: "" }).instructions, null);
+  });
+
+  it("en ny order som ärver en äldre orders leverans får inte dess text", () => {
+    const delivery: Delivery = { to: "customer", address, instructions: "Anna till Malmö" };
+    assert.deepEqual(withoutInstructions(delivery), { to: "customer", address });
+    assert.equal(withoutInstructions(null), null);
+    // Utan text lämnas leveransen som den är.
+    const plain: Delivery = { to: "customer", address };
+    assert.equal(withoutInstructions(plain), plain);
   });
 });

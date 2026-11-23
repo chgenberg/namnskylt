@@ -75,7 +75,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1454 tester, grönt 2026-11-21).
+# Kvalitetsgrinden. Kör den innan något lämnas (1466 tester, grönt 2026-11-23).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -2372,6 +2372,10 @@ och typsnitten är Namnskylts: papper, bläck, Instrument Serif i rubrikerna.
   rubrikraden och tonen, Ny offert, Logga ut, och att adminens panel är orörd. Bilder före och
   efter ligger i mappen `Namnskylt-panel-med-flikar-2026-11-23` på ägarens skrivbord. Inte
   provat i Safari eller på en riktig telefon.
+- Kontrollerat i drift samma dag efter pushen (`5f17091`), bara läsning (5 av 5): adminens
+  översikt, ordrar, offerter och kunder har kvar sidomenyn, utan flikar och rubrikrad, och
+  sidorna laddar utan fel. **Återförsäljarens nya panel är inte sedd i drift**: jag har inget
+  återförsäljarkonto att logga in med där.
 
 ## Panelens listor — läge 2026-11-20
 
@@ -2905,7 +2909,115 @@ via en länk, eftersom det inte kräver någon ändring hos dem).
     Fraktetiketten öppnas där med ett klick, inte av sig själv som på deras egen fraktsedel.
     Deras egna ordrar är orörda, liksom Fortnox-följesedeln och fakturan.
   - Fraktsedeln och transportörens avisering anger fortfarande verkstaden som avsändare.
-  - Följesedeln gäller hela ordern. Delleveranser finns inte.
+  - Följesedeln gäller hela ordern, eller sedan 2026-11-23 en av leveranserna när verkstaden
+    har delat ordern (se nästa avsnitt).
+
+## Leveranser till flera adresser — läge 2026-11-23
+
+En order kan gå till flera ställen, också till samma kund, och våra ordrar ligger på en egen flik
+hos verkstaden (besked av ägaren 2026-11-23: en order på hundra namn "ska skickas till olika
+ställen, även fast det är samma kund", kunden ska kunna skriva en "leveransspecifikation" i
+fritext, och ordrarna från oss ska ligga "på en separat flik" i verkstadens produktion, "på ett
+snyggt sätt, så att det inte förstör något annat i deras egna flöde"). På mina frågor valde
+ägaren: **bara den nya fliken** (våra ordrar flyttas ur deras vanliga listor), **leveranser på
+fliken** (personalen delar upp namnen) och **fast pris per extra adress**.
+
+**Inget av det är pushat eller deployat.** Allt är byggt och provat lokalt.
+
+- **Leveransspecifikationen** är kundens fritext om vart skyltarna ska, högst 1 000 tecken
+  (`Delivery.instructions`, `deliveryInstructionsSchema`, `DeliveryInstructionsField`). Den ligger
+  i JSON-kolumnen `delivery`, så ingen migrering behövdes.
+  - Fältet står under adressen i kundens kassa, i återförsäljarens leveranssteg, när en offert
+    godkänns och i panelens `DeliveryPanel`, men inte vid upphämtning. Det kunden skriver när
+    en offert godkänns gäller före det som stod på offerten.
+  - Texten följer med till verkstaden som `shipping.instructions` och står i panelens Leverans
+    och på kundens ordersida ("Er leveransspecifikation"). Läs den med `deliveryInstructionsOf`,
+    som ger `null` vid upphämtning.
+  - **Kunden ser texten bara när skyltarna går till kunden.** Går de till återförsäljaren är
+    texten dess egen: den visas inte på kundens ordersida och lämnar aldrig servern på offertsidan.
+  - **Texten ärvs inte** av "Beställ igen", "Ny personal" eller kundens "Beställ fler"
+    (`withoutInstructions`): den gällde de gamla namnen, ingen ser den i dialogerna, och varje
+    extra adress kostar frakt. Det valde jag, efter granskningen.
+  - När en offert godkänns gäller kundens text: utelämnad betyder offertens text, och ett tömt
+    fält betyder ingen (`acceptedDelivery`).
+  - En radering av en kund tar bort texten, och kontaktperson, telefon och e-post i verkstadens
+    leveranser (hela adressen hos en privatperson, `erasedSupplierDeliveries`), på ordrar som
+    behålls för bokföringen.
+- **Priset per extra adress står i prismodellen:** `ShippingRule.extraDeliverySek`, fältet "Extra
+  leveransadress" i kortet Frakt i `/admin/prismodell`. Det är 75 kr i kalkylen, och en modell
+  utan fältet läses som 75 kr (`extraDeliverySekOf`), också redan sparade ordrars modeller. **75 kr
+  valde jag**, samma som varubrevet; ägaren sa bara "fast pris".
+  - Frakten ligger utanför kedjan som övrig frakt: ingen provision och ingen marginal, och den är
+    samma i alla led. Hjälptexten vid fältet säger priset (`POST /api/shipping` svarar
+    `extraDeliverySek`). Priset skickas till verkstaden som `shipping.extraDeliverySek`.
+- **Hos verkstaden (skyltmotor, lokalt):** fliken Produktion → Namnskylt
+  (`/admin/produktion/namnskylt`).
+  - **Våra ordrar syns bara där:** inte i deras orderlista (utom när någon söker), tavlan,
+    räknarna, plastkön eller produktionsfliken Ordrar (`orderScopeWhere`, `PARTNER_ORDER_WHERE` i
+    `src/server/partner-scope.ts`). Plastkön på fliken gör ark med bara våra rader, och sparade
+    produktionsordrar visas på den flik de hör till. Siffran på Produktion i deras meny är
+    antalet nya ordrar från oss, eftersom de inte längre syns som nya ordrar.
+  - Överst på fliken står våra ordrar i en tabell: status, antal namn och skyltar, antal
+    leveranser, om kunden har skrivit en specifikation, och länkar till leveranserna, ordern och
+    orderpappret. Under den står plastkön för våra ordrar.
+  - **Leveranssidan** (`/admin/produktion/namnskylt/<id>`) visar kundens text och packningen,
+    namnen med en rullista per namn (och "flytta markerade"), och en ruta per leverans med
+    adress, e-post för avisering och spårningslänk. Det är fortfarande en order och en faktura.
+    Frakten på ordern blir vår frakt plus priset per extra leverans; vid expressfrakt läggs
+    inget på (den prissätts för hand för alla paket), och en upphämtning går inte att dela.
+    En enda leverans tar bort uppdelningen.
+  - Deras fraktsedelsida visar en följesedel och en adress per leverans, och deras ordersida en
+    ruta som pekar till fliken.
+  - **En uppdelad order bokas inte automatiskt i Sendify när den sätts till Skickad**: deras
+    system hade annars bokat en sändning till orderns egen adress. Personalen får beskedet att
+    boka per leverans, och spårningen per leverans går att fylla i på fliken också efter Skickad
+    (`savePartnerTracking`). Verkstadens egna ordrar bokas som förut.
+  - **Våra ordrar känns igen på sin rad i `PartnerOrderInfo`** (`PARTNER_ORDER_WHERE`), inte på
+    statushändelserna, så att deras listor inte blir långsammare. Migreringen fyller i raden för
+    ordrar som kom in tidigare, och den körs igen direkt efter utrullningen för ordrar som hann
+    komma in medan den gamla versionen körde. Sparade produktionsordrar delas mellan flikarna
+    bland de 200 senaste.
+  - Formuläret skickar orderns version, så att en äldre sida inte skriver över en nyare
+    uppdelning, och säger om beskedet till oss gick fram.
+  - Tabellerna `PartnerOrderInfo` (specifikationen, priset, vår frakt) och `PartnerDelivery`,
+    manuell migrering `202611231200_partner_deliveries.sql`. Personalens texter står på svenska
+    och engelska i deras ordlista.
+- **Tillbaka till oss:** verkstadens statusbesked bär `deliveries` och `extraDeliveryCost`
+  (`SupplierOrderState`, `supplierDeliverySchema`). Migrering 041 lade till
+  `orders.supplier_deliveries` och `orders.extra_delivery_sek`. `applySupplierUpdate` sparar dem
+  och räknar om summan, och frakten i alla led är standardfrakten plus den extra
+  (`shippingFor`, `priceListsFor`, `orderShare`). Saknas fälten i beskedet, som från verkstaden
+  före utrullningen, står det sparade kvar. En spårningslänk per leverans släpps bara igenom som
+  http eller https.
+- **Följesedeln per leverans:** `/f/<kod>?leverans=<n>` har bara leveransens namn och adress och
+  raden "Leverans 2 av 3" (`packingSlipHtml` med `position`). Utan nummer blir det alla
+  leveransernas följesedlar, en per sida. Rad n i anropet till verkstaden är orderns n:te skylt
+  som verkstaden gör (`deliveryBadges`). Finns leveransen inte hos oss än hämtas läget från
+  verkstaden först, och en leverans som inte finns ger 404.
+- Panelens ordersida och kundens ordersida visar leveranserna med antal skyltar, adress,
+  följesedel (panelen) och spårning. En återförsäljares kund ser leveranserna bara när
+  skyltarna går till kunden.
+- Provat lokalt 2026-11-23, Namnskylt mot verkstadens sajt på samma dator, med en tillfällig
+  personalinloggning hos dem (36 kontroller, 35 gröna; den sista var provets eget fel): kassan
+  med texten, ordern hos verkstaden, att den inte syns i deras listor, uppdelningen i två
+  leveranser och tillbaka till en, verkstadens frakt (75 → 150 kr), vår summa (798 → 873 kr),
+  följesedlarna per leverans, panelen, kundens ordersida på dator och 390 px, en plastorder i
+  flikens plastkö men inte i deras egen, och en produktionsorder skapad från fliken. Provdata och
+  inloggningen är borttagna i båda databaserna.
+- **Innan det går ut:** Namnskylt kan pushas först, eftersom verkstadens mottagare tar bort fält
+  den inte känner. Hos verkstaden krävs ägarens ja, bug-hunt, och att deras migrering körs i
+  deras produktion före deployen.
+- Kända brister och mina val:
+  - Ett namn med flera exemplar (antal över 1) går inte att dela på två leveranser: en rad följer
+    med hel.
+  - Frakten bokas för hand per leverans.
+  - Deras mejl "har skickats" går en gång, med orderns spårning, inte en per leverans.
+  - Kunden kan inte själv dela upp ordern i namnlistan: personalen gör det efter texten.
+  - Hos verkstaden nekar inte `createProductionBatch` ett anrop som blandar deras egna rader med
+    våra; köerna visar dem aldrig ihop, så det kräver ett hopsatt anrop från personalen. Tillbaka-
+    länken från en produktionsorder med bara våra rader går till deras egen kö.
+  - Webhooken tar emot besked upp till 128 000 tecken (förut 16 000), eftersom ett besked med
+    många leveranser annars nekades och statusen för ordern tappades.
 
 ## Mötet med verkstaden 2026-11-20: gjort och kvar
 

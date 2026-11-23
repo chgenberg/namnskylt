@@ -7,10 +7,11 @@ import { ReorderForm } from "@/features/quote-public/reorder-form";
 import { SellerLogo } from "@/features/quote-public/seller-logo";
 import styles from "@/features/quote-public/quote-public.module.css";
 import { companyFooter, readableOn } from "@/lib/company/profile";
-import { formatDay, formatSek } from "@/lib/format";
+import { formatDay, formatSek, plural } from "@/lib/format";
 import { darkPlate, isLightLogo } from "@/lib/images/logo-tone";
 import { customerHead, customerTimeline } from "@/lib/orders/customer-view";
-import { deliveryLines, SHIPPING_METHOD_LABEL, shippingMethodOf } from "@/lib/orders/delivery";
+import { deliveryInstructionsOf, deliveryLines, SHIPPING_METHOD_LABEL, shippingMethodOf } from "@/lib/orders/delivery";
+import { deliveryQuantity, supplierDeliveryLines } from "@/lib/orders/supplier-deliveries";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import { databaseConfigured, getOrderByCustomerToken, getSellerProfile } from "@/lib/orders/repository";
@@ -147,10 +148,41 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
               </>
             )}
           </dl>
-          {order.delivery && (
+          {order.delivery && (order.delivery.to === "reseller" || order.supplierDeliveries.length < 2) && (
             <p className={styles.deliveryNote}>
               <strong>{order.delivery.to === "reseller" ? `Skyltarna skickas till ${company.name}` : "Skyltarna skickas till"}</strong>
               {order.delivery.to === "customer" && deliveryLines(order.delivery.address).map((line) => <span key={line}>{line}</span>)}
+            </p>
+          )}
+          {/* Verkstaden har delat ordern på flera adresser, efter kundens leveransspecifikation. */}
+          {order.delivery?.to === "customer" && order.supplierDeliveries.length > 1 && (
+            <div className={styles.splitDeliveries}>
+              <p className={styles.deliveryNote}>
+                <strong>Skyltarna skickas till {order.supplierDeliveries.length} adresser</strong>
+              </p>
+              <ol>
+                {order.supplierDeliveries.map((delivery) => (
+                  <li key={delivery.position} className={styles.deliveryNote}>
+                    <strong>
+                      Leverans {delivery.position} · {plural(deliveryQuantity(order.badges, delivery), "skylt", "skyltar")}
+                    </strong>
+                    {supplierDeliveryLines(delivery).map((line) => (
+                      <span key={line}>{line}</span>
+                    ))}
+                    {delivery.trackingUrl && (
+                      <a href={delivery.trackingUrl} target="_blank" rel="noreferrer">
+                        Följ paketet
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+          {order.delivery?.to === "customer" && deliveryInstructionsOf(order.delivery) && (
+            <p className={styles.deliveryNote}>
+              <strong>Er leveransspecifikation</strong>
+              <span style={{ whiteSpace: "pre-wrap" }}>{deliveryInstructionsOf(order.delivery)}</span>
             </p>
           )}
 

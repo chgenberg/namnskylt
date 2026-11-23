@@ -145,6 +145,21 @@ describe("ordern till verkstaden", () => {
     assert.equal(pickup.goodsSek, buildSupplierRequest(input([named("Anna Lind", 10)])).goodsSek);
   });
 
+  it("leveransspecifikationen och priset för en extra leverans följer med frakten", () => {
+    const plain = buildSupplierRequest(input([named("Anna Lind", 2)]));
+    assert.equal(plain.shipping.instructions, undefined);
+    // Priset för en extra leverans är prismodellens, 75 kr när modellen inte anger något.
+    assert.equal(plain.shipping.extraDeliverySek, 75);
+    const written = buildSupplierRequest(
+      input([named("Anna Lind", 2)], { delivery: { ...DELIVERY, instructions: "Anna till Göteborg, Kalle till Malmö" } }),
+    );
+    assert.equal(written.shipping.instructions, "Anna till Göteborg, Kalle till Malmö");
+    const priced = buildSupplierRequest(
+      input([named("Anna Lind", 2)], { purchaseList: resellerPriceTable({ ...DEFAULT_PRICE_MODEL, shipping: { ...TIERED_SHIPPING, extraDeliverySek: 99 } }) }),
+    );
+    assert.equal(priced.shipping.extraDeliverySek, 99);
+  });
+
   it("en order från före frakten skickas utan fraktkostnad", () => {
     const request = buildSupplierRequest(input([named("Anna Lind", 10)], { purchaseList: resellerPriceTable({ ...DEFAULT_PRICE_MODEL, shipping: NO_SHIPPING }) }));
     assert.equal(request.shipping.costSek, 0);

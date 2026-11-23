@@ -270,6 +270,8 @@ export default async function QuotePublicPage({ params, searchParams }: QuotePub
               shippingOptions={shippingOptions}
               shippingMethod={shippingMethodOf(quote.delivery)}
               customerPo={quote.customerPo}
+              // Går skyltarna till återförsäljaren är texten dess egen och lämnar aldrig servern.
+              deliveryInstructions={quote.delivery.to === "customer" ? (quote.delivery.instructions ?? null) : null}
               answer={answer}
               // En offert som kunden laddade ner själv utan att lägga upp sig: uppgifterna fylls i här,
               // förifyllda med det kunden skrev på offerten.

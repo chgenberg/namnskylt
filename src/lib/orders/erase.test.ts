@@ -12,6 +12,7 @@ import {
   erasedBadges,
   erasedCustomerEmail,
   erasedDelivery,
+  erasedSupplierDeliveries,
   isBookkeepingOrder,
   isErasedCustomer,
 } from "./erase-model";
@@ -144,5 +145,29 @@ describe("meningen i bekräftelsen", () => {
       accountErasureSummary({ customers: 3, quotes: 2, designs: 1, ordersRemoved: 5, ordersKept: 2, shops: 1 }),
       "Kontot med inloggning och företagsuppgifter, 3 kunder, 2 offerter, 1 mall, 5 ordrar och 1 butik tas bort. 2 ordrar behålls utan personuppgifter, eftersom de hör till bokföringen.",
     );
+  });
+});
+
+describe("leveransernas personuppgifter", () => {
+  const address: Delivery["address"] = { name: "Hotell Exempel AB", contactName: "Anna Lind", line1: "Hamngatan 2", line2: null, zip: "411 14", city: "Göteborg", country: "SE", phone: "070-000 00 00" };
+  const split = [
+    { position: 1, name: "Hotell Exempel AB", contactName: "Anna Lind", line1: "Hamngatan 2", line2: null, zip: "411 14", city: "Göteborg", country: "SE", phone: "070-1", email: "anna@example.se", lines: [1], trackingUrl: null },
+    { position: 2, name: "Hotell Exempel AB", contactName: "Erik Berg", line1: "Storgatan 2", line2: null, zip: "211 34", city: "Malmö", country: "SE", phone: "070-2", email: null, lines: [2], trackingUrl: "https://spara.example/1" },
+  ];
+
+  it("leveransspecifikationen tas bort, eftersom den är fri text om de anställda", () => {
+    const erased = erasedDelivery({ to: "customer", address, instructions: "Anna Lind till Göteborg" }, true);
+    assert.equal(erased?.instructions, undefined);
+  });
+
+  it("verkstadens leveranser blir utan kontaktperson, telefon och e-post, och utan adress hos en privatperson", () => {
+    const company = erasedSupplierDeliveries(split, "customer", true);
+    assert.deepEqual(company.map((d) => [d.contactName, d.phone, d.email, d.city]), [[null, null, null, "Göteborg"], [null, null, null, "Malmö"]]);
+    // Raderna och spårningen står kvar, så att leveranserna och följesedlarna stämmer.
+    assert.deepEqual(company.map((d) => [d.position, d.lines, d.trackingUrl]), [[1, [1], null], [2, [2], "https://spara.example/1"]]);
+    const person = erasedSupplierDeliveries(split, "customer", false);
+    assert.ok(person.every((d) => d.name === ERASED_CUSTOMER_NAME && d.line1 === ERASED_TEXT && d.city === ERASED_TEXT));
+    // Gick skyltarna till återförsäljaren är adresserna dess egna.
+    assert.equal(erasedSupplierDeliveries(split, "reseller", false)[1]?.city, "Malmö");
   });
 });

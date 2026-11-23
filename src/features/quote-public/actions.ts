@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { customerPoSchema } from "@/lib/orders/customer-po";
-import { deliveryAddressSchema, deliveryPhoneIssue, shippingMethodOf, shippingMethodSchema } from "@/lib/orders/delivery";
+import { deliveryAddressSchema, deliveryInstructionsSchema, deliveryPhoneIssue, shippingMethodOf, shippingMethodSchema } from "@/lib/orders/delivery";
 import { declineByCustomer } from "@/lib/quotes/accept";
 import { acceptCustomerQuote } from "@/lib/quotes/customer-quote";
 import { canCustomerAnswer } from "@/lib/quotes/model";
@@ -16,6 +16,8 @@ const decisionSchema = z.object({
   delivery: deliveryAddressSchema.optional(),
   /** Leveranssättet kunden valde. Utelämnat = det som står på offerten. */
   method: shippingMethodSchema.optional(),
+  /** Leveransspecifikationen kunden skrev. Utelämnad = den som står på offerten. */
+  instructions: deliveryInstructionsSchema.optional(),
   /** Kundens eget inköpsnummer. Utelämnat = det som står på offerten. */
   customerPo: customerPoSchema,
   /**
@@ -40,10 +42,10 @@ export async function decideQuoteAction(
   if (!parsed.success) {
     const field = parsed.error.issues[0];
     // Adressens fel är skrivna för kunden; övriga fel beror på en trasig sida.
-    const shown = field?.path[0] === "delivery" || field?.path[0] === "customerPo" || field?.path[0] === "customer";
+    const shown = field?.path[0] === "delivery" || field?.path[0] === "customerPo" || field?.path[0] === "customer" || field?.path[0] === "instructions";
     return { ok: false, error: shown && field ? field.message : "Ogiltigt svar" };
   }
-  const { token, accept, reason, delivery, method, customerPo, customer } = parsed.data;
+  const { token, accept, reason, delivery, method, customerPo, customer, instructions } = parsed.data;
   try {
     const quote = await getQuoteByToken(token);
     if (!quote || !canCustomerAnswer(quote)) return { ok: false, error: "Offerten går inte att besvara längre" };
@@ -55,7 +57,7 @@ export async function decideQuoteAction(
     const phoneIssue = deliveryPhoneIssue(delivery, method ?? shippingMethodOf(quote.delivery));
     if (phoneIssue) return { ok: false, error: phoneIssue };
     // En offert som kunden laddade ner själv får sin kund nu, med uppgifterna kunden fyller i, och godkänns sedan.
-    const result = await acceptCustomerQuote(quote, customer ?? null, delivery ?? null, method ?? null, customerPo ?? null);
+    const result = await acceptCustomerQuote(quote, customer ?? null, delivery ?? null, method ?? null, customerPo ?? null, instructions);
     // Kunden får numret den ser på sin order: verkstadens när de själva säljer, annars säljarens.
     return result.ok ? { ok: true, orderNo: result.customerNumber, orderPath: result.orderPath } : { ok: false, error: result.error };
   } catch (error) {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { DeliveryFields } from "@/components/delivery-fields";
+import { DeliveryInstructionsField } from "@/components/delivery-instructions-field";
 import { ShippingMethodPicker } from "@/components/shipping-method-picker";
 import type { ShippingMethod } from "@/engine";
 import { companyLookupNote, useCompanyLookup } from "@/hooks/use-company-lookup";
@@ -37,6 +38,8 @@ interface QuoteDecisionProps {
   shippingMethod?: ShippingMethod;
   /** Inköpsnumret som redan står på offerten. Kunden kan fylla i eller ändra det innan offerten godkänns. */
   customerPo?: string | null;
+  /** Leveransspecifikationen som redan står på offerten. Kunden kan fylla i eller ändra den. */
+  deliveryInstructions?: string | null;
   /**
    * Valet mottagaren gjorde i offertmejlet. Det är förvalt här, och ett klick
    * bekräftar. Länken i mejlet avgör aldrig något själv: mejlprogram öppnar
@@ -65,6 +68,7 @@ export function QuoteDecision({
   shippingOptions = [],
   shippingMethod = "standard",
   customerPo = null,
+  deliveryInstructions = null,
   answer = null,
   party: firstParty = null,
 }: QuoteDecisionProps) {
@@ -74,6 +78,7 @@ export function QuoteDecision({
   // Summan följer leveranssättet. Expressfraktens pris sätts i efterhand och är inte med.
   const payInclVatSek = chosen?.totalInclVatSek ?? totalInclVatSek;
   const [address, setAddress] = useState<DeliveryDraft | null>(deliveryDraft);
+  const [instructions, setInstructions] = useState(deliveryInstructions ?? "");
   const [party, setParty] = useState<QuoteParty | null>(firstParty);
   /** Det registret fyllde i senast. Byts numret ersätts det som registret fyllde i, aldrig det som är skrivet för hand. */
   const autofilled = useRef<CompanyHit | null>(null);
@@ -133,6 +138,8 @@ export function QuoteDecision({
         delivery: delivery?.address,
         ...(accept && chosen && { method }),
         ...(accept && po.trim() && { customerPo: po.trim() }),
+        // Också en tom text skickas: då har kunden tagit bort offertens specifikation.
+        ...(accept && address && method !== "pickup" && { instructions: instructions.trim() }),
         ...(accept &&
           party && { customer: { company: party.company.trim(), orgNumber: party.orgNumber.trim(), name: party.name.trim(), email: party.email.trim() } }),
       });
@@ -275,6 +282,7 @@ export function QuoteDecision({
             <div className={styles.delivery}>
               <p className={styles.label}>Vart ska skyltarna skickas?</p>
               <DeliveryFields value={address} onChange={setAddress} disabled={pending} phoneRequired={needsPhone(method)} />
+              {method !== "pickup" && <DeliveryInstructionsField value={instructions} onChange={setInstructions} disabled={pending} />}
             </div>
           )}
           {shippingOptions.length > 1 && (

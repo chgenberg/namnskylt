@@ -60,12 +60,21 @@ export function shippingMethodOf(delivery: { method?: ShippingMethod } | null | 
   return delivery?.method ?? "standard";
 }
 
+/** Längsta leveransspecifikationen, i tecken. Räcker för ett tiotal adresser med namn. */
+export const DELIVERY_INSTRUCTIONS_MAX = 1000;
+
 /** Leveransen på en order: vem som tar emot, vart och hur. */
 export interface Delivery {
   to: DeliveryTo;
   address: DeliveryAddress;
   /** Saknas på leveranser sparade före valet av fraktsätt, och betyder då standardfrakt. */
   method?: ShippingMethod;
+  /**
+   * Leveransspecifikationen: kundens fritext om hur skyltarna ska skickas, till exempel vilka
+   * namn som ska till vilken adress när de ska till flera ställen (beslut av ägaren 2026-11-23).
+   * Verkstaden läser den och delar upp ordern i leveranser. Saknas när inget är skrivet.
+   */
+  instructions?: string | null;
 }
 
 /**
@@ -76,6 +85,8 @@ export interface QuoteDelivery {
   to: DeliveryTo;
   address: DeliveryAddress | null;
   method?: ShippingMethod;
+  /** Leveransspecifikationen, som på ordern. Följer med när offerten blir en order. */
+  instructions?: string | null;
 }
 
 /** Fälten som de skrivs i ett formulär, alla som text. */
@@ -126,17 +137,45 @@ export const deliveryAddressSchema = z.object({
 const deliveryToSchema = z.enum(["customer", "reseller"]);
 export const shippingMethodSchema = z.enum(SHIPPING_METHODS);
 
+/** Leveransspecifikationen som den skrivs: tom text sparas som ingenting. */
+export const deliveryInstructionsSchema = z
+  .string()
+  .trim()
+  .max(DELIVERY_INSTRUCTIONS_MAX, `Leveransspecifikationen får vara högst ${DELIVERY_INSTRUCTIONS_MAX} tecken`)
+  .nullish()
+  .transform((value) => value || null);
+
 export const deliverySchema = z.object({
   to: deliveryToSchema,
   address: deliveryAddressSchema,
   method: shippingMethodSchema.optional(),
+  instructions: deliveryInstructionsSchema.optional(),
 }) satisfies z.ZodType<Delivery, unknown>;
 
 export const quoteDeliverySchema = z.object({
   to: deliveryToSchema,
   address: deliveryAddressSchema.nullable(),
   method: shippingMethodSchema.optional(),
+  instructions: deliveryInstructionsSchema.optional(),
 }) satisfies z.ZodType<QuoteDelivery, unknown>;
+
+/** Leveransspecifikationen på en leverans, eller `null` när ingen är skriven. */
+export function deliveryInstructionsOf(delivery: { instructions?: string | null; method?: ShippingMethod } | null | undefined): string | null {
+  // En upphämtning skickas inte, så den har inga leveranser att beskriva.
+  if (shippingMethodOf(delivery) === "pickup") return null;
+  return delivery?.instructions?.trim() || null;
+}
+
+/**
+ * Leveransen utan specifikationen, för en ny order eller offert som ärver en äldre orders leverans
+ * ("Beställ igen", "Ny personal", "Beställ fler"): texten gällde de namnen, inte de nya.
+ */
+export function withoutInstructions<T extends { instructions?: string | null }>(delivery: T | null): T | null {
+  if (!delivery || !delivery.instructions) return delivery;
+  const rest = { ...delivery };
+  delete rest.instructions;
+  return rest;
+}
 
 /** Läser en sparad leverans. `null` när värdet saknas eller inte går att använda. */
 export function parseDelivery(value: unknown): Delivery | null {

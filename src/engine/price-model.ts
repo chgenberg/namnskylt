@@ -13,6 +13,7 @@ import {
   type PriceTable,
   type ShippingMethod,
   type ShippingRule,
+  extraDeliverySekOf,
 } from "./pricing";
 import type { SignClass } from "./types";
 
@@ -118,6 +119,7 @@ export const priceModelSchema = z
       parcelSek: sekSchema,
       letterMaxSek: sekSchema,
       letterMaxSigns: z.number().int().min(1).max(100_000).nullable().optional(),
+      extraDeliverySek: sekSchema.optional(),
     }),
   })
   .superRefine((model, ctx) => {
@@ -231,9 +233,12 @@ export function orderShippingSek(model: PriceModel, items: readonly PriceItem[],
  * Standardfrakten för en order, och vad paketet kostar när det går att välja i stället för
  * varubrevet (`parcelSek`, annars `null`). Samma belopp i alla led, som frakten i övrigt.
  */
-export function orderShippingChoices(model: PriceModel, items: readonly PriceItem[]): { shippingSek: number; parcelSek: number | null } {
+export function orderShippingChoices(
+  model: PriceModel,
+  items: readonly PriceItem[],
+): { shippingSek: number; parcelSek: number | null; extraDeliverySek: number } {
   const price = priceItems(items, resellerPriceTable(model));
-  return { shippingSek: price.shippingSek, parcelSek: price.parcelChoiceSek };
+  return { shippingSek: price.shippingSek, parcelSek: price.parcelChoiceSek, extraDeliverySek: extraDeliverySekOf(model.shipping) };
 }
 
 export interface ProvisionSplit {

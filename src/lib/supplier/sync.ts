@@ -31,7 +31,14 @@ export function atPrinter(order: StoredOrder): string | null {
 export async function applySupplierState(state: SupplierOrderState): Promise<{ found: boolean; changed: boolean }> {
   const result = await applySupplierUpdate(
     state.orderNumber,
-    { status: toOrderStatus(state.status), trackingUrl: state.trackingUrl, expressShippingSek: state.shippingCost, at: state.changedAt },
+    {
+      status: toOrderStatus(state.status),
+      trackingUrl: state.trackingUrl,
+      expressShippingSek: state.shippingCost,
+      deliveries: state.deliveries,
+      extraDeliverySek: state.extraDeliveryCost,
+      at: state.changedAt,
+    },
     advancesTo,
   );
   // Kunden och återförsäljaren får veta att skyltarna är på väg. Ingen av dem väntar på det här.
