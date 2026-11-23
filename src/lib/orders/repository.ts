@@ -795,6 +795,20 @@ export interface CustomerSummary extends Customer {
   designs: number;
 }
 
+/**
+ * Antalen på återförsäljarens flikar: offerter och kunder. En kund som är borttagen eller bara är
+ * platshållaren för utkast utan kund räknas inte, som i kundlistan.
+ */
+export async function panelCounts(tenant: string): Promise<{ quotes: number; customers: number }> {
+  const sql = requireDb();
+  const [row] = await sql<{ quotes: number; customers: number }[]>`
+    select (select count(*)::int from quotes where reseller_id = ${tenant}) as quotes,
+           (select count(*)::int from customers
+             where reseller_id = ${tenant} and email <> ${UNASSIGNED_CUSTOMER_EMAIL}
+               and email not like 'borttagen-%@borttagen.invalid') as customers`;
+  return row ?? { quotes: 0, customers: 0 };
+}
+
 export async function listCustomers(tenant: string): Promise<CustomerSummary[]> {
   const sql = requireDb();
   const rows = await sql<

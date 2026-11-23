@@ -11,6 +11,7 @@ export function adminNav({
   shopSlug,
   pendingOrders = 0,
   pendingApplications = 0,
+  counts,
 }: {
   owner: boolean;
   shopSlug: string | null;
@@ -18,6 +19,8 @@ export function adminNav({
   pendingOrders?: number;
   /** Ansökningar som väntar på beslut. Bara admin har sidan. */
   pendingApplications?: number;
+  /** Antalen på återförsäljarens flikar. */
+  counts?: { quotes: number; orders: number; customers: number };
 }): AdminNavItem[] {
   const orders: AdminNavItem = { href: "/admin/ordrar", label: "Ordrar", icon: "orders", badge: pendingOrders };
   const rest: AdminNavItem[] = [
@@ -45,11 +48,13 @@ export function adminNav({
     ];
   }
   // Återförsäljaren har ingen översikt (besked av ägaren 2026-11-19): panelen börjar på offertlistan,
-  // som står först i menyn och bär antalet olästa besked.
+  // som står först bland flikarna och bär antalet olästa besked. Flikarna bär antalet i listan, som i
+  // Godis-sajtens panel (besked av ägaren 2026-11-23).
   return [
-    { href: "/admin/offerter", label: "Offerter", icon: "quotes", news: true },
-    orders,
-    ...rest,
+    { href: "/admin/offerter", label: "Offerter", icon: "quotes", news: true, count: counts?.quotes },
+    { ...orders, badge: 0, count: counts?.orders },
+    { href: "/admin/kunder", label: "Kunder", icon: "customers", count: counts?.customers },
+    { href: "/admin/statistik", label: "Statistik", icon: "stats" },
     { href: "/admin/inkopspriser", label: "Inköpspriser", icon: "purchase" },
     ...last,
     // Butiken återförsäljaren har tagit över.

@@ -6,7 +6,8 @@ import { adminNav } from "@/features/admin/nav";
 import { Notice } from "@/features/admin/notice";
 import { ShotBackfill } from "@/features/admin/shot-backfill";
 import { countUnreadNotices } from "@/lib/notices/repository";
-import { databaseConfigured, getCompanyProfile, listOrders, missingBadgeShots } from "@/lib/orders/repository";
+import { databaseConfigured, getCompanyProfile, listOrders, missingBadgeShots, panelCounts } from "@/lib/orders/repository";
+import { accountEmail } from "@/lib/reseller-auth/accounts";
 import { countPendingApplications } from "@/lib/reseller-auth/applications";
 import { currentTenant, resellerPass } from "@/lib/reseller-auth/session";
 import { shopsOwnedBy } from "@/lib/shops/editor-repository";
@@ -52,20 +53,30 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       </main>
     );
   }
-  const [orders, company, missing, ownedShops, unread, pendingApplications] = await Promise.all([
+  const owner = isOwner(tenant);
+  const [orders, company, missing, ownedShops, unread, pendingApplications, counts, login] = await Promise.all([
     listOrders(tenant),
     getCompanyProfile(tenant),
     missingBadgeShots(tenant, MISSING_SHOTS_PER_VIEW),
-    isOwner(tenant) ? Promise.resolve([]) : shopsOwnedBy(tenant),
+    owner ? Promise.resolve([]) : shopsOwnedBy(tenant),
     countUnreadNotices(tenant),
-    isOwner(tenant) ? countPendingApplications() : Promise.resolve(0),
+    owner ? countPendingApplications() : Promise.resolve(0),
+    owner ? null : panelCounts(tenant),
+    owner ? null : accountEmail(tenant),
   ]);
   const pendingOrders = orders.filter((o) => o.status === "received").length;
   const demoCount = orders.filter((o) => o.demo).length;
   return (
     <main>
       <AdminShell
-        nav={adminNav({ owner: isOwner(tenant), shopSlug: ownedShops[0] ?? null, pendingOrders, pendingApplications })}
+        nav={adminNav({
+          owner,
+          shopSlug: ownedShops[0] ?? null,
+          pendingOrders,
+          pendingApplications,
+          counts: counts ? { ...counts, orders: orders.length } : undefined,
+        })}
+        login={login}
         unread={unread}
         demoCount={demoCount}
         companyName={company.name}

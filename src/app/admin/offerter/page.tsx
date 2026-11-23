@@ -67,12 +67,21 @@ export default async function QuotesPage() {
         </div>
       ) : (
         <div className={styles.listRows}>
+          {/* Rubrikraden syns bara i återförsäljarens panel, som har tabellerna (besked av ägaren 2026-11-23). */}
+          {reseller && (
+            <div className={styles.listHead} aria-hidden="true">
+              <span data-span="2">Offert</span>
+              <span>Läge</span>
+              <span data-end>Belopp</span>
+              <span />
+            </div>
+          )}
           {quotes.map((quote) => {
             const status = displayStatus(quote, now);
             const first = quote.badges[0];
             const waits = status === "sent" || status === "draft";
             return (
-              <article key={quote.id} className={styles.listRow}>
+              <article key={quote.id} className={styles.listRow} data-tone={status}>
                 <Link href={`/admin/offerter/${quote.quoteNo}`} className={styles.listRowLink} aria-label={`Öppna ${quote.quoteNo}`} />
                 {/* Skylten längst till vänster, i litet format (besked via ägaren 2026-11-20). */}
                 <div className={styles.rowThumb} aria-hidden="true">

@@ -25,8 +25,10 @@ export function OrderRow({ order, canDelete = false }: OrderRowProps) {
   const names = order.badges.length;
   const first = order.badges[0];
   const customer = order.customer.company ?? order.customer.name;
+  const status = listStatusOf(order);
   return (
-    <article className={styles.listRow}>
+    // Läget tonar raden i återförsäljarens panel, som i Godis-sajtens tabeller (`data-tone`).
+    <article className={styles.listRow} data-tone={status}>
       <Link href={`/admin/ordrar/${order.orderNo}`} className={styles.listRowLink} aria-label={`Öppna ${order.orderNo}`} />
       <div className={styles.rowThumb} aria-hidden="true">
         {order.hasBadgeShot ? (
@@ -52,7 +54,7 @@ export function OrderRow({ order, canDelete = false }: OrderRowProps) {
       </div>
       <div className={styles.rowTail}>
         <span className={styles.rowStatus}>
-          <ListStatusPill status={listStatusOf(order)} />
+          <ListStatusPill status={status} />
         </span>
         <span className={styles.amount}>{formatSek(order.totalSek)}</span>
         <div className={styles.rowActions}>

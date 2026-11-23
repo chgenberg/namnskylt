@@ -1192,6 +1192,11 @@ gäller `DEFAULT_PRICE_MODEL`, som är kalkylen från 2026-11-13.
     svenska, i stället för ramverkets.
   - Provat lokalt 2026-11-21 i Chrome på 390 px och dator (26 kontroller): fel inloggning,
     bytet till admin på samma adress, ordern efter inloggningen, och adminens egna sidor.
+  - Kontrollerat i drift samma kväll efter pushen (`86c5dc3`), bara läsning (7 av 7): utan
+    inloggning visar länken adminens inloggning på samma adress, som admin ger en order som
+    inte finns panelens sida, adminens egna sidor öppnas som förut, och en adress som inte
+    finns ger sajtens svenska sida. **Sidan för en inloggad återförsäljare är bara provad
+    lokalt**: jag har inget återförsäljarkonto att logga in med i drift.
 
 Slutkunden har sedan 2026-11-17 ett eget konto, se avsnittet Kundkonton. Det ger aldrig
 tillträde till panelen.
@@ -1247,8 +1252,9 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
     offertlistans tomma läge.
   - Borta för återförsäljaren: översiktens nyckeltal, "Kräver åtgärd" och förslagen om att
     höra av sig till kunder. Ordrar som väntar syns som siffra på menyposten Ordrar.
-- **Logga ut är en knapp längst ner i panelens meny**, för både admin och återförsäljare
-  (besked av ägaren 2026-11-18, som inte hittade den). Förut var den en liten understruken
+- **Logga ut är en knapp längst ner i panelens meny** för admin (besked av ägaren 2026-11-18,
+  som inte hittade den). För en återförsäljare står den sedan 2026-11-23 bredvid Ny offert
+  överst i panelen, se Återförsäljarens panel med flikar. Förut var den en liten understruken
   textrad under menyn, som hamnade under fönstrets kant när menyn var högre än fönstret, och
   på en smal skärm var den dold. Menyn rullar nu för sig när fönstret är lågt (`.nav` i
   `admin.module.css`), så att knappen alltid syns, och på en smal skärm står den sist i
@@ -2325,6 +2331,47 @@ till höger"). Koden ligger i `src/app/api/quotes/`, `src/features/designer/quot
   godkänner med en e-postadress som redan finns hos säljaren skriver över den kundens namn,
   företag och organisationsnummer, som i kassan. Uppslaget på organisationsnummer fungerar inte
   på offertsidan för den som saknar sajtkoden, medan sajtspärren är på.
+
+## Återförsäljarens panel med flikar — läge 2026-11-23
+
+**Återförsäljarens panel har flikar i stället för sidomeny** (besked av ägaren 2026-11-23: "samma
+design (inte brandbook, färger osv.) med tabbar osv. som projektet Merchin och /godis"). Förlagan
+är Godis-sajtens panel i Merchin (`src/components/produktsajt/PanelMock.tsx` och `MockParts.tsx` i
+`~/Desktop/Merchin/merchin-app`), som ägaren valde framför en sidomeny där 2026-11-22. Färgerna
+och typsnitten är Namnskylts: papper, bläck, Instrument Serif i rubrikerna.
+
+- **Ramen** (`ResellerTabs` i `src/features/admin/admin-shell.tsx`, klasserna `tabs…` sist i
+  `admin.module.css`): överst raden "Återförsäljare · <inloggningens adress>", företagets namn
+  stort, och knapparna **Ny offert** och **Logga ut**. Under dem flikarna som piller: Offerter,
+  Ordrar, Kunder, Statistik, Inköpspriser, Export, Inställningar och Min butik när en butik är
+  övertagen. Offerter, Ordrar och Kunder bär antalet i listan (`panelCounts` i
+  `src/lib/orders/repository.ts`), och Offerter antalet olästa besked som "2 nya".
+  - Sidomenyn är borta för återförsäljaren, och med den raden "Inloggad som återförsäljare".
+    Logga ut står nu bredvid Ny offert.
+  - Antalet ordrar som väntade, som stod på Ordrar i sidomenyn, är ersatt av antalet ordrar.
+    Det valde jag, som i Godis.
+  - Sidans egen rubrik står kvar under flikarna, mindre än förut, med sina knappar
+    (till exempel "+ Skapa order").
+- **Listorna är tabeller** för återförsäljaren: en rubrikrad (Order, Läge, Belopp; för kunder
+  Kund, Senaste order, Ordrar, Skyltar, Försäljning), och varje order och offert tonad efter
+  läget, med en kant i lägets färg (`data-tone` på raden): lila i produktion, grönt skickad och
+  godkänd, gult väntar och skickad offert, rött avbruten, nekad och utgången. Rubrikraden syns
+  inte under 1000 px, där raden blir två rader. Tokenen `--color-production` kom till för lila.
+- **Adminens panel är orörd**: sidomenyn står kvar, och listorna har varken rubrikrad eller ton.
+  Det valde jag, eftersom beskedet gällde återförsäljaren och admin har dubbelt så många delar.
+- **Översikten kom inte tillbaka**: Godis-panelen börjar på en översikt med nyckeltal, men
+  ägaren tog bort återförsäljarens översikt 2026-11-19, så panelen börjar fortfarande på
+  Offerter.
+- Inte gjort som i Godis: ordersidan har kvar sin uppbyggnad (skyltarna, priset och detaljerna
+  till vänster, leveransen, tidslinjen och korrekturet till höger), utan Godis rad med status,
+  nästa steg, kund och belopp, och tidslinjen står kvar på höjden.
+- Rättat på vägen: inställningarna stack ut 56 px på en 320 px bred telefon (`.companyLayout`
+  under 1100 px hade `1fr` i stället för `minmax(0, 1fr)`).
+- Provat lokalt 2026-11-23 i Chrome med ett provkonto fyllt med demodata (35 kontroller): sju
+  sidor på 1440, 820, 390 och 320 px utan att något sticker ut, flikarnas antal och markering,
+  rubrikraden och tonen, Ny offert, Logga ut, och att adminens panel är orörd. Bilder före och
+  efter ligger i mappen `Namnskylt-panel-med-flikar-2026-11-23` på ägarens skrivbord. Inte
+  provat i Safari eller på en riktig telefon.
 
 ## Panelens listor — läge 2026-11-20
 

@@ -23,4 +23,6 @@ export interface AdminNavItem {
   badge?: number;
   /** Menyposten bär antalet olästa besked: panelens första sida, där listan "Nytt sedan sist" står. */
   news?: boolean;
+  /** Antalet i listan bakom fliken, i återförsäljarens flikar: offerter, ordrar och kunder. */
+  count?: number;
 }

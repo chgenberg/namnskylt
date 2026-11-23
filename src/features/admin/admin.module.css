@@ -2104,13 +2104,15 @@ a.listRow:focus-visible {
 }
 
 @media (max-width: 1100px) {
+  /* `minmax(0, 1fr)`: med bara `1fr` blev kolumnen minst så bred som sitt innehåll, och på en
+     320 px bred telefon stack inställningarna ut 56 px åt höger. */
   .companyLayout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .previewSticky {
     position: static;
-    max-width: 360px;
+    max-width: min(360px, 100%);
   }
 }
 
@@ -2373,4 +2375,240 @@ a.listRow:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* ───────────── Återförsäljarens panel med flikar ───────────── */
+/*
+ * Upplägget är Godis-sajtens panel i Merchin (besked av ägaren 2026-11-23): ingen sidomeny, utan en
+ * rad med vem som är inloggad, företagets namn stort och knappen Ny offert, flikarna som piller med
+ * antalet i listan, och sidan under dem. Färger och typsnitt är Namnskylts egna. Allt här gäller bara
+ * återförsäljaren; adminens panel har kvar sin sidomeny.
+ */
+
+.tabsShell {
+  min-height: calc(100dvh - var(--header-height));
+  background: var(--color-paper);
+}
+
+.tabsInner {
+  max-width: 1360px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: clamp(var(--space-4), 2.4vw, var(--space-6)) clamp(var(--space-4), 3vw, var(--space-7)) clamp(var(--space-7), 7vw, var(--space-9));
+}
+
+.tabsHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  margin-bottom: clamp(var(--space-4), 2vw, var(--space-5));
+}
+
+.tabsHeadText {
+  min-width: 0;
+}
+
+.tabsKicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.tabsTitle {
+  margin-top: 6px;
+  font-family: var(--font-serif);
+  font-size: clamp(2.4rem, 1.8rem + 2vw, 3.4rem);
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.tabsActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Logga ut står bredvid Ny offert, som ett tyst piller. */
+.tabsLogout {
+  height: 44px;
+  padding-inline: var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-line-strong);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: box-shadow var(--duration-fast), background var(--duration-fast);
+}
+
+.tabsLogout:hover {
+  background: var(--color-white);
+  box-shadow: inset 0 0 0 1.5px var(--color-ink);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding-inline: 17px;
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-3);
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-ink);
+  transition:
+    background var(--duration-fast),
+    box-shadow var(--duration-fast),
+    color var(--duration-fast);
+}
+
+.tab:hover {
+  background: var(--color-white);
+  box-shadow: inset 0 0 0 1px var(--color-line-strong);
+}
+
+.tab[aria-current="page"] {
+  background: var(--color-ink);
+  box-shadow: none;
+  color: var(--color-white);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 3px;
+}
+
+.tabCount {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: 0.66;
+}
+
+/* Olästa besked: en kund har svarat eller beställt. */
+.tabNews {
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-success);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-white);
+}
+
+.tabsView {
+  min-width: 0;
+  margin-top: clamp(var(--space-4), 2vw, var(--space-5));
+}
+
+/* Sidans egen rubrik står under flikarna och är mindre än företagets namn ovanför. */
+.tabsView .pageHead {
+  margin-bottom: var(--space-4);
+}
+
+.tabsView .pageTitle {
+  font-size: clamp(1.7rem, 1.35rem + 1vw, 2.2rem);
+}
+
+/* Listorna som tabeller: en rubrikrad, och raderna tonade efter läget, med en kant i lägets färg. */
+.tabsView .listRows {
+  border-radius: 16px;
+}
+
+.listHead {
+  display: none;
+}
+
+.tabsView .listHead {
+  position: relative;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: end;
+  padding: 11px var(--space-4) 10px;
+  background: var(--color-paper-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-muted);
+}
+
+.listHead > [data-span="2"] {
+  grid-column: span 2;
+}
+
+.listHead > [data-end] {
+  text-align: right;
+}
+
+.tabsView .listRow[data-tone] {
+  --tone: var(--color-muted);
+  background: color-mix(in srgb, var(--tone) 6%, var(--color-white));
+  box-shadow: inset 3px 0 0 var(--tone);
+}
+
+.tabsView .listRow[data-tone]:hover {
+  background: color-mix(in srgb, var(--tone) 10%, var(--color-white));
+}
+
+.tabsView .listRow[data-tone="in-production"] {
+  --tone: var(--color-production);
+}
+
+.tabsView .listRow[data-tone="shipped"],
+.tabsView .listRow[data-tone="delivered"],
+.tabsView .listRow[data-tone="accepted"] {
+  --tone: var(--color-success);
+}
+
+.tabsView .listRow[data-tone="waiting"],
+.tabsView .listRow[data-tone="sent"] {
+  --tone: var(--color-warning);
+}
+
+.tabsView .listRow[data-tone="cancelled"],
+.tabsView .listRow[data-tone="declined"],
+.tabsView .listRow[data-tone="expired"] {
+  --tone: var(--color-danger);
+}
+
+/* Ett utkast väntar inte på någon: ingen ton. */
+.tabsView .listRow[data-tone="draft"] {
+  background: var(--color-white);
+  box-shadow: none;
+}
+
+@media (max-width: 1000px) {
+  .tabsView .listHead {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .tabsHead {
+    align-items: flex-start;
+  }
+
+  .tabsTitle {
+    font-size: clamp(2.1rem, 1.6rem + 3vw, 2.6rem);
+  }
 }

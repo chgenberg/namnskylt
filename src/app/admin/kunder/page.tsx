@@ -5,6 +5,7 @@ import styles from "@/features/admin/admin.module.css";
 import { formatRelative, formatSek, plural } from "@/lib/format";
 import { isErasedCustomer } from "@/lib/orders/erase-model";
 import { listCustomers } from "@/lib/orders/repository";
+import { isOwner } from "@/lib/tenants/model";
 
 export default async function CustomersPage() {
   const tenant = await adminTenant();
@@ -23,6 +24,16 @@ export default async function CustomersPage() {
       </header>
       {/* Rader i stället för kort, med företagets namn längst till vänster (besked via ägaren 2026-11-20). */}
       <div className={styles.listRows} data-kind="customers">
+        {/* Rubrikraden syns bara i återförsäljarens panel, som har tabellerna (besked av ägaren 2026-11-23). */}
+        {!isOwner(tenant) && customers.length > 0 && (
+          <div className={styles.listHead} aria-hidden="true">
+            <span>Kund</span>
+            <span>Senaste order</span>
+            <span>Ordrar</span>
+            <span>Skyltar</span>
+            <span data-end>Försäljning</span>
+          </div>
+        )}
         {customers.map((c) => (
           <Link key={c.id} href={`/admin/kunder/${c.id}`} className={styles.listRow}>
             <span className={styles.rowMain}>

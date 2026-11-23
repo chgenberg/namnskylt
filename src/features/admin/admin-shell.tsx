@@ -102,10 +102,12 @@ interface AdminShellProps {
   companyName?: string;
   /** Admin-inlogget, alltså namnskylt.com själv. Annars en återförsäljare. */
   owner?: boolean;
+  /** Adressen återförsäljaren loggar in med. Står i raden över företagets namn. */
+  login?: string | null;
   children: ReactNode;
 }
 
-export function AdminShell({ nav, unread = 0, demoCount = 0, companyName = "namnskylt.com", owner = false, children }: AdminShellProps) {
+export function AdminShell({ nav, unread = 0, demoCount = 0, companyName = "namnskylt.com", owner = false, login = null, children }: AdminShellProps) {
   const pathname = usePathname();
   const unreadNow = useUnreadNotices(unread);
   const isCurrent = (href: string) => (href === "/admin" ? pathname === href : pathname.startsWith(href));
@@ -114,6 +116,14 @@ export function AdminShell({ nav, unread = 0, demoCount = 0, companyName = "namn
     await fetch("/api/admin/session", { method: "DELETE" }).catch(() => undefined);
     window.location.href = "/";
   };
+
+  if (!owner) {
+    return (
+      <ResellerTabs nav={nav} unread={unreadNow} demoCount={demoCount} companyName={companyName} login={login} isCurrent={isCurrent} logout={logout}>
+        {children}
+      </ResellerTabs>
+    );
+  }
 
   return (
     <div className={styles.shell}>
@@ -156,6 +166,62 @@ export function AdminShell({ nav, unread = 0, demoCount = 0, companyName = "namn
       <div className={styles.main}>
         {demoCount > 0 && <DemoBanner count={demoCount} />}
         {children}
+      </div>
+    </div>
+  );
+}
+
+interface ResellerTabsProps {
+  nav: AdminNavItem[];
+  unread: number;
+  demoCount: number;
+  companyName: string;
+  login: string | null;
+  isCurrent: (href: string) => boolean;
+  logout: () => Promise<void>;
+  children: ReactNode;
+}
+
+/**
+ * Återförsäljarens panel med flikar i stället för sidomeny, som panelen på Godis-sajten i Merchin
+ * (besked av ägaren 2026-11-23: "samma design ... med tabbar osv.", men inte deras färger): överst
+ * en rad med vem som är inloggad, företagets namn stort och knappen Ny offert, under det flikarna som
+ * piller med antalet i listan, och sidan i rundade kort under dem. Färgerna och typsnitten är
+ * Namnskylts. Adminens panel har kvar sin sidomeny, eftersom den har dubbelt så många delar.
+ */
+function ResellerTabs({ nav, unread, demoCount, companyName, login, isCurrent, logout, children }: ResellerTabsProps) {
+  return (
+    <div className={styles.tabsShell} data-layout="tabs">
+      <div className={styles.tabsInner}>
+        {demoCount > 0 && <DemoBanner count={demoCount} />}
+        <header className={styles.tabsHead}>
+          <div className={styles.tabsHeadText}>
+            <p className={styles.tabsKicker}>Återförsäljare{login ? ` · ${login}` : ""}</p>
+            <p className={styles.tabsTitle}>{companyName}</p>
+          </div>
+          <div className={styles.tabsActions}>
+            <Link href="/admin/ny-offert" className="btn btn--primary">
+              Ny offert <span aria-hidden="true">→</span>
+            </Link>
+            <button type="button" className={styles.tabsLogout} onClick={() => void logout()}>
+              Logga ut
+            </button>
+          </div>
+        </header>
+        <nav className={styles.tabs} aria-label="Panelens delar">
+          {nav.map((item) => (
+            <Link key={item.href} href={item.href} className={styles.tab} aria-current={isCurrent(item.href) ? "page" : undefined}>
+              {item.label}
+              {item.count != null && <span className={styles.tabCount}>{item.count}</span>}
+              {item.news && unread > 0 && (
+                <span className={styles.tabNews} aria-label={`${unread} nya besked`}>
+                  {unread} nya
+                </span>
+              )}
+            </Link>
+          ))}
+        </nav>
+        <div className={styles.tabsView}>{children}</div>
       </div>
     </div>
   );

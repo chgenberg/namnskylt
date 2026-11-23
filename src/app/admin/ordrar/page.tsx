@@ -67,6 +67,15 @@ export default async function OrdersPage({ searchParams }: OrdersPageProps) {
         </div>
       ) : (
         <div className={styles.listRows}>
+          {/* Rubrikraden syns bara i återförsäljarens panel, som har tabellerna (besked av ägaren 2026-11-23). */}
+          {!isOwner(tenant) && (
+            <div className={styles.listHead} aria-hidden="true">
+              <span data-span="2">Order</span>
+              <span>Läge</span>
+              <span data-end>Belopp</span>
+              <span />
+            </div>
+          )}
           {shown.map((order) => (
             <OrderRow key={order.id} order={order} canDelete={isOwner(tenant)} />
           ))}
