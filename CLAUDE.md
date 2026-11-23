@@ -2922,7 +2922,12 @@ snyggt sätt, så att det inte förstör något annat i deras egna flöde"). På
 ägaren: **bara den nya fliken** (våra ordrar flyttas ur deras vanliga listor), **leveranser på
 fliken** (personalen delar upp namnen) och **fast pris per extra adress**.
 
-**Inget av det är pushat eller deployat.** Allt är byggt och provat lokalt.
+**Namnskylts del är ute i drift sedan 2026-11-23 (`d159439`)** och kontrollerad genom läsning
+(9 av 9: migrering 041 läses av orderlistan och en ordersida, priset per extra adress står i
+prismodellen, webhooken tar emot 20 000 tecken och nekar 200 000, och en följesedel med fel kod
+ger 404). **Verkstadens del är inte utrullad**: deras migrering måste köras i deras drift först, och
+den automatiska behörighetskontrollen nekade mig att hämta databasens lösenord. Ägaren kör den
+(se Innan det går ut). Tills dess skickar vi de nya fälten, och deras mottagare hoppar över dem.
 
 - **Leveransspecifikationen** är kundens fritext om vart skyltarna ska, högst 1 000 tecken
   (`Delivery.instructions`, `deliveryInstructionsSchema`, `DeliveryInstructionsField`). Den ligger
@@ -3004,9 +3009,16 @@ fliken** (personalen delar upp namnen) och **fast pris per extra adress**.
   följesedlarna per leverans, panelen, kundens ordersida på dator och 390 px, en plastorder i
   flikens plastkö men inte i deras egen, och en produktionsorder skapad från fliken. Provdata och
   inloggningen är borttagna i båda databaserna.
-- **Innan det går ut:** Namnskylt kan pushas först, eftersom verkstadens mottagare tar bort fält
-  den inte känner. Hos verkstaden krävs ägarens ja, bug-hunt, och att deras migrering körs i
-  deras produktion före deployen.
+- **Innan verkstadens del går ut** (ägarens ja finns, 2026-11-23): deras bug-hunt är gjord två
+  gånger (andra omgången 0 CRITICAL, 0 HIGH), deras grind och bygge är gröna, och deras sajt i
+  drift är avläst före. Kvar är migreringen och deployen:
+  1. `cd ~/Desktop/Skyltochgravyr/skyltmotor/infra && npx sst tunnel --stage prod` (kräver
+     lösenordet till datorn, låt den stå öppen),
+  2. i ett annat fönster: `cd ~/Desktop/Skyltochgravyr/skyltmotor && AWS_PROFILE=skylt pnpm --filter @skylt/db run migrate:aws prod`
+     (skriv `prod` när den frågar),
+  3. deployen (`deploy.sh prod`, se verkstadens regler),
+  4. steg 2 en gång till, så att ordrar från oss som den gamla versionen tog emot under tiden får
+     sin rad i `PartnerOrderInfo`; kolumnkontrollen säger till om någon saknas.
 - Kända brister och mina val:
   - Ett namn med flera exemplar (antal över 1) går inte att dela på två leveranser: en rad följer
     med hel.
