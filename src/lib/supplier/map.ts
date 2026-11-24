@@ -120,8 +120,10 @@ function specRows(
 ): SupplierSpecRow[] {
   const rows: SupplierSpecRow[] = [{ label: "Fäste", value: mountingLabel(doc) }];
   if (article) rows.push({ label: "Ämne", value: `${article.name}, ${article.thicknessMm.toLocaleString("sv-SE")} mm` });
+  // Märkningen står alltid, också "Endast gravyr" (besked från Mats på verkstaden via ägaren
+  // 2026-11-24: på en plastskylt som bara graveras stod inte om den skulle graveras eller printas).
+  rows.push({ label: "Märkning", value: getMarkingMethod(markingOf(doc)).name });
   if (markingOf(doc) !== "engrave") {
-    rows.push({ label: "Märkning", value: getMarkingMethod(markingOf(doc)).name });
     const color = printColorLabel(doc);
     // Varje skärmfärg står med sina tryckfärger, de som tryckfilen bär.
     if (color) rows.push({ label: "Tryckfärg", value: withCmyk(color.startsWith(PRINT_COLOR_PREFIX) ? color.slice(PRINT_COLOR_PREFIX.length) : color) });

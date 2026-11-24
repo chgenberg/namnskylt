@@ -3139,6 +3139,47 @@ det kräver en riktig order med något som printas.
 - Verkstadens bug-hunt: två HIGH (svarets storlek och objektströmmarna) och tre MEDIUM, alla
   rättade, och omgranskningen gav 0 CRITICAL och 0 HIGH.
 
+## Mötet med Mats 2026-11-24: filer och gravyr för våra ordrar
+
+Ägaren och Pär gick igenom två provordrar i drift med Mats på verkstaden: NS-1128, 3 nickelskyltar
+som printas, och NS-1129, 3 plastskyltar i egen form (bilen) som graveras. Mats ville (transkribering
+via ägaren 2026-11-24):
+- kunna se på tryckfilens namn vilken fixtur som ska användas,
+- se om skylten graveras eller printas och vilket fäste den har,
+- ha gravyrfilen lätt att hitta,
+- få en gravyrfil med alla skyltar och ungefär 5 mm mellanrum.
+
+Ägaren: "vi kan göra alltihopa", med villkoret att det bara gäller namnskylt.coms ordrar.
+
+- **Hos oss:** raden Märkning skickas nu alltid till verkstadens orderpapper, också "Endast gravyr"
+  (`specRows` i `src/lib/supplier/map.ts`). Förut stod den bara när något printades, så NS-1129
+  saknade den.
+- **Hos verkstaden, bara på fliken Namnskylt** (byggt i deras projekt):
+  - **A3-trycket:** en PDF per skyltsort och leverans. Sorten står i filnamnet, till exempel
+    `100465_nickel_60x30_3st.pdf` eller `100465_lev2_massing_63x32_oval_5st.pdf`. "Ladda ner alla"
+    ger en zip.
+  - **Namnlistan:** per namn står skyltsort, märkning och fäste ("Metall · Mässing · 60 × 30 mm ·
+    Endast print · Magnet"). Länkarna till gravyr- och tryckfilen visas bara när de gäller. Plast
+    har alltid en gravyrfil, eftersom den skärs ur ett ark. Metall har bara en tryckfil.
+  - **Avsnittet "Gravyr och skärning":** visar plastskyltarna och vilken produktionsorder som redan
+    har dem. Resten står som att de ligger i plastkön, eller hamnar där när ordern sätts i
+    Tillverkning.
+  - **Gravyrarket är verkstadens eget:** "Skapa produktionsorder" i plastkön på fliken lägger
+    alla skyltar på ett ark. **Produktionsordrar från vår kö får eget mellanrum, 5 mm**, inställt i
+    rutan på fliken. Det gäller både rektanglar och rundade former: ovaler, kuddar och egna former
+    har ett eget mellanrum hos dem. Verkstadens eget förval och deras egna produktionsordrar är
+    orörda.
+  - **Vad jag valde:** filnamnens förkortningar (`massing`, `nickel`, `vitmatt`, och plastens
+    färg i hela ord, `plast-gul-svart`), att formen står med när den inte är rektangel, och att
+    antalet står sist. Verkstadens egen färgkod med två bokstäver gick inte: Guld / Svart och
+    Gul / Svart blir båda `Gu-Sv`.
+- Provat lokalt 2026-11-24 med båda systemen och en order med alla slags skyltar (21 kontroller och
+  en rättning). Provdata är borttagen.
+- **Öppet med Mats:** om plast som printas trycks på skurna skyltar i en fixtur, som metallen
+  (då stämmer A3-uppläggen), eller på arket före skärningen.
+- **Känd brist:** plastens kudde heter "egen form" hos verkstaden, eftersom vi skickar den som fri
+  form.
+
 ## Mötet med verkstaden 2026-11-20: gjort och kvar
 
 Ägaren och Pär hade möte med Mats på Skylt & Gravyrteknik. Det som är byggt står i sina

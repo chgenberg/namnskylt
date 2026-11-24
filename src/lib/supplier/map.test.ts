@@ -119,10 +119,16 @@ describe("toSupplierSignDocument", () => {
       { label: "Märkning", value: "Endast print" },
     ]);
     // En plastskylt som graveras har bara fästet. Klämmans riktning står i fästets namn.
-    assert.deepEqual(toSupplierSignDocument(plasticBadge(["Anna"]), approxFonts).partnerSpecs, [{ label: "Fäste", value: "Nål" }]);
+    assert.deepEqual(toSupplierSignDocument(plasticBadge(["Anna"]), approxFonts).partnerSpecs, [
+      { label: "Fäste", value: "Nål" },
+      { label: "Märkning", value: "Endast gravyr" },
+    ]);
     const clip = toOfferedDocument({ ...plasticBadge(["Anna"]), size: { widthMm: 80, heightMm: 25 }, mounting: "clip", clipOrientation: "horizontal" });
     assert.equal(mountingLabel(clip), "Klämma, horisontellt");
-    assert.deepEqual(toSupplierSignDocument(clip, approxFonts).partnerSpecs, [{ label: "Fäste", value: "Klämma, horisontellt" }]);
+    assert.deepEqual(toSupplierSignDocument(clip, approxFonts).partnerSpecs, [
+      { label: "Fäste", value: "Klämma, horisontellt" },
+      { label: "Märkning", value: "Endast gravyr" },
+    ]);
     // Tryckfärgen står utan sitt ledord, eftersom raden redan heter Tryckfärg.
     const colored = toSupplierSignDocument({ ...createBadgeDocument(["Anna", "Säljare"]), printColor: "#0057B8" }, approxFonts);
     assert.deepEqual(colored.partnerSpecs?.find((row) => row.label === "Tryckfärg"), { label: "Tryckfärg", value: "#0057B8 (CMYK 100/53/0/28)" });
@@ -413,6 +419,7 @@ describe("det som printas skickas som ett trycklager", () => {
     // Texten och typsnittet står i klartext, på orderpappret och i kommentaren.
     assert.deepEqual(supplier.partnerSpecs, [
       { label: "Fäste", value: "Nål" },
+      { label: "Märkning", value: "Endast gravyr" },
       { label: "Typsnitt", value: "Pacifico" },
       { label: "Graverad text", value: "Anna Lind / Säljare" },
     ]);
