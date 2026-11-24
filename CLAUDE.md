@@ -2024,6 +2024,8 @@ slutar fungera). Rutan ersätter startrutan, som bara hade material, färg och f
 - Provat lokalt 2026-11-24 i Chrome på dator och 390 px (40 kontroller): alla sju steg, en logga
   uppladdad i rutan, magnet vald, Tillbaka, prickarna, att valen följer med till skyltmotorn, länken,
   Esc, att varukorgen fungerar och att inget sticker ut. Inte provat i Safari.
+- Ute i drift 2026-11-24 15:42 (`76c8717`). Kontrollerat genom läsning: startsidan öppnar rutan med
+  sju flikar, och skyltmotorn har länken.
 
 ## Offert från skyltmotorn — läge 2026-11-19
 
@@ -2699,8 +2701,13 @@ deras Resend.
 - **Bara nya ordrar får bilder:** en order som skickades före ändringen har ingen `partnerPreview`, och
   dess bekräftelse visar uppgifterna utan bild.
 - Provat lokalt 2026-11-24 med båda systemen: en order med 10 skyltar fick bildadress på alla rader,
-  alla bilder laddades, och bekräftelsen ritades och sågs på 700 och 390 px. **Inget riktigt mejl har
-  skickats**, och PDF-bilagan har inga bilder.
+  alla bilder laddades, och bekräftelsen ritades och sågs på 700 och 390 px. PDF-bilagan har inga
+  bilder.
+- **Ute i drift 2026-11-24:** vår del (`76c8717`) 15:42, verkstadens 15:51 efter deras granskning
+  (0 CRITICAL, 0 HIGH; fem mindre fynd rättade). Kontrollerat genom läsning: underlaget för NS-1129
+  bär bildadressen, bilden hämtas utan inloggning, och verkstadens sajt svarade likadant före och
+  efter. **Inget riktigt mejl med avsändaren Namnskylt har skickats än**: första ordern efter
+  utrullningen är första provet.
 
 ## Mejlmallen — läge 2026-11-18
 
