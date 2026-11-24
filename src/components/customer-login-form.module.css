@@ -9,3 +9,11 @@
   color: var(--color-danger);
   font-size: var(--text-sm);
 }
+
+.forgot {
+  justify-self: start;
+  font-size: var(--text-sm);
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

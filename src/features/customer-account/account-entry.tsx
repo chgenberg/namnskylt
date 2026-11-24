@@ -37,11 +37,10 @@ export function AccountEntry({ shop, sellerName }: AccountEntryProps) {
         </header>
         <Segmented label="Logga in eller skapa konto" value={mode} options={MODES} onChange={setMode} />
         {mode === "login" ? <CustomerLoginForm shop={shop} onSignedIn={enter} autoFocus /> : <RegisterForm shop={shop} onCreated={enter} />}
-        <p className={styles.foot}>
-          {mode === "login"
-            ? `Glömt lösenordet? Hör av dig till ${sellerName}, så får du en länk där du väljer ett nytt.`
-            : "Uppgifterna går att ändra senare under Mitt konto, och uppdateras när du beställer."}
-        </p>
+        {/* "Glömt lösenordet?" står i inloggningsformuläret, med en länk till sidan där kunden ber om en ny. */}
+        {mode === "register" && (
+          <p className={styles.foot}>Uppgifterna går att ändra senare under Mitt konto, och uppdateras när du beställer.</p>
+        )}
         {!shop && (
           <p className={styles.reseller}>
             Är du återförsäljare?{" "}

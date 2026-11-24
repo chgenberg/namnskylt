@@ -43,6 +43,8 @@ export function accountPaths(shop: string | null) {
     designer: `${base}/skapa`,
     /** Länken där kunden väljer nytt lösenord. */
     password: (token: string) => `${base}/konto/losenord/${token}`,
+    /** "Glömt lösenordet?": kunden ber om en länk till sin e-post. */
+    forgot: `${base}/konto/glomt`,
     /** Skyltmotorn med en tidigare order i varukorgen. */
     reorder: (orderNo: string) => `${base}/skapa?igen=${encodeURIComponent(orderNo)}`,
   };

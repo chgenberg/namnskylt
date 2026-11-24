@@ -11,10 +11,14 @@ const VALID_DAYS = 3;
  * och skickar den själv, eftersom sajten inte skickar mejl. Äldre länkar för
  * kontot slutar gälla. Koden finns bara i svaret: i databasen ligger dess SHA-256.
  */
-export async function createCustomerAccessLink(accountId: string): Promise<{ token: string; expiresAt: string }> {
+export async function createCustomerAccessLink(
+  accountId: string,
+  /** Hur länge länken gäller. En länk som kunden själv ber om ("Glömt lösenordet?") gäller kortare. */
+  validMs: number = VALID_DAYS * 24 * 60 * 60 * 1000,
+): Promise<{ token: string; expiresAt: string }> {
   const sql = requireDb();
   const token = newToken();
-  const expiresAt = new Date(Date.now() + VALID_DAYS * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + validMs);
   await sql.begin(async (tx) => {
     await tx`update customer_access_links set used_at = now() where account_id = ${accountId} and used_at is null`;
     await tx`insert into customer_access_links (token_hash, account_id, expires_at) values (${tokenHash(token)}, ${accountId}, ${expiresAt})`;

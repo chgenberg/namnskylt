@@ -6,7 +6,7 @@ import { lookupNumber, type CompanyHit } from "@/lib/company/lookup-model";
 /** Så länge väntar uppslaget efter senaste tangenttrycket, så att ett nummer som skrivs frågas en gång. */
 const DELAY_MS = 300;
 
-export type CompanyLookupStatus = "idle" | "loading" | "found" | "missing";
+export type CompanyLookupStatus = "idle" | "loading" | "found" | "missing" | "unavailable";
 
 interface CompanyLookup {
   status: CompanyLookupStatus;
@@ -55,7 +55,7 @@ export function useCompanyLookup(onFound: (company: CompanyHit) => void): Compan
         const controller = new AbortController();
         request.current = controller;
         fetch(`/api/company/lookup?orgNumber=${digits}`, { signal: controller.signal })
-          .then((response) => (response.ok ? (response.json() as Promise<{ found?: boolean; company?: CompanyHit }>) : null))
+          .then((response) => (response.ok ? (response.json() as Promise<{ found?: boolean; company?: CompanyHit; unavailable?: boolean }>) : null))
           .then((body) => {
             if (controller.signal.aborted) return;
             if (body?.found && body.company) {
@@ -64,7 +64,8 @@ export function useCompanyLookup(onFound: (company: CompanyHit) => void): Compan
             } else {
               // Utan svar (sajten är låst, gränsen är nådd eller något gick fel) sägs ingenting:
               // bara ett riktigt svar får påstå att numret inte finns i registret.
-              setStatus(body ? "missing" : "idle");
+              // Bara registrets eget svar säger att numret saknas. Svarade det inte sägs det, utan påstående om numret.
+              setStatus(body?.unavailable ? "unavailable" : body ? "missing" : "idle");
             }
           })
           .catch(() => {
@@ -82,5 +83,6 @@ export function useCompanyLookup(onFound: (company: CompanyHit) => void): Compan
 export function companyLookupNote(status: CompanyLookupStatus): string | null {
   if (status === "loading") return "Hämtar företagets uppgifter…";
   if (status === "found") return "Företagets uppgifter är hämtade ur EU:s momsregister. Kontrollera att de stämmer.";
+  if (status === "unavailable") return "Momsregistret svarar inte just nu. Fyll i uppgifterna själv.";
   return status === "missing" ? "Vi hittade inga uppgifter för numret. Fyll i dem själv." : null;
 }

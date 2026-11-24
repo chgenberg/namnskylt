@@ -178,6 +178,9 @@ export function OnboardingDialog({ doc, fonts, steps, names, onClose }: Onboardi
                   onPhotoProgress={noop}
                   recorderRef={recorderRef}
                   cameraZ={PREVIEW_CAMERA_Z}
+                  // Skylten snurrar: kameran backar tills hela skylten ryms också när den är vriden, så att den
+                  // aldrig klipps i rutans kant (ägaren 2026-11-24: "för liten yta att skylten ska synas när det snurrar").
+                  fit
                   onReady={() => setCanvasReady(true)}
                 />
               </div>

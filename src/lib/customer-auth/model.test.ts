@@ -41,6 +41,7 @@ describe("kundkontots plats", () => {
     assert.equal(shop.home, "/butik/exempel-profil/konto");
     assert.equal(shop.login, "/butik/exempel-profil/konto/logga-in");
     assert.equal(shop.password("abc"), "/butik/exempel-profil/konto/losenord/abc");
+    assert.equal(shop.forgot, "/butik/exempel-profil/konto/glomt");
     assert.equal(shop.reorder("NS-1052"), "/butik/exempel-profil/skapa?igen=NS-1052");
   });
 

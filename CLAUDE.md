@@ -39,8 +39,10 @@ Läs dessa när du arbetar i respektive område:
   - **Det tredje undantaget är mejlen till återförsäljare och butikskunder**, som ägaren bad
     om och slog på 2026-11-21: besked till en återförsäljares panel, länken för glömt
     lösenord, och orderbekräftelsen och fraktbeskedet till en kund som har beställt i en
-    återförsäljares butik. De har sin egen strömbrytare, `NOTICE_RESEND_API_KEY` och
-    `NOTICE_FROM_EMAIL`, satta på Railway på ägarens begäran. Ändra dem inte och ta inte
+    återförsäljares butik. Sedan 2026-11-24 också länken för glömt lösenord till en kunds
+    konto, på namnskylt.com och i butikerna (ägarens "glömt lösenord saknas" och "Pusha").
+    De har sin egen strömbrytare, `NOTICE_RESEND_API_KEY` och `NOTICE_FROM_EMAIL`, satta
+    på Railway på ägarens begäran. Ändra dem inte och ta inte
     bort dem utan att ägaren säger till. **En direktorder hos namnskylt.com får aldrig
     orderbekräftelse eller fraktbesked härifrån**: verkstadens system mejlar kunden, och
     annars får kunden två mejl. Se avsnittet Mejl från sajten.
@@ -75,7 +77,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1467 tester, grönt 2026-11-24).
+# Kvalitetsgrinden. Kör den innan något lämnas (1472 tester, grönt 2026-11-24).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -3682,6 +3684,39 @@ och "Också i återförsäljarnas butiker"). Det är ett tredje inlogg, skilt fr
   - Återförsäljarnas och adminens inloggning (`/api/reseller/session`, `/api/admin/session`)
     har inte kontrollen `isSameSiteJson`. Den som luras logga in där hamnar i fel panel, vilket
     syns direkt, men det är samma slags lucka och inte åtgärdat.
+
+## Rättat 2026-11-24 efter ägarens prov
+
+- **Glömt lösenord för kundkonton** (ägaren: "glömt lösenord saknas", med en bild av
+  inloggningen i varukorgen).
+  - Inloggningsformuläret har länken "Glömt lösenordet?", både på `/konto/logga-in` och i
+    varukorgen. Den går till `/konto/glomt` eller `/butik/<slug>/konto/glomt`.
+  - Kunden skriver sin adress och får en länk som gäller i två timmar
+    (`requestCustomerPasswordReset` i `src/lib/customer-auth/forgot.ts`).
+  - Svaret är detsamma oavsett om adressen har ett konto, och formuläret har gränser per klient och
+    per adress.
+  - Mejlet går via samma strömbrytare som återförsäljarnas lösenordslänk (`NOTICE_RESEND_API_KEY`).
+    Med strömbrytaren av hänvisar sidan till säljaren.
+  - I en butik bär mejlet butikens namn och utseende och nämner inte namnskylt.com.
+  - Fotnoten "Hör av dig till …" på inloggningssidan är borta.
+  - Provat lokalt mot en låtsasmottagare, på namnskylt.com och i en butik: länken i mejlet, nytt
+    lösenord, inloggning med det, och att länken inte går att använda igen. En okänd adress fick samma
+    svar men inget mejl.
+- **Uppslaget på organisationsnummer sa "Vi hittade inga uppgifter" när momsregistret inte svarade
+  i tid.** Ägaren fick det för ett nummer som registret känner.
+  - Nu skiljer uppslaget på finns, finns inte och svarar inte (`CompanyLookup` i
+    `src/lib/company/lookup.ts`). Det gör ett nytt försök när registret inte svarar, och varje
+    försök får 8 sekunder i stället för 6.
+  - Svarar registret inte säger kassan "Momsregistret svarar inte just nu. Fyll i uppgifterna själv."
+    Bara registrets eget svar får säga att numret saknas.
+  - Före rättningen gav drift `found: false` för både IKEA och Skylt & Gravyrteknik, som båda finns i
+    registret.
+- **Offerten efter en lagd order** gällde editorns nya skylt, som bara hade loggan kvar ("Utan
+  text"), fast skärmen visade den beställda. Nu gäller offerten de beställda skyltarna
+  (`orderedGroups`, `quoteBadges` i `designer.tsx`) tills kunden börjar på en ny skylt.
+- **Stegrutans förhandsvisning** klippte skylten när den snurrade (ägaren: "för liten yta att
+  skylten ska synas när det snurrar"). Kameran står nu så att hela skylten ryms också vriden
+  (`fit`). Provat på 1 440, 1 100, 820 och 390 px.
 
 ## Radering — läge 2026-11-15
 

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { signInRequest } from "@/lib/customer-auth/client";
+import { accountPaths } from "@/lib/customer-auth/model";
 import type { CustomerAccountView } from "@/lib/customer-auth/model";
 import styles from "./customer-login-form.module.css";
 
@@ -64,6 +65,10 @@ export function CustomerLoginForm({ shop, onSignedIn, autoFocus = false }: Custo
       <button type="submit" className="btn btn--primary btn--block" disabled={sending}>
         {sending ? "Loggar in…" : "Logga in"}
       </button>
+      {/* Kunden ber själv om en länk för nytt lösenord (besked av ägaren 2026-11-24). */}
+      <a href={accountPaths(shop).forgot} className={styles.forgot}>
+        Glömt lösenordet?
+      </a>
     </form>
   );
 }

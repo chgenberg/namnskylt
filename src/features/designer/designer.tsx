@@ -247,7 +247,8 @@ export function Designer({
    * 2026-11-24: efter ordern visades en tom skylt, "precis som att den påbörjar en ny order"). En order
    * med flera designer visar den senast tillagda, som varukorgen gör.
    */
-  const [orderedDoc, setOrderedDoc] = useState<BadgeDocument | null>(null);
+  const [orderedGroups, setOrderedGroups] = useState<BadgeGroup[] | null>(null);
+  const orderedDoc = orderedGroups?.at(-1)?.doc ?? null;
   /** Platsen i sidhuvudet där varukorgens symbol sitter. Utan sidhuvud ligger symbolen fast över sidan. */
   const [cartSlot, setCartSlot] = useState<{ element: Element | null } | null>(null);
   useEffect(() => {
@@ -313,6 +314,15 @@ export function Designer({
     [batchEntries, doc, cartBadges.length],
   );
   const orderBadges = useMemo(() => (pending ? cartBadges : [...cartBadges, doc, ...batch]), [pending, cartBadges, doc, batch]);
+  /**
+   * Efter en lagd order visas den beställda skylten tills kunden börjar på en ny. Offerten gäller då det
+   * kunden ser, de beställda skyltarna, och inte editorns nya skylt, som bara har loggan kvar (ägaren
+   * 2026-11-24: offerten visade "Utan text" fast skylten på skärmen var den beställda).
+   */
+  const quoteBadges = useMemo(
+    () => (orderedGroups ? orderedGroups.flatMap((group) => groupBadges(group)) : orderBadges),
+    [orderedGroups, orderBadges],
+  );
   const priceList = usePriceList();
   /**
    * Offerten på skyltens plats (knappen Offert, beslut av ägaren 2026-11-19). Den gäller varukorgen och
@@ -322,6 +332,7 @@ export function Designer({
   const finishQuote = () => {
     // Offerten är sparad: varukorgen och skylten börjar om, som efter en lagd order.
     cartShot.current = null;
+    setOrderedGroups(null);
     setQuoteShot(null);
     setCart([]);
     setBatchText("");
@@ -336,7 +347,7 @@ export function Designer({
     self: selfQuote,
     shop,
     account,
-    badges: orderBadges,
+    badges: quoteBadges,
     priceList,
     fonts,
     active: view === "quote",
@@ -422,7 +433,7 @@ export function Designer({
     // Efter en lagd order sparas inget förrän kunden börjar på något nytt. Det gör hen nu.
     resumeSaving();
     // Den beställda skylten ger plats för den nya så fort något ändras.
-    setOrderedDoc(null);
+    setOrderedGroups(null);
     if (isChoice(action)) track("choice");
     // En ny skylt räknas in i ordern så fort den ändras.
     setPending(false);
@@ -538,7 +549,7 @@ export function Designer({
   /** Kastar det som lästes tillbaka: skyltmotorn som den öppnades, med tom varukorg. */
   const startOver = () => {
     saved.dismiss();
-    setOrderedDoc(null);
+    setOrderedGroups(null);
     setCart([]);
     setBatchText("");
     setPending(false);
@@ -962,7 +973,7 @@ export function Designer({
             // Återförsäljaren skickas vidare till panelen. Kundens kvitto står kvar i en tom varukorg,
             // och skylten som beställdes står kvar i 3D.
             if (!reseller) {
-              setOrderedDoc(cart[cart.length - 1]?.doc ?? null);
+              setOrderedGroups(cart.length > 0 ? cart : null);
               cartShot.current = null;
               setCart([]);
               setPending(false);

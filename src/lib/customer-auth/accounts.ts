@@ -42,6 +42,13 @@ export async function customerAccountExists(shop: string | null, email: string):
   return Boolean(row);
 }
 
+/** Kontots id för en e-postadress på ett ställe (namnskylt.com eller en butik), eller `null`. */
+export async function customerAccountIdByEmail(shop: string | null, email: string): Promise<string | null> {
+  const sql = requireDb();
+  const [row] = await sql<{ id: string }[]>`select id from customer_accounts where ${inScope(sql, shop)} and email = ${normalizeEmail(email)}`;
+  return row?.id ?? null;
+}
+
 /** Skapar kontot. `null` när e-postadressen redan har ett konto på samma ställe. */
 export async function createCustomerAccount(input: {
   shop: string | null;
