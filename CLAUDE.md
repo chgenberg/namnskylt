@@ -3175,6 +3175,11 @@ via ägaren 2026-11-24):
     Gul / Svart blir båda `Gu-Sv`.
 - Provat lokalt 2026-11-24 med båda systemen och en order med alla slags skyltar (21 kontroller och
   en rättning). Provdata är borttagen.
+- **Ute i drift 2026-11-24:** verkstadens del cirka 14:21, efter deras granskning (två HIGH rättade:
+  plastfärger som krockade i filnamnet, och mellanrummet för rundade former), och vår del (`f450100`)
+  14:18. Verkstadens sajt svarade likadant före och efter. **Ingen ny order har gått genom de nya
+  delarna i drift än**, och NS-1129 ligger kvar hos verkstaden utan raden Märkning, eftersom den
+  skickades före ändringen.
 - **Öppet med Mats:** om plast som printas trycks på skurna skyltar i en fixtur, som metallen
   (då stämmer A3-uppläggen), eller på arket före skärningen.
 - **Känd brist:** plastens kudde heter "egen form" hos verkstaden, eftersom vi skickar den som fri
