@@ -75,7 +75,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1466 tester, grönt 2026-11-23).
+# Kvalitetsgrinden. Kör den innan något lämnas (1467 tester, grönt 2026-11-24).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -1372,6 +1372,53 @@ ingen riktig order lagts.
   - Efter att en offert har godkänts står tacket i kortet, men sidans rubrik byts först
     när sidan laddas om.
 
+## Genomgången av kedjan till verkstaden inför start, 2026-11-24
+
+Ägaren bad om en kontroll av hela flödet från namnskylt.com till Skylt & Gravyrteknik, och vad som
+krävs innan sajten öppnas ("se till att det blir helt rätt med flödet från namnskylt till skylt och
+gravyrs produktion, så att vi kan starta igång namnskylt.com").
+
+- **Läget i drift, bara läsning:** sajtlösenordet är på. Kortbetalningen och utskickets nyckel är
+  tomma, och kopplingen, offertmejlet, adminens besked och mejlen till återförsäljare är på.
+  Felloggen är tom och inget utskick har fastnat. Två riktiga ordrar har gått till verkstaden:
+  en återförsäljares (NS-1112, 19 nov) och en direktorder (NS-1127, 5 skyltar, verkstadens order
+  100429, "I produktion" sedan 21 nov). Admin har fortfarande demodata (3 påhittade ordrar).
+- **Kedjan provad lokalt med båda systemens riktiga kod**, Namnskylt på 3123 mot verkstadens sajt
+  på 3000. Tre ordrar lades genom `POST /api/orders` med skyltar byggda ur inspirationsbanken:
+  - tio namn på mässing med print i två färger,
+  - en egen CMYK-kod,
+  - klämman på lång rektangel, två exemplar,
+  - nickelovalen med en logga i färg,
+  - plast med Pacifico,
+  - kudden med logga som printas,
+  - den egna formen,
+  - en upphämtning i Högsbo.
+
+  Det här kom fram eller fungerade:
+  - Summorna är exakt lika i båda systemen.
+  - Fraktsätten, inköpsnumret i märkningen och specifikationen kom fram.
+  - Orderpappret har egna rader för fäste, ämne, märkning, tryckfärg, typsnitt, följesedel och
+    packning.
+  - Varje skylt har en produktionsfil, och allt som printas har ett tryckoriginal.
+  - Ordrarna syns bara på fliken Namnskylt och i deras plastkö för oss, inte i deras egna listor.
+  - Uppdelningen i två leveranser gav Namnskylt 75 kr extra frakt och samma summa, 2 238 kr.
+  - A3-uppläggen kom per leverans.
+  - Skickad med spårning per leverans nådde kundens ordersida.
+  - Följesedlarna kom som PDF.
+  - Verkstadens mejl till kunden (bekräftelse, skickad, klar för upphämtning) skickades, i deras
+    låtsassändare.
+
+  Provdata är borttagen i båda databaserna.
+- **Rättat:** en order som hämtas i Högsbo stod som "Skickad" på kundens ordersida när verkstaden
+  satte den till Skickad, som är deras läge för "klar för upphämtning". Kundens rubrik och
+  tidslinje säger nu "Klar att hämta" och "Hämtad" (`customerHead`, `customerTimeline` med
+  `pickup` i `src/lib/orders/customer-view.ts`). Mitt konto och panelen säger fortfarande Skickad.
+- **Beslutat samma dag:** sajten startar med bara företag, på faktura (se Kassan, betalning och
+  köpvillkor).
+- **Inte provat i drift:** A3-upplägget via verkstadens bucket, verkstadens mejl och
+  orderbekräftelsen som PDF i en riktig brevlåda, fakturan från Fortnox till kundens pris, en
+  uppdelad order och att trycket i CMYK blir rätt i RIP:en.
+
 ## Ordern till verkstaden — läge 2026-11-14
 
 Återförsäljaren är ett säljverktyg ovanpå verkstaden: den designar åt sina kunder, skickar offert
@@ -1604,6 +1651,14 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   (`shownFromCart`, `stageDoc` i `designer.tsx`), med raden "Skylten ligger i varukorgen.
   Skriv ett namn för att börja på nästa." Så fort nästa skylt påbörjas visas den. Ritningen
   och På person visar fortfarande skylten i editorn, eftersom det är den som ändras där.
+  - **Samma sak efter en lagd order** (besked av ägaren 2026-11-24: efter ordern gick skylten
+    "tillbaka till grundskylten utan namn ... precis som att den påbörjar en ny order"). Varukorgen
+    töms när ordern är mottagen, så förut försvann den sista skylten ur 3D-vyn. Nu sparas den
+    senast tillagda skylten i ordern (`orderedDoc` i `designer.tsx`) och visas i 3D med raden
+    "Det här är skylten du beställde. Skriv ett namn för att börja på en ny.", också på telefon.
+    Den försvinner så fort kunden ändrar något, och med "Börja om". Efter en omladdning är den
+    borta, liksom kvittot. Gäller kunder; en återförsäljare skickas till panelen efter ordern.
+    Provat lokalt i Chrome på dator och 390 px (8 kontroller).
 - **Listan under "Fler namn" står kvar när bara en skylt är kvar** (besked av ägaren
   2026-11-18: "tar jag bort 3 av 4 så försvinner även den 4e"). Listan visades bara med flera
   skyltar, så när den näst sista togs bort försvann hela listan, fast skylten i editorn fanns
@@ -2640,6 +2695,12 @@ olika utskick som går via Resend"). Mallen ligger i `src/lib/email/layout.ts`.
 Beslut av ägaren 2026-11-15, samma upplägg som hos Skylt & Gravyrteknik: **företag beställer
 på faktura, privatpersoner betalar med kort.**
 
+**Sajten startar med bara företag** (beslut av ägaren 2026-11-24: "vi ska starta med bara företag,
+eftersom vi inte ska ha någon kortbetalning mot privatpersoner ännu"). Kortbetalningen förblir
+avstängd vid start, så kassan visar inget val för privatperson och kräver organisationsnummer.
+Verkstadens köpvillkor, som står ordagrant på `/villkor`, nämner ändå att privatpersoner betalar
+med kort. Det är deras text och är inte ändrad.
+
 - **Företag:** kassan kräver företagsnamn och organisationsnummer (tio siffror,
   `orgNumberSchema` i `src/lib/company/org-number.ts`), både på namnskylt.com och i butikerna.
   Numret sparas på kunden (`customers.org_number`). Ordern läggs direkt, som förut.
@@ -3030,6 +3091,53 @@ den automatiska behörighetskontrollen nekade mig att hämta databasens lösenor
     länken från en produktionsorder med bara våra rader går till deras egen kö.
   - Webhooken tar emot besked upp till 128 000 tecken (förut 16 000), eftersom ett besked med
     många leveranser annars nekades och statusen för ordern tappades.
+
+## Tryckupplägg på A3 hos verkstaden — läge 2026-11-24
+
+Verkstaden får våra printade skyltar lagda på A3 i stället för ett tryckoriginal per skylt (besked
+av ägaren 2026-11-24: "Så vi inte får kanske 200st tryckoriginal per order. Det e bättre att dom
+läggs i färdiga upplägg där upplägget är max A3 storlek", och "Om det sedan ska bli 3 olika
+adresser som skickas i samma order så får det bli tre upplägg"). **Allt är byggt i verkstadens
+projekt** (ägarens ja samma dag, "Det är viktigt att ingenting annat ändras"), eftersom
+tryckoriginalen ritas där. **Namnskylt är inte ändrat**: vi skickar samma dokument som förut.
+**Utrullat hos verkstaden 2026-11-24 cirka 12:00**, av verkstadssessionen tillsammans med deras
+"Lägg till produkt till order" och på ägarens besked. Deras grind var grön och sajten svarade
+likadant före och efter. Kontrollerat i drift efteråt, bara läsning: nedladdningen svarar 403
+utan inloggning och fliken leder till inloggningen. **Inget upplägg är laddat ner i drift**:
+det kräver en riktig order med något som printas.
+
+- **Var:** fliken Produktion → Namnskylt hos verkstaden. Orderns leveranssida har avsnittet
+  "Tryckupplägg (A3)" med en PDF per leverans, eller en för hela ordern när den inte är
+  uppdelad, och en lista över vilken skylt som ligger på vilken plats. Fliken har rutan
+  "Tryckupplägg på A3" med avstånden.
+- **Upplägget:** skyltarnas egna tryckoriginal, oförändrade (samma CMYK), på A3 rad för rad från
+  övre vänstra hörnet. Varje sida har ett enda slags ämne (material, färg och mått), en skylt med
+  antal 3 ligger tre gånger i rad, och skyltarna vrids aldrig. En skylt som bara graveras finns
+  inte i upplägget, och sidan säger hur många.
+- **Avstånden är en inställning, inte kod:** mellan skyltarna i sidled och höjdled, kanten från
+  arkets kant och A3 stående eller liggande. **Förvalet, 4 mm emellan och 10 mm kant, stående,
+  valde jag** tills ägaren har Mats exakta mått. 4 mm är det vi själva räknar med mellan ämnena
+  (`BLANK_GAP_MM`). Mats eller ägaren skriver in måtten på fliken, och uppläggen ritas om direkt.
+  - 60 × 30 mm ger 44 skyltar per sida stående (4 × 11) och 48 liggande (6 × 8).
+- **Inte gjort, och kan behövas när Mats svarar:** pass- eller hörnmärken, en fast jigg där
+  platserna inte följer ett rutnät, en kant som skiljer upptill och till vänster, och upplägg för
+  det som graveras i plast (plastkön har redan sina ark). Inget av det går att gissa.
+- Rättat på vägen hos verkstaden, från utrullningen 2026-11-23: på en 390 px bred telefon bredde
+  fliken Namnskylts orderlista ut sidan 340 px, leveransformuläret 27 px, och produktionens
+  flikrad 40 px på alla deras produktionssidor sedan fliken Namnskylt kom till. Flikraden rullar
+  nu i sidled under 640 px; på dator är den som förut.
+- **Filen går via verkstadens bucket**, med en länk som gäller en kvart, som deras arkvy: ett svar
+  från deras server får vara högst 6 MB, och en logga i färg ligger i varje skyltens original.
+  Följden är att varje nedladdning lämnar en fil med kundens namn i bucketen, som saknar regel
+  för att städa (samma som deras arkvy). PDF:en sparas utan objektströmmar, som deras övriga
+  tryckfiler, för RIP:ens skull.
+- Provat lokalt 2026-11-24 mot verkstadens sajt (28 kontroller), med en provorder på 52 rader
+  som lades direkt med deras mottagare, utan mejl: två A3-sidor för hela ordern, en sida per
+  leverans när den delades i två, liggande A3, CMYK som i skyltens original, ett felskrivet mått
+  som nekas, och inget som sticker ut på 390 px. Provdata är borttagen. Vägen via bucketen går
+  inte att prova lokalt, där svarar servern med filen direkt.
+- Verkstadens bug-hunt: två HIGH (svarets storlek och objektströmmarna) och tre MEDIUM, alla
+  rättade, och omgranskningen gav 0 CRITICAL och 0 HIGH.
 
 ## Mötet med verkstaden 2026-11-20: gjort och kvar
 

@@ -11,8 +11,23 @@ const HEAD: Record<OrderStatus, { title: string; text: string }> = {
   cancelled: { title: "Ordern är avbruten", text: "Hör av dig om det inte stämmer." },
 };
 
-export function customerHead(status: OrderStatus): { title: string; text: string } {
-  return HEAD[status];
+/**
+ * En order som hämtas i Högsbo. Verkstaden sätter den till Skickad när skyltarna är klara att hämta
+ * (deras mejl säger "klar för upphämtning"), och till Levererad när de är hämtade. "Skickad" och "på
+ * väg till adressen" stämmer då inte för kunden.
+ */
+const PICKUP_HEAD: Partial<Record<OrderStatus, { title: string; text: string }>> = {
+  received: { title: "Vi har tagit emot din order", text: "Skyltarna går till tillverkningen. Du ser här när de är klara att hämta." },
+  approved: { title: "Korrekturet är godkänt", text: "Skyltarna går till tillverkningen. Du ser här när de är klara att hämta." },
+  "in-production": { title: "Dina skyltar tillverkas", text: "Du får besked när de är klara att hämta i Högsbo." },
+  shipped: { title: "Dina skyltar är klara att hämta", text: "Hämta dem hos Skylt & Gravyrteknik i Högsbo." },
+  delivered: { title: "Dina skyltar är hämtade", text: "Tack för din beställning." },
+};
+
+const PICKUP_LABEL: Partial<Record<OrderStatus, string>> = { shipped: "Klar att hämta", delivered: "Hämtad" };
+
+export function customerHead(status: OrderStatus, pickup = false): { title: string; text: string } {
+  return (pickup ? PICKUP_HEAD[status] : undefined) ?? HEAD[status];
 }
 
 export interface TimelineStep {
@@ -27,9 +42,10 @@ export interface TimelineStep {
 /**
  * Orderns väg som kunden ser den. Korrekturen är valfri: stegen för den visas
  * bara när ett korrektur faktiskt skickades. En avbruten order har ingen
- * tidslinje.
+ * tidslinje. En order som hämtas heter "Klar att hämta" och "Hämtad" i stället
+ * för "Skickad" och "Levererad".
  */
-export function customerTimeline(status: OrderStatus, events: readonly OrderEvent[]): TimelineStep[] {
+export function customerTimeline(status: OrderStatus, events: readonly OrderEvent[], pickup = false): TimelineStep[] {
   if (status === "cancelled") return [];
   const reached = new Map<OrderStatus, string>();
   for (const event of events) if (!reached.has(event.status)) reached.set(event.status, event.at);
@@ -38,7 +54,7 @@ export function customerTimeline(status: OrderStatus, events: readonly OrderEven
   const currentIndex = steps.indexOf(status);
   return steps.map((step, index) => ({
     status: step,
-    label: ORDER_STATUS_LABEL[step],
+    label: (pickup ? PICKUP_LABEL[step] : undefined) ?? ORDER_STATUS_LABEL[step],
     at: reached.get(step) ?? null,
     done: index <= currentIndex,
     current: index === currentIndex,

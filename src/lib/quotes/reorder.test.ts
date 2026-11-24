@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { createBadgeDocument, resellerOrder, toOfferedDocument, type BadgeDocument } from "@/engine";
 import { DEFAULT_PRICE_MODEL } from "@/engine/default-price-model";
-import { customerTimeline } from "@/lib/orders/customer-view";
+import { customerHead, customerTimeline } from "@/lib/orders/customer-view";
 import type { DeliveryAddress } from "@/lib/orders/delivery";
 import { priceListsFor, shippingFor } from "@/lib/orders/price-lists";
 import { acceptedDelivery } from "./accept";
@@ -120,5 +120,14 @@ describe("orderns tidslinje för kunden", () => {
 
   it("har ingen tidslinje för en avbruten order", () => {
     assert.deepEqual(customerTimeline("cancelled", [at("received", "10")]), []);
+  });
+
+  it("en order som hämtas i Högsbo är Klar att hämta och Hämtad, inte Skickad och Levererad", () => {
+    const steps = customerTimeline("shipped", [at("received", "10"), at("shipped", "12")], true);
+    assert.deepEqual(steps.map((step) => step.label), ["Mottagen", "I produktion", "Klar att hämta", "Hämtad"]);
+    assert.equal(customerHead("shipped", true).title, "Dina skyltar är klara att hämta");
+    assert.equal(customerHead("shipped").title, "Dina skyltar är skickade");
+    // Ett steg som inte har något eget för upphämtning behåller sin vanliga text.
+    assert.equal(customerHead("proof-sent", true).title, customerHead("proof-sent").title);
   });
 });

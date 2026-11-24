@@ -44,10 +44,10 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
     "--brand-on": readableOn(company.primaryColor),
     "--brand-accent": company.accentColor,
   } as React.CSSProperties;
-  const head = customerHead(order.status);
-  const timeline = customerTimeline(order.status, order.events);
-  const priced = priceWithPricing(order.badges, order.pricing, order.priceList, order.shippingSek);
   const method = shippingMethodOf(order.delivery);
+  const head = customerHead(order.status, method === "pickup");
+  const timeline = customerTimeline(order.status, order.events, method === "pickup");
+  const priced = priceWithPricing(order.badges, order.pricing, order.priceList, order.shippingSek);
   // Expressfraktens pris sätts av verkstaden i efterhand. Tills dess är summan utan frakt.
   const expressPending = method === "express" && order.expressShippingSek === null;
   const mode = reorderMode({ status: order.status, badges: order.badges, paid: order.payment !== null, erased: false });

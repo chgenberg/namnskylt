@@ -241,6 +241,12 @@ export function Designer({
   const [ordered, setOrdered] = useState(false);
   /** Kassan börjar om från början efter en lagd order. */
   const [checkoutRound, setCheckoutRound] = useState(0);
+  /**
+   * Skylten kunden just beställde. Den visas i 3D tills kunden börjar på nästa skylt (besked av ägaren
+   * 2026-11-24: efter ordern visades en tom skylt, "precis som att den påbörjar en ny order"). En order
+   * med flera designer visar den senast tillagda, som varukorgen gör.
+   */
+  const [orderedDoc, setOrderedDoc] = useState<BadgeDocument | null>(null);
   /** Platsen i sidhuvudet där varukorgens symbol sitter. Utan sidhuvud ligger symbolen fast över sidan. */
   const [cartSlot, setCartSlot] = useState<{ element: Element | null } | null>(null);
   useEffect(() => {
@@ -298,7 +304,7 @@ export function Designer({
    * försvinner"). Så fort nästa skylt påbörjas visas den i stället.
    */
   const shownFromCart = pending && cart.length > 0 ? (cart[cart.length - 1]?.doc ?? null) : null;
-  const stageDoc = shownFromCart ?? doc;
+  const stageDoc = shownFromCart ?? orderedDoc ?? doc;
   const batchEntries = useMemo(() => parseBatchInput(batchText, Infinity), [batchText]);
   const batch = useMemo(
     // Ordern rymmer MAX_ORDER_BADGES skyltar, med dem som redan ligger där inräknade.
@@ -414,6 +420,8 @@ export function Designer({
     if (action.type === "logo/original" || action.type === "logo/engraving") return;
     // Efter en lagd order sparas inget förrän kunden börjar på något nytt. Det gör hen nu.
     resumeSaving();
+    // Den beställda skylten ger plats för den nya så fort något ändras.
+    setOrderedDoc(null);
     if (isChoice(action)) track("choice");
     // En ny skylt räknas in i ordern så fort den ändras.
     setPending(false);
@@ -529,6 +537,7 @@ export function Designer({
   /** Kastar det som lästes tillbaka: skyltmotorn som den öppnades, med tom varukorg. */
   const startOver = () => {
     saved.dismiss();
+    setOrderedDoc(null);
     setCart([]);
     setBatchText("");
     setPending(false);
@@ -687,6 +696,11 @@ export function Designer({
           ) : view === "3d" && stageNote ? (
             <p className={styles.hint} role="status">
               {stageNote}
+            </p>
+          ) : view === "3d" && !shownFromCart && orderedDoc ? (
+            // Ordern är lagd: bilden är den beställda skylten, och fälten i panelen gäller nästa.
+            <p className={styles.hint} role="status">
+              Det här är skylten du beställde. Skriv ett namn för att börja på en ny.
             </p>
           ) : view === "3d" && shownFromCart ? (
             // Skylten på bilden ligger redan i varukorgen: fälten i panelen gäller nästa skylt.
@@ -919,8 +933,10 @@ export function Designer({
             forgetReorderInAddress();
             // Ordern är lagd: varukorgen ska inte komma tillbaka nästa gång.
             saved.finish();
-            // Återförsäljaren skickas vidare till panelen. Kundens kvitto står kvar i en tom varukorg.
+            // Återförsäljaren skickas vidare till panelen. Kundens kvitto står kvar i en tom varukorg,
+            // och skylten som beställdes står kvar i 3D.
             if (!reseller) {
+              setOrderedDoc(cart[cart.length - 1]?.doc ?? null);
               cartShot.current = null;
               setCart([]);
               setPending(false);
