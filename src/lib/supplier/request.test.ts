@@ -95,6 +95,20 @@ describe("ordern till verkstaden", () => {
     assert.equal(buildSupplierRequest(input([named("Anna Lind")])).lines[0]?.document.partnerSpecs?.some((row) => row.label === "Följesedel"), false);
   });
 
+  it("varje skylt får sin bild, med samma nummer som radens referens", () => {
+    const signImage = (line: number) => `https://www.namnskylt.com/f/0a1b2c3d4e5f/skylt/${line}.png`;
+    const request = buildSupplierRequest(input([named("Anna Lind"), named("Kalle Ek", 3)], { signImage }));
+    assert.deepEqual(
+      request.lines.map((line) => [line.reference.split("-").at(-1), line.document.partnerPreview]),
+      [
+        ["1", "https://www.namnskylt.com/f/0a1b2c3d4e5f/skylt/1.png"],
+        ["2", "https://www.namnskylt.com/f/0a1b2c3d4e5f/skylt/2.png"],
+      ],
+    );
+    // Utan adress till bilderna har dokumentet inget sådant fält.
+    assert.equal(buildSupplierRequest(input([named("Anna Lind")])).lines[0]?.document.partnerPreview, undefined);
+  });
+
   it("en återförsäljares kund får sakna e-post: ordern går att skicka, med kunden som referens", () => {
     // En offert kan sparas med bara företagets namn (beslut av ägaren 2026-11-19). Verkstadens mottagare
     // godtar en tom e-post för slutkunden och använder bara namnet och företaget i sin anteckning.

@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { usePriceList } from "@/components/price-list-provider";
 import { ProgressBanner } from "@/components/ui/progress-banner";
@@ -62,6 +62,7 @@ import type { SpinFocus } from "./badge-3d";
 import type { BadgeRecorder } from "./three/recorder";
 import { videoFileName } from "./video-file";
 import { OnboardingDialog } from "./onboarding-dialog";
+import { PANEL_SECTIONS, type PanelSectionId } from "./panel-steps";
 import type { OrderCopy, ResellerOrderContext, ShopContext } from "./reseller";
 import { designerReducer, type DesignerAction } from "./state";
 import { isChoice, useDesignerSteps } from "./use-designer-steps";
@@ -393,9 +394,9 @@ export function Designer({
   const finishOnboarding = useCallback(() => {
     setOnboarding(false);
     setEngrave(performance.now());
-    // Kom besökaren hit utan namn skrivs det nu: markören ställs i skyltens första rad. Material och
-    // form är valda i startrutan, så panelen fortsätter på texten.
-    if (!hasText) requestAnimationFrame(() => focusFirstRow({ reveal: true }));
+    // Lämnade besökaren stegrutan utan namn skrivs det nu: markören ställs i skyltens första rad. Panelens
+    // sektioner ritas först när rutan har stängts, så markören väntar två bildrutor på dem.
+    if (!hasText) requestAnimationFrame(() => requestAnimationFrame(() => focusFirstRow({ reveal: true })));
   }, [hasText]);
 
   // En återförsäljare kommer rakt in i editorn, utan startruta, och skriver namnet direkt. Panelen
@@ -578,6 +579,48 @@ export function Designer({
    */
   const engraves = (!layout.namePrinted && (layout.rows.length > 0 || layout.frames.length > 0)) || Boolean(layout.logo && !layout.logo.printed);
 
+  /** Stegrutan är öppen: då står sektionerna där, och inte i panelen, så att ingen sektion finns två gånger. */
+  const stepsOpen = onboarding && saved.ready;
+  /**
+   * Panelens sektioner, i `PANEL_SECTIONS` ordning. Samma sektioner visas i panelen och, ett steg i taget,
+   * i stegrutan (besked av ägaren 2026-11-24, som "Börja designa" på merchin.se/kepsar), så att valen och
+   * reglerna är exakt desamma på båda ställena.
+   */
+  const sections: Record<PanelSectionId, ReactNode> = {
+    material: <MaterialSection doc={doc} dispatch={update} />,
+    format: <FormatSection doc={doc} dispatch={update} />,
+    text: (
+      <TextSection
+        doc={doc}
+        layout={layout}
+        dispatch={update}
+        // "Flytta text och logga" görs i ritningen: från stegrutan stängs rutan först.
+        onPlace={() => {
+          setOnboarding(false);
+          setView("drawing");
+        }}
+        placing={view === "drawing"}
+      />
+    ),
+    // Metoden väljs före loggan (besked via ägaren 2026-11-16): den avgör hur loggan sedan märks.
+    marking: <MarkingSection doc={doc} dispatch={update} tierIndex={tierIndex} />,
+    logo: <LogoSection doc={doc} dispatch={update} />,
+    mounting: <MountingSection doc={doc} dispatch={update} />,
+    batch: (
+      <BatchSection
+        current={doc}
+        badges={batch}
+        text={batchText}
+        onTextChange={changeNames}
+        onImport={importNames}
+        onSettle={settleNames}
+        onSelect={openColleague}
+        onRemoveCurrent={removeCurrent}
+        overflow={batchEntries.length - batch.length}
+        fonts={fonts}
+      />
+    ),
+  };
 
   return (
     <div className={styles.shell} data-view={view}>
@@ -799,36 +842,19 @@ export function Designer({
               {reseller ? (reseller.customerId ? `Skylt till ${reseller.customerName}` : "Skylt till en kund") : "Din namnskylt"}
             </h1>
           </div>
+          {/* Stegrutan går att öppna igen, ett val i taget (som "Gå igenom stegen igen" på merchin.se). Raden står
+              utanför rubriken, som är dold för ögat på telefon. */}
+          <p className={styles.stepsLink}>
+            <button type="button" className={styles.hintLink} onClick={() => setOnboarding(true)}>
+              Gå igenom stegen igen
+            </button>
+          </p>
           <SectionNav />
           {/*
             Skylten byggs uppifrån (besked från Mats på verkstaden via ägaren 2026-11-20): material och form
             sätter förutsättningarna, sedan text, metod, logga och fäste. Ordningen är `PANEL_SECTIONS`.
           */}
-          <MaterialSection doc={doc} dispatch={update} />
-          <FormatSection doc={doc} dispatch={update} />
-          <TextSection
-            doc={doc}
-            layout={layout}
-            dispatch={update}
-            onPlace={() => setView("drawing")}
-            placing={view === "drawing"}
-          />
-          {/* Metoden väljs före loggan (besked via ägaren 2026-11-16): den avgör hur loggan sedan märks. */}
-          <MarkingSection doc={doc} dispatch={update} tierIndex={tierIndex} />
-          <LogoSection doc={doc} dispatch={update} />
-          <MountingSection doc={doc} dispatch={update} />
-          <BatchSection
-            current={doc}
-            badges={batch}
-            text={batchText}
-            onTextChange={changeNames}
-            onImport={importNames}
-            onSettle={settleNames}
-            onSelect={openColleague}
-            onRemoveCurrent={removeCurrent}
-            overflow={batchEntries.length - batch.length}
-            fonts={fonts}
-          />
+          {!stepsOpen && PANEL_SECTIONS.map(({ id }) => <Fragment key={id}>{sections[id]}</Fragment>)}
         </div>
         {/* Vid priset läggs skylten i varukorgen. Order och offert skickas från varukorgen, inte härifrån. */}
         {/* Offertens uppgifter tar panelens plats medan offerten visas. Skyltens val står kvar under, dolda. */}
@@ -951,7 +977,15 @@ export function Designer({
         </div>
       </CartDrawer>
       {/* Visas först när det sparade är läst, så att rutan inte blinkar förbi för den som kommer tillbaka. */}
-      {onboarding && saved.ready && <OnboardingDialog doc={doc} fonts={fonts} dispatch={update} onClose={finishOnboarding} />}
+      {stepsOpen && (
+        <OnboardingDialog
+          doc={doc}
+          fonts={fonts}
+          steps={PANEL_SECTIONS.map(({ id }) => ({ id, content: sections[id] }))}
+          names={1 + batch.length}
+          onClose={finishOnboarding}
+        />
+      )}
     </div>
   );
 }

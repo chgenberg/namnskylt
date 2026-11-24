@@ -241,6 +241,12 @@
   padding: var(--space-6) var(--space-5) var(--space-2);
 }
 
+/* "Gå igenom stegen igen": under rubriken på dator, först i panelen på telefon. */
+.stepsLink {
+  padding: 0 var(--space-5) var(--space-3);
+  font-size: var(--text-sm);
+}
+
 .panelTitle {
   font-family: var(--font-serif);
   font-size: 1.75rem;
@@ -448,6 +454,10 @@
   }
 
   /* Rubriken tar plats från valen. Den finns kvar för skärmläsare. */
+  .stepsLink {
+    padding: var(--space-3) var(--space-4) var(--space-1);
+  }
+
   .panelHead {
     position: absolute;
     width: 1px;

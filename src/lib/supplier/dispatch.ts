@@ -5,7 +5,7 @@ import { requireDb } from "@/lib/db/client";
 import { publicOrigin } from "@/lib/http/public-url";
 import { withInlineLogoImages } from "@/lib/logo-images/repository";
 import { isDirectOrder, type StoredOrder } from "@/lib/orders/model";
-import { packingInstruction, packingSlipLink } from "@/lib/orders/packing-slip";
+import { packingInstruction, packingSignImageUrl, packingSlipLink } from "@/lib/orders/packing-slip";
 import {
   claimForDispatch,
   getCompanyProfile,
@@ -101,6 +101,8 @@ export async function supplierRequestFor(order: StoredOrder, party: DispatchPart
     logoPng: renderLogoPng,
     // Verkstaden skriver ut följesedeln härifrån. Säljs skylten av en återförsäljare packas den neutralt.
     packing: { link: packingSlipLink(publicOrigin(), order.packingCode), instruction: packingInstruction(isOwner(order.resellerId)) },
+    // Varje skylt som bild, för verkstadens orderbekräftelse till kunden.
+    signImage: (line) => packingSignImageUrl(publicOrigin(), order.packingCode, line),
   });
 }
 

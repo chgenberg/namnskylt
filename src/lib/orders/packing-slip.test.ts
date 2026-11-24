@@ -5,7 +5,7 @@ import { plasticBadge } from "@/engine/testing";
 import { DEFAULT_COMPANY } from "@/lib/company/profile";
 import { workshopSeller, type SellerProfile } from "@/lib/company/seller";
 import { OWNER_TENANT } from "@/lib/tenants/model";
-import { packingInstruction, packingSlipHtml, packingSlipLink, packingSlipPath, type PackingSlipOrder } from "./packing-slip";
+import { packingInstruction, packingSignImageUrl, packingSlipHtml, packingSlipLink, packingSlipPath, type PackingSlipOrder } from "./packing-slip";
 
 const named = (name: string, quantity = 1): BadgeDocument => ({ ...createBadgeDocument([name, "Säljare"]), quantity });
 
@@ -132,5 +132,11 @@ describe("följesedeln", () => {
     assert.match(all, /Antal skyltar i leveransen<\/span><span>5 st/);
     // En order som inte är uppdelad är en enda följesedel, också med ett nummer.
     assert.equal(packingSlipHtml(ORDER, RESELLER, null, 1).match(/<h1>Följesedel<\/h1>/g)?.length, 1);
+  });
+});
+
+describe("skyltens bild till orderbekräftelsen", () => {
+  it("ligger under följesedelns kod, med skyltens nummer i ordern", () => {
+    assert.equal(packingSignImageUrl("https://www.namnskylt.com/", "0a1b2c3d4e5f", 3), "https://www.namnskylt.com/f/0a1b2c3d4e5f/skylt/3.png");
   });
 });

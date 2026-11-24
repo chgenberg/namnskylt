@@ -30,6 +30,16 @@ export function packingSlipLink(origin: string, code: string): string {
   return `${origin.replace(/^https?:\/\//, "").replace(/\/+$/, "")}${packingSlipPath(code)}`;
 }
 
+/**
+ * Bilden av en skylt i ordern, för verkstadens orderbekräftelse till kunden (besked av ägaren
+ * 2026-11-24: "en bild på respektive namnskylt som man beställt"). `line` är skyltens nummer i ordern,
+ * från 1, samma som radens referens hos verkstaden (`NS-1234-<line>`). Adressen bär följesedelns kod,
+ * som verkstaden redan har, och visar bara bilden.
+ */
+export function packingSignImageUrl(origin: string, code: string, line: number): string {
+  return `${origin.replace(/\/+$/, "")}${packingSlipPath(code)}/skylt/${line}.png`;
+}
+
 /** Hur verkstaden ska packa ordern, som en rad på orderpappret. Följesedelns logga säger samma sak. */
 export function packingInstruction(ownSale: boolean): string {
   return ownSale

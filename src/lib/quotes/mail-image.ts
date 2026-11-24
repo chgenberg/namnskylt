@@ -9,9 +9,8 @@ import { QUOTE_PICTURE } from "./quote-email";
 const SCALE = 2;
 const WIDTH_PX = QUOTE_PICTURE.width * SCALE;
 const HEIGHT_PX = QUOTE_PICTURE.height * SCALE;
-/** Skylten får ta så här mycket av bilden. Resten är luft och skugga. */
-const BADGE_MAX_WIDTH_PX = WIDTH_PX * 0.62;
-const BADGE_MAX_HEIGHT_PX = HEIGHT_PX * 0.6;
+/** Skylten får ta så här mycket av bilden i offertmejlet. Resten är luft och skugga. */
+const DEFAULT_FILL = { width: 0.62, height: 0.6 };
 const PAPER = "#f4f2ec";
 
 /**
@@ -19,12 +18,16 @@ const PAPER = "#f4f2ec";
  * som kunden ser på offerten. E-postklienter visar varken SVG eller data-URL:er,
  * så bilden ritas till PNG och hämtas från offertens egen adress.
  */
-export async function renderMailBadge(source: BadgeDocument): Promise<Buffer> {
+export async function renderMailBadge(
+  source: BadgeDocument,
+  /** Hur mycket av bilden skylten får ta. Orderbekräftelsens små bilder ramar in skylten tätare. */
+  fill: { width: number; height: number } = DEFAULT_FILL,
+): Promise<Buffer> {
   const fonts = await loadNodeFontEngine();
   // resvg hämtar inga adresser: en logga i färg som ligger på servern läggs in i skylten först.
   const [doc = source] = await withInlineLogoImages([source]);
   const { widthMm, heightMm } = doc.size;
-  const scale = Math.min(BADGE_MAX_WIDTH_PX / widthMm, BADGE_MAX_HEIGHT_PX / heightMm);
+  const scale = Math.min((WIDTH_PX * fill.width) / widthMm, (HEIGHT_PX * fill.height) / heightMm);
   const w = widthMm * scale;
   const h = heightMm * scale;
   const x = (WIDTH_PX - w) / 2;

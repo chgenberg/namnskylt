@@ -104,6 +104,12 @@ export interface SupplierSignDocument {
   /** Det verkstaden ska läsa om skylten utöver ritningen, en rad per uppgift. Fästet står alltid med. */
   partnerSpecs?: SupplierSpecRow[];
   /**
+   * Bilden av skylten som kunden designade den, som PNG hos oss (`packingSignImageUrl`). Verkstaden visar
+   * den i orderbekräftelsen till kunden (besked av ägaren 2026-11-24). Verkstadens egna dokument har inte
+   * fältet, och deras mottagare sparar det med dokumentet utan att läsa det.
+   */
+  partnerPreview?: string;
+  /**
    * Tryckfilen ska bära trycklagrets färger i CMYK (besked från Mats på verkstaden via ägaren
    * 2026-11-20). Verkstadens egna dokument har inte fältet, och deras tryckfil ritas då som förut.
    */

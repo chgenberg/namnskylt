@@ -1992,6 +1992,39 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
     telefonerna är ytan för valen fortfarande liten. Panelens sidor är bara mätta på bredden,
     inte genomgångna för tryckytor.
 
+## Stegrutan före skyltmotorn — läge 2026-11-24
+
+Skyltmotorn börjar med en stegruta med en flik per val, som "Börja designa" på merchin.se/kepsar
+(besked av ägaren 2026-11-24: "Där man klickar på 'Börja designa' och då kommer flikarna upp ... valen
+som vi har i motorn, fast ett steg i taget, flik för flik", i Namnskylts utseende och utan att något
+slutar fungera). Rutan ersätter startrutan, som bara hade material, färg och form på en sida.
+
+- **Sju steg:** 01 Material & färg, 02 Form, 03 Text, 04 Märkning, 05 Logga, 06 Fäste och 07 Fler
+  namn. Ägaren valde 2026-11-24 att Fler namn ska vara ett eget steg, och att startsidans namnruta
+  ska stå kvar: knappen "Skapa skylt" öppnar rutan med namnet ifyllt.
+- **Varje steg är panelens egen sektion** (`sections` i `designer.tsx`, `PANEL_SECTIONS`), så valen,
+  priserna och reglerna är exakt desamma som i skyltmotorn. Medan rutan är öppen ritas sektionerna
+  bara där och inte i panelen (`stepsOpen`), eftersom varje sektion har id `section-N` och samma
+  fält inte får finnas två gånger.
+- **Rutan** (`OnboardingDialog` i `onboarding-dialog.tsx`):
+  - överst "Steg 3 av 7" och "Designa din skylt",
+  - numrerade flikar, där gjorda steg får en prick i mässing,
+  - skylten i 3D bredvid valen,
+  - längst ner det som är valt ("Metall · Mässing · Rektangel 60 × 30 mm · Endast print · Nål") med
+    Tillbaka och Nästa,
+  - sist "Till skyltmotorn".
+
+  Logga och Fler namn står som valfria. Kryss och Esc stänger rutan.
+- **I panelen finns länken "Gå igenom stegen igen"**, som öppnar rutan på steg 1. Den finns för
+  alla, också för en återförsäljare, som annars kommer rakt in i editorn som förut.
+- Vem som möter rutan är oförändrat: en kund som kommer från startsidan. Sparat arbete som läses
+  tillbaka stänger den, som förut.
+- Telefon: rutan tar hela skärmen, flikarna rullar i sidled, skylten står överst och knapparna
+  längst ner.
+- Provat lokalt 2026-11-24 i Chrome på dator och 390 px (40 kontroller): alla sju steg, en logga
+  uppladdad i rutan, magnet vald, Tillbaka, prickarna, att valen följer med till skyltmotorn, länken,
+  Esc, att varukorgen fungerar och att inget sticker ut. Inte provat i Safari.
+
 ## Offert från skyltmotorn — läge 2026-11-19
 
 Den som är inloggad i panelen har knappen **Offert** till höger om Dela (beslut av ägaren
@@ -2632,6 +2665,43 @@ en order via en återförsäljares sida eller om en återförsäljare skickar en
   på förfrågans värdnamn. Kundens namn och butikens namn rensas från radbrytningar innan de
   hamnar i ämnesrad och avsändare.
 
+## Verkstadens mejl till våra kunder: avsändare och skyltar — läge 2026-11-24
+
+Besked av ägaren 2026-11-24: verkstadens mejl till kunden ska ha "Namnskylt som avsändare i
+rubriken", och orderbekräftelsen ska ha "mer detaljerad information om respektive namnskylt man
+beställt samt en bild på respektive namnskylt". Mejlen skickas fortfarande av verkstadens system via
+deras Resend.
+
+- **Avsändaren:** verkstadens mejl om ordrar från oss har visningsnamnet "Namnskylt", från samma
+  adress som förut (`senderWithName`, `fromName` på verkstadens `EmailMessage`). Det gäller
+  orderbekräftelsen och statusmejlen till beställaren. Verkstadens egna ordrar har exakt samma From
+  som förut.
+- **Bilden:** Namnskylt ritar varje skylt som PNG på `/f/<följesedelns kod>/skylt/<n>.png`, där n är
+  skyltens nummer i ordern, samma som radens referens hos verkstaden (`packingSignImageUrl`, vägen
+  under `src/app/f/[code]/skylt/[bild]`). Adressen skickas i dokumentet till verkstaden som
+  `partnerPreview`.
+  - Bilden är samma ritning som kunden såg, 360 px bred, utan priser, adress eller beställare.
+  - Adressen slutar på `.png`, så middleware släpper igenom den förbi sajtspärren, som offertens bild.
+  - Verkstaden godtar bara adresser på `https://www.namnskylt.com/f/…`.
+- **Orderbekräftelsen hos verkstaden** listar varje skylt för sig:
+  - bilden,
+  - namnet,
+  - material, yta, mått och form,
+  - märkning och fäste,
+  - typsnitt och tryckfärg,
+  - antal och belopp.
+
+  Tryckfilens CMYK-värden inom parentes står inte där. De första 40 skyltarna visas med bild och alla
+  uppgifter, resten som korta rader, eftersom Gmail klipper ett mejl vid ungefär 100 kB och summorna
+  står längst ner. Verkstadens egna bekräftelser är oförändrade.
+- **Känt:** bildadressen bär följesedelns kod, så den som får mejlet vidarebefordrat kan också öppna
+  följesedeln (mottagare och beställare). En egen kod för bilderna kräver en ny migrering hos oss.
+- **Bara nya ordrar får bilder:** en order som skickades före ändringen har ingen `partnerPreview`, och
+  dess bekräftelse visar uppgifterna utan bild.
+- Provat lokalt 2026-11-24 med båda systemen: en order med 10 skyltar fick bildadress på alla rader,
+  alla bilder laddades, och bekräftelsen ritades och sågs på 700 och 390 px. **Inget riktigt mejl har
+  skickats**, och PDF-bilagan har inga bilder.
+
 ## Mejlmallen — läge 2026-11-18
 
 Alla mejl från sajten ritas med samma mall (besked av ägaren 2026-11-18, som såg offertmejlet
@@ -3180,8 +3250,10 @@ via ägaren 2026-11-24):
   14:18. Verkstadens sajt svarade likadant före och efter. **Ingen ny order har gått genom de nya
   delarna i drift än**, och NS-1129 ligger kvar hos verkstaden utan raden Märkning, eftersom den
   skickades före ändringen.
-- **Öppet med Mats:** om plast som printas trycks på skurna skyltar i en fixtur, som metallen
-  (då stämmer A3-uppläggen), eller på arket före skärningen.
+- **Plast som printas trycks i en fixtur, som metallen** (svar via ägaren 2026-11-24: "Alla av samma
+  sort (storlek) kan printas samtidigt, men kanske man inte ska blanda materialen då det kan bli fel
+  (mänskliga faktorn)"). A3-uppläggen stämmer alltså för plast också. Varje fil har redan ett enda
+  material, en yta eller färg och ett mått, så ingenting blandas.
 - **Känd brist:** plastens kudde heter "egen form" hos verkstaden, eftersom vi skickar den som fri
   form.
 

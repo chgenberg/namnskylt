@@ -1,23 +1,21 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, type Dispatch } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { BadgePreview } from "@/components/badge-preview";
 import {
-  OFFERED_MATERIALS,
-  blankOf,
   getColor,
+  getMarkingMethod,
   getMaterial,
-  isPartnerMade,
+  markingOf,
+  mountingLabel,
   shapeLabel,
   type BadgeDocument,
   type FontEngine,
 } from "@/engine";
+import type { PanelSectionId } from "./panel-steps";
 import type { BadgeRecorder } from "./three/recorder";
-import { useCustomShapeChoice } from "./custom-shape-choice";
-import { BlankPicker, ColorPicker, MaterialPicker } from "./pickers";
 import styles from "./onboarding-dialog.module.css";
-import type { DesignerAction } from "./state";
 
 /** Samma 3D-skylt som i skyltmotorn; ritningen syns medan den laddar. */
 const Badge3D = dynamic(() => import("./badge-3d"), { ssr: false, loading: () => null });
@@ -25,35 +23,84 @@ const Badge3D = dynamic(() => import("./badge-3d"), { ssr: false, loading: () =>
 /** Närmare än i skyltmotorn — rutan är låg. */
 const PREVIEW_CAMERA_Z = 3.7;
 const noop = () => {};
-/** Står på rutan "Egen form", så att det syns redan före valet att formen bestäms i nästa steg. */
-const CUSTOM_SHAPE_HINT = "Välj exakt form i nästa steg";
+
+/** Flikarnas namn i stegrutan. Panelens genvägar på telefon har kortare namn (`PANEL_SECTIONS`). */
+const STEP_LABELS: Record<PanelSectionId, string> = {
+  material: "Material & färg",
+  format: "Form",
+  text: "Text",
+  marking: "Märkning",
+  logo: "Logga",
+  mounting: "Fäste",
+  batch: "Fler namn",
+};
+
+/** Steg som går att hoppa över: de står som valfria. */
+const OPTIONAL: ReadonlySet<PanelSectionId> = new Set(["logo", "batch"]);
+
+export interface DesignStep {
+  id: PanelSectionId;
+  /** Samma sektion som i panelen, med samma val och regler. */
+  content: ReactNode;
+}
 
 interface OnboardingDialogProps {
   doc: BadgeDocument;
   fonts: FontEngine;
-  dispatch: Dispatch<DesignerAction>;
+  steps: readonly DesignStep[];
+  /** Antal namn i ordern med skylten i editorn, för sammanfattningen. */
+  names: number;
   onClose: () => void;
 }
 
-/** Visas när kunden kommer från startsidan med sin text: välj det viktigaste först. */
-export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDialogProps) {
+/**
+ * Stegrutan före skyltmotorn (besked av ägaren 2026-11-24: som "Börja designa" på merchin.se/kepsar,
+ * med flikarna och ett val i taget, men i Namnskylts utseende). Varje steg är panelens egen sektion,
+ * så valen, priserna och reglerna är exakt desamma som i skyltmotorn: rutan byter bara ordning på hur
+ * de visas. Skylten syns hela tiden bredvid, och längst ner står det som är valt.
+ */
+export function OnboardingDialog({ doc, fonts, steps, names, onClose }: OnboardingDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const recorderRef = useRef<BadgeRecorder | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
-  const material = getMaterial(doc.materialId);
-  const color = getColor(doc.materialId, doc.colorId);
-  const blank = blankOf(doc);
-  const shapeName = shapeLabel(doc);
-  const severalMaterials = OFFERED_MATERIALS.length > 1;
-  // Samma former som i panelen till höger, även "Egen form", så att ingen missar den här.
-  const customShape = useCustomShapeChoice(doc, dispatch);
-  // Rutan har inget ritverktyg: formen som visas är ett förslag, och den riktiga väljs i nästa steg.
-  const customChoice = customShape?.available ? { ...customShape, hint: CUSTOM_SHAPE_HINT } : customShape;
+  const [index, setIndex] = useState(0);
+  const [visited, setVisited] = useState<ReadonlySet<number>>(() => new Set([0]));
+  const step = steps[index]!;
+  const last = index === steps.length - 1;
 
   useEffect(() => {
     const dialog = ref.current;
     if (dialog && !dialog.open) dialog.showModal();
   }, []);
+
+  // Nytt steg: rutan börjar uppifrån, och i steget Text står markören i namnet om det är tomt.
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    body.scrollTop = 0;
+    if (step.id !== "text") return;
+    const input = body.querySelector<HTMLInputElement>('input[aria-label="Rad 1"]');
+    if (input && input.value.trim() === "") input.focus({ preventScroll: true });
+  }, [step.id]);
+
+  const go = (next: number) => {
+    const target = Math.max(0, Math.min(steps.length - 1, next));
+    setIndex(target);
+    setVisited((current) => new Set(current).add(target));
+  };
+
+  const material = getMaterial(doc.materialId);
+  const color = getColor(doc.materialId, doc.colorId);
+  const summary = [
+    `${material.name} · ${color.name}`,
+    `${shapeLabel(doc)} ${doc.size.widthMm} × ${doc.size.heightMm} mm`,
+    getMarkingMethod(markingOf(doc)).name,
+    mountingLabel(doc),
+    names > 1 ? `${names} namn` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <dialog
@@ -68,98 +115,97 @@ export function OnboardingDialog({ doc, fonts, dispatch, onClose }: OnboardingDi
       <div className={styles.panel}>
         <header className={styles.header}>
           <div>
-            <p className={styles.eyebrow}>Innan du börjar</p>
+            <p className={styles.eyebrow}>
+              Steg <span className={styles.eyebrowStep}>{index + 1}</span> av {steps.length}
+            </p>
             <h2 id="onboarding-title" className={styles.title}>
-              {severalMaterials ? "Välj material och form" : "Välj yta och form"}
+              Designa din skylt
             </h2>
           </div>
-          <button type="button" className={styles.close} aria-label="Stäng" onClick={() => ref.current?.close()}>
+          <button type="button" className={styles.close} aria-label="Stäng och gå till skyltmotorn" onClick={() => ref.current?.close()}>
             ×
           </button>
         </header>
 
-        <div className={styles.preview}>
-          <div className={styles.preview3d}>
-            {!canvasReady && <BadgePreview doc={doc} label="Din skylt" className={styles.previewBadge} placeholders />}
-            <div className={styles.previewCanvas} aria-hidden="true">
-              <Badge3D
-                doc={doc}
-                fonts={fonts}
-                spinning
-                focus={null}
-                engrave={null}
-                onEngraveDone={noop}
-                photo={false}
-                photoSamples={0}
-                onPhotoProgress={noop}
-                recorderRef={recorderRef}
-                cameraZ={PREVIEW_CAMERA_Z}
-                onReady={() => setCanvasReady(true)}
-              />
-            </div>
-          </div>
-          <p className={styles.previewMeta}>
-            {material.name} · {color.name} · {shapeName} · {doc.size.widthMm} × {doc.size.heightMm} mm
-          </p>
-        </div>
+        <nav className={styles.tabs} aria-label="Stegen">
+          <ol>
+            {steps.map((item, i) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className={styles.tab}
+                  aria-current={i === index ? "step" : undefined}
+                  data-visited={visited.has(i) && i !== index ? "" : undefined}
+                  onClick={() => go(i)}
+                >
+                  <span className={styles.tabNumber}>{String(i + 1).padStart(2, "0")}</span>
+                  {STEP_LABELS[item.id]}
+                </button>
+              </li>
+            ))}
+          </ol>
+        </nav>
 
-        <div className={styles.body}>
-          {severalMaterials && (
-            <section className={styles.group} aria-labelledby="onboarding-material">
-              <h3 id="onboarding-material" className={styles.groupTitle}>
-                Material
-              </h3>
-              <MaterialPicker
-                value={doc.materialId}
-                layoutId="onboarding-material-active"
-                onChange={(materialId) => dispatch({ type: "material", materialId })}
-              />
-              <p className={styles.note}>
-                {material.description}
-                {isPartnerMade(material.id) && " Pris och leveranstid bekräftas via e-post."}
-              </p>
-            </section>
-          )}
-
-          <section className={styles.group} aria-labelledby="onboarding-color">
-            <h3 id="onboarding-color" className={styles.groupTitle}>
-              {severalMaterials ? "Färg" : "Yta"} <span className={styles.groupAside}>{color.name}</span>
-            </h3>
-            <ColorPicker
-              materialId={doc.materialId}
-              value={doc.colorId}
-              onChange={(colorId) => dispatch({ type: "color", colorId })}
-            />
-            {!severalMaterials && <p className={styles.note}>{material.description}</p>}
-          </section>
-
-          <section className={styles.group} aria-labelledby="onboarding-shape">
-            <h3 id="onboarding-shape" className={styles.groupTitle}>
-              Form
-            </h3>
-            <BlankPicker
-              value={blank?.id ?? null}
-              materialId={doc.materialId}
-              onChange={(blankId) => dispatch({ type: "blank", blankId })}
-              custom={customChoice}
-            />
-            {doc.shape === "custom" && (
-              <p className={styles.note}>
-                Formen på bilden är ett förslag. Du väljer exakt form i nästa steg: ett annat förslag, en egen ritning eller en
-                uppladdad fil.
+        <div className={styles.main}>
+          <div ref={bodyRef} className={styles.body}>
+            {OPTIONAL.has(step.id) && (
+              <p className={styles.optional}>
+                Valfritt.{" "}
+                {step.id === "logo"
+                  ? "Hoppa över om skylten ska vara utan logga."
+                  : "Ska fler ha samma skylt skriver eller klistrar du in deras namn här. Annars hoppar du över steget."}
               </p>
             )}
-          </section>
+            {/* Nyckeln gör att steget börjar om när det byts, precis som när panelen ritas. */}
+            <div key={step.id} className={styles.step}>
+              {step.content}
+            </div>
+          </div>
+
+          <aside className={styles.preview} aria-label="Din skylt">
+            <div className={styles.preview3d}>
+              {!canvasReady && <BadgePreview doc={doc} label="Din skylt" className={styles.previewBadge} placeholders />}
+              <div className={styles.previewCanvas} aria-hidden="true">
+                <Badge3D
+                  doc={doc}
+                  fonts={fonts}
+                  spinning
+                  focus={null}
+                  engrave={null}
+                  onEngraveDone={noop}
+                  photo={false}
+                  photoSamples={0}
+                  onPhotoProgress={noop}
+                  recorderRef={recorderRef}
+                  cameraZ={PREVIEW_CAMERA_Z}
+                  onReady={() => setCanvasReady(true)}
+                />
+              </div>
+            </div>
+            <p className={styles.previewMeta}>Priset per skylt beror på antalet och visas i skyltmotorn.</p>
+          </aside>
         </div>
 
         <footer className={styles.footer}>
-          <p className={styles.footNote}>Priset per skylt beror på antalet och visas i nästa steg.</p>
-          <button type="button" className="btn btn--ghost" onClick={() => ref.current?.close()}>
-            Hoppa över
-          </button>
-          <button type="button" className="btn btn--primary" onClick={() => ref.current?.close()}>
-            Fortsätt
-          </button>
+          <p className={`mono ${styles.summary}`} title={summary}>
+            {summary}
+          </p>
+          <div className={styles.actions}>
+            {index > 0 && (
+              <button type="button" className="btn btn--ghost" onClick={() => go(index - 1)}>
+                Tillbaka
+              </button>
+            )}
+            {last ? (
+              <button type="button" className="btn btn--primary" onClick={() => ref.current?.close()}>
+                Till skyltmotorn →
+              </button>
+            ) : (
+              <button type="button" className="btn btn--primary" onClick={() => go(index + 1)}>
+                Nästa →
+              </button>
+            )}
+          </div>
         </footer>
       </div>
     </dialog>

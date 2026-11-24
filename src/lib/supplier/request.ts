@@ -245,6 +245,8 @@ export interface SupplierRequestInput {
    * ordern ska packas. Båda står som egna rader på verkstadens orderpapper, på varje skylt.
    */
   packing?: { link: string; instruction: string };
+  /** Adressen till bilden av skylt nummer `line` (från 1) i ordern, för verkstadens orderbekräftelse. */
+  signImage?: (line: number) => string;
 }
 
 /**
@@ -274,6 +276,8 @@ export function buildSupplierRequest(input: SupplierRequestInput): SupplierOrder
         ? input.logoPng?.(logoEngraved ? { ...thumbnailOf, d: logoEngravingPath(thumbnailOf) } : thumbnailOf)
         : undefined,
     });
+    // Bilden av just den här skylten: verkstaden visar den i orderbekräftelsen till kunden.
+    if (input.signImage) document.partnerPreview = input.signImage(i + 1);
     // Följesedeln och packningen gäller hela ordern, men orderpappret ritar raderna per skylt.
     if (input.packing) {
       document.partnerSpecs = [
