@@ -3803,6 +3803,12 @@ och "Också i återförsäljarnas butiker"). Det är ett tredje inlogg, skilt fr
 
 ## Rättat 2026-11-25 efter ägarens prov
 
+**Ute i drift 2026-11-25 (`71f8ad6`)**, kontrollerat genom läsning med alla anrop som sparar
+stoppade i webbläsaren (8 av 8): Merchins vita ikon på blå plast föreslås graverad, inverterad får
+den kontur och "m." i mitten, printad blir den som filen och namnet svart, varukorgen har "Lägg till
+en ny produkt", glömt lösenord i varukorgen bär `?varukorg=1`, och raden "I varukorgen: …" står
+under Text.
+
 - **Inverterad logga.** Ägaren inverterade en ikon, en vit rundad ruta med "m." i, på en blå plastskylt.
   De fyra hörnen utanför rutan blev graverade, och rutans form försvann. Ägarens ord: "ska bli en
   outline sen m. i mitten".
