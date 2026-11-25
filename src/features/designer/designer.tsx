@@ -47,7 +47,9 @@ import { QuoteSheet } from "./quote/quote-sheet";
 import { QuoteShots } from "./quote/quote-shots";
 import { useQuote } from "./quote/use-quote";
 import type { CustomerTarget } from "./sections/reseller-customer";
+import { revealInPanel } from "./reveal";
 import { SectionNav } from "./section-nav";
+import { useBottomSheet, usePhoneLayout } from "./use-bottom-sheet";
 import styles from "./designer.module.css";
 import { BatchSection } from "./sections/batch-section";
 import { CartList } from "./sections/cart-section";
@@ -64,6 +66,8 @@ import { videoFileName } from "./video-file";
 import { OnboardingDialog } from "./onboarding-dialog";
 import { PANEL_SECTIONS, type PanelSectionId } from "./panel-steps";
 import type { OrderCopy, ResellerOrderContext, ShopContext } from "./reseller";
+import { BadgeFixesProvider } from "./badge-fixes";
+import { FixAction } from "./fix-action";
 import { designerReducer, type DesignerAction } from "./state";
 import { isChoice, useDesignerSteps } from "./use-designer-steps";
 import { useSavedWork } from "./use-saved-work";
@@ -104,7 +108,10 @@ function focusFirstRow({ onlyEmpty = false, reveal = false }: { onlyEmpty?: bool
   const input = document.querySelector<HTMLInputElement>(`input[aria-label="${FIRST_ROW_LABEL}"]`);
   if (!input || (onlyEmpty && input.value.trim() !== "")) return;
   // Utan mjuk rullning (globals.css): nästa tecken avbryter annars rullningen halvvägs.
-  const show = () => input.closest("section")?.scrollIntoView({ block: "start", behavior: "instant" });
+  const show = () => {
+    const section = input.closest("section");
+    if (section) revealInPanel(section, "instant");
+  };
   if (reveal) show();
   else {
     // Läget läses innan tecknet skrivs: webbläsaren rullar själv fram markören, men bara till panelens kant.
@@ -580,6 +587,15 @@ export function Designer({
   };
 
   const layout = useMemo(() => layoutBadge(doc, fonts), [doc, fonts]);
+  /**
+   * Bladet med valen på telefon (beslut av ägaren 2026-11-24). Bara i vyerna 3D och Ritning: På person
+   * och Offert har ett eget, högt innehåll som rullar med sidan, som förut.
+   */
+  const phone = usePhoneLayout();
+  const sheetActive = phone && (view === "3d" || view === "drawing");
+  const sheet = useBottomSheet(sheetActive);
+  /** En rättning med en knapp, eller Ångra efter den, lägger hela skylten i editorn som ett vanligt val. */
+  const loadFixed = useCallback((next: BadgeDocument) => update({ type: "load", doc: next }), [update]);
   const moved = Boolean(doc.textOffsetMm || doc.logo?.offsetMm);
   /** Ritningen visar platshållare på en helt tom skylt. Då finns ingen logga, så här gäller skylten som den är. */
   const logoOverlapsText = Boolean(doc.logo) && layout.logoOverlapsText;
@@ -634,8 +650,15 @@ export function Designer({
   };
 
   return (
-    <div className={styles.shell} data-view={view}>
-      <section className={`${styles.stage} dot-grid`} aria-label="Förhandsvisning">
+    <BadgeFixesProvider doc={doc} layout={layout} fonts={fonts} onLoad={loadFixed}>
+    <div
+      ref={sheet.shellRef}
+      className={styles.shell}
+      data-view={view}
+      data-sheet={sheetActive ? sheet.stop : undefined}
+      data-dragging={sheet.dragging || undefined}
+    >
+      <section className={`${styles.stage} dot-grid`} aria-label="Förhandsvisning" data-sheet-stage>
         <div className={styles.stageTop}>
           <div className={styles.viewToggle}>
             <Segmented label="Vy" value={view} options={VIEW_OPTIONS} onChange={setView} />
@@ -764,13 +787,17 @@ export function Designer({
           ) : view === "drawing" ? (
             // Varningen visas överallt. Tipset om hur man drar visas inte på telefon, där det tar skyltens plats.
             <p className={styles.hint} data-severity={logoOverlapsText ? "warning" : undefined} data-tip={logoOverlapsText ? undefined : ""} role="status">
-              {logoOverlapsText
-                ? "Loggan ligger över texten — dra isär dem så att båda syns på skylten."
-                : `Dra texten eller loggan, eller dra i ett hörn för att ändra storlek. Streckad linje = säkerhetsmarginal, ${layout.contentInsetMm.toLocaleString("sv-SE")} mm.`}
+              {logoOverlapsText ? (
+                <>
+                  Loggan ligger över texten — dra isär dem så att båda syns på skylten. <FixAction target="logo-overlap" />
+                </>
+              ) : (
+                `Dra texten eller loggan, eller dra i ett hörn för att ändra storlek. Streckad linje = säkerhetsmarginal, ${layout.contentInsetMm.toLocaleString("sv-SE")} mm.`
+              )}
             </p>
           ) : view === "3d" && logoOverlapsText ? (
             <p className={styles.hint} data-severity="warning" role="status">
-              Loggan ligger över texten — flytta isär dem under Ritning.
+              Loggan ligger över texten — flytta isär dem under Ritning. <FixAction target="logo-overlap" />
             </p>
           ) : (
             view === "3d" && (
@@ -782,6 +809,8 @@ export function Designer({
               </p>
             )
           )}
+          {/* Efter rättningen är varningen borta: raden om ändringen står kvar här, med Ångra. */}
+          {!logoOverlapsText && <FixAction target="logo-overlap" doneOnly />}
         </footer>
         {view === "3d" && (
           <>
@@ -799,8 +828,23 @@ export function Designer({
         )}
       </section>
 
-      <aside className={styles.panel} aria-label="Skyltmotor">
-        <div className={styles.panelScroll}>
+      <aside ref={sheet.sheetRef} className={styles.panel} aria-label="Skyltmotor">
+        {sheetActive && (
+          // Greppet och genvägarna: där dras bladet, och ett tryck på greppet stegar mellan lägena.
+          <div className={styles.sheetHandle} onPointerDown={sheet.onHandlePointerDown}>
+            <button
+              type="button"
+              className={styles.sheetGrip}
+              aria-label={sheet.stop === "full" ? "Fäll ner valen" : "Dra upp valen"}
+              aria-expanded={sheet.stop !== "small"}
+              onClick={sheet.cycle}
+            >
+              <span aria-hidden="true" />
+            </button>
+            <SectionNav onBeforeGo={sheet.ensureOpen} />
+          </div>
+        )}
+        <div className={styles.panelScroll} data-sheet-body>
           {reseller && (
             <div className={styles.resellerBar} role="status">
               {reseller.customerId ? (
@@ -860,7 +904,7 @@ export function Designer({
               Gå igenom stegen igen
             </button>
           </p>
-          <SectionNav />
+          {!sheetActive && <SectionNav />}
           {/*
             Skylten byggs uppifrån (besked från Mats på verkstaden via ägaren 2026-11-20): material och form
             sätter förutsättningarna, sedan text, metod, logga och fäste. Ordningen är `PANEL_SECTIONS`.
@@ -998,5 +1042,6 @@ export function Designer({
         />
       )}
     </div>
+    </BadgeFixesProvider>
   );
 }

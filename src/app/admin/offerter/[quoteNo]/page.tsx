@@ -10,6 +10,7 @@ import { PricingEditor } from "@/features/admin/pricing-editor";
 import { updateQuotePricingAction } from "@/features/admin/quote-actions";
 import { QuoteDecisionButtons, QuoteSendPanel, QuoteTermsForm } from "@/features/admin/quote-controls";
 import { QuoteCustomerForm } from "@/features/admin/quote-customer-form";
+import { QuoteReminder } from "@/features/admin/quote-reminder";
 import { QuoteFlow, QuoteStatusPill } from "@/features/admin/quote-parts";
 import styles from "@/features/admin/admin.module.css";
 import { formatDate, formatDay, formatSek, plural } from "@/lib/format";
@@ -18,7 +19,9 @@ import { countUnreadNotices } from "@/lib/notices/repository";
 import { customerChoiceRows } from "@/lib/orders/customer-choices";
 import { deliveryOptions } from "@/lib/orders/delivery-options";
 import { badgeCount } from "@/lib/orders/model";
+import { getSellerProfile } from "@/lib/orders/repository";
 import { canEditQuote, displayStatus, hasQuoteParty, quoteCustomerLabel } from "@/lib/quotes/model";
+import { needsReminder, reminderDraft } from "@/lib/quotes/reminder";
 import { getQuote } from "@/lib/quotes/repository";
 import { quoteEmailOn } from "@/lib/quotes/send";
 import { isOwner } from "@/lib/tenants/model";
@@ -45,6 +48,11 @@ export default async function QuotePage({ params }: QuotePageProps) {
   // Ett utkast som sparades utan kund i skyltmotorn får sin kund här, innan det går att skicka eller godkänna.
   const needsCustomer = Boolean(quote.noCustomer) && editable;
   const customers = needsCustomer ? await customerChoiceRows(tenant) : [];
+  // Har kunden inte svarat på några dagar får säljaren ett utkast till en påminnelse (beslut av ägaren 2026-11-24).
+  const reminder =
+    link && needsReminder(quote, new Date())
+      ? reminderDraft({ quote, link, sellerName: (await getSellerProfile(tenant)).name })
+      : null;
 
   return (
     <>
@@ -242,6 +250,15 @@ export default async function QuotePage({ params }: QuotePageProps) {
               </>
             )}
           </section>
+          )}
+
+          {reminder && (
+            <section className={styles.panel} id="paminnelse">
+              <h2 className={styles.sectionTitle} style={{ marginBottom: "var(--space-3)" }}>
+                Påminnelse
+              </h2>
+              <QuoteReminder email={quote.customer.email || null} draft={reminder} />
+            </section>
           )}
 
           {editable && (

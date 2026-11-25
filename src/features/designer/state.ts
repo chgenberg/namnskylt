@@ -18,6 +18,7 @@ import {
   withFittingMounting,
   withTextColor,
   withVisibleInk,
+  withoutOffsets,
   withLogoMarking,
   withMarking,
   withMounting,
@@ -99,15 +100,6 @@ function clamp(value: number, min: number, max: number): number {
 /** Tiondels millimeter räcker för gravyren och håller dokumentet läsbart. */
 function roundOffset({ xMm, yMm }: Offset): Offset {
   return { xMm: Math.round(xMm * 10) / 10, yMm: Math.round(yMm * 10) / 10 };
-}
-
-function withoutOffsets(doc: BadgeDocument): BadgeDocument {
-  const rest = { ...doc };
-  delete rest.textOffsetMm;
-  if (!rest.logo?.offsetMm) return rest;
-  const logo = { ...rest.logo };
-  delete logo.offsetMm;
-  return { ...rest, logo };
 }
 
 function mapRow(

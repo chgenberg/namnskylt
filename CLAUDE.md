@@ -77,7 +77,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1472 tester, grönt 2026-11-24).
+# Kvalitetsgrinden. Kör den innan något lämnas (1493 tester, grönt 2026-11-25).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -1949,6 +1949,8 @@ fakturerar avgörs per order (`partyFor`, `DispatchParty` i `src/lib/supplier/di
   ägaren 2026-11-19: "Motorn är exempelvis inte mobile-vänlig. Det är alldeles för liten
   skrollyta för val"). Förut tog skylten 48 % av höjden och prisdelen cirka 220 px, så på en
   iPhone blev ungefär 60 px kvar till valen.
+  - **I vyerna 3D och Ritning ersatt 2026-11-25 av bladet**, se Tre förbättringar från Merchin.
+    Det som står här gäller nu bara vyerna På person och Offert.
   - **Telefon (under 700 px, `designer.module.css`):** skylten står fast överst i en tredjedel
     av höjden (`--stage-height`, i `svh` så att den står still när adressfältet fälls in),
     med vyväljaren ovanför och knapparna under. Måttraden och tipsen visas inte där, bara
@@ -2028,6 +2030,115 @@ slutar fungera). Rutan ersätter startrutan, som bara hade material, färg och f
   Esc, att varukorgen fungerar och att inget sticker ut. Inte provat i Safari.
 - Ute i drift 2026-11-24 15:42 (`76c8717`). Kontrollerat genom läsning: startsidan öppnar rutan med
   sju flikar, och skyltmotorn har länken.
+
+## Tre förbättringar från Merchin — läge 2026-11-25
+
+Ägaren bad 2026-11-24 om en genomgång av Merchins nya UX-paket ("utan att ... ändra om så att
+flödet funkar som det ska") och valde tre av mina förslag: "Kör 1 och 2 och 3". Det är rätta
+med en knapp, påminnelsen i panelen och bladet på telefon. Inte gjort, efter min bedömning:
+- startrutan med tre förslag, som vore ägarens val, eftersom stegrutan just byggts,
+- flikar i panelen,
+- samma logga på fler produkter,
+- Föreslå text,
+- Dela med Godkänn, som ägaren tog bort 2026-11-19,
+- Mina designer.
+
+**Inget i orderflödet, priserna eller underlaget till verkstaden är ändrat.**
+
+- **Rätta med en knapp.** En varning som går att rätta säkert får en knapp vid sig, och efteråt
+  "Ändrat: … Ångra" på samma plats.
+  - **Var koden ligger:** reglerna i `src/engine/fixes.ts` (`badgeProblems`, `badgeFixes`),
+    knapparna i `BadgeFixesProvider` (`badge-fixes.tsx`) och `FixAction` (`fix-action.tsx`).
+  - **Hur en rättning väljs:** reglerna är fasta, ingen AI. Varje regel föreslår några nya
+    skyltar, minsta ändringen först. Knappen blir den första som tar bort varningen utan att ge en
+    ny varning och utan att skylten slutar gå att beställa (`chooseFix`). Texten ändras aldrig.
+  - **Textfärg som syns dåligt:** "Byt till svart" (eller vitt).
+  - **En rads egen färg som syns dåligt:** samma färg som övriga texten, annars svart eller vitt.
+    Varningen är ny: "Radens färg syns dåligt mot skylten."
+  - **En rad som inte ryms:** först en mindre logga, den största som räcker, ner till halva
+    höjden. Sedan Arial Narrow, sedan ett större ämne på samma material.
+    - Raden räknas som rättad när den ryms, också i en mindre versalhöjd.
+    - En rad som bara krymps får en knapp bara om loggan räcker att göra högst en fjärdedel
+      mindre, eller om typsnittet eller ämnet ger raden hela sin höjd. Det händer sällan, och
+      det är meningen: att halvera loggan för några tiondels millimeter är ett sämre råd.
+    - Med de riktiga typsnitten krymper ett långt namn hellre än att inte rymmas. Knappen syns
+      därför främst när loggan är stor.
+  - **Loggan över texten:** text och logga tillbaka på sina platser, annars också en mindre logga.
+  - **En logga i färg som trycks och inte syns mot ytan:** en yta där loggan syns. Skyltmotorns
+    förslag ur loggans färger prövas först (`logoColorCombo`), annars ytan med bäst kontrast.
+    Varningen är ny: "Loggan syns dåligt mot skylten." Förut var det en känd brist.
+  - **Ändring och Ångra:** knappen lägger hela skylten i editorn som ett vanligt val (`load`), och
+    Ångra lägger tillbaka den som var. Raden "Ändrat" försvinner när kunden ändrar något annat.
+  - **När rättningarna räknas:** på en uppskjuten skylt, så att skrivandet inte väntar, och de
+    står kvar så länge varningen gör det. När knappen trycks räknas rättningen om på skylten i
+    editorn just då.
+  - **Fokus:** efter knappen får Ångra fokus, och efter Ångra knappen.
+  - **Stegrutan** har samma knappar, eftersom den visar panelens sektioner.
+  - **Flyttat:** `withoutOffsets` ligger nu i motorn, inte i reducern.
+- **Påminnelsen i panelen.**
+  - **Var koden ligger:** `src/lib/quotes/reminder.ts` och `QuoteReminder`.
+  - **När den visas:** en offert som är skickad, gäller fortfarande och skickades för minst tre
+    dagar sedan (`needsReminder`). Den får "Dags att påminna" i offertlistan och rutan Påminnelse
+    på sin sida, med "Skriv påminnelse".
+  - **Utkastet** har kundens förnamn, antal skyltar och projekt, när offerten skickades, sista
+    dagen, kundens länk och säljarens namn (`getSellerProfile`, alltså Skylt & Gravyrteknik hos
+    admin). Det går att ändra, öppna i det egna mejlprogrammet (`mailto:`), kopiera eller börja
+    om.
+  - **Inget skickas eller sparas härifrån**, så mejlreglerna berörs inte. Utkastet är en fast
+    mall, ingen AI.
+  - **Ingen påminnelse** för en demooffert eller en offert utan kund i registret, till exempel
+    en som kunden laddade ner själv.
+- **Bladet på telefon.**
+  - **Var det gäller:** under 700 px, i vyerna 3D och Ritning (`data-sheet`). Koden är
+    `useBottomSheet`, med lägena i `src/lib/bottom-sheet/stops.ts`.
+  - **Lägen:** skylten står stor överst och valen ligger i ett blad, som är
+    - litet: greppet, genvägarna och prisraden med Lägg i varukorgen,
+    - halvt: 55 % av höjden,
+    - helt.
+  - **Så används det:**
+    - Bladet dras i greppet eller genvägarna, och ett tryck på greppet stegar mellan lägena.
+    - Ett snabbt drag går ett läge åt sitt håll.
+    - Escape och webbläsarens Tillbaka stänger bladet.
+    - Genvägarna öppnar bladet och rullar fram sektionen i det. Får ett fält i bladet markören
+      öppnas bladet.
+  - **Historiken:**
+    - Ett öppnat blad lägger en rad i historiken, med samma adress och Nexts eget läge.
+    - Raden avgör om bladet är öppet, så att Tillbaka och Framåt aldrig blir ett tomt steg,
+      också efter att kunden lämnat sidan med bladet öppet.
+    - Med `igen` i adressen (Kopiera order) läggs ingen rad: adressen tas bort när ordern är
+      lagd, och kom annars tillbaka när bladet stängdes.
+  - **Sidan rullar inte** (`html[data-designer-sheet]`). Skyltmotorn står fast under sidhuvudet,
+    utanför sidans flöde, så att butikens sidor och sidfot inte skjuter prisraden utanför
+    skärmen. I bladet rullar bara bladet (`revealInPanel`), aldrig sidan.
+  - **Medan bladet dras** står skylten still, och den ritas om när bladet har stannat. Ett
+    avbrutet drag, som ett svep i sidled på genvägarna, lägger bladet där det var.
+  - **Utan blad:** På person och Offert, där sidan rullar som förut. Dator och surfplatta är
+    orörda.
+- **Granskat** av en oberoende agent 2026-11-25. Den fann åtta fel, och alla är rättade:
+  - bladet i en butik,
+  - ett tomt steg i historiken,
+  - `igen` som kom tillbaka,
+  - ett avbrutet drag,
+  - knappar som blinkade medan kunden skrev,
+  - en rättning som gav en ny varning,
+  - fokus efter knappen,
+  - påminnelser för nedladdade offerter.
+- Provat lokalt 2026-11-25 i Chrome (33 kontroller):
+  - på dator: knappen vid en stor logga, Ångra och fokus, och textfärgen,
+  - påminnelsen som återförsäljare,
+  - bladet på 390 och 320 px: lägena, greppet, genvägarna, Tillbaka, Escape, drag, På person och
+    Lägg i varukorgen,
+  - en butik på 390 × 700 px med butikens sidor runt skyltmotorn.
+
+  Samma natt gick hela kundvägen genom båda systemens riktiga kod, mot verkstadens lokala sajt:
+  - stegrutan, kassan med konto, ordern hos verkstaden och statusen tillbaka,
+  - en återförsäljare från ansökan till order.
+
+  Datorn var hårt belastad av ett annat projekt, och verkstadens lokala server svarade ibland inte
+  inom Namnskylts gränser (15 s för en order, 4 s för statusen). Då gjorde sajten det den ska:
+  ordern sparades med felet och provades igen, och statusen hämtades när ordern öppnades.
+  **Inte provat i Safari eller på en riktig telefon**, där draget och Tillbaka är det som mest kan
+  skilja sig.
 
 ## Offert från skyltmotorn — läge 2026-11-19
 

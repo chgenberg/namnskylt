@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { LOW_CONTRAST, PRINT_PALETTE, bestTextColor, cmykOf, cmykText, contrastRatio, hexCmyk, printColorName, printHex, type Cmyk } from "@/engine";
+import { FixAction } from "../fix-action";
 import styles from "./sections.module.css";
 
 /**
@@ -200,6 +201,7 @@ export function TextColorField({ label, target, shown, code = null, surface, log
           Färgen syns dåligt mot skylten. Välj en mörkare eller ljusare färg.
         </p>
       )}
+      <FixAction target="text-color" />
     </div>
   );
 }

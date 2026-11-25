@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./designer.module.css";
 import { PANEL_SECTIONS } from "./panel-steps";
+import { revealInPanel } from "./reveal";
 
 /** Panelens sektioner i den ordning de står. Stegen är dem `PanelSection` bär i sina rubriker. */
 const SECTIONS = PANEL_SECTIONS;
@@ -15,11 +16,20 @@ function sectionOf(step: number): HTMLElement | null {
 
 /**
  * Genvägar mellan panelens sektioner på telefon (besked av ägaren 2026-11-19: motorn ska vara
- * lika lätt att använda på mobil som på dator). Där är panelen en lång sida under skylten, och
- * raden står fast under den: ett tryck rullar fram sektionen, och den man står i är markerad.
- * På bredare skärmar visas raden inte (designer.module.css).
+ * lika lätt att använda på mobil som på dator). Raden står överst i bladet med valen (2026-11-24),
+ * där den också är det man drar bladet i: ett tryck rullar fram sektionen, och den man står i är
+ * markerad. I vyerna utan blad står raden fast under skylten, som förut. På bredare skärmar visas
+ * raden inte (designer.module.css).
  */
-export function SectionNav() {
+interface SectionNavProps {
+  /**
+   * Bladet på telefon öppnas innan sektionen rullas fram. Sant när det öppnades: då väntar
+   * rullningen tills bladet har fått sin höjd.
+   */
+  onBeforeGo?: () => boolean;
+}
+
+export function SectionNav({ onBeforeGo }: SectionNavProps = {}) {
   const navRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState<number>(FIRST_STEP);
 
@@ -42,11 +52,12 @@ export function SectionNav() {
       if (!frame) frame = requestAnimationFrame(read);
     };
     read();
-    window.addEventListener("scroll", schedule, { passive: true });
+    // Fångat: i bladet på telefon är det bladet som rullar, inte sidan.
+    window.addEventListener("scroll", schedule, { passive: true, capture: true });
     window.addEventListener("resize", schedule);
     return () => {
       if (frame) cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("scroll", schedule, { capture: true });
       window.removeEventListener("resize", schedule);
     };
   }, []);
@@ -62,7 +73,12 @@ export function SectionNav() {
 
   const go = (step: number) => {
     const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    sectionOf(step)?.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+    const show = () => {
+      const section = sectionOf(step);
+      if (section) revealInPanel(section, calm ? "auto" : "smooth");
+    };
+    if (onBeforeGo?.()) requestAnimationFrame(() => requestAnimationFrame(show));
+    else show();
   };
 
   return (

@@ -107,6 +107,16 @@ export function shapeLabel(doc: Pick<BadgeDocument, "shape" | "size" | "cornerRa
   return blankOf(doc)?.name ?? SHAPES.find((s) => s.id === doc.shape)?.name ?? doc.shape;
 }
 
+/** Skylten utan kundens förflyttningar av text och logga: båda står där layouten lägger dem. */
+export function withoutOffsets(doc: BadgeDocument): BadgeDocument {
+  const rest = { ...doc };
+  delete rest.textOffsetMm;
+  if (!rest.logo?.offsetMm) return rest;
+  const logo = { ...rest.logo };
+  delete logo.offsetMm;
+  return { ...rest, logo };
+}
+
 /** Byter ämne: form, mått och hörnradie följer med, allt annat ligger kvar. En egen kontur släpps. */
 export function withBlank(doc: BadgeDocument, blankId: BlankId): BadgeDocument {
   const rest = { ...doc };

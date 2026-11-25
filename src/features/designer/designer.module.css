@@ -507,6 +507,133 @@
   }
 }
 
+/* Greppet och genvägarna överst i bladet. Utan blad finns de inte. */
+.sheetHandle,
+.sheetGrip {
+  display: none;
+}
+
+/*
+ * Bladet med valen på telefon (beslut av ägaren 2026-11-24, efter Merchin): skylten står stor överst
+ * och valen ligger i ett blad som dras upp underifrån, litet, halvt eller helt (`useBottomSheet`).
+ * Bara i vyerna 3D och Ritning (`data-sheet`). Sidan rullar inte: allt som rullar finns i bladet.
+ * Medan bladet dras (`data-dragging`) ligger det över skylten, som står still i sin höjd.
+ */
+@media (max-width: 699px) {
+  /*
+   * Fast under sidhuvudet, utanför sidans flöde: i en butik står också butikens sidor (`.pageNav`)
+   * och sidfoten runt skyltmotorn, och då hamnade prisraden nedanför skärmen. Under sidhuvudet
+   * (z-index 50), så att dess meny fälls ut över bladet.
+   */
+  .shell[data-sheet] {
+    --sheet-gap: 12px;
+    /* Sektionerna rullas fram i bladet, där genvägarna står ovanför och inte över dem. */
+    --panel-sticky-top: 0px;
+    position: fixed;
+    top: var(--header-height);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    overflow: hidden;
+  }
+
+  .shell[data-sheet] .stage {
+    position: relative;
+    top: auto;
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    padding-bottom: var(--radius-lg);
+    border-bottom: 0;
+  }
+
+  .shell[data-sheet][data-dragging] .stage {
+    flex: none;
+    height: var(--stage-frozen, 50%);
+  }
+
+  .shell[data-sheet] .panel {
+    position: relative;
+    z-index: 6;
+    flex: none;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: 0;
+    /* De rundade hörnen ligger över skyltens nederkant, som skylten lämnar fri (padding nedan). */
+    margin-top: calc(var(--radius-lg) * -1);
+    border-top: 1px solid var(--color-line);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: var(--color-white);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+  }
+
+  .shell[data-sheet="half"] .panel {
+    height: 55%;
+  }
+
+  .shell[data-sheet="full"] .panel,
+  .shell[data-sheet][data-dragging] .panel {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    margin-top: 0;
+    height: calc(100% - var(--sheet-gap));
+  }
+
+  .shell[data-sheet][data-dragging] .panel {
+    height: var(--sheet-drag);
+  }
+
+  /* Det lilla bladet visar bara greppet, genvägarna och prisraden. Valen står kvar, ihopfällda. */
+  .shell[data-sheet="small"]:not([data-dragging]) .panelScroll {
+    height: 0;
+    overflow: hidden;
+  }
+
+  .shell[data-sheet] .panelScroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .shell[data-sheet] .sheetHandle {
+    display: grid;
+    /* Fingret drar bladet uppåt och nedåt. Genvägarna rullar fortfarande i sidled. */
+    touch-action: none;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-white);
+  }
+
+  .shell[data-sheet] .sheetGrip {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: grab;
+  }
+
+  .sheetGrip span {
+    width: 40px;
+    height: 4px;
+    border-radius: var(--radius-pill);
+    background: var(--color-line-strong);
+  }
+
+  .shell[data-sheet] .sectionNav {
+    position: static;
+    border-bottom: 0;
+    touch-action: pan-x;
+  }
+}
+
 .resellerBar {
   display: flex;
   align-items: center;

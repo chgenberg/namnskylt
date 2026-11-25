@@ -27,6 +27,8 @@ import { formatMm } from "@/lib/format";
 import { panelStep } from "../panel-steps";
 import type { DesignerAction } from "../state";
 import { FontPicker } from "./font-picker";
+import { useBadgeFixes } from "../badge-fixes";
+import { FixAction } from "../fix-action";
 import { PRINT_COLOR_NOTE, TextColorField } from "./print-color-field";
 import styles from "./sections.module.css";
 
@@ -63,6 +65,7 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
   const canAdd = doc.rows.length < TEXT_LIMITS.maxRows;
   // Färg per rad finns bara i tryck: gravyren får materialets färg, lika på alla rader.
   const namePrinted = nameMarking(doc) === "print";
+  const fixes = useBadgeFixes();
   /** Ett typsnitt utan egen fet stil ritar en fet rad i normal stil: då går Fet inte att välja. */
   const boldFits = hasBold(doc.font);
   const color = getColor(doc.materialId, doc.colorId);
@@ -168,6 +171,11 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
                         : `${namePrinted ? "Printas" : "Graveras"} med ${formatMm(drawn.capHeightMm)} mm så att raden ryms.`}
                     </p>
                   )}
+                  <FixAction target={`row-fit:${row.id}`} />
+                  {fixes?.has(`row-color:${row.id}`) && (
+                    <p className={styles.issue}>Radens färg syns dåligt mot skylten.</p>
+                  )}
+                  <FixAction target={`row-color:${row.id}`} />
                 </div>
               </motion.li>
             );

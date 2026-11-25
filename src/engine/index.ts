@@ -23,3 +23,4 @@ export * from "./logo-engrave";
 export * from "./render-svg";
 export * from "./pricing";
 export * from "./schema";
+export * from "./fixes";

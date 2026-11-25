@@ -25,6 +25,8 @@ import { traceImage, type LogoTrace } from "../logo/trace-image";
 import { useLogoEngraving } from "../logo/use-logo-engraving";
 import { panelStep } from "../panel-steps";
 import type { DesignerAction } from "../state";
+import { useBadgeFixes } from "../badge-fixes";
+import { FixAction } from "../fix-action";
 import { LogoColors } from "./logo-colors";
 import { PRINT_COLOR_NOTE, TextColorField } from "./print-color-field";
 import styles from "./sections.module.css";
@@ -99,6 +101,7 @@ export function LogoSection({ doc, dispatch }: LogoSectionProps) {
   const originRef = useRef<LogoOrigin | null>(null);
   const color = getColor(doc.materialId, doc.colorId);
   const working = status.kind === "working";
+  const fixes = useBadgeFixes();
 
   // En logga i färg som sparades innan gravyrformen fanns får den i efterhand, när den graveras.
   useLogoEngraving(doc, dispatch);
@@ -288,6 +291,12 @@ export function LogoSection({ doc, dispatch }: LogoSectionProps) {
               Ta bort loggan
             </button>
           </div>
+          {fixes?.has("logo-contrast") && (
+            <p className={styles.issue} role="status">
+              Loggan syns dåligt mot skylten.
+            </p>
+          )}
+          <FixAction target="logo-contrast" />
           {doc.logo.colors && doc.logo.colors.length > 0 && (
             <LogoColors
               doc={doc}

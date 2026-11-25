@@ -12,6 +12,7 @@ import { badgeCount } from "@/lib/orders/model";
 import { priceWithPricing } from "@/lib/orders/pricing";
 import { displayStatus, quoteCustomerLabel, type StoredQuote } from "@/lib/quotes/model";
 import { listUnreadNotices } from "@/lib/notices/repository";
+import { needsReminder } from "@/lib/quotes/reminder";
 import { listQuotes } from "@/lib/quotes/repository";
 import { isOwner } from "@/lib/tenants/model";
 
@@ -98,6 +99,8 @@ export default async function QuotesPage() {
                     {quote.badges.length > 1 && <span>{quote.badges.length} namn</span>}
                     <span>{formatRelative(quote.createdAt, now)}</span>
                     {status === "sent" && <span>gäller t.o.m. {formatDay(quote.validUntil)}</span>}
+                    {/* Kunden har inte svarat på några dagar: på offertens sida finns ett utkast till en påminnelse. */}
+                    {needsReminder(quote, now) && <span className={styles.source}>Dags att påminna</span>}
                     {savings(quote) > 0 && <span className={styles.source}>−{String(savings(quote)).replace(".", ",")} %</span>}
                     {quote.orderNo && <span className="mono">→ {quote.orderNo}</span>}
                     {quote.demo && <span className={styles.demoTag}>Demo</span>}

@@ -522,3 +522,9 @@ body:has([data-home]) {
 main[data-floating-header] {
   padding-top: var(--header-height);
 }
+
+/* Skyltmotorns blad på telefon: sidan står still, och allt som rullar finns i bladet (use-bottom-sheet.ts). */
+html[data-designer-sheet],
+html[data-designer-sheet] body {
+  overflow: hidden;
+}
