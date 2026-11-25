@@ -1,15 +1,18 @@
 import type { EmailMessage } from "@/lib/email/types";
-import { assetPath, badgeCaption } from "./badge-asset";
 import { localeFor, type EmailStep } from "./copy";
 import { issueLinkToken, LinkSecretError } from "./link-token";
 import { relationSegment } from "./model";
 import { buildResellerEmail } from "./reseller-email";
-import { approvedPersona, type AssetMeta, type CampaignRow, type LeadRow, type MessageRow } from "./store";
+import { CALLBACK_INBOX, DEMO_PATH } from "@/lib/callback/contact";
+import { WORKSHOP_COMPANY } from "@/lib/company/workshop";
+import { OUTREACH_HERO } from "./hero";
+import type { AssetMeta, CampaignRow, LeadRow, MessageRow } from "./store";
 
 export interface ComposeInput {
   message: Pick<MessageRow, "id" | "step" | "idempotencyKey">;
   lead: LeadRow;
   campaign: CampaignRow;
+  /** Leadets bilder. Mejlet visar ingen bild sedan 2026-11-25, men kön skickar dem fortfarande med. */
   assets: readonly AssetMeta[];
   sender: { legalName: string; orgNumber: string; address: string };
   siteUrl: string;
@@ -22,6 +25,36 @@ export type Composed = { ok: true; email: EmailMessage } | { ok: false; missing:
 type Company = { name: string; orgNumber: string; address: string };
 
 export const companySender = (c: Company) => ({ legalName: c.name, orgNumber: c.orgNumber, address: c.address });
+
+/** Domänen utskicket skickas från, om `OUTREACH_SENDING_DOMAIN` inte säger något annat (beslut 2026-11-25). */
+export const DEFAULT_SENDING_DOMAIN = "utskick.skyltochgravyr.com";
+
+/**
+ * Kampanjens avsändare (besked av ägaren 2026-11-25): avsändarnamnet Namnskylt, adressen info@ på
+ * utskickets egen underdomän, svar till hej@namnskylt.com, och signaturen "Gänget på Namnskylt".
+ */
+export function outreachCampaignSender(env: Record<string, string | undefined> = process.env) {
+  const domain = env.OUTREACH_SENDING_DOMAIN?.trim() || DEFAULT_SENDING_DOMAIN;
+  return {
+    fromName: "Namnskylt",
+    fromEmail: `info@${domain}`,
+    replyTo: CALLBACK_INBOX,
+    signature: { name: "Gänget på Namnskylt", email: CALLBACK_INBOX },
+  };
+}
+
+/**
+ * Avsändaren i utskickets sidfot: Skylt & Gravyrteknik, som står bakom namnskylt.com och har
+ * kundrelationen (besked av ägaren 2026-11-25). Adminens företagsuppgifter tillhör ett annat
+ * företag och används inte här.
+ */
+export function outreachSenderCompany(): Company {
+  return {
+    name: WORKSHOP_COMPANY.legalName,
+    orgNumber: WORKSHOP_COMPANY.orgNumber,
+    address: `${WORKSHOP_COMPANY.street}, ${WORKSHOP_COMPANY.zipCity}`,
+  };
+}
 
 /** Förhandsvisning och dry-run ska gå att granska innan företagsprofilen är ifylld; live stoppas av blockerarna. */
 export function previewSender(c: Company) {
@@ -45,7 +78,7 @@ const formatFrom = (name: string, email: string) => `${name.replace(/["<>]/g, ""
 
 /** Ett meddelande färdigt för avsändaren. Länkarna bär meddelandets id, inget annat. */
 export function composeOutreachEmail(input: ComposeInput): Composed {
-  const { message, lead, campaign, assets, siteUrl, now } = input;
+  const { message, lead, campaign, siteUrl, now } = input;
   let landing: string;
   let unsubscribe: string;
   try {
@@ -56,7 +89,6 @@ export function composeOutreachEmail(input: ComposeInput): Composed {
     throw error;
   }
 
-  const shown = approvedPersona(assets) ?? assets.find((a) => a.kind === "hero");
   const result = buildResellerEmail({
     step: emailStepFor(campaign, message.step),
     segment: relationSegment(lead),
@@ -64,19 +96,11 @@ export function composeOutreachEmail(input: ComposeInput): Composed {
     contactName: lead.contactName,
     company: lead.companyName,
     customerSinceYear: yearOf(lead.customerSince),
-    landingUrl: `${siteUrl}/for/${landing}`,
+    // Sidan med filmen och formuläret för att bli uppringd; länkkoden säger vem som kom (2026-11-25).
+    filmUrl: `${siteUrl}${DEMO_PATH}?k=${landing}`,
+    heroImage: { ...OUTREACH_HERO, url: `${siteUrl}${OUTREACH_HERO.src}` },
     unsubscribeUrl: `${siteUrl}/avregistrera/${unsubscribe}`,
     privacyUrl: `${siteUrl}/integritet`,
-    image: shown
-      ? {
-          url: `${siteUrl}${assetPath(shown.id)}`,
-          width: shown.width,
-          height: shown.height,
-          kind: shown.kind === "persona" ? "persona" : "badge",
-          badgeCaption: badgeCaption(shown),
-          hasLogo: shown.logoStatus === "logo",
-        }
-      : null,
     sender: input.sender,
     signature: campaign.signature,
   });

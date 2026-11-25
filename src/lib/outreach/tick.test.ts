@@ -231,6 +231,7 @@ function deps(store: TickStore, overrides: Partial<TickDeps> = {}): TickDeps & {
     company: { name: "Namnskylt AB", orgNumber: "559000-0000", address: "Gatan 1, 111 22 Stockholm" },
     siteUrl: "https://namnskylt.com",
     supplierConfigured: true,
+    filmReady: true,
     sleep: async () => undefined,
     outboxed,
     ...overrides,
@@ -297,7 +298,7 @@ describe("runOutreachTick — dry-run", () => {
     assert.equal(d.outboxed.length, 1);
     assert.equal(store.messages[0]?.status, "ready");
     assert.equal(result.items[0]?.outcome, "dry_run");
-    assert.match(d.outboxed[0]?.html ?? "", /namnskylt\.com\/for\//);
+    assert.match(d.outboxed[0]?.html ?? "", /namnskylt\.com\/demo\?k=/);
   });
 
   test("live utan riktig avsändare blir dry-run", async () => {

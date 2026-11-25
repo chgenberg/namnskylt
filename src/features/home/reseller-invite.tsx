@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { DEMO_PATH } from "@/lib/callback/contact";
+import { DEMO_FILM } from "@/lib/callback/film";
 import styles from "./reseller-invite.module.css";
 
 /**
@@ -25,6 +27,11 @@ export function ResellerInvite() {
             <Link href="/aterforsaljare/ansok" className="btn btn--primary btn--lg">
               Bli återförsäljare
             </Link>
+            {DEMO_FILM ? (
+              <Link href={`${DEMO_PATH}#film`} className={styles.login}>
+                Se filmen, {DEMO_FILM.length}
+              </Link>
+            ) : null}
             <Link href="/aterforsaljare" className={styles.login}>
               Redan återförsäljare? Logga in
             </Link>

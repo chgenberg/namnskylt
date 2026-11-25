@@ -1,14 +1,12 @@
 import type { Country, RelationSegment } from "./model";
 
 /**
- * All text i återförsäljarmejlet, per språk. Mejlet är kort med flit: en
- * bild som väcker nyfikenhet och en länk till resten. Inget som leverantören
- * inte har bekräftat — se `FORBIDDEN_PHRASES`.
+ * All text i återförsäljarmejlet, per språk. Mejlet är kort med flit: en knapp som ringer upp och
+ * en länk till filmen. Inget som leverantören inte har bekräftat — se `FORBIDDEN_PHRASES`.
  */
 
 export type EmailStep = 1 | 2;
 export type OutreachLocale = "sv" | "nb";
-export type EmailImageKind = "persona" | "badge";
 
 export function localeFor(country: Country): OutreachLocale {
   return country === "no" ? "nb" : "sv";
@@ -17,63 +15,81 @@ export function localeFor(country: Country): OutreachLocale {
 export interface CopyContext {
   firstName: string | null;
   company: string;
-  hasLogo: boolean;
-  image: EmailImageKind;
   segment: RelationSegment;
+}
+
+/** Den som visar namnskylt.com, med namn och nummer som de står i mejlet. */
+export interface DemoContactText {
+  name: string;
+  firstName: string;
+  phone: string;
 }
 
 export interface LocaleCopy {
   subject(step: EmailStep, c: CopyContext): string;
   preheader(step: EmailStep): string;
   greeting(firstName: string | null): string;
-  /** Stycket före bilden. */
+  /** Stycket efter hälsningen. */
   lead(step: EmailStep, c: CopyContext): string;
-  /** Stycket efter bilden, före knappen. */
-  follow(step: EmailStep, c: CopyContext): string;
-  cta: string;
+  /** Länken till sidan med filmen. */
+  filmLink: string;
+  /** Toppbildens alt-text och raden under den, som säger att bilden är AI-genererad. */
+  heroAlt(contact: DemoContactText): string;
+  heroCaption: string;
+  /** Stycket före knappen, om demon. */
+  demo(contact: DemoContactText): string;
+  /** Knappen: ring den som visar. Mejlets enda knapp. */
+  cta(contact: DemoContactText): string;
   closing: string;
   signoff: string;
-  imageCaption(kind: EmailImageKind, badgeCaption: string): string;
-  imageAlt(c: CopyContext): string;
   relationLine(company: string, customerSinceYear: number | null): string;
   orgNumber: string;
   privacy: string;
   unsubscribe: string;
 }
 
-/** «Nordtryck» → «Nordtrycks», «Nordtryck & Co AB» → «Nordtryck & Co ABs», «Ljus» → «Ljus». */
+/**
+ * «Nordtryck» → «Nordtrycks», «Ljus» → «Ljus», och efter en förkortning eller en siffra med kolon,
+ * som svenska skrivregler säger: «Nordtryck & Co AB» → «Nordtryck & Co AB:s», «Profil 24» → «Profil 24:s».
+ */
 export function genitive(name: string): string {
+  if (/(?:\b[A-ZÅÄÖ]{2,}|\d)$/.test(name)) return `${name}:s`;
   return /[sxz]$/i.test(name) ? name : `${name}s`;
 }
 
+/**
+ * Mejlet är så enkelt det går (besked av ägaren 2026-11-25): en knapp som ringer Pär för en demo på
+ * fem minuter, och en länk till filmen, där det också går att be om att bli uppringd. Ingen bild, inga
+ * priser och ingen färdig butik. Signerat av gänget, med svar till Skylt & Gravyrteknik.
+ */
 const sv: LocaleCopy = {
   subject: (step, c) => {
-    if (step === 2) return `Butiken åt ${c.company} ligger kvar`;
-    if (c.hasLogo) return c.firstName ? `${c.firstName}, känner du igen loggan?` : "Känner ni igen loggan?";
-    return c.firstName ? `${c.firstName}, vi har gjort något åt ${c.company}` : `Vi har gjort något åt ${c.company}`;
+    if (step === 2) return c.firstName ? `${c.firstName}, hann du se filmen?` : "Hann ni se filmen?";
+    return c.firstName ? `${c.firstName}, namnskyltar till era kunder?` : "Namnskyltar till era kunder?";
   },
-  preheader: (step) => (step === 2 ? "Ifall förra mejlet försvann i inkorgen." : "En bild och en länk. Det tar en halv minut."),
-  greeting: (firstName) => (firstName ? `Hej ${firstName}!` : "Hej!"),
-  lead: (step, c) => {
-    if (step === 2) return "Ville bara höra att bilden kom fram.";
-    const what = c.hasLogo ? `${genitive(c.company)} logga på en graverad namnskylt` : `en graverad namnskylt åt ${c.company}`;
-    return c.image === "persona" ? `Vi satte ${what} — och lät någon bära den.` : `Vi gjorde ${what}.`;
-  },
-  follow: (step, c) =>
+  preheader: (step) =>
     step === 2
-      ? `Butiken vi byggde åt ${c.company} ligger kvar, ${c.hasLogo ? "med er logga och era färger" : "i era färger"}.`
-      : "Bakom länken finns resten: en färdig butik i era färger, där era kunder kan beställa egna skyltar.",
-  cta: "Se vad vi byggt åt er",
-  closing: "Svara bara på mejlet om du hellre vill att jag ringer.",
-  signoff: "Hälsningar",
-  imageCaption: (kind, badgeCaption) =>
-    kind === "persona" ? `AI-genererad bild. Skylten finns på riktigt: ${badgeCaption}.` : `Skylten: ${badgeCaption}.`,
-  imageAlt: (c) => {
-    const badge = c.hasLogo ? `en graverad namnskylt med ${genitive(c.company)} logga` : `en graverad namnskylt åt ${c.company}`;
-    return c.image === "persona" ? `AI-genererad person som bär ${badge}` : badge.charAt(0).toUpperCase() + badge.slice(1);
-  },
+      ? "Fem minuter med Pär räcker för att se om det passar er."
+      : "Från Skylt & Gravyrteknik: en film på under en minut, eller fem minuter med Pär.",
+  greeting: (firstName) => (firstName ? `Hej ${firstName}!` : "Hej!"),
+  // "Vi" är Skylt & Gravyrteknik, som mottagaren känner (marknadsagentens granskning 2026-11-25).
+  lead: (step, c) =>
+    step === 2
+      ? `Vi skrev förra veckan om namnskylt.com, där ni gör namnskyltar och offerter åt era kunder. Hann ${c.firstName ? "du" : "ni"} se filmen?`
+      : "Vi på Skylt & Gravyrteknik har startat namnskylt.com. Där gör ni namnskyltar och offerter åt era kunder, med er logga och era priser. Vi tillverkar och skickar.",
+  filmLink: "Se hur det funkar, på under en minut",
+  heroAlt: (contact) => `${contact.name} med en namnskylt från namnskylt.com`,
+  // AI-förordningen och Merchins regel: en AI-bild visas aldrig som om den vore ett foto.
+  heroCaption: "Bilden är AI-genererad. Skylten finns på riktigt.",
+  demo: (contact) => `${contact.name} går igenom allt med dig på fem minuter.`,
+  cta: (contact) => `Ring ${contact.firstName}: ${contact.phone}`,
+  closing: "Eller svara med ditt nummer, så ringer vi upp.",
+  signoff: "Hälsningar,",
+  // Kundrelationen är Skylt & Gravyrtekniks, som står bakom namnskylt.com (besked av ägaren 2026-11-25).
   relationLine: (company, year) =>
-    year ? `Ni får det här för att ${company} är kund hos oss sedan ${year}.` : `Ni får det här för att ${company} är kund hos oss.`,
+    year
+      ? `Ni får det här för att ${company} är kund hos Skylt & Gravyrteknik sedan ${year}.`
+      : `Ni får det här för att ${company} är kund hos Skylt & Gravyrteknik.`,
   orgNumber: "Org.nr",
   privacy: "Så hanterar vi uppgifter",
   unsubscribe: "Avregistrera",

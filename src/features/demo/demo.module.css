@@ -1,0 +1,195 @@
+/* Sidan med filmen för återförsäljare: samma lugna form som Om oss, med två kort för kontakt. */
+
+.page {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--container-pad) var(--space-9);
+}
+
+.head {
+  max-width: 720px;
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-serif);
+  font-size: var(--text-display);
+  font-weight: 400;
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  text-wrap: pretty;
+}
+
+.callLine {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+}
+
+.callLine a {
+  font-weight: 600;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/* ── Filmen ── */
+
+.film {
+  margin: var(--space-7) 0 0;
+  scroll-margin-top: 96px;
+}
+
+.film video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-xl);
+  background: var(--color-paper-2);
+}
+
+.wide {
+  aspect-ratio: 16 / 9;
+}
+
+.tall {
+  display: none !important;
+  aspect-ratio: 9 / 16;
+  max-height: 80svh;
+  margin: 0 auto;
+}
+
+.film figcaption {
+  margin-top: var(--space-2);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 640px) {
+  .wide {
+    display: none !important;
+  }
+
+  .tall {
+    display: block !important;
+    width: auto !important;
+    max-width: 100%;
+  }
+}
+
+/* ── Ring eller bli uppringd ── */
+
+.contact {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
+}
+
+@media (min-width: 800px) {
+  .contact {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border-radius: var(--radius-xl);
+  background: var(--color-paper-2);
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  font-weight: 400;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
+}
+
+.cardText {
+  margin: 0 0 var(--space-2);
+  color: var(--color-ink-2);
+}
+
+.card :global(.btn) {
+  justify-self: start;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.field input {
+  min-height: 48px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 400;
+  color: var(--color-ink);
+}
+
+.field input:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+.trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+
+.sent {
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  font-size: var(--text-lg);
+}
+
+.points {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-7) 0 0;
+  padding: 0 0 0 1.2em;
+  color: var(--color-ink-2);
+}

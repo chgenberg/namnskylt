@@ -41,7 +41,9 @@ Läs dessa när du arbetar i respektive område:
     lösenord, och orderbekräftelsen och fraktbeskedet till en kund som har beställt i en
     återförsäljares butik. Sedan 2026-11-24 också länken för glömt lösenord till en kunds
     konto, på namnskylt.com och i butikerna (ägarens "glömt lösenord saknas" och "Pusha").
-    De har sin egen strömbrytare, `NOTICE_RESEND_API_KEY` och `NOTICE_FROM_EMAIL`, satta
+    Sedan 2026-11-25 också förfrågan "Bli uppringd" från sidan med filmen (`/demo`), som går
+    till hej@namnskylt.com (ägarens "då får hej@namnskylt.com ett mail där vi ringer upp"),
+    se Utskicket, enklare. De har sin egen strömbrytare, `NOTICE_RESEND_API_KEY` och `NOTICE_FROM_EMAIL`, satta
     på Railway på ägarens begäran. Ändra dem inte och ta inte
     bort dem utan att ägaren säger till. **En direktorder hos namnskylt.com får aldrig
     orderbekräftelse eller fraktbesked härifrån**: verkstadens system mejlar kunden, och
@@ -101,6 +103,12 @@ pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
   (`railway redeploy`): en ändrad variabel startar inte om tjänsten av sig själv. Robots.txt släpper
   in sökmotorerna utom de privata vägarna, och sitemapen listar de åtta publika sidorna. Butikerna
   bär fortfarande `noindex`, och panelen och `/verkstad` kräver sina egna lösenord.
+  - **DNS för namnskylt.com ligger hos Cloudflare**, inte hos One: .com-registret pekar dit, så One:s
+    DNS-sida används inte. Sedan 2026-11-25 tar domänen emot mejl hos One (inkorgen hej@namnskylt.com,
+    för utskickets signatur): fyra MX-poster till `mx1`–`mx4.mailpod16-cph3.g1i.one.com`, SPF
+    `v=spf1 include:_custspf.one.com ~all` och DKIM som CNAME `rsa1._domainkey`, DNS only. Den tomma
+    MX-posten (`0 .`, "tar inte emot mejl") är borttagen. One:s DMARC (`p=reject`) är inte inlagd än.
+    Rör inte posterna för sajten (CNAME till Railway och `_railway-verify`).
   - Ska spärren tillbaka: sätt `SITE_GATE_PASSWORD` igen och kör `railway redeploy --service namnskylt`.
     Värdet finns hos ägaren och i en skyddad fil i sessionens scratchpad, aldrig i repot.
   - Planens kontroller före öppningen var inte gjorda när sajten öppnades. Samma dag, på ägarens
@@ -4103,6 +4111,82 @@ Alla anrop går via `openai()` i `src/lib/ai/openai.ts`. Den returnerar `null` u
   den vanliga skyltbilden. Kolumnen `outreach_assets.review` finns på alla bilder och står
   som `pending` även på skylt- och materialbilderna, men den läses bara för persona-bilder.
   Skylten ritas av motorn och behöver ingen granskning.
+
+## Utskicket, enklare — läge 2026-11-25
+
+Ägaren ändrade upplägget 2026-11-25: mejlet ska vara "superenkelt, bara ett CTA", och det är att ringa
+Pär Philipson (076-188 48 00) för en demo på fem minuter. En länk går till filmen, på en ny sida där man
+också kan be om att bli uppringd. **Ingen butik byggs per återförsäljare i det här steget**, och inga
+personbilder görs. **Pushat 2026-11-25 på ägarens begäran** ("när du väl lagt upp filmen på den här
+landningssidan"): mejlet, sidan med filmen och formuläret. Utskicket står kvar pausat i provläge utan egen
+nyckel, så inget utskick har gått ut; bara provmejl till Pär på ägarens begäran.
+
+- **Besluten** (ägarens svar på planens nio frågor samma dag, inlagda i planen på claude.ai):
+  - Avsändarnamnet är Namnskylt, och mejlen ska gå från info@ på en egen underdomän, till exempel
+    utskick.skyltochgravyr.com, som inte är upplagd i Resend än (`OUTREACH_SENDING_DOMAIN` ska sättas
+    till den). **Svaren går till hej@namnskylt.com** (ägarens besked samma dag). Kampanjen får de
+    adresserna av sig själv (`outreachCampaignSender`, `currentCampaign`): förut tog den svarsadressen ur
+    adminens företagsuppgifter, som tillhör ett annat företag.
+  - Signaturen är "Hälsningar, Gänget på Namnskylt, hej@namnskylt.com" (inkorgen hos One, se Drift).
+  - Skylt & Gravyrteknik står bakom och har kundrelationen. Ingen egen intresseavvägning eller jurist
+    nu. Avregistreringen står kvar i varje mejl.
+  - En påminnelse efter 5 vardagar. Inga priser. Bara Sverige. Ingen "Sara": en egen marknadsagent
+    granskar texten.
+- **Toppbilden** (ägarens besked samma dag: "en fotografibild, alltså inte en 3D-bild … namnskylt.com-logon
+  och … Pär Philipson … lite brusig bild typ polaroid"): `public/mejl/aterforsaljare-topp.jpg`, 1056 × 894,
+  satt i `OUTREACH_HERO` (`src/lib/outreach/hero.ts`). Gjord som Merchins bilder: bildmodellen (två bilder i
+  hög kvalitet) fick vår egen skylt, mässing med namnskylt.coms logga och "Pär Philipson", och ett foto av
+  Pär som ägaren skickade. Sedan Merchins filmton och korn i koden och en polaroidkant. Skriptet ligger i
+  `tmp/topp-bild/` (gitignorerat); verkstadsbilden valdes, kontorsbilden finns där som alternativ. Bilden
+  står överst, länkar till filmen och har raden "Bilden är AI-genererad. Skylten finns på riktigt."
+  (AI-förordningen gäller bilder som liknar en verklig person, och Merchins regel säger detsamma).
+  Texten på skylten är kontrollerad förstorad.
+- **Mejlet** (`copy.ts`, `reseller-email.ts`): hälsning, ett stycke om namnskylt.com, länken "Se hur det
+  funkar, på under en minut" till `/demo?k=<länkkod>`, och en enda knapp, "Ring Pär: 076-188 48 00"
+  (`tel:`). Ingen bild. Sidfoten bär Skylt & Gravyrtekniks juridiska namn, org.nr och adress
+  (`outreachSenderCompany` i `compose.ts`), inte adminens företagsuppgifter. Pärs namn och nummer står
+  i `src/lib/callback/contact.ts` (`DEMO_CONTACT`).
+  - Spärrarna för saknad butik och skyltbild (`shop-missing`, `hero-missing`) är borttagna ur
+    `send-gate.ts`. Butikerna, bilderna och `/for/[token]` ligger kvar men används inte av mejlet.
+  - **Inget mejl går innan filmen ligger på sidan**: spärren `film-missing` i `send-gate.ts` (via
+    `filmReady`, alltså `DEMO_FILM !== null`) håller kvar meddelandena i kön. Den lades till efter
+    marknadsagentens granskning, liksom texterna "Vi på Skylt & Gravyrteknik har startat
+    namnskylt.com", påminnelsen "Vi skrev förra veckan …", "Eller svara med ditt nummer" och sidans
+    rubrik "Namnskyltar åt era kunder, med er logga". Pär presenteras bara med namn: han hör till
+    Namnskylt, inte till verkstaden.
+  - Öppet efter granskningen: integritetssidan (Skylt & Gravyrtekniks text) säger att marknadsföring
+    bara sker med samtycke.
+  - `pnpm outreach:preview` skriver mejlen utan bilder. Exempel på skrivbordet:
+    `Namnskylt-utskicksmejl-2026-11-25.html`.
+- **Underdomänen utskick.skyltochgravyr.com är verifierad i Skylt & Gravyrs Resend** (EU, mottagning av)
+  sedan 2026-11-25. Ägaren lade upp den i Resend, och posterna ligger hos **Loopia**, där DNS:en för
+  skyltochgravyr.com finns: TXT `resend._domainkey.utskick`, CNAME `rsend.utskick` och CNAME
+  `send.utskick`. Huvuddomänens DMARC (`p=none`) gäller också underdomänen.
+  - **Ett enda provmejl** skickades samma dag på ägarens begäran, till en adress ägaren angav: första
+    mejlet som det ser ut, från `Namnskylt <info@utskick.skyltochgravyr.com>` med svar till
+    hej@namnskylt.com. Det gick med offertmejlets nyckel, läst från Railway för det enda anropet och inte
+    sparad. `RESEND_API_KEY` är fortfarande tom, och utskicket har ingen egen nyckel än.
+- **Sidan med filmen** (`/demo`, `src/features/demo/`): rubrik, filmen (när `DEMO_FILM` i
+  `src/lib/callback/film.ts` är satt; den är `null` tills filmen är godkänd), kortet "Ring Pär" och kortet
+  "Bli uppringd" med namn och telefon. Sidan är `noindex` och skickar ingen referens, eftersom länken
+  från mejlet bär mottagarens kod. Ett besök från mejlet räknas som ett besök på landningen
+  (`recordDemoVisitAction`), så att påminnelsen inte går till den som har sett sidan.
+- **"Bli uppringd" mejlar hej@namnskylt.com** (`requestCallbackAction`, `composeCallbackEmail`): namn,
+  telefon, och företaget och adressen när besökaren kom från utskicket, med en knapp som ringer upp.
+  Mejlet går genom `NOTICE_RESEND_API_KEY` (Skylt & Gravyrtekniks Resend). Inget sparas i databasen:
+  går mejlet inte iväg får besökaren Pärs nummer i stället. Gränser: 5 per klient och timme, 200 per dygn.
+- **Filmen** (48 s, utan ljud, 16:9 och 9:16, cirka 6 MB var) ligger i `public/film/` och är satt i
+  `DEMO_FILM`. Den görs i `~/Desktop/Namnskylt-film` (Remotion, i samma stil som Merchins filmer) av
+  riktiga skärmbilder ur plattformen med påhittade uppgifter (Exempelprofil AB, Exempelbygg AB):
+  01 Er logga, era färger · 02 Skylten och offerten · 03 Kunden säger ja · 04 Verkstaden tillverkar och
+  skickar, och slutskylten "Namnskyltar åt era kunder, med er logga". `node scripts/render.mjs` renderar.
+  - **Återförsäljarens inköp och marginal är suddade** i skärmbilderna av steg 2 (marginalrutan och
+    prisraden i skyltmotorn), eftersom filmen är offentlig. Originalen ligger utanför repot. Tas
+    skärmbilderna om ska de suddas igen.
+- Provat lokalt 2026-11-25 i Chrome på 1440, 390 och 320 px mot en låtsasmottagare (25 kontroller):
+  rätt film per skärm, filmen går att spola, Pärs nummer syns utan att rulla, fel nummer ger fel och
+  inget mejl, ett riktigt nummer ger ett mejl till hej@namnskylt.com, och länkkoden från utskicket
+  ger företaget i mejlet och räknar besöket.
 
 ## Utskicket till återförsäljare — läge 2026-11-13
 

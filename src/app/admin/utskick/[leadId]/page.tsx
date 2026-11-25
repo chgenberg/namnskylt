@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DEMO_FILM } from "@/lib/callback/film";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import adminStyles from "@/features/admin/admin.module.css";
@@ -50,7 +51,7 @@ export default async function OutreachLeadPage({ params }: { params: Promise<{ l
     allowlist: parseAllowlist(process.env.OUTREACH_ALLOWLIST),
     mode: control.mode === "live" && emailMode() === "live" ? "live" : "dry_run",
     supplierConfigured: supplierApiConfigured(),
-    heroReady: hero !== undefined,
+    filmReady: DEMO_FILM !== null,
     openWaves: warmupCap(firstSent, now).waves,
   }).map((code) => BLOCKER_LABELS[code]);
 

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { emailMode } from "@/lib/email";
-import { getCompanyProfile } from "@/lib/orders/repository";
+import { outreachCampaignSender } from "@/lib/outreach/compose";
 import { ASSET_REVIEWS, CONTROL_MODES, DEFAULT_CAMPAIGN_STEPS, WAVES } from "@/lib/outreach/model";
 import { ASSET_ID_PATTERN } from "@/lib/outreach/badge-asset";
 import * as store from "@/lib/outreach/repository";
@@ -11,7 +11,7 @@ import { runOutreachTickNow } from "@/lib/outreach/run-tick";
 import { approvalBlockers, BLOCKER_LABELS } from "@/lib/outreach/send-gate";
 import type { TickResult } from "@/lib/outreach/tick";
 import { requireReseller } from "@/lib/reseller-auth/session";
-import { isOwner, OWNER_TENANT } from "@/lib/tenants/model";
+import { isOwner } from "@/lib/tenants/model";
 
 const DEFAULT_CAMPAIGN_SLUG = "aterforsaljare-v1";
 
@@ -25,21 +25,28 @@ async function requireOwner(): Promise<string> {
 
 const refresh = () => revalidatePath("/admin/utskick", "layout");
 
-/** Kampanjen skapas första gången något godkänns; den startar som utkast. */
+/**
+ * Kampanjen skapas första gången något godkänns och startar som utkast. Avsändare, svarsadress och
+ * signatur är de beslutade (`outreachCampaignSender`) och skrivs in igen om de skiljer sig, till exempel
+ * på en kampanj som skapades när svaren gick till adminens företagsadress. Tak och steg står kvar.
+ */
 async function currentCampaign(sql: ReturnType<typeof store.outreachDb>) {
   const existing = (await store.listCampaigns(sql)).find((c) => c.slug === DEFAULT_CAMPAIGN_SLUG);
-  if (existing) return existing;
-  const company = await getCompanyProfile(OWNER_TENANT);
-  const domain = process.env.OUTREACH_SENDING_DOMAIN?.trim() || "mail.namnskylt.com";
+  const sender = outreachCampaignSender();
+  const same =
+    existing &&
+    existing.fromName === sender.fromName &&
+    existing.fromEmail === sender.fromEmail &&
+    existing.replyTo === sender.replyTo &&
+    existing.signature.name === sender.signature.name &&
+    existing.signature.email === sender.signature.email;
+  if (existing && same) return existing;
   return store.upsertCampaign(sql, {
     slug: DEFAULT_CAMPAIGN_SLUG,
-    name: "Återförsäljare — namnskyltar som kanal",
-    fromName: "Namnskylt",
-    fromEmail: `hej@${domain}`,
-    replyTo: company.email,
-    signature: {},
-    dailyCap: 40,
-    steps: DEFAULT_CAMPAIGN_STEPS,
+    name: existing?.name ?? "Återförsäljare — namnskyltar som kanal",
+    ...sender,
+    dailyCap: existing?.dailyCap ?? 40,
+    steps: existing?.steps ?? DEFAULT_CAMPAIGN_STEPS,
   });
 }
 
@@ -50,13 +57,12 @@ export async function approveLeadsAction(ids: string[]): Promise<ApproveResult> 
   const parsed = idsSchema.safeParse(ids);
   if (!parsed.success) return { ok: false, error: "Välj minst ett lead" };
   const sql = store.outreachDb();
-  const heroes = await store.leadIdsWithHero(sql);
   const refused: { id: string; reasons: string[] }[] = [];
   const allowed: string[] = [];
   for (const id of parsed.data) {
     const lead = await store.getLead(sql, id);
     if (!lead) continue;
-    const blockers = approvalBlockers(lead, { suppressed: await store.isSuppressed(sql, lead.email), heroReady: heroes.has(id) });
+    const blockers = approvalBlockers(lead, { suppressed: await store.isSuppressed(sql, lead.email) });
     if (blockers.length) refused.push({ id, reasons: blockers.map((b) => BLOCKER_LABELS[b]) });
     else allowed.push(id);
   }

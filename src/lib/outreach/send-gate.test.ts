@@ -13,7 +13,7 @@ const ctx: GateContext = {
   allowlist: null,
   mode: "dry_run",
   supplierConfigured: false,
-  heroReady: true,
+  filmReady: true,
 };
 
 describe("outreachBlockers", () => {
@@ -53,10 +53,14 @@ describe("outreachBlockers", () => {
     assert.deepEqual(outreachBlockers({ ...lead, country: "ax" }, ctx), ["country-locked"]);
   });
 
-  test("våg, butik och skylt måste finnas", () => {
+  test("vågen måste finnas, men inte butik eller skylt (2026-11-25)", () => {
     assert.deepEqual(outreachBlockers({ ...lead, wave: null }, ctx), ["wave-missing"]);
-    assert.deepEqual(outreachBlockers({ ...lead, shopSlug: null }, ctx), ["shop-missing"]);
-    assert.deepEqual(outreachBlockers(lead, { ...ctx, heroReady: false }), ["hero-missing"]);
+    assert.deepEqual(outreachBlockers({ ...lead, shopSlug: null }, ctx), []);
+  });
+
+  test("inget utskick innan filmen ligger på sidan", () => {
+    assert.deepEqual(outreachBlockers(lead, { ...ctx, filmReady: false }), ["film-missing"]);
+    assert.deepEqual(approvalBlockers(lead, { suppressed: false }), []);
   });
 
   test("vågen måste vara öppen i uppvärmningen", () => {
@@ -83,15 +87,15 @@ describe("parseAllowlist", () => {
 
 describe("approvalBlockers", () => {
   test("ett komplett lead går att godkänna även utan avsändare", () => {
-    assert.deepEqual(approvalBlockers(lead, { suppressed: false, heroReady: true }), []);
+    assert.deepEqual(approvalBlockers(lead, { suppressed: false }), []);
   });
 
-  test("saknad bild, butik och våg stoppar godkännandet", () => {
-    const blockers = approvalBlockers({ ...lead, wave: null, shopSlug: null }, { suppressed: false, heroReady: false });
-    assert.deepEqual(blockers, ["wave-missing", "shop-missing", "hero-missing"]);
+  test("saknad våg stoppar godkännandet, men inte en saknad butik", () => {
+    const blockers = approvalBlockers({ ...lead, wave: null, shopSlug: null }, { suppressed: false });
+    assert.deepEqual(blockers, ["wave-missing"]);
   });
 
   test("Norge och spärrade adresser stoppas", () => {
-    assert.deepEqual(approvalBlockers({ ...lead, country: "no" }, { suppressed: true, heroReady: true }), ["suppressed", "country-locked"]);
+    assert.deepEqual(approvalBlockers({ ...lead, country: "no" }, { suppressed: true }), ["suppressed", "country-locked"]);
   });
 });

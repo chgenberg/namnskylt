@@ -15,9 +15,8 @@ export const BLOCKER_LABELS = {
   "country-locked": "Bara svenska mottagare får utskick just nu",
   "wave-missing": "Leadet saknar våg",
   "wave-not-open": "Vågen är inte öppen i uppvärmningen än",
-  "shop-missing": "Demobutiken är inte förberedd",
-  "hero-missing": "Den personliga skylten är inte renderad",
   "supplier-not-configured": "Leverantörens API är inte konfigurerat, så en order skulle bli en mock",
+  "film-missing": "Filmen ligger inte på sidan än, men mejlet länkar till den",
 } as const;
 
 export type BlockerCode = keyof typeof BLOCKER_LABELS;
@@ -39,7 +38,8 @@ export interface GateContext {
   allowlist: ReadonlySet<string> | null;
   mode: ControlMode;
   supplierConfigured: boolean;
-  heroReady: boolean;
+  /** Filmen ligger på sidan som mejlet länkar till (`DEMO_FILM`). */
+  filmReady: boolean;
   /** Vågor som uppvärmningen släpper fram; utelämnat vid godkännande. */
   openWaves?: readonly Wave[];
 }
@@ -77,9 +77,8 @@ export function outreachBlockers(lead: GateLead, ctx: GateContext): BlockerCode[
       [lead.country !== "se", "country-locked"],
       [lead.wave === null, "wave-missing"],
       [waveClosed, "wave-not-open"],
-      [!lead.shopSlug, "shop-missing"],
-      [!ctx.heroReady, "hero-missing"],
       [ctx.mode === "live" && !ctx.supplierConfigured, "supplier-not-configured"],
+      [!ctx.filmReady, "film-missing"],
     ]),
   ];
 }
@@ -90,11 +89,13 @@ const APPROVAL_BLOCKERS: readonly BlockerCode[] = [
   "suppressed",
   "country-locked",
   "wave-missing",
-  "shop-missing",
-  "hero-missing",
 ];
 
-export function approvalBlockers(lead: GateLead, ctx: Pick<GateContext, "suppressed" | "heroReady">): BlockerCode[] {
+/**
+ * Sedan 2026-11-25 krävs varken demobutik eller skyltbild: mejlet länkar till filmen och ber mottagaren
+ * ringa (besked av ägaren: "Vi behöver alltså inte skapa varsin butik till dom i detta steg").
+ */
+export function approvalBlockers(lead: GateLead, ctx: Pick<GateContext, "suppressed">): BlockerCode[] {
   const all = outreachBlockers(lead, {
     company: { name: "-", orgNumber: "-", address: "-" },
     campaign: { fromEmail: "a@x", replyTo: "b@y" },
@@ -102,6 +103,7 @@ export function approvalBlockers(lead: GateLead, ctx: Pick<GateContext, "suppres
     allowlist: null,
     mode: "dry_run",
     supplierConfigured: true,
+    filmReady: true,
     ...ctx,
   });
   return all.filter((code) => APPROVAL_BLOCKERS.includes(code));

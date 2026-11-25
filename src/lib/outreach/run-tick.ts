@@ -1,9 +1,9 @@
 import "server-only";
 import { getEmailSender } from "@/lib/email";
 import { DEFAULT_OUTBOX_DIR, MockEmailSender } from "@/lib/email/mock-sender";
-import { getCompanyProfile } from "@/lib/orders/repository";
 import { supplierApiConfigured } from "@/lib/supplier/client";
-import { OWNER_TENANT } from "@/lib/tenants/model";
+import { DEMO_FILM } from "@/lib/callback/film";
+import { outreachSenderCompany } from "./compose";
 import * as store from "./repository";
 import { publicSiteUrl } from "./sender";
 import { runOutreachTick, type TickResult, type TickStore, type TickTrigger } from "./tick";
@@ -54,16 +54,16 @@ function databaseStore(sql: Reserved): TickStore {
 export async function runOutreachTickNow(trigger: TickTrigger): Promise<TickResult> {
   const sql = await store.outreachDb().reserve();
   try {
-    const company = await getCompanyProfile(OWNER_TENANT);
     return await runOutreachTick(trigger, {
       store: databaseStore(sql),
       sender: getEmailSender(),
       outbox: new MockEmailSender(process.env.OUTREACH_OUTBOX_DIR || DEFAULT_OUTBOX_DIR),
       now: () => new Date(),
       env: process.env,
-      company: { name: company.name, orgNumber: company.orgNumber, address: company.address },
+      company: outreachSenderCompany(),
       siteUrl: publicSiteUrl(),
       supplierConfigured: supplierApiConfigured(),
+      filmReady: DEMO_FILM !== null,
     });
   } finally {
     sql.release();

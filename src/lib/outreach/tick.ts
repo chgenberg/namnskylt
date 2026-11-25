@@ -54,6 +54,8 @@ export interface TickDeps {
   company: { name: string; orgNumber: string; address: string };
   siteUrl: string;
   supplierConfigured: boolean;
+  /** Filmen som mejlet länkar till ligger på sidan (`DEMO_FILM`). Utan den väntar utskicket. */
+  filmReady: boolean;
   /** Paus mellan två riktiga anrop till Resend. */
   sleep?: (ms: number) => Promise<void>;
 }
@@ -86,7 +88,7 @@ const HOUR_MS = 3_600_000;
 const WEEK_MS = 7 * 24 * HOUR_MS;
 
 /** Blockerare som går över av sig själva: steget får vänta i kön i stället för att hoppas över. */
-const DEFERRABLE: readonly BlockerCode[] = ["not-allowlisted", "wave-not-open", "hero-missing", "shop-missing"];
+const DEFERRABLE: readonly BlockerCode[] = ["not-allowlisted", "wave-not-open", "film-missing"];
 
 const DELIVERY_TYPES: readonly DeliveryEventType[] = [
   "delivered",
@@ -154,7 +156,6 @@ async function prepare(
   const blockers = outreachBlockers(lead, {
     ...ctx,
     suppressed: await deps.store.isSuppressed(lead.email),
-    heroReady: assets.some((a) => a.kind === "hero"),
   });
   const composed = composeOutreachEmail({
     message,
@@ -269,7 +270,7 @@ async function runInsideLock(deps: TickDeps): Promise<TickResult> {
       allowlist,
       mode,
       supplierConfigured: deps.supplierConfigured,
-      heroReady: true,
+      filmReady: deps.filmReady,
       openWaves: allowance.openWaves,
     };
 

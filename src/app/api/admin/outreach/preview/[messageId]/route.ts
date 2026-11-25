@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { databaseConfigured, getCompanyProfile } from "@/lib/orders/repository";
-import { composeOutreachEmail, previewSender } from "@/lib/outreach/compose";
+import { databaseConfigured } from "@/lib/orders/repository";
+import { composeOutreachEmail, outreachSenderCompany, previewSender } from "@/lib/outreach/compose";
 import * as store from "@/lib/outreach/repository";
 import { siteOrigin } from "@/lib/http/origin";
 import { currentTenant } from "@/lib/reseller-auth/session";
-import { isOwner, OWNER_TENANT } from "@/lib/tenants/model";
+import { isOwner } from "@/lib/tenants/model";
 
 export const runtime = "nodejs";
 
@@ -28,7 +28,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ mes
     lead,
     campaign,
     assets: await store.assetsForLead(sql, lead.id),
-    sender: previewSender(await getCompanyProfile(OWNER_TENANT)),
+    sender: previewSender(outreachSenderCompany()),
     // Bilderna hämtas från sajten som visar förhandsvisningen, så de syns även lokalt.
     siteUrl: await siteOrigin(),
     linkSecret: process.env.OUTREACH_LINK_SECRET,

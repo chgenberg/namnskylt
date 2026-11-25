@@ -1,34 +1,31 @@
-import { COPY, type EmailImageKind, type EmailStep, type OutreachLocale } from "./copy";
+import { COPY, type EmailStep, type OutreachLocale } from "./copy";
 import { button, emailDocument, esc, FAINT, INK, LINE, MONO, MUTED, SANS, SERIF } from "@/lib/email/layout";
+import { DEMO_CONTACT } from "@/lib/callback/contact";
 import { firstNameOf, type RelationSegment } from "./model";
 
-/** Det korta mejlet: en hälsning, en bild som väcker nyfikenhet, en knapp. */
-
-export interface EmailImage {
-  url: string;
-  width: number;
-  height: number;
-  /** `persona` = genererad person som bär skylten; `badge` = bara skylten. */
-  kind: EmailImageKind;
-  /** Materialet och måttet, t.ex. `gravyrplast Mörkblå / Vit, 70 × 25 mm`. */
-  badgeCaption: string;
-  hasLogo: boolean;
-}
+/**
+ * Det enkla mejlet (besked av ägaren 2026-11-25): en hälsning, ett stycke om namnskylt.com, en länk till
+ * filmen och en enda knapp, som ringer Pär för en demo på fem minuter. Ingen bild och ingen butik.
+ */
 
 export interface ResellerEmailInput {
   step: EmailStep;
   segment: RelationSegment;
   locale: OutreachLocale;
-  /** Namnet som graveras och används i hälsningen; `null` = bara företaget. */
+  /** Namnet i hälsningen; `null` = bara "Hej!". */
   contactName: string | null;
   company: string;
   customerSinceYear: number | null;
-  landingUrl: string;
+  /** Sidan med filmen och formuläret för att bli uppringd, med mottagarens länkkod. */
+  filmUrl: string;
   unsubscribeUrl: string;
   privacyUrl: string;
-  image: EmailImage | null;
   sender: { legalName: string; orgNumber: string; address: string };
   signature: { name?: string; title?: string; phone?: string; email?: string };
+  /** Toppbilden, med full adress. Utan den börjar mejlet med hälsningen. */
+  heroImage?: { url: string; width: number; height: number } | null;
+  /** Den som visar; förvalt Pär Philipson. */
+  contact?: { name: string; firstName: string; phone: string; tel: string };
 }
 
 export interface ResellerEmail {
@@ -45,8 +42,7 @@ function missingFields(input: ResellerEmailInput): string[] {
   return [
     !COPY[input.locale] && "språk",
     !input.company.trim() && "företag",
-    !input.image && "bild",
-    !input.landingUrl && "landningslänk",
+    !input.filmUrl && "filmlänk",
     !input.unsubscribeUrl && "avregistrering",
     (!input.sender.legalName.trim() || !input.sender.orgNumber.trim() || !input.sender.address.trim()) && "avsändare",
   ].filter((m): m is string => typeof m === "string");
@@ -58,30 +54,37 @@ const paragraph = (text: string, style = "") =>
 export function buildResellerEmail(input: ResellerEmailInput): ResellerEmailResult {
   const missing = missingFields(input);
   const copy = COPY[input.locale];
-  const image = input.image;
-  if (missing.length || !copy || !image) return { ok: false, missing };
+  if (missing.length || !copy) return { ok: false, missing };
 
   const company = input.company.trim();
   const first = firstNameOf(input.contactName);
-  const ctx = { firstName: first, company, hasLogo: image.hasLogo, image: image.kind, segment: input.segment };
+  const contact = input.contact ?? DEMO_CONTACT;
+  const ctx = { firstName: first, company, segment: input.segment };
   const subject = copy.subject(input.step, ctx);
   const preheader = copy.preheader(input.step);
   const lead = copy.lead(input.step, ctx);
-  const follow = copy.follow(input.step, ctx);
-  const caption = copy.imageCaption(image.kind, image.badgeCaption);
+  const demo = copy.demo(contact);
+  const cta = copy.cta(contact);
+  const tel = `tel:${contact.tel}`;
   const sig = input.signature;
   const signer = sig.name ?? input.sender.legalName;
   const signatureLines = [sig.title, sig.phone, sig.email].filter((v): v is string => Boolean(v));
   const address = input.sender.address.replace(/\s*\n\s*/g, ", ");
   const senderLine = [input.sender.legalName, `${copy.orgNumber} ${input.sender.orgNumber}`, address].map(esc).join(" · ");
-  const imageWidth = Math.min(528, image.width);
 
+  const hero = input.heroImage;
+  const heroWidth = hero ? Math.min(528, hero.width) : 0;
   const rows = [
-    `<tr><td class="pad" style="padding:34px 36px 6px;"><h1 class="ink" style="margin:0 0 12px;font-family:${SERIF};font-size:26px;line-height:32px;font-weight:normal;color:${INK};">${esc(copy.greeting(first))}</h1>${paragraph(lead)}</td></tr>`,
-    `<tr><td class="pad" align="center" style="padding:6px 36px 0;"><a href="${esc(input.landingUrl)}" style="text-decoration:none;"><img class="paper" src="${esc(image.url)}" width="${imageWidth}" alt="${esc(copy.imageAlt(ctx))}" style="display:block;width:100%;max-width:${imageWidth}px;height:auto;border-radius:14px;background:#f3f1ec;"></a></td></tr>`,
-    `<tr><td class="pad muted" style="padding:10px 36px 0;font-family:${MONO};font-size:11px;line-height:16px;color:${FAINT};">${esc(caption)}</td></tr>`,
-    `<tr><td class="pad" style="padding:22px 36px 4px;">${paragraph(follow)}</td></tr>`,
-    `<tr><td class="pad" align="left" style="padding:6px 36px 8px;">${button(input.landingUrl, copy.cta)}</td></tr>`,
+    ...(hero
+      ? [
+          `<tr><td class="pad" align="center" style="padding:28px 36px 0;"><a href="${esc(input.filmUrl)}" style="text-decoration:none;"><img src="${esc(hero.url)}" width="${heroWidth}" alt="${esc(copy.heroAlt(contact))}" style="display:block;width:100%;max-width:${heroWidth}px;height:auto;border:0;"></a></td></tr>`,
+          `<tr><td class="pad muted" style="padding:8px 36px 0;font-family:${MONO};font-size:11px;line-height:16px;color:${FAINT};">${esc(copy.heroCaption)}</td></tr>`,
+        ]
+      : []),
+    `<tr><td class="pad" style="padding:${hero ? 22 : 34}px 36px 6px;"><h1 class="ink" style="margin:0 0 12px;font-family:${SERIF};font-size:26px;line-height:32px;font-weight:normal;color:${INK};">${esc(copy.greeting(first))}</h1>${paragraph(lead)}</td></tr>`,
+    `<tr><td class="pad" style="padding:2px 36px 10px;"><a class="ink" href="${esc(input.filmUrl)}" style="font-family:${SANS};font-size:17px;line-height:26px;color:${INK};text-decoration:underline;text-underline-offset:3px;">&#9654;&#xFE0E; ${esc(copy.filmLink)}</a></td></tr>`,
+    `<tr><td class="pad" style="padding:18px 36px 4px;">${paragraph(demo)}</td></tr>`,
+    `<tr><td class="pad" align="left" style="padding:2px 36px 8px;">${button(tel, cta)}</td></tr>`,
     `<tr><td class="pad" style="padding:22px 36px 30px;"><div class="line" style="border-top:1px solid ${LINE};margin:0 0 18px;font-size:0;line-height:0;">&nbsp;</div><p class="muted" style="margin:0 0 14px;font-family:${SANS};font-size:15px;line-height:22px;color:${MUTED};">${esc(copy.closing)}</p><p class="ink" style="margin:0;font-family:${SANS};font-size:15px;line-height:22px;color:${INK};">${esc(copy.signoff)}<br><strong>${esc(signer)}</strong></p>${
       signatureLines.length ? `<p class="muted" style="margin:4px 0 0;font-family:${SANS};font-size:13px;line-height:20px;color:${FAINT};">${signatureLines.map(esc).join("<br>")}</p>` : ""
     }</td></tr>`,
@@ -100,11 +103,10 @@ export function buildResellerEmail(input: ResellerEmailInput): ResellerEmailResu
     "",
     lead,
     "",
-    `[${caption}]`,
+    `${copy.filmLink}: ${input.filmUrl}`,
     "",
-    follow,
-    "",
-    `${copy.cta}: ${input.landingUrl}`,
+    demo,
+    `${cta}`,
     "",
     copy.closing,
     "",
