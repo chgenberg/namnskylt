@@ -1,6 +1,7 @@
 import { SiteFooter } from "@/components/site-footer";
 import { HomeHero } from "@/features/home/home-hero";
 import { HowItWorks } from "@/features/home/how-it-works";
+import { ResellerInvite } from "@/features/home/reseller-invite";
 import styles from "./page.module.css";
 
 export default function HomePage() {
@@ -11,6 +12,7 @@ export default function HomePage() {
         <HomeHero />
       </div>
       <HowItWorks />
+      <ResellerInvite />
       <SiteFooter />
     </main>
   );

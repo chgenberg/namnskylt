@@ -13,6 +13,7 @@ export function SiteFooter() {
       <nav className={styles.links} aria-label="Om sajten">
         <Link href="/om-oss">Om oss</Link>
         <Link href="/kontakt">Kontakta oss</Link>
+        <Link href="/aterforsaljare/ansok">Bli återförsäljare</Link>
         <Link href="/villkor">Köpvillkor</Link>
         <Link href="/integritet">Integritet</Link>
       </nav>

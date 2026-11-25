@@ -95,7 +95,21 @@ pnpm dlx knip                # oanvänd kod, ska bara visa avsiktliga träffar
 
 - **Drift:** Railway (projektet `namnskylt`, tjänsten `namnskylt`) bygger och deployar `main`
   automatiskt vid push. `railway deployment list --service namnskylt` visar läget. Sajten svarar
-  på `www.namnskylt.com` (`namnskylt.com` omdirigerar dit) och är låst med sajtlösenordet.
+  på `www.namnskylt.com` (`namnskylt.com` omdirigerar dit).
+- **Sajten är öppen sedan 2026-11-25 13:14** (ägarens "Du kan öppna upp namnskylt.com nu direkt").
+  `SITE_GATE_PASSWORD` är borttagen på Railway, och tjänsten startades om med samma bygge
+  (`railway redeploy`): en ändrad variabel startar inte om tjänsten av sig själv. Robots.txt släpper
+  in sökmotorerna utom de privata vägarna, och sitemapen listar de åtta publika sidorna. Butikerna
+  bär fortfarande `noindex`, och panelen och `/verkstad` kräver sina egna lösenord.
+  - Ska spärren tillbaka: sätt `SITE_GATE_PASSWORD` igen och kör `railway redeploy --service namnskylt`.
+    Värdet finns hos ägaren och i en skyddad fil i sessionens scratchpad, aldrig i repot.
+  - Planens kontroller före öppningen var inte gjorda när sajten öppnades. Samma dag, på ägarens
+    "Fixa": adminens demodata (tre ordrar, två offerter, en demokund) och demokontot för slutkund är
+    borttagna i drift, med `removeDemoData` och `deleteCustomerAccount` i driftens container.
+    Återförsäljaren jernberg-invest-ab har kvar sin egen demodata, som bara syns i dess panel.
+    Startsidan har fått avsnittet "Sälj namnskyltar i ert eget namn" (`ResellerInvite`), med knappen
+    Bli återförsäljare, och sidfoten länken Bli återförsäljare. Kvar: säkerhetskopiorna på Railway och
+    en skarp testorder.
 - Skript körs med `tsx --conditions=react-server --env-file-if-exists=.env.local` (redan
   inbakat i `package.json`), så att `server-only`-moduler går att importera.
 - `pnpm test` hittar bara tester i `src/engine/*.test.ts` och `src/lib/<domän>/*.test.ts`. Den kör
@@ -1368,8 +1382,8 @@ ingen riktig order lagts.
     Gravyrteknik fakturerar, och hänvisar till dem om adressen ska ändras. Förut stod
     texterna som är skrivna för en återförsäljare.
 - **Sett men inte ändrat:**
-  - Den öppna startsidan har ingen länk för den som vill bli återförsäljare. Vägen går via
-    Logga in och "Logga in som återförsäljare".
+  - Den öppna startsidan hade ingen länk för den som vill bli återförsäljare. Sedan 2026-11-25
+    finns avsnittet för återförsäljare sist på startsidan och länken i sidfoten.
   - På en direktorder visar adminens ordersida "Marginal 824,06 kr · 40 %", räknat ur
     inköpslistan, medan Provision visar 821,20 kr, alltså 40 % av varuvärdet. Provision är
     regeln; skillnaden är avrundning per del.
@@ -3817,7 +3831,8 @@ och "Också i återförsäljarnas butiker"). Det är ett tredje inlogg, skilt fr
 - Provat lokalt i webbläsaren 2026-11-17, på dator och mobil och mot produktionsbygget:
   konto i kassan, Mitt konto, Beställ igen, inloggning i varukorgen, lösenordslänken, en
   butik utan ägare och en återförsäljares butik. Inte provat i drift, och inte i Safari.
-- **Ett demokonto för slutkund finns i drift** sedan 2026-11-18, skapat på ägarens begäran
+- **Demokontot för slutkund togs bort i drift 2026-11-25**, med sina två demoordrar, när sajten
+  öppnades. Det fanns sedan 2026-11-18, skapat på ägarens begäran
   för att kunna titta på Mitt konto: `demokund@namnskylt.com` på namnskylt.com. Lösenordet
   fick ägaren i chatten och står ingenstans i repot. Kontot har två demoordrar (NS-1095,
   skickad, och NS-1096, mottagen), lagda på ägarens begäran med ett skript i driftens
