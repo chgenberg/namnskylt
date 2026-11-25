@@ -57,7 +57,7 @@ describe("composeOutreachEmail", () => {
       const result = compose(assets);
       assert.ok(result.ok);
       assert.equal([...result.email.html.matchAll(/<img/g)].length, 1);
-      assert.match(result.email.html, /<img src="https:\/\/namnskylt\.com\/mejl\/aterforsaljare-topp\.jpg"/);
+      assert.match(result.email.html, /<img src="https:\/\/namnskylt\.com\/mejl\/aterforsaljare-kontor\.jpg"/);
       assert.ok(!result.email.html.includes(HERO) && !result.email.html.includes(PERSONA));
       assert.match(result.email.html, /href="https:\/\/namnskylt\.com\/demo\?k=v1\.[^"]+"/);
       assert.match(result.email.html, /href="tel:\+46761884800"/);

@@ -4,6 +4,7 @@ import { MIGRATIONS } from "../db/migrations";
 import {
   canTransitionMessage,
   COUNTRIES,
+  firstNameOf,
   idempotencyKey,
   LEAD_STATUSES,
   MESSAGE_STATUSES,
@@ -97,5 +98,26 @@ describe("hjälpare", () => {
     const base = { colors: [], industry: null, scrapedFrom: null, scrapedAt: null };
     assert.equal(outreachBrandSchema.safeParse({ ...base, logoUrl: "data:image/png;base64,AAAA" }).success, false);
     assert.equal(outreachBrandSchema.safeParse({ ...base, logoUrl: "https://firma.se/logo.png" }).success, true);
+  });
+});
+
+describe("förnamnet i hälsningen", () => {
+  test("ett vanligt namn", () => {
+    assert.equal(firstNameOf("Anna Lindqvist"), "Anna");
+    assert.equal(firstNameOf("Ann-Sofie Berg"), "Ann-Sofie");
+    assert.equal(firstNameOf("McKenzie Ek"), "McKenzie");
+  });
+
+  test("versaler och gemener rättas", () => {
+    assert.equal(firstNameOf("ANNA LINDQVIST"), "Anna");
+    assert.equal(firstNameOf("anna lindqvist"), "Anna");
+    assert.equal(firstNameOf("ANN-SOFIE"), "Ann-Sofie");
+    assert.equal(firstNameOf("örjan"), "Örjan");
+  });
+
+  test("ingen hälsning med en roll, ett företag eller en adress", () => {
+    for (const name of ["Info", "info@exempel.se", "Ekonomi", "Ekonomiavdelningen", "Kundtjänst", "Inköp", "Order", "AB Exempel", "Försäljning", "Reception", "Faktura", "3M Svenska", "X", "", null, "Kontor Göteborg", "Sales"]) {
+      assert.equal(firstNameOf(name), null, String(name));
+    }
   });
 });

@@ -84,16 +84,16 @@ describe("återförsäljarmejlet", () => {
       assert.equal(buttons.length, 1, `steg ${step}`);
       assert.match(html, /<a href="tel:\+46761884800" class="btn"/);
       assert.match(visibleText(html), /Ring Pär: 076-188 48 00/);
-      assert.match(visibleText(html), /Pär Philipson går igenom allt med dig på fem minuter/);
+      assert.match(visibleText(html), /Pär Philipson från Merchin, som utvecklat plattformen tillsammans med oss, visar dig hur det fungerar på fem minuter\./);
       assert.match(text, /076-188 48 00/);
     }
   });
 
   test("toppbilden: överst, länkar till filmen och märks som AI-genererad", () => {
     assert.doesNotMatch(build().html, /<img/);
-    const { html } = build({ heroImage: { url: `${SITE}/mejl/aterforsaljare-topp.jpg`, width: 1056, height: 894 } });
+    const { html } = build({ heroImage: { url: `${SITE}/mejl/aterforsaljare-kontor.jpg`, width: 1056, height: 894 } });
     assert.equal([...html.matchAll(/<img/g)].length, 1);
-    assert.match(html, /<a href="https:\/\/namnskylt\.com\/demo\?k=v1\.l\.abc\.123\.sig"[^>]*><img src="https:\/\/namnskylt\.com\/mejl\/aterforsaljare-topp\.jpg" width="528" alt="Pär Philipson med en namnskylt från namnskylt\.com"/);
+    assert.match(html, /<a href="https:\/\/namnskylt\.com\/demo\?k=v1\.l\.abc\.123\.sig"[^>]*><img src="https:\/\/namnskylt\.com\/mejl\/aterforsaljare-kontor\.jpg" width="528" alt="Pär Philipson med en namnskylt från namnskylt\.com"/);
     assert.match(visibleText(html), /Bilden är AI-genererad\. Skylten finns på riktigt\./);
     assert.ok(html.indexOf("<img") < html.indexOf("Hej Anna!"), "bilden står före hälsningen");
   });

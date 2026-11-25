@@ -76,14 +76,15 @@ const sv: LocaleCopy = {
   lead: (step, c) =>
     step === 2
       ? `Vi skrev förra veckan om namnskylt.com, där ni gör namnskyltar och offerter åt era kunder. Hann ${c.firstName ? "du" : "ni"} se filmen?`
-      : "Vi på Skylt & Gravyrteknik har startat namnskylt.com. Där gör ni namnskyltar och offerter åt era kunder, med er logga och era priser. Vi tillverkar och skickar.",
+      : "Vi på Skylt & Gravyrteknik lanserar nu namnskylt.com – ett enklare sätt att designa namnskyltar med era kunders logotyper och skapa färdiga offerter med era egna priser. Vi tillverkar och skickar.",
   filmLink: "Se hur det funkar, på under en minut",
   heroAlt: (contact) => `${contact.name} med en namnskylt från namnskylt.com`,
   // AI-förordningen och Merchins regel: en AI-bild visas aldrig som om den vore ett foto.
   heroCaption: "Bilden är AI-genererad. Skylten finns på riktigt.",
-  demo: (contact) => `${contact.name} går igenom allt med dig på fem minuter.`,
+  demo: (contact) => `${contact.name} från Merchin, som utvecklat plattformen tillsammans med oss, visar dig hur det fungerar på fem minuter.`,
   cta: (contact) => `Ring ${contact.firstName}: ${contact.phone}`,
-  closing: "Eller svara med ditt nummer, så ringer vi upp.",
+  // Ägarens text 2026-11-25 slutar vid knappen; svar går ändå till hej@namnskylt.com.
+  closing: "",
   signoff: "Hälsningar,",
   // Kundrelationen är Skylt & Gravyrtekniks, som står bakom namnskylt.com (besked av ägaren 2026-11-25).
   relationLine: (company, year) =>

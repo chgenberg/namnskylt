@@ -1243,6 +1243,7 @@ Panelen ligger under `/admin` för båda parter, men det finns två skilda inlog
     "Skapa konto" och har samma rubriker och fält som när ett företag skapar konto hos
     Skylt & Gravyrteknik (besked via ägaren 2026-11-15): Företagsinformation, Faktureringsadress
     med adressrad 2 och e-post för faktura, Leveransadress ("Samma som faktureringsadressen")
+    och, sedan 2026-11-25, en obligatorisk hemsida (ägarens "Det ska inte vara valfritt"),
     och Kontaktinformation (`reseller_applications`, `resellerApplicationSchema`, migrering 023
     för `invoice_email` och `delivery`). Godkännandet är kvar; lösenordet väljs via länken.
     E-posten för faktura blir `CompanyProfile.invoiceEmail`, som verkstadens faktura går till
@@ -4120,6 +4121,11 @@ också kan be om att bli uppringd. **Ingen butik byggs per återförsäljare i d
 personbilder görs. **Pushat 2026-11-25 på ägarens begäran** ("när du väl lagt upp filmen på den här
 landningssidan"): mejlet, sidan med filmen och formuläret. Utskicket står kvar pausat i provläge utan egen
 nyckel, så inget utskick har gått ut; bara provmejl till Pär på ägarens begäran.
+Ute i drift 15:32 (`51435d6`). Kontrollerat genom läsning: `/demo` svarar med filmen, filmerna går att
+spola och spelas i Chrome på dator (16:9) och 390 px (9:16), Pärs nummer syns utan att rulla, toppbilden
+och startsidans länk till filmen svarar. Ett andra provmejl, med toppbilden och länken till sidan i drift,
+gick till Pär samma dag på ägarens begäran. "Bli uppringd" är inte provat i drift: ett prov mejlar
+hej@namnskylt.com på riktigt.
 
 - **Besluten** (ägarens svar på planens nio frågor samma dag, inlagda i planen på claude.ai):
   - Avsändarnamnet är Namnskylt, och mejlen ska gå från info@ på en egen underdomän, till exempel
@@ -4141,6 +4147,17 @@ nyckel, så inget utskick har gått ut; bara provmejl till Pär på ägarens beg
   står överst, länkar till filmen och har raden "Bilden är AI-genererad. Skylten finns på riktigt."
   (AI-förordningen gäller bilder som liknar en verklig person, och Merchins regel säger detsamma).
   Texten på skylten är kontrollerad förstorad.
+  - **Kontorsbilden gäller sedan samma eftermiddag** (ägarens "inte där han står på ett lager"):
+    `public/mejl/aterforsaljare-kontor.jpg`. Den fick ett nytt filnamn, så att Gmail inte visar
+    verkstadsbilden ur sitt minne för den som redan fått provmejlet.
+- **Mejlets text är ägarens** (2026-11-25): "Vi på Skylt & Gravyrteknik lanserar nu namnskylt.com – ett
+  enklare sätt att designa namnskyltar med era kunders logotyper och skapa färdiga offerter med era egna
+  priser. Vi tillverkar och skickar." och "Pär Philipson från Merchin, som utvecklat plattformen
+  tillsammans med oss, visar dig hur det fungerar på fem minuter." Texten slutar vid knappen, så raden
+  "Eller svara med ditt nummer" är borta; signaturen står kvar. Sidan med filmen säger samma sak.
+- **Hälsningen** tar bara ett riktigt förnamn (`firstNameOf` i `model.ts`): ett rollord, ett företag eller
+  tecken ger "Hej!" ("det får inte bli 'hej info'"), och "ANNA" eller "anna" blir "Anna". Av de 370
+  svenska i listan får 359 sitt förnamn och 11 "Hej!".
 - **Mejlet** (`copy.ts`, `reseller-email.ts`): hälsning, ett stycke om namnskylt.com, länken "Se hur det
   funkar, på under en minut" till `/demo?k=<länkkod>`, och en enda knapp, "Ring Pär: 076-188 48 00"
   (`tel:`). Ingen bild. Sidfoten bär Skylt & Gravyrtekniks juridiska namn, org.nr och adress

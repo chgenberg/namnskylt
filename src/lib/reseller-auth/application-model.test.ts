@@ -49,7 +49,14 @@ describe("ansökan om att bli återförsäljare", () => {
     assert.equal(resellerApplicationSchema.safeParse({ ...APPLICATION, contactName: "" }).success, false);
     assert.equal(resellerApplicationSchema.safeParse({ ...APPLICATION, email: "inte en adress" }).success, false);
     assert.equal(resellerApplicationSchema.safeParse({ ...APPLICATION, address: "" }).success, false);
-    assert.equal(resellerApplicationSchema.safeParse({ ...APPLICATION, phone: "", website: "", message: "" }).success, true);
+    assert.equal(resellerApplicationSchema.safeParse({ ...APPLICATION, phone: "", message: "" }).success, true);
+    // Hemsidan krävs sedan 2026-11-25, och ska vara en adress.
+    for (const website of ["", "  ", "exempel", "inte en sajt"]) {
+      assert.equal(resellerApplicationSchema.safeParse({ ...APPLICATION, website }).success, false, website);
+    }
+    for (const website of ["exempel.se", "www.exempel.se", "https://exempel.se/om-oss", "http://skylt-och-gravyr.se", "åkessons.se"]) {
+      assert.equal(resellerApplicationSchema.safeParse({ ...APPLICATION, website }).success, true, website);
+    }
   });
 });
 

@@ -57,7 +57,13 @@ export const resellerApplicationSchema = z.object({
     .default("")
     .transform((value) => value.trim().toLowerCase()),
   delivery: deliveryAddressSchema.nullable().default(null),
-  website: text(200),
+  // Hemsidan krävs (besked av ägaren 2026-11-25): en domän, med eller utan https:// och sökväg.
+  website: z
+    .string()
+    .trim()
+    .min(1, "Ange företagets hemsida")
+    .max(200)
+    .refine((value) => /^(https?:\/\/)?([a-z0-9åäö-]+\.)+[a-zåäö]{2,}(:\d+)?(\/\S*)?$/i.test(value), "Ange en hemsida, till exempel exempel.se"),
   message: text(1000),
 }) satisfies z.ZodType<ResellerApplicationInput, unknown>;
 

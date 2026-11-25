@@ -17,15 +17,15 @@ export function DemoPage({ token, film }: { token: string | null; film: DemoFilm
         <p className={styles.eyebrow}>För återförsäljare</p>
         <h1 className={styles.title}>Namnskyltar åt era kunder, med er logga</h1>
         <p className={styles.lead}>
-          Vi på Skylt &amp; Gravyrteknik har startat namnskylt.com. Där gör ni namnskyltar och offerter åt era kunder, med er
-          logga och era priser. Vi tillverkar och skickar.
+          Vi på Skylt &amp; Gravyrteknik lanserar nu namnskylt.com – ett enklare sätt att designa namnskyltar med era kunders
+          logotyper och skapa färdiga offerter med era egna priser. Vi tillverkar och skickar.
         </p>
         {/* Numret syns utan att rulla, också på en liten telefon där filmen annars skjuter ner korten. */}
         <p className={styles.callLine}>
           <a href={`tel:${DEMO_CONTACT.tel}`}>
             Ring {DEMO_CONTACT.name} på <span className={styles.nowrap}>{DEMO_CONTACT.phone}</span>
           </a>
-          , så går han igenom allt med dig på fem minuter.
+          , så visar han hur det fungerar på fem minuter.
         </p>
       </header>
 
@@ -45,7 +45,10 @@ export function DemoPage({ token, film }: { token: string | null; film: DemoFilm
       <section className={styles.contact} aria-label="Kontakt">
         <div className={styles.card}>
           <h2 className={styles.cardTitle}>Ring {DEMO_CONTACT.firstName}</h2>
-          <p className={styles.cardText}>{DEMO_CONTACT.name} går igenom allt med dig på fem minuter.</p>
+          <p className={styles.cardText}>
+            {DEMO_CONTACT.name} från Merchin, som utvecklat plattformen tillsammans med oss, visar dig hur det fungerar på fem
+            minuter.
+          </p>
           <a className="btn btn--primary btn--lg" href={`tel:${DEMO_CONTACT.tel}`}>
             Ring {DEMO_CONTACT.phone}
           </a>

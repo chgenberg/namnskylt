@@ -5,7 +5,8 @@
  * i mejlet. Filen ligger under `public/` och visas från sajten.
  */
 export const OUTREACH_HERO = {
-  src: "/mejl/aterforsaljare-topp.jpg",
+  // Kontorsbilden, ägarens val samma dag ("inte där han står på ett lager"). Nytt namn, så att ingen visar den gamla ur minnet.
+  src: "/mejl/aterforsaljare-kontor.jpg",
   width: 1056,
   height: 894,
 } as const;

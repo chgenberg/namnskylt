@@ -193,8 +193,8 @@ export function ApplyForm() {
           <input name="phone" type="tel" maxLength={40} autoComplete="tel" />
         </label>
         <label className={styles.field}>
-          <span>Hemsida (valfritt)</span>
-          <input name="website" maxLength={200} placeholder="exempel.se" autoComplete="url" />
+          <span>Hemsida</span>
+          <input name="website" required maxLength={200} placeholder="exempel.se" autoComplete="url" inputMode="url" />
         </label>
         <label className={styles.field}>
           <span>Något vi bör veta? (valfritt)</span>

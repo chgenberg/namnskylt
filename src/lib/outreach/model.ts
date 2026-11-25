@@ -96,9 +96,28 @@ export const ASSET_REVIEWS = ["pending", "approved", "rejected"] as const;
 export type AssetReview = (typeof ASSET_REVIEWS)[number];
 
 /** Förnamnet ur ett kontaktnamn; `null` för adresser och enstaka bokstäver. */
+/**
+ * Ord som står i kundlistans kontaktfält men inte är ett namn: en roll, en avdelning eller en företagsform.
+ * Mejlet hälsar då bara "Hej!" (besked av ägaren 2026-11-25: "det får inte bli 'hej info'").
+ */
+const NOT_A_NAME =
+  /^(info|information|ekonomi|order|ordrar|kontakt|admin|administration|inköp|inkop|försälj|forsalj|sälj|salj|sales|reception|kansli|butik|lager|service|support|vd|ab|hb|kb|firma|post|mail|e-post|epost|kund|marknad|faktur|kontor|office|hello|hej|team|personal|redovisning|bokför|bokfor|växel|vaxel|produktion|tryck|reklam|studio|beställ|bestall|ingen|okänd|okand|vet)/i;
+
+/** «ANNA» och «anna» blir «Anna», «ANN-SOFIE» blir «Ann-Sofie». Ett namn med blandade versaler står kvar. */
+function nameCase(word: string): string {
+  if (word !== word.toLocaleUpperCase("sv") && word !== word.toLocaleLowerCase("sv")) return word;
+  return word
+    .split("-")
+    .map((part) => (part ? part.charAt(0).toLocaleUpperCase("sv") + part.slice(1).toLocaleLowerCase("sv") : part))
+    .join("-");
+}
+
+/** Förnamnet att hälsa med, eller `null` när kontaktfältet inte börjar med ett namn. */
 export function firstNameOf(name: string | null | undefined): string | null {
   const first = name?.trim().split(/\s+/)[0];
-  return first && first.length >= 2 && !first.includes("@") ? first : null;
+  if (!first || first.length < 2 || first.includes("@")) return null;
+  if (/[\d&.,()/_+:;"!?<>]/.test(first) || NOT_A_NAME.test(first)) return null;
+  return nameCase(first);
 }
 
 export function normalizeEmail(email: string): string {

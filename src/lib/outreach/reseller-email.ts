@@ -85,7 +85,7 @@ export function buildResellerEmail(input: ResellerEmailInput): ResellerEmailResu
     `<tr><td class="pad" style="padding:2px 36px 10px;"><a class="ink" href="${esc(input.filmUrl)}" style="font-family:${SANS};font-size:17px;line-height:26px;color:${INK};text-decoration:underline;text-underline-offset:3px;">&#9654;&#xFE0E; ${esc(copy.filmLink)}</a></td></tr>`,
     `<tr><td class="pad" style="padding:18px 36px 4px;">${paragraph(demo)}</td></tr>`,
     `<tr><td class="pad" align="left" style="padding:2px 36px 8px;">${button(tel, cta)}</td></tr>`,
-    `<tr><td class="pad" style="padding:22px 36px 30px;"><div class="line" style="border-top:1px solid ${LINE};margin:0 0 18px;font-size:0;line-height:0;">&nbsp;</div><p class="muted" style="margin:0 0 14px;font-family:${SANS};font-size:15px;line-height:22px;color:${MUTED};">${esc(copy.closing)}</p><p class="ink" style="margin:0;font-family:${SANS};font-size:15px;line-height:22px;color:${INK};">${esc(copy.signoff)}<br><strong>${esc(signer)}</strong></p>${
+    `<tr><td class="pad" style="padding:22px 36px 30px;"><div class="line" style="border-top:1px solid ${LINE};margin:0 0 18px;font-size:0;line-height:0;">&nbsp;</div>${copy.closing ? `<p class="muted" style="margin:0 0 14px;font-family:${SANS};font-size:15px;line-height:22px;color:${MUTED};">${esc(copy.closing)}</p>` : ""}<p class="ink" style="margin:0;font-family:${SANS};font-size:15px;line-height:22px;color:${INK};">${esc(copy.signoff)}<br><strong>${esc(signer)}</strong></p>${
       signatureLines.length ? `<p class="muted" style="margin:4px 0 0;font-family:${SANS};font-size:13px;line-height:20px;color:${FAINT};">${signatureLines.map(esc).join("<br>")}</p>` : ""
     }</td></tr>`,
   ];
@@ -108,8 +108,7 @@ export function buildResellerEmail(input: ResellerEmailInput): ResellerEmailResu
     demo,
     `${cta}`,
     "",
-    copy.closing,
-    "",
+    ...(copy.closing ? [copy.closing, ""] : []),
     copy.signoff,
     signer,
     ...signatureLines,
