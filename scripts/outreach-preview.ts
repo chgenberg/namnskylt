@@ -17,11 +17,11 @@ const OUT_DIR = path.join(process.cwd(), "tmp", "outreach-preview");
 const SITE = "https://www.namnskylt.com";
 const STEPS: EmailStep[] = [1, 2];
 
-const FIXTURES: Record<RelationSegment, { contactName: string | null; company: string; since: number }> = {
-  "activated-known": { contactName: "Anna Lindqvist", company: "Exempelprofil AB", since: 2019 },
-  "activated-unknown": { contactName: "Erik Sund", company: "Reklamhuset i Norr", since: 2021 },
-  "inactive-known": { contactName: "Maria Holm", company: "Holm & Co Profil", since: 2016 },
-  "inactive-unknown": { contactName: null, company: "Tryckeriet Väst", since: 2023 },
+const FIXTURES: Record<RelationSegment, { contactName: string | null; company: string }> = {
+  "activated-known": { contactName: "Anna Lindqvist", company: "Exempelprofil AB" },
+  "activated-unknown": { contactName: "Erik Sund", company: "Reklamhuset i Norr" },
+  "inactive-known": { contactName: "Maria Holm", company: "Holm & Co Profil" },
+  "inactive-unknown": { contactName: null, company: "Tryckeriet Väst" },
 };
 
 // Besluten 2026-11-25: Skylt & Gravyrteknik står bakom, avsändarnamnet är Namnskylt, svar går till
@@ -91,7 +91,6 @@ async function main() {
         locale: "sv",
         contactName: fixture.contactName,
         company: fixture.company,
-        customerSinceYear: fixture.since,
         filmUrl: `${SITE}/demo?k=forhandsvisning`,
         heroImage: { ...OUTREACH_HERO, url: "img/topp.jpg" },
         unsubscribeUrl: `${SITE}/avregistrera/forhandsvisning`,

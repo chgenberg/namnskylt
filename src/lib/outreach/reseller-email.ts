@@ -15,7 +15,6 @@ export interface ResellerEmailInput {
   /** Namnet i hälsningen; `null` = bara "Hej!". */
   contactName: string | null;
   company: string;
-  customerSinceYear: number | null;
   /** Sidan med filmen och formuläret för att bli uppringd, med mottagarens länkkod. */
   filmUrl: string;
   unsubscribeUrl: string;
@@ -91,7 +90,6 @@ export function buildResellerEmail(input: ResellerEmailInput): ResellerEmailResu
 
   const footer = [
     senderLine,
-    esc(copy.relationLine(company, input.customerSinceYear)),
     `<a href="${esc(input.privacyUrl)}" style="color:${FAINT};">${esc(copy.privacy)}</a> · <a href="${esc(input.unsubscribeUrl)}" style="color:${FAINT};">${esc(copy.unsubscribe)}</a>`,
   ];
 
@@ -114,7 +112,6 @@ export function buildResellerEmail(input: ResellerEmailInput): ResellerEmailResu
     "",
     "—",
     `${input.sender.legalName} · ${copy.orgNumber} ${input.sender.orgNumber} · ${address}`,
-    copy.relationLine(company, input.customerSinceYear),
     `${copy.privacy}: ${input.privacyUrl}`,
     `${copy.unsubscribe}: ${input.unsubscribeUrl}`,
   ].join("\n");

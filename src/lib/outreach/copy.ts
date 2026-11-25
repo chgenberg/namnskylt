@@ -41,7 +41,6 @@ export interface LocaleCopy {
   cta(contact: DemoContactText): string;
   closing: string;
   signoff: string;
-  relationLine(company: string, customerSinceYear: number | null): string;
   orgNumber: string;
   privacy: string;
   unsubscribe: string;
@@ -83,11 +82,8 @@ const sv: LocaleCopy = {
   // Ägarens text 2026-11-25 slutar vid knappen; svar går ändå till hej@namnskylt.com.
   closing: "",
   signoff: "Hälsningar,",
-  // Kundrelationen är Skylt & Gravyrtekniks, som står bakom namnskylt.com (besked av ägaren 2026-11-25).
-  relationLine: (company, year) =>
-    year
-      ? `Ni får det här för att ${company} är kund hos Skylt & Gravyrteknik sedan ${year}.`
-      : `Ni får det här för att ${company} är kund hos Skylt & Gravyrteknik.`,
+  // Raden "Ni får det här för att … är kund hos Skylt & Gravyrteknik" i sidfoten togs bort på ägarens besked
+  // 2026-11-25. Avsändaren, integritetssidan och avregistreringen står kvar.
   orgNumber: "Org.nr",
   privacy: "Så hanterar vi uppgifter",
   unsubscribe: "Avregistrera",

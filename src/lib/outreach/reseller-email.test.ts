@@ -14,7 +14,6 @@ const input: ResellerEmailInput = {
   locale: "sv",
   contactName: "Anna Lindqvist",
   company: "Profil & <Co>",
-  customerSinceYear: 2019,
   filmUrl: FILM,
   unsubscribeUrl: UNSUBSCRIBE,
   privacyUrl: `${SITE}/integritet`,
@@ -43,9 +42,8 @@ const bodyText = (text: string) => (text.split("\n—\n")[0] ?? "").replace(/htt
 const hrefsOf = (html: string) => [...html.matchAll(/href="([^"]+)"/g)].map((m) => (m[1] ?? "").replace(/&amp;/g, "&"));
 
 describe("återförsäljarmejlet", () => {
-  test("escapar företagsnamnet", () => {
+  test("företagsnamnet släpper aldrig igenom HTML", () => {
     const email = build();
-    assert.match(email.html, /Profil &amp; &lt;Co&gt;/);
     assert.doesNotMatch(email.html, /<Co>/);
     assert.equal(email.subject, "Anna, namnskyltar till era kunder?");
   });
@@ -119,11 +117,13 @@ describe("återförsäljarmejlet", () => {
     assert.ok(email.text.includes(UNSUBSCRIBE));
   });
 
-  test("sidfoten har Skylt & Gravyrteknik, relationen och integritetssidan", () => {
+  // Raden om kundrelationen togs bort på ägarens besked 2026-11-25.
+  test("sidfoten har Skylt & Gravyrteknik och integritetssidan, men ingen rad om kundrelationen", () => {
     const { html, text } = build();
     assert.match(html, /Org\.nr 556464-2261/);
     assert.match(html, /Gatan 1, 111 22 Göteborg/);
-    assert.match(html, /kund hos Skylt &amp; Gravyrteknik sedan 2019/);
+    assert.doesNotMatch(html, /Ni får det här|kund hos/);
+    assert.doesNotMatch(text, /Ni får det här|kund hos/);
     assert.match(text, /Avregistrera: https:\/\/namnskylt\.com\/avregistrera\//);
   });
 

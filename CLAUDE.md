@@ -3412,7 +3412,7 @@ ligger i printkön. Sen måste jag gå in på en annan vy för att ändra status
 den", och "om man kan lägga allting på samma vy"). **Byggt i verkstadens projekt på ägarens beställning och
 ute i deras drift sedan 2026-11-25 13:06** (ägarens "kan du deploya ut det här på Skylt och Gravyrs AWS?"),
 efter tre omgångar av deras bug-hunt: två HIGH rättades, och sista omgången gav 0 CRITICAL och 0 HIGH.
-Deras röktest gav 91 sidor och 144 filer före och efter. Inte committat hos dem. **Fliken är inte sedd
+Deras röktest gav 91 sidor och 144 filer före och efter. Committat hos dem i `1a4cb51`. **Fliken är inte sedd
 inloggad i drift**: jag loggar inte in i deras admin där.
 
 - **Varje order från namnskylt.com som inte är skickad står öppen som ett kort** på fliken Produktion →
@@ -4117,7 +4117,7 @@ Alla anrop går via `openai()` i `src/lib/ai/openai.ts`. Den returnerar `null` u
 
 Ägaren har startat Google Search Console och vill ha "världens bästa SEO organisk" och en strategi för
 AI-tjänsterna, med hela sajten i JSON-LD (2026-11-25). Steg 1, den tekniska grunden, är ute i drift
-sedan 16:54 (`6047e3a`). Steg 2, sidorna om namnskyltar, är byggt samma kväll och **inte pushat** (se nedan).
+sedan 16:54 (`6047e3a`). Steg 2, sidorna om namnskyltar, är ute sedan 17:21 samma dag (`ebcd050`, se nedan).
 Steg 3 (länkar utifrån, Bing, omdömen) är föreslaget och inte påbörjat.
 
 - **Sidorna står på ett ställe:** `SITE_PAGES` i `src/lib/seo/page.ts` har varje publik sidas sökväg, titel
@@ -4194,6 +4194,9 @@ att göra. Alla som är intresserade av att köpa en namnskylt som bolag" (2026-
 - Provat lokalt mot produktionsbygget utan sajtspärr (100 av 100): alla elva sidor svarar med JSON-LD,
   brödsmulor, kanonisk adress, bild och länk till skyltmotorn, okända adresser ger 404, sitemapen har 20 sidor,
   inget sticker ut på 1440, 390 och 320 px, alla bilder laddas, och "Gör en sådan skylt" öppnar skylten.
+- Kontrollerat i drift efter pushen (`ebcd050`), bara läsning (72 av 72): sidorna, JSON-LD, bilderna, 404 för
+  okända adresser, sitemapen med 20 sidor, `/llms.txt` och startsidans länkar. Samma push tog bort raden om
+  AI-bilden ur utskicksmejlet.
 
 ## Besöksstatistik, kakor och klicken från utskicket — läge 2026-11-25
 
@@ -4286,7 +4289,9 @@ Samma kväll gick också ett enskilt provmejl till en tredje mottagare som ägar
 - **Mejlet** (`copy.ts`, `reseller-email.ts`): hälsning, ett stycke om namnskylt.com, länken "Se hur det
   funkar, på under en minut" till `/demo?k=<länkkod>`, och en enda knapp, "Ring Pär: 076-188 48 00"
   (`tel:`). Ingen bild. Sidfoten bär Skylt & Gravyrtekniks juridiska namn, org.nr och adress
-  (`outreachSenderCompany` i `compose.ts`), inte adminens företagsuppgifter. Pärs namn och nummer står
+  (`outreachSenderCompany` i `compose.ts`), inte adminens företagsuppgifter. Raden "Ni får det här för att … är kund hos
+  Skylt & Gravyrteknik sedan …" togs bort ur sidfoten på ägarens besked 2026-11-25, inför utskicket dagen
+  efter. Kvar står avsändaren, länken till integritetssidan och avregistreringen. Pärs namn och nummer står
   i `src/lib/callback/contact.ts` (`DEMO_CONTACT`).
   - Spärrarna för saknad butik och skyltbild (`shop-missing`, `hero-missing`) är borttagna ur
     `send-gate.ts`. Butikerna, bilderna och `/for/[token]` ligger kvar men används inte av mejlet.

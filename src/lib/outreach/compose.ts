@@ -69,11 +69,6 @@ function emailStepFor(campaign: CampaignRow, step: number): EmailStep {
   return campaign.steps.find((s) => s.step === step)?.template === "reminder" ? 2 : 1;
 }
 
-function yearOf(isoDate: string | null): number | null {
-  const year = isoDate ? Number(isoDate.slice(0, 4)) : NaN;
-  return Number.isInteger(year) && year > 1900 ? year : null;
-}
-
 const formatFrom = (name: string, email: string) => `${name.replace(/["<>]/g, "").trim()} <${email}>`;
 
 /** Ett meddelande färdigt för avsändaren. Länkarna bär meddelandets id, inget annat. */
@@ -95,7 +90,6 @@ export function composeOutreachEmail(input: ComposeInput): Composed {
     locale: localeFor(lead.country),
     contactName: lead.contactName,
     company: lead.companyName,
-    customerSinceYear: yearOf(lead.customerSince),
     // Sidan med filmen och formuläret för att bli uppringd; länkkoden säger vem som kom (2026-11-25).
     filmUrl: `${siteUrl}${DEMO_PATH}?k=${landing}`,
     heroImage: { ...OUTREACH_HERO, url: `${siteUrl}${OUTREACH_HERO.src}` },
