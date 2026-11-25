@@ -77,7 +77,7 @@ motion, zod 4, `postgres`, sharp, `@resvg/resvg-js`, `playwright-core` (Chrome),
 Node 20. Tester körs med `node:test` via tsx.
 
 ```bash
-# Kvalitetsgrinden. Kör den innan något lämnas (1493 tester, grönt 2026-11-25).
+# Kvalitetsgrinden. Kör den innan något lämnas (1500 tester, grönt 2026-11-25).
 rm -rf .next/types && pnpm typecheck && pnpm lint && \
   DATABASE_URL="$(rg -o '^DATABASE_URL=(.*)' -r '$1' .env.local)" pnpm test && pnpm build
 
@@ -390,7 +390,9 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     valet tillbaka till namnets metod. Ramen följer namnet.
   - En ny logga får ett förslag (`withLogoMarking`): i färg printas den, svartvit följer den namnet.
     Kunden kan byta sedan, även gravera en logga i färg (då ritas den ur sina banor i textens färg)
-    eller printa en svartvit (siluetten i gravyrens färg).
+    eller printa en svartvit. En svartvit logga som laddats upp sedan 2026-11-25 printas som filen
+    ser ut, ur sin bild; en äldre printas i en färg (siluetten i gravyrens färg). Se Rättat
+    2026-11-25.
   - Ritningen delar allt i två listor: `engravingPaths` är det som fräses (3D, produktionsfil,
     maskinfiler) och `printedPaths` det som printas i gravyrens färg. En logga i färg som printas
     är en bild (`LaidOutLogo.imageSrc`). Förhandsvisningen ritar allt; i 3D ligger printen plant på
@@ -519,9 +521,9 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
       - **Felet är inte återskapat som ägaren beskrev det.** I Chrome och i Safaris motor
         stod namnet kvar genom alla byten, i textfälten, ritningen, 3D-vyn och startrutan.
         Kommer det tillbaka behövs de exakta stegen.
-    - **Loggan har ingen egen färg.** En svartvit logga som printas får textfärgen, och en
-      logga i färg trycks ur sin bild. Fältet "Loggans färger i CMYK" och åtgärden
-      `logo/color` är borttagna.
+    - **Loggan har ingen egen färg.** En logga i färg trycks ur sin bild, och sedan 2026-11-25
+      också en svartvit (se Rättat 2026-11-25). En äldre svartvit logga utan bild får
+      textfärgen. Fältet "Loggans färger i CMYK" och åtgärden `logo/color` är borttagna.
     - Textradens kort får krympa till panelens bredd (`minmax(0, 1fr)` i `.rows`, `.rowInner`
       och `.sliderRow`). På en 320 px bred telefon blev kortet annars bredare än panelen, så
       att radens kryss hamnade utanför.
@@ -551,8 +553,9 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     - Pantone som väg till exakt färg är inte byggt. Verkstadens tryckfil har redan
       namngivna specialfärger för skärlinjerna (`CutContour`), så tekniken finns där, men
       det vore nytt i båda projekten och kräver Pärs svar om RIP:en har ett Pantone-bibliotek.
-  - Preliminärt: att verkstaden printar text, och i vilken färg. Utan vald färg visas ett
-    printat namn i gravyrens färg.
+  - Preliminärt: att verkstaden printar text, och i vilken färg. Ett namn som kunden byter till
+    print på plast blir svart sedan 2026-11-25 (se Rättat 2026-11-25). Utan vald färg, som på en
+    äldre skylt, visas ett printat namn i gravyrens färg.
   - Kända brister: produktionsfilen saknar det som printas och ingen tryckfil för namnet skapas.
     Gravyranimationen sveper inte över det som printas. Fotoläget, korrekturet, offertens PDF
     och delningsbilden är inte öppnade i webbläsaren med ett printat namn.
@@ -574,7 +577,8 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
     (`useLogoEngraving`, åtgärden `logo/engraving`).
   - "Invertera" finns för allt utom en logga som printas i färg. På en logga i färg vänder den
     bläck och urtag inom siluetten. Samma fil i ny form behåller vald märkningsmetod
-    (`keepMarking`).
+    (`keepMarking`). En logga som är en form med innehåll får sedan 2026-11-25 också en kontur,
+    se Inverterad logga.
   - I en delad länk stryks först den bana som inte ritas: gravyrformen när loggan printas,
     siluetten (byts mot rutan) när den graveras.
   - En vit botten i en JPG tas bort redan i `colorLogo`, även inuti loggan, så sådana loggor
@@ -584,7 +588,8 @@ Sajten säljer graverade skyltar i metall (Premium) och plast (Standard).
 - **Loggan** graveras eller trycks. När filen laddas upp eller hämtas från hemsidan får den ett
   förslag (beslut av ägaren 2026-11-13, gäller både metall och plast), och kunden kan sedan byta
   under Märkningsmetod (2026-11-16, se ovan):
-  - En **svartvit** logga spåras till banor (`BadgeLogo.d`) och föreslås få samma metod som namnet.
+  - En **svartvit** logga spåras till banor och föreslås få samma metod som namnet. Sedan
+    2026-11-25 bär den också sin bild, märkt `mono`, och printas ur den (se Rättat 2026-11-25).
   - En logga **i färg** får dessutom `BadgeLogo.image` och föreslås tryckt som den är i filen.
     "Invertera" finns bara för graverade loggor.
   - Reglerna ligger i `src/engine/logo-color.ts`: bilden är i färg när minst 1 % av det som syns
@@ -3795,6 +3800,92 @@ och "Också i återförsäljarnas butiker"). Det är ett tredje inlogg, skilt fr
   - Återförsäljarnas och adminens inloggning (`/api/reseller/session`, `/api/admin/session`)
     har inte kontrollen `isSameSiteJson`. Den som luras logga in där hamnar i fel panel, vilket
     syns direkt, men det är samma slags lucka och inte åtgärdat.
+
+## Rättat 2026-11-25 efter ägarens prov
+
+- **Inverterad logga.** Ägaren inverterade en ikon, en vit rundad ruta med "m." i, på en blå plastskylt.
+  De fyra hörnen utanför rutan blev graverade, och rutans form försvann. Ägarens ord: "ska bli en
+  outline sen m. i mitten".
+  - **Orsak:** en svartvit logga vändes över hela bildens ruta (`inkTrace`), så det genomskinliga
+    runt formen blev gravyr.
+  - **Nu:** en logga som är en form med innehåll vänds inom formen (`logoOutline` i
+    `src/engine/logo-invert.ts`). Det gäller en ikon, en platta, en cirkel eller en sköld.
+    - Innehållet graveras.
+    - Det som var gravyr runt innehållet blir skyltens yta.
+    - Formens kant blir en kontur som är 5 % av formens kortaste sida (`OUTLINE_SHARE`). På en
+      logga som är 20 mm hög blir den 1 mm.
+    - En helt fylld form blir bara sin kontur.
+  - **Gäller både svartvita loggor och loggor i färg som graveras** (`engravingMask`). En logga i
+    färg vändes redan inom siluetten, men utan kontur: en platta med vit text blev bara texten.
+  - **När loggan räknas som en form:**
+    - Den största sammanhängande delen ska vara minst 90 % av det som syns (`MAIN_SHARE`).
+    - Med hålen ifyllda ska den fylla minst halva sin ruta (`MIN_FILL`).
+    - Exempel: en rundad ruta, en cirkel (79 %) och en sköld räknas.
+    - Ett ord med lösa bokstäver räknas inte, och inte heller en symbol bredvid ett ord eller ett
+      ord i skrivstil som hänger ihop. De vänds som förut: en svartvit blir en platta med ordet
+      urtaget, och en i färg blir tom.
+  - **Vad jag valde:** att konturen är 5 % och båda gränserna. Ägaren sa bara "outline".
+  - **Sparade loggor:** en logga som redan ligger inverterad på en skylt ändras inte förrän den
+    inverteras igen.
+  - **Provat** i motorn med Merchins ikon i tre utföranden, och lokalt i Chrome på en blå
+    plastskylt.
+- **Printat syns i 3D: en svartvit logga printas som filen och ett printat namn blir svart.** Ägaren
+  bytte märkningsmetod och såg ingen skillnad: "loggan ska bli printad i 3D-mode. Det gäller även
+  namn". Med en logga i färg följde 3D-vyn redan metoden. En svartvit logga, och namnet, printades
+  däremot i gravyrens färg, vitt på blå plast, och såg likadana ut som graverade. Ägaren valde
+  "Som filen" och "Svart, som på metall".
+  - **En svartvit logga bär sin bild** (`LogoImage.mono`, `monoTrace` i `trace-image.ts`). Printad
+    visas och tillverkas den ur bilden, som en logga i färg: en vit ruta med mörkt "m." blir just
+    det, och ett foto av en mugg blir fotot. Verkstaden får bilden i tryckläge, inte banor i en färg.
+  - **Det svartvita ändras inte i övrigt.**
+    - Den föreslås fortfarande följa namnets metod (`hasColorImage` i `marking.ts`), så att en ny
+      svartvit logga inte blir printad, eller kostar mer, av sig själv.
+    - Graverad följer den sina banor (`engraveD`), och Invertera fungerar som förut.
+  - Valet "Loggans färg", som printade en svartvit logga i en vald färg, visas inte för en sådan
+    logga. Det står kvar för äldre loggor utan bild, som printas som förut.
+  - Bilden och banorna delar ruta: det som syns i filen och bläcket. För en JPG med en färgad botten
+    är rutan hela bilden, så en graverad logga ur en sådan fil kan bli något mindre än förut.
+  - **Ett namn som byts från gravyr till print på plast blir svart** (`withPrintedNameInk`, åtgärden
+    `marking`).
+    - Färgen sparas på skylten, så att ritning, 3D, order och verkstad visar samma svarta.
+    - En färg kunden redan har valt står kvar.
+    - På en mörk yta, där svart syns dåligt, behålls gravyrens färg.
+    - Redan sparade skyltar ändras inte.
+  - Provat lokalt i Chrome (18 kontroller) med Merchins vita ikon och svarta ordmärke på blå plast,
+    i alla fyra metoderna och tillbaka till gravyr, med skärmbilder ur 3D-vyn. Inte provat i Safari,
+    och ingen order med en sådan logga har gått till verkstaden.
+- **Varukorgens knapp "Fortsätt designa" heter "Lägg till en ny produkt"** (ägarens besked med en
+  bild av knappen).
+  - Knappen stänger varukorgen.
+  - När allt som är designat ligger i varukorgen står markören sedan i nästa skylts första rad.
+  - Med en tom varukorg heter knappen "Stäng" som förut.
+  - Att knappen heter så också när skylten i editorn inte är lagd i varukorgen valde jag. Då leder
+    den till den skylten.
+- **Glömt lösenord från varukorgen tappade varukorgen ur sikte.** Ägaren skulle logga in i kassan,
+  valde "Glömt lösenordet?" och kom efter det nya lösenordet till Mitt konto. Ordern som var klar
+  att skicka syntes inte.
+  - **Nu leder vägen tillbaka.** Länken i varukorgen bär märket `?varukorg=1` (`CART_RETURN_PARAM`,
+    `accountPaths().forgotFromCart`), och märket följer med länken i mejlet.
+  - **Efter det nya lösenordet** kommer kunden till skyltmotorn (`accountPaths().cart`). Där är
+    kunden inloggad, varukorgen öppen och kassan ifylld ur kontot.
+  - Märket tas ur adressen när det sparade arbetet är läst, så att en omladdning inte öppnar
+    varukorgen igen.
+  - Sidan Glömt lösenordet har då länken "Tillbaka till varukorgen". Efter skickat mejl säger den att
+    varukorgen finns kvar och att länken ska öppnas i samma webbläsare.
+  - **Känd begränsning:** varukorgen ligger i webbläsaren. Öppnas länken i en annan webbläsare,
+    till exempel mejlappens egen på en telefon, finns varukorgen inte där. Den finns kvar i den
+    första webbläsaren, där kunden loggar in med det nya lösenordet.
+  - Provat lokalt i Chrome (19 kontroller), med en lösenordslänk skapad direkt i den lokala
+    databasen i stället för ett mejl.
+- **Namnen i varukorgen syns där man skriver namn** (Pär via ägaren: han hade tre namn i
+  varukorgen, gick tillbaka för att lägga till ett fjärde, såg inte de tre och trodde att allt var
+  borta).
+  - Överst under Text och under Fler namn står "I varukorgen: Anna Lind, Erik Holm och Maria Berg."
+    Med fler än tre namn står "… och 2 till".
+  - Är skylten i editorn ny står sedan "Skriv nästa namn här, så får det samma utseende.", annars att
+    skylten kommer med när den läggs i varukorgen.
+  - Raden har knappen Visa varukorgen.
+  - Provat lokalt i Chrome på dator och 390 px (20 kontroller).
 
 ## Rättat 2026-11-24 efter ägarens prov
 

@@ -29,7 +29,7 @@ import {
   type FontId,
 } from "@/engine";
 import { useFontEngine } from "@/hooks/use-font-engine";
-import type { CustomerAccountView } from "@/lib/customer-auth/model";
+import { CART_RETURN_PARAM, type CustomerAccountView } from "@/lib/customer-auth/model";
 import { WEB_SCOPE } from "@/lib/designer-stats/model";
 import { COPY_MARK_PARAM, openedWith, openedWithCopy, savedWorkKey, type RestoredWork } from "@/lib/designer-work/model";
 import { designSums } from "@/lib/shops/price-list";
@@ -121,6 +121,26 @@ function focusFirstRow({ onlyEmpty = false, reveal = false }: { onlyEmpty?: bool
     input.addEventListener("beforeinput", showIfHidden, { once: true });
   }
   input.focus({ preventScroll: true });
+}
+/** Kunden kommer tillbaka från en lösenordslänk som började i varukorgen (`CART_RETURN_PARAM`). */
+function cameBackToCart(): boolean {
+  return new URL(window.location.href).searchParams.has(CART_RETURN_PARAM);
+}
+/** Märket tas ur adressen när varukorgen är öppnad, så att en omladdning inte öppnar den igen. */
+function forgetCartReturn(): void {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(CART_RETURN_PARAM)) return;
+  url.searchParams.delete(CART_RETURN_PARAM);
+  window.history.replaceState(window.history.state, "", url);
+}
+/**
+ * Namnen i varukorgen som de står på skyltarna: "Anna Lind, Erik Holm och Maria Berg". Högst tre, sedan
+ * hur många till, så att raden håller sig kort också med en lång namnlista.
+ */
+function cartNamesText(badges: readonly BadgeDocument[]): string {
+  const names = badges.map((badge) => badge.rows.find((row) => row.text.trim() !== "")?.text.trim() ?? "en skylt utan text");
+  if (names.length > 3) return `${names.slice(0, 3).join(", ")} och ${names.length - 3} till`;
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} och ${names[names.length - 1]}` : (names[0] ?? "");
 }
 /** Ordern är lagd: `igen` tas ur adressen, så att en omladdning inte öppnar samma order i varukorgen en gång till. */
 function forgetReorderInAddress(): void {
@@ -291,6 +311,8 @@ export function Designer({
       setBatchText(restored.batchText);
       setCart(restored.cart);
       setPending(restored.pending);
+      // Tillbaka från ett nytt lösenord som började i varukorgen: kunden är inloggad, och kassan väntar.
+      if (restored.cart.length > 0 && cameBackToCart()) setCartOpen(true);
       // Skylten i editorn är kundens egen sedan förut: då behövs varken startrutan eller valen en gång till.
       if (editor === "saved") {
         closedByRestore.current = { onboarding };
@@ -298,6 +320,10 @@ export function Designer({
       }
     },
   });
+  // Det sparade är läst: märket från lösenordslänken har gjort sitt, med eller utan varukorg i den här webbläsaren.
+  useEffect(() => {
+    if (saved.ready) forgetCartReturn();
+  }, [saved.ready]);
   /** Hur långt besöket kommer i skyltmotorn. En återförsäljare som lägger en order åt en kund är inget besök. */
   const { report: track, visitId } = useDesignerSteps(reseller ? null : (shop?.slug ?? WEB_SCOPE));
   const hasText = doc.rows.some((row) => row.text.trim() !== "");
@@ -608,6 +634,23 @@ export function Designer({
 
   /** Stegrutan är öppen: då står sektionerna där, och inte i panelen, så att ingen sektion finns två gånger. */
   const stepsOpen = onboarding && saved.ready;
+  /*
+   * Det som redan ligger i varukorgen står där kunden skriver namnen, under Text och Fler namn (Pär via ägaren
+   * 2026-11-25: efter tre namn i varukorgen gick han tillbaka för att lägga till ett fjärde, såg inte de tre och
+   * trodde att allt var borta). Skylten i editorn är då ny, med samma utseende som den senaste.
+   */
+  const cartNote =
+    cart.length > 0 ? (
+      <p className={styles.restored} data-cart-note>
+        <span>
+          I varukorgen: {cartNamesText(cartBadges)}.{" "}
+          {pending ? "Skriv nästa namn här, så får det samma utseende." : "Skylten här kommer med när du lägger den i varukorgen."}
+        </span>
+        <button type="button" className={styles.hintLink} onClick={() => setCartOpen(true)}>
+          Visa varukorgen
+        </button>
+      </p>
+    ) : null;
   /**
    * Panelens sektioner, i `PANEL_SECTIONS` ordning. Samma sektioner visas i panelen och, ett steg i taget,
    * i stegrutan (besked av ägaren 2026-11-24, som "Börja designa" på merchin.se/kepsar), så att valen och
@@ -627,6 +670,7 @@ export function Designer({
           setView("drawing");
         }}
         placing={view === "drawing"}
+        note={cartNote}
       />
     ),
     // Metoden väljs före loggan (besked via ägaren 2026-11-16): den avgör hur loggan sedan märks.
@@ -645,6 +689,7 @@ export function Designer({
         onRemoveCurrent={removeCurrent}
         overflow={batchEntries.length - batch.length}
         fonts={fonts}
+        note={cartNote}
       />
     ),
   };
@@ -1026,8 +1071,17 @@ export function Designer({
           }}
         />
         <div className={cartStyles.actions}>
-          <button type="button" className="btn" onClick={() => setCartOpen(false)}>
-            {cart.length === 0 ? "Stäng" : "Fortsätt designa"}
+          {/* Besked av ägaren 2026-11-25: "Fortsätt designa" heter "Lägg till en ny produkt". Är skylten i editorn
+              ny och orörd börjar markören på dess första rad, så att nästa skylt går att skriva direkt. */}
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setCartOpen(false);
+              if (cart.length > 0 && pending) requestAnimationFrame(() => focusFirstRow({ reveal: true }));
+            }}
+          >
+            {cart.length === 0 ? "Stäng" : "Lägg till en ny produkt"}
           </button>
         </div>
       </CartDrawer>

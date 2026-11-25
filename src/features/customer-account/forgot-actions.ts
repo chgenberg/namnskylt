@@ -17,7 +17,7 @@ export type CustomerForgotResult = { ok: true } | { ok: false; error: string };
  * En kund har glömt sitt lösenord (namnskylt.com eller en butik). Svaret är detsamma oavsett om
  * adressen har ett konto, så att formuläret inte avslöjar vilka som är kunder.
  */
-export async function customerForgotPasswordAction(shop: unknown, input: unknown): Promise<CustomerForgotResult> {
+export async function customerForgotPasswordAction(shop: unknown, input: unknown, fromCart: unknown = false): Promise<CustomerForgotResult> {
   const slug = shop === null ? null : typeof shop === "string" && SHOP_SLUG.test(shop) ? shop : undefined;
   if (slug === undefined) return { ok: false, error: "Butiken finns inte." };
   if (!customerPasswordResetAvailable()) return { ok: false, error: "Det går inte att mejla en länk just nu. Hör av dig till oss." };
@@ -26,6 +26,6 @@ export async function customerForgotPasswordAction(shop: unknown, input: unknown
   const forwarded = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "okänd";
   if (!perClient.take(`kund-glomt:${forwarded}`)) return { ok: false, error: "För många försök. Vänta en stund." };
   // Över gränsen per adress svarar vi som vanligt men skickar inget.
-  if (perAddress.take(`kund-glomt:${slug ?? ""}:${email.data}`)) await requestCustomerPasswordReset(slug, email.data);
+  if (perAddress.take(`kund-glomt:${slug ?? ""}:${email.data}`)) await requestCustomerPasswordReset(slug, email.data, fromCart === true);
   return { ok: true };
 }

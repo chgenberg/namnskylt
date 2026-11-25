@@ -11,10 +11,12 @@ interface PasswordLinkPageProps {
   shop: string | null;
   sellerName: string;
   token: string;
+  /** Länken kom från varukorgen (`?varukorg=1`). */
+  fromCart?: boolean;
 }
 
 /** Länken från säljaren: kunden väljer ett nytt lösenord och är sedan inloggad. */
-export async function PasswordLinkPage({ shop, sellerName, token }: PasswordLinkPageProps) {
+export async function PasswordLinkPage({ shop, sellerName, token, fromCart = false }: PasswordLinkPageProps) {
   const accountId = databaseConfigured() ? await customerAccessLinkAccount(token) : null;
   const account = accountId ? await getCustomerAccount(accountId) : null;
   const valid = account !== null && account.shop === shop;
@@ -26,7 +28,11 @@ export async function PasswordLinkPage({ shop, sellerName, token }: PasswordLink
           <h1 className={styles.entryTitle}>{valid ? "Välj nytt lösenord" : "Länken fungerar inte längre"}</h1>
           <p className={styles.lead}>
             {valid ? (
-              "Lösenordet gäller ditt konto. När du har sparat det är du inloggad."
+              fromCart ? (
+                "Lösenordet gäller ditt konto. När du har sparat det är du inloggad och kommer tillbaka till varukorgen."
+              ) : (
+                "Lösenordet gäller ditt konto. När du har sparat det är du inloggad."
+              )
             ) : (
               <>
                 Den är redan använd eller har gått ut. Be {sellerName} om en ny, eller <Link href={accountPaths(shop).login}>logga in</Link>.
@@ -34,7 +40,7 @@ export async function PasswordLinkPage({ shop, sellerName, token }: PasswordLink
             )}
           </p>
         </header>
-        {valid && <PasswordLinkForm token={token} email={account.email} />}
+        {valid && <PasswordLinkForm token={token} email={account.email} fromCart={fromCart} />}
       </div>
     </div>
   );

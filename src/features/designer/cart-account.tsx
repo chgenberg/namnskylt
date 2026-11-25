@@ -60,6 +60,7 @@ export function CartAccount({ shop, account, onChange }: CartAccountProps) {
         <CustomerLoginForm
           shop={shop}
           autoFocus
+          fromCart
           onSignedIn={(signedIn) => {
             setOpen(false);
             onChange(signedIn);

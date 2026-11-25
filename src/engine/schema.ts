@@ -76,6 +76,7 @@ export const badgeDocumentSchema = z
               z.string().regex(LOGO_IMAGE_REF_PATTERN),
               z.string().max(LOGO_LIMITS.maxImageChars).regex(LOGO_IMAGE_PATTERN),
             ]),
+            mono: z.literal(true).optional(),
           })
           .optional(),
         // Gravyrformen av en logga i färg: samma slags banor som `d`, med samma tak.

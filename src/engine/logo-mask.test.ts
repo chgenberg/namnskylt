@@ -125,10 +125,21 @@ describe("inkMask — en logga ska synas, inte bli en svart klump", () => {
     assert.equal(at(logo, mask, 60, 30), 0, "texten lämnas");
   });
 
-  it("invertering vänder på hela masken", () => {
-    const logo = image(40, 40, (x, y) => (inside(x, y, 10, 10, 30, 30) ? NAVY : CLEAR));
+  it("invertering vänder en form inom formen och behåller dess kant som kontur", () => {
+    // En vit ruta med en mörk detail i, på genomskinlig botten: rutans hörn utanför får inte bli gravyr.
+    const logo = image(100, 100, (x, y) => (!inside(x, y, 10, 10, 90, 90) ? CLEAR : inside(x, y, 40, 40, 60, 60) ? BLACK : WHITE));
     const mask = inkMask(logo, true);
-    assert.equal(at(logo, mask, 20, 20), 0);
+    assert.equal(at(logo, mask, 2, 2), 0, "utanför formen");
+    assert.equal(at(logo, mask, 11, 50), 1, "konturen");
+    assert.equal(at(logo, mask, 25, 50), 0, "det som var gravyr blir skyltens yta");
+    assert.equal(at(logo, mask, 50, 50), 1, "detaljen graveras");
+  });
+
+  it("invertering vänder ett ord med lösa delar över hela bilden, som förut", () => {
+    const logo = image(60, 30, (x, y) => (inside(x, y, 5, 5, 15, 25) || inside(x, y, 25, 5, 35, 25) || inside(x, y, 45, 5, 55, 25) ? NAVY : CLEAR));
+    const mask = inkMask(logo, true);
+    assert.equal(at(logo, mask, 10, 15), 0);
     assert.equal(at(logo, mask, 2, 2), 1);
+    assert.equal(at(logo, mask, 20, 15), 1);
   });
 });

@@ -301,7 +301,8 @@ export function toSupplierSignDocument(
           },
         ];
 
-  // En svartvit logga som printas ligger i trycklagret, i sin färg. En logga i färg är en bild.
+  // En logga med bild printas som bilden, i färg eller svartvit (sedan 2026-11-25). Bara en äldre svartvit
+  // logga utan bild ligger i trycklagret, i tryckets färg.
   const logoInPrintLayer = print !== null && Boolean(layout.logo?.printed) && !doc.logo?.image;
   const logoLayers: SupplierLayer[] =
     doc.logo && layout.logo && !logoInPrintLayer

@@ -7,7 +7,7 @@ import { databaseConfigured } from "@/lib/orders/repository";
 import { getShop } from "@/lib/shops/repository";
 import { createCustomerAccessLink } from "./access-links";
 import { customerAccountIdByEmail } from "./accounts";
-import { accountPaths } from "./model";
+import { accountPaths, CART_RETURN_PARAM } from "./model";
 import { composeCustomerResetEmail, CUSTOMER_RESET_LINK_HOURS } from "./reset-email";
 
 /** Sant när "Glömt lösenordet?" går att använda: sajtens mejl är påslagna och det finns en databas. */
@@ -21,7 +21,7 @@ export function customerPasswordResetAvailable(): boolean {
  * inte avslöjar vilka som är kunder. Kastar aldrig. Mejlet går genom samma strömbrytare som
  * återförsäljarnas lösenordslänk och butikernas orderbekräftelser (`NOTICE_RESEND_API_KEY`).
  */
-export async function requestCustomerPasswordReset(shopSlug: string | null, email: string): Promise<void> {
+export async function requestCustomerPasswordReset(shopSlug: string | null, email: string, fromCart = false): Promise<void> {
   try {
     const settings = noticeEmailSettings();
     if (!settings || !databaseConfigured()) return;
@@ -31,7 +31,8 @@ export async function requestCustomerPasswordReset(shopSlug: string | null, emai
     const accountId = await customerAccountIdByEmail(shop?.slug ?? null, address);
     if (!accountId) return;
     const link = await createCustomerAccessLink(accountId, CUSTOMER_RESET_LINK_HOURS * 60 * 60 * 1000);
-    const url = `${settings.origin}${accountPaths(shop?.slug ?? null).password(link.token)}`;
+    // Från varukorgen bär länken ett märke, så att kunden kommer tillbaka till varukorgen efteråt.
+    const url = `${settings.origin}${accountPaths(shop?.slug ?? null).password(link.token)}${fromCart ? `?${CART_RETURN_PARAM}=1` : ""}`;
     // I en butik är säljaren butiken, med eget namn och utseende och utan namnskylt.com.
     const message = shop
       ? composeCustomerResetEmail({

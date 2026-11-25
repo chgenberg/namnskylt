@@ -27,6 +27,9 @@ import {
   withLogoMarking,
   withMarking,
   withMaterialMarking,
+  withPrintedNameInk,
+  printInkOf,
+  printsInOneColor,
   type FontEngine,
 } from "./index";
 import { DEFAULT_PRICE_MODEL } from "./default-price-model";
@@ -47,6 +50,8 @@ const fonts: FontEngine = {
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 const MONO: BadgeLogo = { d: "M0 0L10 0L10 10L0 10Z", viewWidth: 10, viewHeight: 10, placement: "left", heightMm: 10 };
 const COLOR: BadgeLogo = { ...MONO, image: { src: PNG } };
+/** En svartvit logga med sin bild ur filen (sedan 2026-11-25), och sin gravyrform. */
+const MONO_FILE: BadgeLogo = { ...MONO, image: { src: PNG, mono: true }, engraveD: "M2 2L8 2L8 8L2 8Z" };
 /** En plastskylt, där alla fyra metoderna finns. Metallen går bara att printa på och har egna tester sist. */
 const plain: BadgeDocument = plasticBadge(["Anna Lind", "Säljare"]);
 const framed: BadgeDocument = { ...plain, frame: { ...plain.frame, style: "solid" } };
@@ -118,6 +123,39 @@ describe("märkningsmetoden", () => {
     const removed: BadgeDocument = { ...framed, marking: "print-name-engrave-logo" };
     assert.equal(markingOf(withLogoMarking(removed)), "print");
     assert.equal(withLogoMarking(removed).marking, "print");
+  });
+
+  it("en svartvit logga med sin bild föreslås som svartvit, men printas ur bilden", () => {
+    // Förslaget och förvalet är som för en svartvit logga: den följer namnet.
+    assert.equal(logoMarking(withLogo(MONO_FILE)), "engrave");
+    assert.equal(markingOf(withLogoMarking(withLogo(MONO_FILE))), "engrave");
+    assert.equal(markingOf(withLogoMarking(withLogo(MONO_FILE, "print"))), "print");
+    // Printad är den en bild, som en logga i färg: ingen färg för trycket gäller den.
+    const printed = withMarking(withLogo(MONO_FILE), "engrave-name-print-logo");
+    assert.equal(printsInOneColor(printed), false);
+    const layout = layoutBadge(printed, fonts);
+    assert.equal(layout.logo?.imageSrc, PNG);
+    assert.equal(printedPaths(layout, fonts)?.some((path) => path.kind === "logo") ?? false, false);
+    // Graverad följer den sin gravyrform, inte bilden.
+    const engraved = layoutBadge(withLogo(MONO_FILE), fonts);
+    assert.equal(engraved.logo?.imageSrc, undefined);
+    assert.ok(engravingPaths(engraved, fonts)?.some((path) => path.kind === "logo"));
+    // Märket går igenom schemat.
+    assert.equal(badgeDocumentSchema.parse(withLogo(MONO_FILE)).logo?.image?.mono, true);
+  });
+
+  it("ett namn som byts till print på plast blir svart, så att bytet syns", () => {
+    // Blå plast med vit kärna: förut vitt, som gravyren.
+    const blue = withMarking(plasticBadge(["Anna Lind"], "blue-white"), "print");
+    assert.equal(printInkOf(withPrintedNameInk(blue)), "#111111");
+    // En färg kunden har valt står kvar.
+    assert.equal(withPrintedNameInk({ ...blue, printColor: "#FFFFFF" }).printColor, "#FFFFFF");
+    // På en mörk yta syns svart dåligt: där behålls gravyrens färg.
+    const black = withMarking(plasticBadge(["Anna Lind"], "black-white"), "print");
+    assert.equal(withPrintedNameInk(black).printColor, undefined);
+    // Ett graverat namn, och metallen, som redan har svart som förval, rörs inte.
+    assert.equal(withPrintedNameInk(plasticBadge(["Anna Lind"], "blue-white")).printColor, undefined);
+    assert.equal(withPrintedNameInk(createBadgeDocument(["Anna Lind"])).printColor, undefined);
   });
 
   it("går igenom schemat, och en okänd metod stoppas", () => {

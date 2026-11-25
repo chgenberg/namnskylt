@@ -14,7 +14,8 @@ export async function storeLogoImage(image: LogoImage): Promise<LogoImage> {
     });
     const body: unknown = response.ok ? await response.json() : null;
     const src = typeof body === "object" && body !== null && "src" in body ? body.src : null;
-    return typeof src === "string" ? { src } : image;
+    // Märket om att bilden är svartvit följer med den nya adressen.
+    return typeof src === "string" ? { ...image, src } : image;
   } catch {
     return image;
   }

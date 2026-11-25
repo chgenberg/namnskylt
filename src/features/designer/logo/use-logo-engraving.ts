@@ -17,7 +17,8 @@ import { engravingFromImage } from "./trace-image";
 export function useLogoEngraving(doc: BadgeDocument, dispatch: Dispatch<DesignerAction>): void {
   const tried = useRef(new Set<string>());
   const logo = doc.logo;
-  const src = logo?.image && !logo.engraveD && logoMarking(doc) === "engrave" ? logo.image.src : null;
+  // En svartvit logga har alltid sin gravyrform: den räknas aldrig om med reglerna för färg.
+  const src = logo?.image && !logo.image.mono && !logo.engraveD && logoMarking(doc) === "engrave" ? logo.image.src : null;
   const d = logo?.d ?? "";
   const viewWidth = logo?.viewWidth ?? 0;
   const viewHeight = logo?.viewHeight ?? 0;

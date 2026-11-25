@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type ReactNode } from "react";
 import { BadgePreview } from "@/components/badge-preview";
 import { PanelSection } from "@/components/ui/panel-section";
 import {
@@ -86,6 +86,8 @@ interface BatchSectionProps {
   /** Rader i textrutan som inte fick plats i ordern. */
   overflow: number;
   fonts: FontEngine;
+  /** Raden om vad som redan ligger i varukorgen, där kunden letar efter namnen som skrevs in. */
+  note?: ReactNode;
 }
 
 function fitNote(doc: BadgeDocument, fonts: FontEngine): string | null {
@@ -111,6 +113,7 @@ export function BatchSection({
   onRemoveCurrent,
   overflow,
   fonts,
+  note,
 }: BatchSectionProps) {
   const all = useMemo(() => [current, ...badges], [current, badges]);
   const notes = useMemo(() => all.map((doc) => fitNote(doc, fonts)), [all, fonts]);
@@ -163,6 +166,7 @@ export function BatchSection({
       title="Fler namn"
       aside={badges.length > 0 ? `${badges.length + 1} skyltar` : "Samma design"}
     >
+      {note}
       <p className={styles.batchLead}>
         Skylt till hela teamet? Skriv en skylt per rad — namn, titel. Alla får designen ovan. Klicka på en skylt i listan
         för att se och ändra den.

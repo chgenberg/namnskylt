@@ -1,5 +1,5 @@
 import { getColor, getMaterial } from "./catalog";
-import { INVISIBLE_CONTRAST, contrastRatio } from "./color-choice";
+import { INVISIBLE_CONTRAST, LOW_CONTRAST, PRINT_PALETTE, contrastRatio } from "./color-choice";
 import { cmykOf, cmykText, isPrintHex, printColorHex, printColorText, printHex } from "./color-code";
 import type { BadgeDocument, MarkingMethod, MarkingMode, MaterialId } from "./types";
 
@@ -63,7 +63,15 @@ export function nameMarking(doc: Pick<BadgeDocument, "marking">): MarkingMode {
  */
 export function logoMarking(doc: Marked): MarkingMode {
   if (doc.marking) return getMarkingMethod(doc.marking).logoMode;
-  return doc.logo?.image ? "print" : "engrave";
+  return hasColorImage(doc.logo) ? "print" : "engrave";
+}
+
+/**
+ * Loggan är i färg: den har en bild som inte är svartvit. En svartvit logga kan också ha sin bild
+ * (`LogoImage.mono`), som den printas ur, men den föreslås följa namnets metod.
+ */
+export function hasColorImage(logo: Pick<NonNullable<BadgeDocument["logo"]>, "image"> | undefined): boolean {
+  return Boolean(logo?.image && !logo.image.mono);
 }
 
 /** Metoden för ett läge på namnet och ett på loggan. */
@@ -126,7 +134,7 @@ export function withMarking<T extends MarkedBadge>(doc: T, method: MarkingMethod
 export function withLogoMarking<T extends MarkedBadge>(doc: T): T {
   if (!doc.logo) return withMarking(doc, nameMarking(doc));
   const name = nameMarking(doc);
-  return withMarking(doc, markingFor(name, doc.logo.image ? "print" : name));
+  return withMarking(doc, markingFor(name, hasColorImage(doc.logo) ? "print" : name));
 }
 
 /**
@@ -190,6 +198,22 @@ export function hasScreenPrintColors(doc: Pick<BadgeDocument, "printColor" | "ro
 export function printColorCode(input: string): string | null {
   const cmyk = cmykOf(input);
   return printHex(input) ?? (cmyk ? cmykText(cmyk) : null);
+}
+
+/** Svart ur paletten: förvalet för ett namn som byts till print på plast. */
+const PRINTED_NAME_INK = PRINT_PALETTE.find((color) => color.name === "Svart")?.hex ?? "#111111";
+
+/**
+ * Ett namn som byts från gravyr till print på plast blir svart (beslut av ägaren 2026-11-25, som
+ * valde "Svart, som på metall"). Förut fick det gravyrens färg, vitt på blå plast, och såg likadant
+ * ut som graverat. Färgen sätts på skylten, så att ritning, 3D, order och verkstad visar samma, och
+ * kunden kan byta under Textfärg. En färg kunden redan har valt står kvar, och på en mörk yta där
+ * svart syns dåligt behålls gravyrens färg. Metallen har redan svart som förval.
+ */
+export function withPrintedNameInk<T extends Marked & Pick<BadgeDocument, "printColor" | "materialId" | "colorId">>(doc: T): T {
+  if (nameMarking(doc) !== "print" || isPrintOnly(doc.materialId) || doc.printColor !== undefined) return doc;
+  if (contrastRatio(PRINTED_NAME_INK, getColor(doc.materialId, doc.colorId).surface) < LOW_CONTRAST) return doc;
+  return { ...doc, printColor: PRINTED_NAME_INK };
 }
 
 /**

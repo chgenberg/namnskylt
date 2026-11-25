@@ -12,10 +12,12 @@ interface CustomerLoginFormProps {
   onSignedIn: (account: CustomerAccountView) => void;
   /** Ställer markören i fältet för e-post när formuläret visas. */
   autoFocus?: boolean;
+  /** Formuläret står i varukorgen: "Glömt lösenordet?" leder då tillbaka dit. */
+  fromCart?: boolean;
 }
 
 /** Slutkundens inloggning med e-post och lösenord. Samma formulär i varukorgen och på inloggningssidan. */
-export function CustomerLoginForm({ shop, onSignedIn, autoFocus = false }: CustomerLoginFormProps) {
+export function CustomerLoginForm({ shop, onSignedIn, autoFocus = false, fromCart = false }: CustomerLoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +68,7 @@ export function CustomerLoginForm({ shop, onSignedIn, autoFocus = false }: Custo
         {sending ? "Loggar in…" : "Logga in"}
       </button>
       {/* Kunden ber själv om en länk för nytt lösenord (besked av ägaren 2026-11-24). */}
-      <a href={accountPaths(shop).forgot} className={styles.forgot}>
+      <a href={fromCart ? accountPaths(shop).forgotFromCart : accountPaths(shop).forgot} className={styles.forgot}>
         Glömt lösenordet?
       </a>
     </form>

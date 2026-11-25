@@ -1,5 +1,6 @@
 import { traceLogoMask, type RgbaPixels } from "./logo";
 import { visibleSoftness } from "./logo-color";
+import { logoOutline } from "./logo-invert";
 import { carveEnclosedDetail } from "./logo-mask";
 
 /**
@@ -211,8 +212,11 @@ function count(mask: ArrayLike<number>): number {
 }
 
 export type EngravingMask =
-  /** Loggan har en egen gravyrform: `mask` är det som fräses (1 = bläck). */
-  | { kind: "detail"; mask: Uint8Array }
+  /**
+   * Loggan har en egen gravyrform: `mask` är det som fräses (1 = bläck). `outline` är konturens
+   * innerkant som mjuk mask, när en inverterad form har fått en kontur.
+   */
+  | { kind: "detail"; mask: Uint8Array; outline?: Float32Array }
   /** Hela siluetten fräses: loggan är fylld rakt igenom, eller för ljus för att delas i bläck och papper. */
   | { kind: "silhouette" }
   /** Inverterad blir loggan tom. */
@@ -260,8 +264,11 @@ export function engravingMask(pixels: RgbaPixels, invert = false, grain = 1): En
   const engraved = whole ? visible : ink;
 
   if (invert) {
+    // En form med innehåll behåller sin kant som kontur, så att formen syns också inverterad (`logoOutline`).
+    const outline = logoOutline(visible, width, height);
     const inverted = new Uint8Array(visible.length);
-    for (let i = 0; i < inverted.length; i++) inverted[i] = visible[i] && !engraved[i] ? 1 : 0;
+    for (let i = 0; i < inverted.length; i++) inverted[i] = (visible[i] && !engraved[i]) || outline?.ring[i] ? 1 : 0;
+    if (outline) return { kind: "detail", mask: inverted, outline: outline.soft };
     return count(inverted) < visibleCount * MIN_DIFFERENCE_SHARE ? { kind: "empty" } : { kind: "detail", mask: inverted };
   }
   return visibleCount - count(engraved) < visibleCount * MIN_DIFFERENCE_SHARE ? { kind: "silhouette" } : { kind: "detail", mask: engraved };
@@ -284,7 +291,7 @@ export function traceLogoEngraving(pixels: RgbaPixels, invert = false, grain = 1
   const { width, height } = pixels;
   const area = Math.max(1, grain) ** 2;
   // Kanten mot det genomskinliga följer genomskinligheten, och kanten mot papperet färgen.
-  const soft = [visibleSoftness(pixels), inkSoftness(pixels, invert)];
+  const soft = [...(result.outline ? [result.outline] : []), visibleSoftness(pixels), inkSoftness(pixels, invert)];
   for (const feature of [MIN_FEATURE_PX, COARSE_FEATURE_PX]) {
     const minAreaPx = Math.round(feature * area);
     const traced = traceLogoMask(result.mask, width, height, { keepFrame: true, minAreaPx, soft, tolerancePx });

@@ -21,6 +21,8 @@ import {
   withoutOffsets,
   withLogoMarking,
   withMarking,
+  withPrintedNameInk,
+  nameMarking,
   withMounting,
   withShapePreset,
   type BadgeDocument,
@@ -244,8 +246,12 @@ export function designerReducer(doc: BadgeDocument, action: DesignerAction): Bad
       // Utan logga finns bara namnets metod kvar; ett kombinerat val faller tillbaka dit.
       return withLogoMarking(rest);
     }
-    case "marking":
-      return markingFits(action.method, doc) ? withMarking(doc, action.method) : doc;
+    case "marking": {
+      if (!markingFits(action.method, doc)) return doc;
+      const next = withMarking(doc, action.method);
+      // Ett namn som byts till print blir svart, så att bytet syns (beslut av ägaren 2026-11-25).
+      return nameMarking(doc) === "engrave" ? withPrintedNameInk(next) : next;
+    }
     case "print/color":
       // Textfärgen gäller alla rader: radernas egna färger tas bort, så att valet alltid syns.
       return withTextColor(doc, action.color);

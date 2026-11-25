@@ -78,7 +78,7 @@ export async function deleteAccountAction(shop: string | null): Promise<AccountA
   return { ok: true };
 }
 
-export type ChoosePasswordResult = { ok: true; home: string } | { ok: false; error: string };
+export type ChoosePasswordResult = { ok: true; home: string; cart: string } | { ok: false; error: string };
 
 const GONE = "Länken är använd eller har gått ut. Be om en ny.";
 
@@ -99,5 +99,5 @@ export async function choosePasswordAction(token: string, password: string): Pro
   await setCustomerPassword(account.id, parsed.data);
   await endCustomerSessions(account.id);
   await setCookie(await signInCustomer(account));
-  return { ok: true, home: accountPaths(account.shop).home };
+  return { ok: true, home: accountPaths(account.shop).home, cart: accountPaths(account.shop).cart };
 }

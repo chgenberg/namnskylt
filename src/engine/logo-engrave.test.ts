@@ -153,10 +153,16 @@ describe("gravyrformen av en logga i färg", () => {
     assert.equal(ink(10, 10), false, "plattan sparas ur");
     assert.equal(ink(30, 20), true, "det vita graveras");
     assert.equal(ink(1, 1), false, "utanför loggan finns fortfarande inget");
-    // En logga som är fylld rakt igenom blir tom när den vänds.
+    assert.equal(ink(4, 20), true, "plattans kant blir en kontur");
+    // En platta som är fylld rakt igenom blir sin kontur när den vänds.
     const solid = image(40, 20, (x, y) => (inside(x, y, 5, 4, 35, 15) ? RED : CLEAR));
-    assert.deepEqual(engravingMask(solid, true), { kind: "empty" });
-    assert.deepEqual(traceLogoEngraving(solid, true), { kind: "empty" });
+    const outline = inkAt(engravingMask(solid, true), 40);
+    assert.equal(outline(5, 10), true);
+    assert.equal(outline(20, 10), false);
+    assert.equal(traceLogoEngraving(solid, true).kind, "detail");
+    // Två lösa delar är ingen form: vänd blir de tomma, som förut.
+    const pair = image(40, 20, (x, y) => (inside(x, y, 2, 4, 15, 15) || inside(x, y, 25, 4, 38, 15) ? RED : CLEAR));
+    assert.deepEqual(engravingMask(pair, true), { kind: "empty" });
   });
 
   it("blir banor i bildens ruta, med urtaget som hål, och utan brusprickar", () => {

@@ -9,10 +9,12 @@ interface PasswordLinkFormProps {
   token: string;
   /** Kontots e-postadress, visad så att lösenordshanteraren sparar rätt inlogg. */
   email: string;
+  /** Länken kom från varukorgen: efter lösenordet går kunden tillbaka dit, inte till Mitt konto. */
+  fromCart?: boolean;
 }
 
 /** Väljer nytt lösenord via säljarens länk. */
-export function PasswordLinkForm({ token, email }: PasswordLinkFormProps) {
+export function PasswordLinkForm({ token, email, fromCart = false }: PasswordLinkFormProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -22,7 +24,7 @@ export function PasswordLinkForm({ token, email }: PasswordLinkFormProps) {
     setError(null);
     startTransition(async () => {
       const result = await choosePasswordAction(token, password);
-      if (result.ok) window.location.assign(result.home);
+      if (result.ok) window.location.assign(fromCart ? result.cart : result.home);
       else setError(result.error);
     });
   };

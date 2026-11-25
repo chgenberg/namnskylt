@@ -40,6 +40,6 @@ export function replaceLogoImages(badges: readonly BadgeDocument[], replace: (sr
   return badges.map((badge) => {
     const image = badge.logo?.image;
     const next = image ? replace(image.src) : undefined;
-    return badge.logo && next !== undefined && next !== image?.src ? { ...badge, logo: { ...badge.logo, image: { src: next } } } : badge;
+    return badge.logo && next !== undefined && next !== image?.src ? { ...badge, logo: { ...badge.logo, image: { ...image, src: next } } } : badge;
   });
 }

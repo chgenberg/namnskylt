@@ -1,4 +1,5 @@
 import { LOGO_LIMITS } from "./catalog";
+import { logoOutline } from "./logo-invert";
 import { carveEnclosedDetail } from "./logo-mask";
 
 /**
@@ -355,16 +356,23 @@ export function inkMask(pixels: RgbaPixels, invert = false, grain = 1): Uint8Arr
  * Bläcket som mask, och den mjuka mask som konturen förfinas med (`TraceOptions.soft`): bildens
  * genomskinlighet när den är frilagd, annars ljusheten kring tröskeln.
  */
-export function inkTrace(pixels: RgbaPixels, invert = false, grain = 1): { mask: Uint8Array; soft: Float32Array } {
+export function inkTrace(pixels: RgbaPixels, invert = false, grain = 1): { mask: Uint8Array; soft: Float32Array[] } {
   const { mask: foreground, soft } = foregroundOf(pixels);
   const mask = carveEnclosedDetail(pixels, foreground, grain) ?? foreground;
-  if (invert) {
-    for (let i = 0; i < mask.length; i++) {
-      mask[i] = mask[i] ? 0 : 1;
-      soft[i] = 1 - (soft[i] ?? 0);
-    }
+  if (!invert) return { mask, soft: [soft] };
+  const flipped = new Float32Array(soft.length);
+  for (let i = 0; i < soft.length; i++) flipped[i] = 1 - (soft[i] ?? 0);
+  // En form med innehåll vänds inom formen och får en kontur (`logoOutline`). Konturens innerkant följer
+  // avståndet till kanten, innehållets kanter den vända masken och ytterkanten loggans egen.
+  const outline = logoOutline(mask, pixels.width, pixels.height);
+  if (outline) {
+    const inverted = new Uint8Array(mask.length);
+    for (let i = 0; i < mask.length; i++) inverted[i] = outline.ring[i] || (outline.shape[i] && !mask[i]) ? 1 : 0;
+    return { mask: inverted, soft: [outline.soft, flipped, soft] };
   }
-  return { mask, soft };
+  // Annars vänds hela bilden, som förut: ett ord blir en platta med ordet urtaget.
+  for (let i = 0; i < mask.length; i++) mask[i] = mask[i] ? 0 : 1;
+  return { mask, soft: [flipped] };
 }
 
 /**

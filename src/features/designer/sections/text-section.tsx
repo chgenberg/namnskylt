@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import type { Dispatch } from "react";
+import type { Dispatch, ReactNode } from "react";
 import { PanelSection } from "@/components/ui/panel-section";
 import { useLogoColors } from "@/hooks/use-logo-colors";
 import { Segmented } from "@/components/ui/segmented";
@@ -59,9 +59,11 @@ interface TextSectionProps {
   /** Öppnar ritningen där text och logga dras runt. */
   onPlace?: () => void;
   placing?: boolean;
+  /** Raden om vad som redan ligger i varukorgen, överst i sektionen, där kunden letar efter namnen. */
+  note?: ReactNode;
 }
 
-export function TextSection({ doc, layout, dispatch, onPlace, placing = false }: TextSectionProps) {
+export function TextSection({ doc, layout, dispatch, onPlace, placing = false, note }: TextSectionProps) {
   const canAdd = doc.rows.length < TEXT_LIMITS.maxRows;
   // Färg per rad finns bara i tryck: gravyren får materialets färg, lika på alla rader.
   const namePrinted = nameMarking(doc) === "print";
@@ -87,6 +89,7 @@ export function TextSection({ doc, layout, dispatch, onPlace, placing = false }:
       title="Text"
       aside={`${doc.rows.length}/${TEXT_LIMITS.maxRows} rader${namePrinted ? ` · ${printColorName(textColor) ?? "Egen färg"}` : ""}`}
     >
+      {note}
       <ul className={styles.rows}>
         <AnimatePresence initial={false}>
           {doc.rows.map((row, i) => {

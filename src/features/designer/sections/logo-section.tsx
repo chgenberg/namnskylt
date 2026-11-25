@@ -11,6 +11,7 @@ import {
   engravingHex,
   getColor,
   logoEngravingPath,
+  hasColorImage,
   logoMarking,
   logoPrintInkOf,
   printColorOf,
@@ -48,12 +49,13 @@ const UPLOAD_STEPS = [
  * Hur loggan hamnar på skylten: graverad, graverad ur en logga i färg (då görs
  * färgerna om till en gravyrform), printad i en färg eller printad i filens färger.
  */
-type LogoLook = "engrave" | "engrave-color" | "print" | "print-color";
+type LogoLook = "engrave" | "engrave-color" | "print" | "print-color" | "print-file";
 const LOGO_ASIDE: Record<LogoLook, string> = {
   engrave: "Graveras",
   "engrave-color": "Graveras",
   print: "Printas",
   "print-color": "Printas i färg",
+  "print-file": "Printas",
 };
 const LOGO_HINT: Record<LogoLook, string> = {
   engrave: "Loggan graveras i en färg, samma som texten.",
@@ -62,6 +64,8 @@ const LOGO_HINT: Record<LogoLook, string> = {
   // Färgen är textfärgen när namnet också printas. Printas bara loggan väljs färgen här under.
   print: `Loggan printas i en färg. ${PRINT_COLOR_NOTE}`,
   "print-color": `Loggan är i färg och printas som den är i filen. ${PRINT_COLOR_NOTE}`,
+  // En svartvit logga med sin bild printas som filen ser ut (beslut av ägaren 2026-11-25).
+  "print-file": `Loggan printas som den ser ut i filen. ${PRINT_COLOR_NOTE}`,
 };
 
 /** Filen som loggan på skylten lästes från, och dess id på servern när den har sparats. */
@@ -197,7 +201,16 @@ export function LogoSection({ doc, dispatch }: LogoSectionProps) {
 
   // Hur loggan hamnar på skylten följer märkningsmetoden: en logga i färg som graveras ritas ur sin gravyrform.
   const engraved = logoMarking(doc) === "engrave";
-  const logoLook: LogoLook = engraved ? (doc.logo?.image ? "engrave-color" : "engrave") : doc.logo?.image ? "print-color" : "print";
+  const image = doc.logo?.image;
+  const logoLook: LogoLook = engraved
+    ? hasColorImage(doc.logo)
+      ? "engrave-color"
+      : "engrave"
+    : image
+      ? image.mono
+        ? "print-file"
+        : "print-color"
+      : "print";
   // Reglaget går upp till det som ryms på skylten och visar höjden loggan faktiskt ritas i.
   // Förut gick det till 40 mm, fast loggan slutade växa långt tidigare.
   const limits = useMemo(() => logoHeightLimits(doc), [doc]);
@@ -262,7 +275,7 @@ export function LogoSection({ doc, dispatch }: LogoSectionProps) {
       {doc.logo && (
         <>
           <div className={styles.logoPreview} style={{ background: color.surface }}>
-            {doc.logo.image && logoLook === "print-color" ? (
+            {doc.logo.image && (logoLook === "print-color" || logoLook === "print-file") ? (
               // eslint-disable-next-line @next/next/no-img-element -- data-URL från uppladdningen
               <img src={doc.logo.image.src} alt="Loggan som den printas" />
             ) : (
@@ -282,7 +295,7 @@ export function LogoSection({ doc, dispatch }: LogoSectionProps) {
           </div>
           <div className={styles.chips}>
             {/* Invertera vänder bläck och botten, och gäller allt utom en logga som printas i sina egna färger. */}
-            {logoLook !== "print-color" && source && (
+            {logoLook !== "print-color" && logoLook !== "print-file" && source && (
               <button type="button" className="chip" aria-pressed={source.invert} disabled={working} onClick={() => void invert()}>
                 Invertera
               </button>

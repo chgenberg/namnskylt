@@ -88,6 +88,12 @@ export interface Offset {
  */
 export interface LogoImage {
   src: string;
+  /**
+   * Bilden är svartvit (besked av ägaren 2026-11-25: en svartvit logga ska printas "som filen"). Den
+   * printas som den ser ut i filen, med alla sina toner, men föreslås inte printad: en ny svartvit logga
+   * följer namnets metod, som förut. Utan fältet är bilden i färg och föreslås printad.
+   */
+  mono?: true;
 }
 
 /**

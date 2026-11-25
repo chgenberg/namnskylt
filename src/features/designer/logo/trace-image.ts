@@ -9,6 +9,7 @@ import {
   traceLogoMask,
   visibleMask,
   visibleSoftness,
+  withoutWhiteBackground,
   type LogoImage,
   type LogoPixels,
   type TracedLogo,
@@ -171,23 +172,113 @@ export async function engravingFromImage(src: string, viewWidth: number, viewHei
   return engraving.kind === "detail" ? engraving.d : null;
 }
 
+interface Box {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** Rutan runt det som är satt i masken, med en pixels marginal för utjämnade kanter. `null` = tom. */
+function boxOf(width: number, height: number, isSet: (i: number) => boolean): Box | null {
+  let left = width;
+  let top = height;
+  let right = -1;
+  let bottom = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (!isSet(y * width + x)) continue;
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+      top = Math.min(top, y);
+      bottom = Math.max(bottom, y);
+    }
+  }
+  if (right < 0) return null;
+  left = Math.max(0, left - 1);
+  top = Math.max(0, top - 1);
+  right = Math.min(width - 1, right + 1);
+  bottom = Math.min(height - 1, bottom + 1);
+  return { left, top, width: right - left + 1, height: bottom - top + 1 };
+}
+
+function unionBox(a: Box | null, b: Box | null): Box | null {
+  if (!a || !b) return a ?? b;
+  const left = Math.min(a.left, b.left);
+  const top = Math.min(a.top, b.top);
+  return {
+    left,
+    top,
+    width: Math.max(a.left + a.width, b.left + b.width) - left,
+    height: Math.max(a.top + a.height, b.top + b.height) - top,
+  };
+}
+
+/** Värdena i rutan, `channels` per pixel, ur en bild som är `width` bred. */
+function cropped<T extends Uint8Array | Uint8ClampedArray | Float32Array>(source: T, width: number, box: Box, channels = 1): T {
+  const out = new (source.constructor as new (length: number) => T)(box.width * box.height * channels);
+  for (let y = 0; y < box.height; y++) {
+    const start = ((box.top + y) * width + box.left) * channels;
+    out.set(source.subarray(start, start + box.width * channels) as never, y * box.width * channels);
+  }
+  return out;
+}
+
+/**
+ * En svartvit logga. Den graveras, eller printas i en färg, ur sina banor (`engraveD`), som förut.
+ * Sedan 2026-11-25 bär den också bilden ur filen, märkt svartvit, så att den printas som den ser ut
+ * i filen (ägarens val "Som filen"): en vit ruta med mörkt "m.", eller ett foto av en mugg. Förut
+ * printades den i en enda färg, gravyrens som förval, och såg på plast likadan ut som graverad.
+ * Bilden och banorna delar ruta: det som syns i filen och bläcket, beskurna lika. `siluett` är det
+ * som syns, som trycket följer, som för en logga i färg.
+ */
+function monoTrace(image: HTMLImageElement, invert: boolean): LogoTrace | null {
+  const smooth = pixels(image, TRACE_MAX_PX, true);
+  const { width, height } = smooth;
+  const { mask, soft } = inkTrace(smooth, invert, MONO_GRAIN);
+  // En logga som spåras i en färg har ändå en färg i filen, till exempel röd: den läses ur det som är bläck.
+  const colors = inkPalette(smooth, mask);
+  const minAreaPx = Math.round(MIN_AREA_PX * MONO_GRAIN ** 2);
+  const plain = () => {
+    const traced = traceLogoMask(mask, width, height, { minAreaPx, soft, tolerancePx: TOLERANCE_PX });
+    return traced ? { ...traced, colors } : null;
+  };
+  // Bilden som printas: filen utan sin vita botten, inte utjämnad, eftersom samma pixlar blir trycket.
+  const file = withoutWhiteBackground(pixels(image, TRACE_MAX_PX));
+  const box = unionBox(
+    boxOf(width, height, (i) => (file.data[i * 4 + 3] ?? 0) >= 128),
+    boxOf(width, height, (i) => (mask[i] ?? 0) > 0),
+  );
+  if (!box) return null;
+  const engraving = traceLogoMask(cropped(mask, width, box), box.width, box.height, {
+    keepFrame: true,
+    minAreaPx,
+    soft: soft.map((field) => cropped(field, width, box)),
+    tolerancePx: TOLERANCE_PX,
+  });
+  if (!engraving) return null;
+  const logo = { data: cropped(file.data, width, box, 4), width: box.width, height: box.height };
+  const silhouette = traceLogoMask(visibleMask(logo), box.width, box.height, {
+    keepFrame: true,
+    minAreaPx,
+    soft: [visibleSoftness(logo)],
+    tolerancePx: TOLERANCE_PX,
+  });
+  const src = silhouette ? encodePng(logo) : null;
+  // Går bilden inte att ta med (för tung, eller inget syns) blir loggan som förut, utan bild.
+  if (!silhouette || !src) return plain();
+  return { ...silhouette, colors, image: { src, mono: true }, engraveD: engraving.d };
+}
+
 /**
  * Läser en bild (data- eller objekt-URL) till en logga. En bild i färg kan
  * både printas som den är och graveras i sin gravyrform; en svartvit spåras
- * till banor. `invert` vänder bläck och botten, och gäller bara det som
- * graveras eller printas i en färg. `null` = ingen logga i bilden.
+ * till banor och printas ur sin bild. `invert` vänder bläck och botten, och
+ * gäller bara det som graveras. `null` = ingen logga i bilden.
  */
 export async function traceImage(src: string, invert = false): Promise<LogoTrace | null> {
   const image = await loadImage(src);
   const colored = colorTrace(image, invert);
   if (colored !== NOT_COLOR) return colored;
-  const imageData = pixels(image, TRACE_MAX_PX, true);
-  const { mask, soft } = inkTrace(imageData, invert, MONO_GRAIN);
-  const traced = traceLogoMask(mask, imageData.width, imageData.height, {
-    minAreaPx: Math.round(MIN_AREA_PX * MONO_GRAIN ** 2),
-    soft: [soft],
-    tolerancePx: TOLERANCE_PX,
-  });
-  // En logga som spåras i en färg har ändå en färg i filen, till exempel röd: den läses ur det som är bläck.
-  return traced ? { ...traced, colors: inkPalette(imageData, mask) } : null;
+  return monoTrace(image, invert);
 }

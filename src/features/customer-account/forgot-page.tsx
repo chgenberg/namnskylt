@@ -12,6 +12,8 @@ interface CustomerForgotPageProps {
   sellerName: string;
   /** Sajtens mejl är påslagna, så att länken går att skicka. */
   available: boolean;
+  /** Kunden kom hit från varukorgen, som ligger kvar i webbläsaren. */
+  fromCart?: boolean;
 }
 
 /**
@@ -19,7 +21,7 @@ interface CustomerForgotPageProps {
  * skriver sin adress och får en länk där ett nytt lösenord väljs. Svaret säger aldrig om adressen har
  * ett konto.
  */
-export function CustomerForgotPage({ shop, sellerName, available }: CustomerForgotPageProps) {
+export function CustomerForgotPage({ shop, sellerName, available, fromCart = false }: CustomerForgotPageProps) {
   const paths = accountPaths(shop);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -40,6 +42,7 @@ export function CustomerForgotPage({ shop, sellerName, available }: CustomerForg
           <p className={styles.lead} role="status">
             <strong>Titta i din inkorg.</strong> Finns adressen hos oss har vi mejlat en länk där du väljer ett nytt
             lösenord. Länken gäller i två timmar.
+            {fromCart && " Din varukorg finns kvar: öppna länken i den här webbläsaren, så kommer du tillbaka till den inloggad."}
           </p>
         ) : (
           available && (
@@ -50,7 +53,7 @@ export function CustomerForgotPage({ shop, sellerName, available }: CustomerForg
                 const email = String(new FormData(event.currentTarget).get("email") ?? "");
                 setError(null);
                 startTransition(async () => {
-                  const result = await customerForgotPasswordAction(shop, email);
+                  const result = await customerForgotPasswordAction(shop, email, fromCart);
                   if (result.ok) setSent(true);
                   else setError(result.error);
                 });
@@ -72,9 +75,15 @@ export function CustomerForgotPage({ shop, sellerName, available }: CustomerForg
           )
         )}
         <p className={styles.foot}>
-          <Link href={paths.login} className={styles.link}>
-            Till inloggningen
-          </Link>
+          {fromCart ? (
+            <Link href={paths.cart} className={styles.link}>
+              Tillbaka till varukorgen
+            </Link>
+          ) : (
+            <Link href={paths.login} className={styles.link}>
+              Till inloggningen
+            </Link>
+          )}
         </p>
       </div>
     </div>

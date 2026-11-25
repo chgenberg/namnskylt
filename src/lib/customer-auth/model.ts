@@ -35,6 +35,14 @@ export function customerCookieName(shop: string | null): string {
 }
 
 /** Kontots sidor: på namnskylt.com eller i butiken. */
+/**
+ * Märket i adressen när kunden kom till "Glömt lösenordet?" från varukorgen (besked av ägaren 2026-11-25:
+ * efter det nya lösenordet kom kunden till Mitt konto, och ordern som var klar att skicka syntes inte).
+ * Märket följer med till länken i mejlet, och efter det nya lösenordet går kunden tillbaka till
+ * skyltmotorn, där varukorgen öppnas inloggad.
+ */
+export const CART_RETURN_PARAM = "varukorg";
+
 export function accountPaths(shop: string | null) {
   const base = shop ? `/butik/${shop}` : "";
   return {
@@ -45,6 +53,10 @@ export function accountPaths(shop: string | null) {
     password: (token: string) => `${base}/konto/losenord/${token}`,
     /** "Glömt lösenordet?": kunden ber om en länk till sin e-post. */
     forgot: `${base}/konto/glomt`,
+    /** "Glömt lösenordet?" från varukorgen: efter det nya lösenordet går kunden tillbaka till den. */
+    forgotFromCart: `${base}/konto/glomt?${CART_RETURN_PARAM}=1`,
+    /** Skyltmotorn med varukorgen öppen, för den som kommer tillbaka från en lösenordslänk. */
+    cart: `${base}/skapa?${CART_RETURN_PARAM}=1`,
     /** Skyltmotorn med en tidigare order i varukorgen. */
     reorder: (orderNo: string) => `${base}/skapa?igen=${encodeURIComponent(orderNo)}`,
   };
