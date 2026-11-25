@@ -17,6 +17,10 @@ import { paymentsConfigured } from "@/lib/payments/stripe";
 import { currentTenant } from "@/lib/reseller-auth/session";
 import { genitive } from "@/lib/share/genitive";
 import { decodeShareCode } from "@/lib/share/share-link";
+import { JsonLd } from "@/components/json-ld";
+import { siteFacts } from "@/lib/seo/facts";
+import { pageMetadata, SITE_PAGES } from "@/lib/seo/page";
+import { pageGraph, products } from "@/lib/seo/structured-data";
 
 interface SkapaPageProps {
   searchParams: Promise<{
@@ -38,10 +42,13 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
+const PAGE = SITE_PAGES.skapa;
+
 export async function generateMetadata({ searchParams }: SkapaPageProps): Promise<Metadata> {
   const code = first((await searchParams).d);
   const shared = await decodeShareCode(code);
-  if (!shared || !code) return { title: "Skapa namnskylt" };
+  // Delade länkar (`?d=`) och namn från startsidan (`?t=`) är samma sida: den kanoniska adressen är /skapa.
+  if (!shared || !code) return pageMetadata(PAGE);
 
   const name = engravedRows(shared)[0]?.text.trim();
   const title = name ? `${genitive(name)} namnskylt` : "En delad namnskylt";
@@ -55,6 +62,7 @@ export async function generateMetadata({ searchParams }: SkapaPageProps): Promis
   return {
     title,
     description,
+    alternates: { canonical: "/skapa" },
     openGraph: { title, description, images: [image], type: "website" },
     twitter: { card: "summary_large_image", title, description, images: [image.url] },
   };
@@ -115,6 +123,8 @@ export default async function SkapaPage({ searchParams }: SkapaPageProps) {
   const customer = reseller ? null : await customerDesignerContext(null, first(params.igen));
   return (
     <main>
+      {/* Produkterna med pris, för sökmotorer och AI-tjänster. Skyltmotorn själv ritas i webbläsaren. */}
+      {!reseller ? <JsonLd data={pageGraph(PAGE, { parts: products(await siteFacts()) })} /> : null}
       <Designer
         initialText={first(params.t) ?? ""}
         initialDoc={shared}

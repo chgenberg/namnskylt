@@ -1,15 +1,15 @@
-import type { Metadata } from "next";
+import { JsonLd } from "@/components/json-ld";
+import { pageMetadata, SITE_PAGES } from "@/lib/seo/page";
+import { pageGraph } from "@/lib/seo/structured-data";
 import { SiteFooter } from "@/components/site-footer";
 import { InspirationGallery } from "@/features/inspiration/inspiration-gallery";
 import styles from "@/features/inspiration/inspiration.module.css";
 import { INSPIRATION } from "@/lib/inspiration/catalog";
 import { encodeShareCode } from "@/lib/share/share-link";
 
-export const metadata: Metadata = {
-  title: "Inspirationsbank",
-  description:
-    "Åtta namnskyltar för kända svenska företag, i metall och plast, med närbilder på valen: ytan, formen och fästet.",
-};
+const PAGE = SITE_PAGES.inspiration;
+
+export const metadata = pageMetadata(PAGE);
 
 export default async function InspirationPage() {
   // Länken som öppnar varje exempel i skyltmotorn räknas här, så att sidan inte behöver något skript.
@@ -18,6 +18,7 @@ export default async function InspirationPage() {
   );
   return (
     <main data-floating-header>
+      <JsonLd data={pageGraph(PAGE, { type: "CollectionPage" })} />
       <div className={`container ${styles.page}`}>
         <header className={styles.intro}>
           <p className="eyebrow">Inspirationsbank</p>

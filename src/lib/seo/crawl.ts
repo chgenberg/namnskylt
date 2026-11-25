@@ -1,3 +1,5 @@
+import { SITE_PAGES } from "./page";
+
 /**
  * Vad sökmotorer får se. Så länge sajten är låst med sajtlösenordet ska inget
  * indexeras: robots säger nej till allt och sitemapen är tom. När spärren tas
@@ -5,7 +7,7 @@
  */
 
 /** Sidorna som får hittas via sökmotorer. Butiker, hemliga länkar och panelen står aldrig här. */
-export const PUBLIC_PATHS = ["/", "/skapa", "/foretag", "/inspiration", "/om-oss", "/kontakt", "/villkor", "/integritet"] as const;
+export const PUBLIC_PATHS: readonly string[] = Object.values(SITE_PAGES).map((page) => page.path);
 
 /** Personliga länkar och butiksförhandsvisningar ska aldrig hamna i sökmotorer. */
 const PRIVATE_PATHS = ["/for/", "/avregistrera/", "/utskick/", "/aterforsaljare/", "/admin", "/api/"];

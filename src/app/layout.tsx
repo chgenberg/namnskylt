@@ -11,19 +11,43 @@ import { CookieBanner } from "@/components/cookie-banner";
 import { GoogleAnalytics } from "@/components/google-analytics";
 import { SiteVisitBeacon } from "@/components/site-visit-beacon";
 import { gaMeasurementId } from "@/lib/consent/ga";
+import { OG_IMAGE } from "@/lib/seo/og";
+import { SITE_ORIGIN } from "@/lib/seo/site-facts";
 import { endPriceTable } from "@/engine/price-model";
 import { priceModelOrDefault } from "@/lib/orders/repository";
 import { GATE_COOKIE, isValidGateCookie } from "@/lib/site-gate/token";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: {
-    default: "namnskylt.com — namnskyltar i metall och plast",
-    template: "%s · namnskylt.com",
-  },
-  description:
-    "Skriv ditt namn och se din namnskylt i 3D direkt. Tillverkas i Sverige av Skylt & Gravyrteknik.",
-};
+const DESCRIPTION = "Skriv ditt namn och se din namnskylt i 3D direkt. Tillverkas i Sverige av Skylt & Gravyrteknik.";
+
+/**
+ * Sajtens grund för sökmotorer (2026-11-25): adressen som kanoniska adresser och bilder räknas från, delningsbilden,
+ * och verifieringen för Google Search Console och Bing Webmaster Tools när koderna är satta.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const google = process.env.GOOGLE_SITE_VERIFICATION?.trim();
+  const bing = process.env.BING_SITE_VERIFICATION?.trim();
+  return {
+    metadataBase: new URL(SITE_ORIGIN),
+    title: {
+      default: "namnskylt.com — namnskyltar i metall och plast",
+      template: "%s · namnskylt.com",
+    },
+    description: DESCRIPTION,
+    applicationName: "namnskylt.com",
+    openGraph: {
+      siteName: "namnskylt.com",
+      locale: "sv_SE",
+      type: "website",
+      description: DESCRIPTION,
+      images: [{ url: OG_IMAGE.src, width: OG_IMAGE.width, height: OG_IMAGE.height, alt: OG_IMAGE.alt }],
+    },
+    twitter: { card: "summary_large_image" },
+    ...((google || bing) && {
+      verification: { ...(google && { google }), ...(bing && { other: { "msvalidate.01": bing } }) },
+    }),
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#f4f2ec",

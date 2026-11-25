@@ -4113,6 +4113,49 @@ Alla anrop går via `openai()` i `src/lib/ai/openai.ts`. Den returnerar `null` u
   som `pending` även på skylt- och materialbilderna, men den läses bara för persona-bilder.
   Skylten ritas av motorn och behöver ingen granskning.
 
+## Sökmotorer och AI-tjänster — läge 2026-11-25
+
+Ägaren har startat Google Search Console och vill ha "världens bästa SEO organisk" och en strategi för
+AI-tjänsterna, med hela sajten i JSON-LD (2026-11-25). Steg 1, den tekniska grunden, är byggt och
+**inte pushat**. Steg 2 (sidor om material, fästen, logga och branscher) och steg 3 (länkar utifrån, Bing,
+omdömen) är föreslagna och inte påbörjade.
+
+- **Sidorna står på ett ställe:** `SITE_PAGES` i `src/lib/seo/page.ts` har varje publik sidas sökväg, titel
+  och beskrivning (70–160 tecken, ett test vaktar). `pageMetadata` ger titel, beskrivning, kanonisk adress
+  och delningskort, och sidorna, sitemapen (`PUBLIC_PATHS` i `crawl.ts`) och `/llms.txt` läser listan.
+  Startsidans titel är nu "Namnskyltar med logga i metall och plast · namnskylt.com", och företagssidans
+  "Namnskyltar för företag". Ny publik sida: lägg den i `SITE_PAGES`.
+- **Rotlayouten** har `metadataBase` (`https://www.namnskylt.com`), delningsbilden och verifieringen för
+  Search Console och Bing när `GOOGLE_SITE_VERIFICATION` eller `BING_SITE_VERIFICATION` är satt (bara koden
+  ur metataggen). Ingen av dem är satt.
+- **Delningsbilden** är `public/og/namnskylt.jpg`, 1200 × 630: mässingsskylten "Välkommen namnskylt.com" ur
+  `gate-badge.jpg` med luft runt om. En delad skylt (`/skapa?d=`) har kvar sin egen bild.
+- **JSON-LD** (`src/lib/seo/structured-data.ts`, `JsonLd` i `src/components/json-ld.tsx`) i ett `@graph` per
+  sida, där delarna pekar på varandra med `@id`:
+  - startsidan: namnskylt.com som organisation med Skylt & Gravyrteknik som moderbolag, verkstaden som
+    `LocalBusiness` (adress, org.nr, öppettider), webbplatsen, sidan, en `Product` per material och `FAQPage`,
+  - `/skapa` (inte i säljarläge) och `/foretag`: sidan, brödsmulor och produkterna,
+  - `/om-oss` och `/kontakt`: `AboutPage` och `ContactPage` om verkstaden, med verkstaden,
+  - `/inspiration`, `/villkor` och `/integritet`: sidan och brödsmulor.
+  - **Produkternas pris räknas ur prismodellen vid varje visning** (`siteFacts`, `factsFromModel` i
+    `src/lib/seo/facts.ts`): slutkundens pris med nål och skyltens del av startkostnaden, för 1 och 500
+    skyltar, exkl. moms, som `AggregateOffer`. Bara slutkundens prislista läses. Bilderna är mässingsskylten
+    och läkarskylten, inga andra företags loggor.
+- **Vanliga frågor** står synliga sist på startsidan före återförsäljarna (`HomeFaq` i
+  `src/features/home/faq.tsx`), tio frågor ur `faqItems` i `src/lib/seo/site-facts.ts`, och samma frågor är
+  `FAQPage`. Priser och frakt kommer ur prismodellen. **Svaren får bara säga det sajten redan säger**: fem
+  arbetsdagar och korrektur innan produktion står på flera ställen. Att priset gäller med nål bygger på att
+  nålen är det billigaste fästet (test mot kalkylen).
+- **`/llms.txt`** (`src/app/llms.txt/route.ts`, `llmsText` i `src/lib/seo/llms.ts`): Markdown enligt
+  llmstxt.org med sammanfattning, en rad på engelska, sidorna, frågorna med dagens priser och kontakten.
+  404 med sajtspärren på. Nämner aldrig inköp, provision eller marginal (test).
+- **Webbplatskartan för Search Console är `https://www.namnskylt.com/sitemap.xml`**, som fanns sedan förut och
+  svarar i drift med de åtta sidorna. `robots.txt` pekar dit och släpper in alla, också AI-tjänsternas
+  sökrobotar, utom de privata vägarna.
+- Provat lokalt 2026-11-25 mot produktionsbygget utan sajtspärr (43 av 43): titel, kanonisk adress,
+  delningskort, beskrivning och en JSON-LD på varje sida, bilden, `/llms.txt` och sitemapen. Frågorna sedda i
+  Chrome på 1440, 390 och 320 px. Inte kört genom Googles test för rika resultat.
+
 ## Besöksstatistik, kakor och klicken från utskicket — läge 2026-11-25
 
 Ägaren ville se besökarna på sajten och vem som klickade i mejlet, och valde (2026-11-25): **egen statistik
@@ -4144,6 +4187,9 @@ mejlet, inga öppningar**. Pushat 2026-11-25 på ägarens "ja, du kan pusha ut d
 - Provat lokalt 2026-11-25 i Chrome (16 kontroller): rutan, båda valen, Cookieinställningar, att Google
   Analytics laddas först efter ja, rutan på 390 px, admins vy, att admins egna besök och panelen inte
   räknas, och att inga IP-adresser eller koder sparas.
+- Ute i drift 16:27 (`f08bfdd`). Kontrollerat: migrering 042 är tillämpad, ett besök från en vanlig
+  webbläsare räknas (provbesöket på `/drift-prov` togs bort efteråt), en webbläsare som kallar sig
+  HeadlessChrome räknas inte, ingen cookieruta och inga kakor utan `GA_MEASUREMENT_ID`, och admins vy svarar.
 
 ## Utskicket, enklare — läge 2026-11-25
 
