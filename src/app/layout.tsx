@@ -7,6 +7,10 @@ import { editorialSerif } from "@/components/fonts";
 import { PriceListProvider } from "@/components/price-list-provider";
 import { SiteGate } from "@/components/site-gate";
 import { SiteHeader } from "@/components/site-header";
+import { CookieBanner } from "@/components/cookie-banner";
+import { GoogleAnalytics } from "@/components/google-analytics";
+import { SiteVisitBeacon } from "@/components/site-visit-beacon";
+import { gaMeasurementId } from "@/lib/consent/ga";
 import { endPriceTable } from "@/engine/price-model";
 import { priceModelOrDefault } from "@/lib/orders/repository";
 import { GATE_COOKIE, isValidGateCookie } from "@/lib/site-gate/token";
@@ -47,6 +51,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const open = OPEN_PATHS.some((prefix) => pathname.startsWith(prefix));
   const selfAuth = SELF_AUTH_PATHS.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   const unlocked = open || selfAuth || (await isValidGateCookie((await cookies()).get(GATE_COOKIE)?.value));
+  const gaId = gaMeasurementId();
   return (
     <html lang="sv" className={`${GeistSans.variable} ${GeistMono.variable} ${editorialSerif.variable}`}>
       <body>
@@ -55,6 +60,14 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           {/* Bara slutkundens lista går till webbläsaren; inköpspriser och provision stannar på servern. */}
           <PriceListProvider priceList={endPriceTable(await priceModelOrDefault())}>{children}</PriceListProvider>
         </SiteGate>
+        {/* Besöksstatistik utan kakor, och Google Analytics bara efter samtycke (beslut av ägaren 2026-11-25). */}
+        <SiteVisitBeacon />
+        {gaId ? (
+          <>
+            <GoogleAnalytics id={gaId} />
+            <CookieBanner />
+          </>
+        ) : null}
       </body>
     </html>
   );

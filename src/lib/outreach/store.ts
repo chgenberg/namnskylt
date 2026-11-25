@@ -50,6 +50,8 @@ export interface LeadRow {
   resellerId: string | null;
   landedAt: Date | null;
   demoOpenedAt: Date | null;
+  /** När mottagaren bad om att bli uppringd på sidan med filmen (2026-11-25). */
+  callbackAt: Date | null;
   repliedAt: Date | null;
   attributedAt: Date | null;
   firstOrderAt: Date | null;
@@ -62,7 +64,7 @@ const LEAD_COLUMNS = `
   to_char(customer_since, 'YYYY-MM-DD') as "customerSince", activated, known, website, up_shop_url as "upShopUrl",
   brand, wave, status, check_reason as "checkReason", stop_reason as "stopReason", approved_at as "approvedAt",
   shop_slug as "shopSlug", invite_token as "inviteToken", reseller_id as "resellerId", landed_at as "landedAt",
-  demo_opened_at as "demoOpenedAt", replied_at as "repliedAt", attributed_at as "attributedAt",
+  demo_opened_at as "demoOpenedAt", callback_at as "callbackAt", replied_at as "repliedAt", attributed_at as "attributedAt",
   first_order_at as "firstOrderAt", note, created_at as "createdAt"`;
 
 export interface CampaignRow {
@@ -253,6 +255,11 @@ export async function stopLead(sql: Db, leadId: string, reason: StopReason): Pro
 export async function recordLanding(sql: Db, leadId: string): Promise<void> {
   await sql`update outreach_leads set landed_at = coalesce(landed_at, now()), updated_at = now() where id = ${leadId}`;
   await stopLead(sql, leadId, "landed");
+}
+
+/** Mottagaren bad om att bli uppringd på sidan med filmen. Det första tillfället står kvar. */
+export async function recordCallback(sql: Db, leadId: string): Promise<void> {
+  await sql`update outreach_leads set callback_at = coalesce(callback_at, now()), updated_at = now() where id = ${leadId}`;
 }
 
 export async function recordDemoOpened(sql: Db, leadId: string): Promise<void> {

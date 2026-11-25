@@ -4113,6 +4113,38 @@ Alla anrop går via `openai()` i `src/lib/ai/openai.ts`. Den returnerar `null` u
   som `pending` även på skylt- och materialbilderna, men den läses bara för persona-bilder.
   Skylten ritas av motorn och behöver ingen granskning.
 
+## Besöksstatistik, kakor och klicken från utskicket — läge 2026-11-25
+
+Ägaren ville se besökarna på sajten och vem som klickade i mejlet, och valde (2026-11-25): **egen statistik
+utan kakor för alla, Google Analytics bakom en cookieruta för dem som säger ja, och bara klick från
+mejlet, inga öppningar**. Pushat 2026-11-25 på ägarens "ja, du kan pusha ut det nu".
+
+- **Statistiken utan kakor** (`src/lib/site-stats/`, `POST /api/site-visits`, `SiteVisitBeacon` i
+  rotlayouten, migrering 042, tabellen `site_visits`) följer reglerna i Skylt & Gravyrtekniks egen
+  integritetspolicy: inget sparas i webbläsaren, IP-adressen sparas aldrig, besökaren är en kod som byts
+  varje dygn (HMAC av dag, IP och webbläsare med `SITE_STATS_SECRET`, annars `RESELLER_PASSWORD`), och
+  besöken raderas efter 90 dagar (jobbet `site-visits-prune`).
+  - Räknas: namnskylt.coms egna sidor. Inte panelen, API:erna, verkstaden, butikerna (`/butik`, egna
+    domäner), robotar eller den som är inloggad i panelen (kakan `ns_admin`).
+  - **Hemliga koder i adresser sparas aldrig** (`cleanPath`): `/offert/[kod]`, `/order/[kod]`, `/f/[kod]`
+    och de andra länkarna som ger behörighet. Frågor (`?k=…`) tas bort; `?k=` blir källan "utskick".
+  - Admin ser det under **Statistik → Besökare på namnskylt.com** (bara admin): i dag, 7 och 30 dagar,
+    per dag, mest besökta sidor, varifrån och enhet. En besökare räknas en gång per dag. Källan är en
+    kampanj under dagen (utskicket, `utm_source`), annars sidan besökaren först kom ifrån.
+- **Google Analytics och cookierutan** (`CookieBanner`, `GoogleAnalytics`, `src/lib/consent/`): bara när
+  `GA_MEASUREMENT_ID` är ett mätnings-id (G-…), som **inte är satt** än. Rutan visas på namnskylt.coms
+  egna sidor, inte i panelen eller butikerna, med "Bara nödvändiga" och "Godkänn alla" lika tydliga.
+  Valet sparas i den nödvändiga kakan `ns_samtycke` i ett år, och "Cookieinställningar" i sidfoten öppnar
+  rutan igen. Inget laddas från Google före ett ja, och ett nej tar bort Googles kakor.
+  Integritetssidan beskriver Google Analytics bara när det är påslaget.
+- **Klicken från utskicket:** utskickets lista i admin visar "Klickade" (besöket på `/demo` från mejlets
+  länk, `landed_at`) och "Vill bli uppringd" (`outreach_leads.callback_at`, satt av "Bli uppringd" när
+  besökaren kom från mejlet), och mottagarens ruta visar när. Öppningar mäts inte: det kräver en
+  spårningsbild, som räknas som spårning och försämrar leveransen.
+- Provat lokalt 2026-11-25 i Chrome (16 kontroller): rutan, båda valen, Cookieinställningar, att Google
+  Analytics laddas först efter ja, rutan på 390 px, admins vy, att admins egna besök och panelen inte
+  räknas, och att inga IP-adresser eller koder sparas.
+
 ## Utskicket, enklare — läge 2026-11-25
 
 Ägaren ändrade upplägget 2026-11-25: mejlet ska vara "superenkelt, bara ett CTA", och det är att ringa
@@ -4126,6 +4158,12 @@ spola och spelas i Chrome på dator (16:9) och 390 px (9:16), Pärs nummer syns 
 och startsidans länk till filmen svarar. Ett andra provmejl, med toppbilden och länken till sidan i drift,
 gick till Pär samma dag på ägarens begäran. "Bli uppringd" är inte provat i drift: ett prov mejlar
 hej@namnskylt.com på riktigt.
+Ägarens text, kontorsbilden, hälsningen och den obligatoriska hemsidan i ansökan är ute sedan 16:03
+(`4240d97`), kontrollerat genom läsning. Ett tredje provmejl med dem gick till Pär samma dag.
+Samma kväll gick ett första provutskick till två mottagare som ägaren angav, som om de låg på listan
+(förnamn i hälsningen, företaget "Alttech" i sidfoten), direkt via Resend med offertmejlets nyckel.
+Inte genom utskickets kö: den är fortfarande pausad, och länkarna för avregistrering gällde inte.
+Samma kväll gick också ett enskilt provmejl till en tredje mottagare som ägaren angav, på samma sätt.
 
 - **Besluten** (ägarens svar på planens nio frågor samma dag, inlagda i planen på claude.ai):
   - Avsändarnamnet är Namnskylt, och mejlen ska gå från info@ på en egen underdomän, till exempel

@@ -91,6 +91,7 @@ export default async function OutreachPage({ searchParams }: { searchParams: Pro
       persona: personas.get(l.id) ?? null,
       messageStatus: latest.get(l.id) ?? null,
       landed: l.landedAt !== null,
+      callback: l.callbackAt !== null,
     }));
 
   return (

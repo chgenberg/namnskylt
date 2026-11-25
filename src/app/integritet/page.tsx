@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SiteFooter } from "@/components/site-footer";
 import { PrivacyPage } from "@/features/privacy/privacy-page";
+import { gaMeasurementId } from "@/lib/consent/ga";
 
 export const metadata: Metadata = {
   title: "Integritetspolicy",
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
 export default function IntegritetPage() {
   return (
     <main>
-      <PrivacyPage />
+      <PrivacyPage analytics={gaMeasurementId() !== null} />
       <SiteFooter />
     </main>
   );

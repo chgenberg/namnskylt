@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { CookieSettingsButton } from "@/components/cookie-banner";
+import { gaMeasurementId } from "@/lib/consent/ga";
 import styles from "./site-footer.module.css";
 
 /**
@@ -16,6 +18,7 @@ export function SiteFooter() {
         <Link href="/aterforsaljare/ansok">Bli återförsäljare</Link>
         <Link href="/villkor">Köpvillkor</Link>
         <Link href="/integritet">Integritet</Link>
+        {gaMeasurementId() ? <CookieSettingsButton className={styles.linkButton} /> : null}
       </nav>
     </footer>
   );

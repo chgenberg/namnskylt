@@ -66,8 +66,10 @@ export function LeadDrawer({ lead, heroUrl, persona, blockers, messages, landing
           )}
           <dt>Butik</dt>
           <dd>{lead.shopSlug ? <a className={adminStyles.link} href={`/admin/butiker/${lead.shopSlug}`}>{lead.shopSlug}</a> : "—"}</dd>
-          <dt>Landade</dt>
+          <dt>Klickade till filmen</dt>
           <dd>{when(lead.landedAt)}</dd>
+          <dt>Bad om att bli uppringd</dt>
+          <dd>{when(lead.callbackAt)}</dd>
           <dt>Öppnade butiken</dt>
           <dd>{when(lead.demoOpenedAt)}</dd>
           <dt>Aktiverade</dt>

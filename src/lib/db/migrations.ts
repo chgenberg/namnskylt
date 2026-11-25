@@ -741,6 +741,27 @@ export const MIGRATIONS: readonly { id: string; sql: string }[] = [
       alter table orders add column if not exists extra_delivery_sek integer not null default 0 check (extra_delivery_sek >= 0);
     `,
   },
+  {
+    // Besöksstatistik utan kakor och klicken från utskicket (beslut av ägaren 2026-11-25).
+    // - site_visits: en rad per sidvisning på namnskylt.com. Besökaren är en kod som byts varje dygn
+    //   (HMAC av dag, IP och webbläsare); IP-adressen sparas aldrig. Raderas efter 90 dagar.
+    // - outreach_leads.callback_at: när mottagaren bad om att bli uppringd på sidan med filmen.
+    id: "042_site_visits_and_callbacks",
+    sql: `
+      create table if not exists site_visits (
+        id bigserial primary key,
+        at timestamptz not null default now(),
+        day date not null,
+        visitor text not null,
+        path text not null,
+        referrer text,
+        source text,
+        device text not null check (device in ('dator', 'telefon', 'surfplatta'))
+      );
+      create index if not exists site_visits_day on site_visits (day);
+      alter table outreach_leads add column if not exists callback_at timestamptz;
+    `,
+  },
 ];
 
 export async function migrate(sql: Sql): Promise<string[]> {

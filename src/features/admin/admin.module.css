@@ -2641,3 +2641,22 @@ a.listRow:focus-visible {
     font-size: clamp(2.1rem, 1.6rem + 3vw, 2.6rem);
   }
 }
+
+/* Besökarna på namnskylt.com under Statistik (2026-11-25): fyra stapellistor, två i bredd på stor skärm. */
+.siteVisitGrid {
+  display: grid;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+@media (min-width: 900px) {
+  .siteVisitGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.subTitle {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}

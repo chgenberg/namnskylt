@@ -23,7 +23,10 @@ export interface LeadTableRow {
   /** Personbildens granskning; `null` = ingen personbild. Bara en godkänd följer med i mejlet. */
   persona: AssetReview | null;
   messageStatus: MessageStatus | null;
+  /** Mottagaren klickade till sidan med filmen. */
   landed: boolean;
+  /** Mottagaren bad om att bli uppringd. */
+  callback: boolean;
 }
 
 export function LeadTable({ rows }: { rows: LeadTableRow[] }) {
@@ -148,7 +151,17 @@ export function LeadTable({ rows }: { rows: LeadTableRow[] }) {
                     {LEAD_STATUS_LABEL[row.status]}
                   </span>
                 </td>
-                <td>{row.landed ? <span className={styles.tag} data-tone="ok">Landade</span> : row.messageStatus ? MESSAGE_STATUS_LABEL[row.messageStatus] : "—"}</td>
+                <td>
+                  {row.callback ? (
+                    <span className={styles.tag} data-tone="ok">Vill bli uppringd</span>
+                  ) : row.landed ? (
+                    <span className={styles.tag} data-tone="ok">Klickade</span>
+                  ) : row.messageStatus ? (
+                    MESSAGE_STATUS_LABEL[row.messageStatus]
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td>
                   {row.persona === "approved" ? (
                     <span className={styles.tag} data-tone="ok">Person</span>

@@ -49,6 +49,7 @@ const baseLead: LeadRow = {
   resellerId: null,
   landedAt: null,
   demoOpenedAt: null,
+  callbackAt: null,
   repliedAt: null,
   attributedAt: null,
   firstOrderAt: null,

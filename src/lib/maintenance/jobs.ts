@@ -1,3 +1,4 @@
+import { pruneSiteVisits } from "@/lib/site-stats/repository";
 import "server-only";
 import { pruneCustomerSessions } from "@/lib/customer-auth/session";
 import { pruneDesignerEvents } from "@/lib/designer-stats/repository";
@@ -41,6 +42,12 @@ export const JOBS: readonly Job[] = [
     label: "Rensning av skyltmotorns statistik äldre än ett halvår",
     everyMs: DAY_MS,
     run: async () => `${await pruneDesignerEvents()} rader borttagna`,
+  },
+  {
+    name: "site-visits-prune",
+    label: "Rensning av besöksstatistiken äldre än 90 dagar",
+    everyMs: DAY_MS,
+    run: async () => `${await pruneSiteVisits()} besök borttagna`,
   },
   {
     name: "customer-session-prune",

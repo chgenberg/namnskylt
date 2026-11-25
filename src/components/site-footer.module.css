@@ -24,3 +24,18 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* "Cookieinställningar" är en knapp, men ser ut som länkarna bredvid. */
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}

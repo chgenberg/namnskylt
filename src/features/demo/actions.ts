@@ -10,7 +10,7 @@ import { requireDb } from "@/lib/db/client";
 import { sendTransactional } from "@/lib/email/transactional";
 import { noticeEmailSettings } from "@/lib/notices/email";
 import { recordLandingDecision } from "@/lib/outreach/landing";
-import { recordLanding } from "@/lib/outreach/repository";
+import { recordCallback, recordLanding } from "@/lib/outreach/repository";
 import { currentTenant } from "@/lib/reseller-auth/session";
 import { isOwner } from "@/lib/tenants/model";
 
@@ -42,6 +42,8 @@ export async function requestCallbackAction(input: unknown): Promise<CallbackRes
     settings,
   );
   const sent = await sendTransactional(message, { apiKey: settings.apiKey, apiUrl: settings.apiUrl });
+  // Utskickets översikt visar vem som bad om att bli uppringd (2026-11-25). Ett fel här stoppar inte svaret.
+  if (sent && lead) await recordCallback(requireDb(), lead.leadId).catch(() => undefined);
   return sent ? { ok: true } : { ok: false, error: CALL_INSTEAD };
 }
 

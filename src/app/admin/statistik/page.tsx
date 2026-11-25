@@ -1,6 +1,10 @@
 import { DesignerFunnel } from "@/features/admin/designer-funnel";
 import { adminTenant } from "@/features/admin/guard";
 import { WeeklyChart } from "@/features/admin/weekly-chart";
+import { SiteVisits } from "@/features/admin/site-visits";
+import { stockholmDay } from "@/lib/site-stats/model";
+import { siteStats } from "@/lib/site-stats/repository";
+import { isOwner } from "@/lib/tenants/model";
 import styles from "@/features/admin/admin.module.css";
 import { formatSek, plural } from "@/lib/format";
 import { ORDER_SOURCE_LABEL, ORDER_SOURCES } from "@/lib/orders/model";
@@ -20,6 +24,8 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
   if (!tenant) return null;
   const { motor } = await searchParams;
   const orders = await listOrders(tenant);
+  // Besökarna på namnskylt.com visas bara för admin; en återförsäljare ser sin egen försäljning.
+  const visits = isOwner(tenant) ? await siteStats(30).catch(() => null) : null;
   const stats = orderStats(orders, new Date(), 12);
   const lastFour = stats.weeks.slice(-4).reduce((sum, w) => sum + w.revenueSek, 0);
   const prevFour = stats.weeks.slice(-8, -4).reduce((sum, w) => sum + w.revenueSek, 0);
@@ -38,6 +44,7 @@ export default async function StatsPage({ searchParams }: StatsPageProps) {
           <p className={styles.pageLead}>Avbrutna ordrar räknas inte. Belopp exkl. moms.</p>
         </div>
       </header>
+      {visits ? <SiteVisits stats={visits} today={stockholmDay()} /> : null}
 
       <div className={styles.kpis}>
         <div className={styles.kpi} data-tone="navy">

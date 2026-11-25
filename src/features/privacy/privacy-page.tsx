@@ -31,7 +31,8 @@ const RETENTION =
  * som gäller just den här sajten: vad som sparas här och vad som inte används här.
  * namnskylt.com står inte som ett eget bolag (besked av ägaren 2026-11-18).
  */
-export function PrivacyPage() {
+/** `analytics`: Google Analytics är påslaget (`GA_MEASUREMENT_ID`), bakom rutan om kakor. */
+export function PrivacyPage({ analytics = false }: { analytics?: boolean } = {}) {
   const workshop = WORKSHOP_COMPANY;
   return (
     <article className={styles.page}>
@@ -113,14 +114,27 @@ export function PrivacyPage() {
           uppgifterna du fyller i kassan, så att du slipper fylla i dem igen och ser dina ordrar. Inloggningen bärs av
           en kaka som behövs för att kontot ska fungera. Du tar själv bort kontot under Mitt konto.
         </p>
+        {analytics ? (
+          <p>
+            Nödvändiga kakor behövs för att sajten ska fungera, till exempel inloggningen och ditt val om kakor.
+            Godkänner du alla kakor använder vi också Google Analytics för att se vilka sidor som besöks och hur sajten
+            används. Google Ireland Ltd behandlar uppgifterna åt oss, och de kan överföras till USA enligt EU:s och USA:s
+            dataskyddsramverk. Laglig grund: ditt samtycke, som du ändrar under Cookieinställningar längst ner på sidan.
+            Google Ads och Meta Pixel används inte på namnskylt.com. Varukorgen och skylten du arbetar med sparas i din
+            webbläsare, så att de finns kvar om du laddar om sidan.
+          </p>
+        ) : (
+          <p>
+            Här används bara kakor som behövs för att sajten ska fungera. Google Analytics, Google Ads och Meta Pixel
+            används inte på namnskylt.com. Varukorgen och skylten du arbetar med sparas i din webbläsare, så att de
+            finns kvar om du laddar om sidan.
+          </p>
+        )}
         <p>
-          Här används bara kakor som behövs för att sajten ska fungera. Google Analytics, Google Ads och Meta Pixel
-          används inte på namnskylt.com. Varukorgen och skylten du arbetar med sparas i din webbläsare, så att de finns
-          kvar om du laddar om sidan.
-        </p>
-        <p>
-          Vi räknar hur långt besök kommer i skyltmotorn, för att se var det är krångligt. Räkningen sparar inget i din
-          webbläsare och ingen IP-adress, och kan inte kopplas till en person.
+          Vi räknar besök på sajten utan kakor: vilka sidor som besöks, varifrån besökarna kommer och om det är en dator
+          eller en telefon, och hur långt besök kommer i skyltmotorn. IP-adressen sparas inte – besökare räknas med en kod
+          som byts varje dygn. Besöken raderas efter 90 dagar och skyltmotorns räkning efter ett halvår. Räkningen sparar
+          inget i din webbläsare och kan inte kopplas till en person. Laglig grund: vårt berättigade intresse av att förstå hur sajten används.
         </p>
       </section>
 
