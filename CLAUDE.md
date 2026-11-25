@@ -3382,6 +3382,48 @@ via ägaren 2026-11-24):
 - **Känd brist:** plastens kudde heter "egen form" hos verkstaden, eftersom vi skickar den som fri
   form.
 
+## Fliken Namnskylt hos verkstaden: allt på en vy — läge 2026-11-25
+
+Mats ville inte hoppa mellan vyer (via ägaren 2026-11-25: "jag måste gå till order för att se vad som
+ligger i printkön. Sen måste jag gå in på en annan vy för att ändra status ... och sen ska jag ladda ner
+den", och "om man kan lägga allting på samma vy"). **Byggt i verkstadens projekt på ägarens beställning och
+ute i deras drift sedan 2026-11-25 13:06** (ägarens "kan du deploya ut det här på Skylt och Gravyrs AWS?"),
+efter tre omgångar av deras bug-hunt: två HIGH rättades, och sista omgången gav 0 CRITICAL och 0 HIGH.
+Deras röktest gav 91 sidor och 144 filer före och efter. Inte committat hos dem. **Fliken är inte sedd
+inloggad i drift**: jag loggar inte in i deras admin där.
+
+- **Varje order från namnskylt.com som inte är skickad står öppen som ett kort** på fliken Produktion →
+  Namnskylt, äldst först (`PartnerOrdersBoard`, `PartnerOrderWorkbench` i
+  `apps/web/src/app/admin/produktion/namnskylt/`). Kortet har:
+  - statusen och statusbytet,
+  - knapparna Orderpapper, Följesedel, Leveranser och Ordern,
+  - kundens leveransspecifikation och packningen,
+  - skyltarna som bilder, grupperade per sort, märkning och fäste, med Gravyr-PDF och Tryck-PDF per skylt,
+  - A3-uppläggen och Gravyr och skärning, som förut.
+- **Statusbytet går genom verkstadens egen `updateOrderStatus`**, med samma spärr för plastskyltar
+  utanför produktionsorder som orderns sida (`updatePartnerStatusAction`). Beskedet kommer tillbaka till
+  kortet. Orderpappret och fraktsedeln öppnas inte av sig själva som på orderns sida: knapparna "Skriv ut
+  orderpappret" och "Skriv ut fraktsedeln" står vid beskedet. Det valde jag, så att man stannar på fliken.
+- **Bilderna är våra** (`partnerPreview`, bara på https, eftersom deras CSP inte släpper igenom http).
+  En order från före 2026-11-24 saknar bild, och då visas personalens miniatyr av raden
+  (`/api/admin/item-thumbnail/<rad>`, en väg som fanns hos dem). Sidan bär aldrig själva bilderna.
+- Skickade ordrar de senaste två veckorna står i en lista under korten. Orderns egen sida på fliken har
+  samma kort överst, med beställare, IO-nummer, märkning och frakt, och uppdelningen i leveranser under.
+- **Tak för de öppna korten:** högst 10 ordrar och 600 namn står öppna (`OPEN_LIMIT`, `OPEN_NAMES` i
+  `partner-orders-board.tsx`), äldst först. Fler ordrar står i listan "Fler ordrar att köra" och öppnas på
+  orderns sida. Den äldsta ordern, och den ett besked gäller, står alltid öppen. Taken valde jag.
+- **Ordrarna läses en gång per sida** (`getPartnerWorkbenches` i `server/partner-workbench.ts`): alla
+  öppna ordrar med dokument i en fråga, avstånden en gång och placeringarna i produktionsordrar i en fråga.
+  Första versionen läste varje orders dokument tre gånger utan tak, vilket deras bug-hunt tog som HIGH.
+- En order som makuleras eller skickas från kortet lämnar korten. Beskedet står då överst med orderns
+  nummer, och sidan rullar dit (`RevealOnMount`).
+- Statusvalet börjar om efter varje byte (`key` med orderns status på formuläret): Next behåller annars
+  formuläret när beskedet leder tillbaka till samma sida, och listan förvalde då ett steg bakåt.
+- Provat lokalt 2026-11-25 med båda systemen: tre ordrar genom vårt riktiga API, 26 kontroller i Chrome
+  på dator och 390 px, från Mottagen till Tillverkning och Skickad från kortet. Efter rättningarna samma
+  dag: 30 kontroller till, med makulering från kortet. Bilderna är inte sedda laddade: lokalt pekar de på
+  www.namnskylt.com med lokala koder.
+
 ## Mötet med verkstaden 2026-11-20: gjort och kvar
 
 Ägaren och Pär hade möte med Mats på Skylt & Gravyrteknik. Det som är byggt står i sina
