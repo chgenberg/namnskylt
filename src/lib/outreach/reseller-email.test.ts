@@ -89,12 +89,13 @@ describe("återförsäljarmejlet", () => {
     }
   });
 
-  test("toppbilden: överst, länkar till filmen och märks som AI-genererad", () => {
+  // Raden "Bilden är AI-genererad" togs bort på ägarens besked 2026-11-25.
+  test("toppbilden: överst och länkar till filmen, utan rad under", () => {
     assert.doesNotMatch(build().html, /<img/);
     const { html } = build({ heroImage: { url: `${SITE}/mejl/aterforsaljare-kontor.jpg`, width: 1056, height: 894 } });
     assert.equal([...html.matchAll(/<img/g)].length, 1);
     assert.match(html, /<a href="https:\/\/namnskylt\.com\/demo\?k=v1\.l\.abc\.123\.sig"[^>]*><img src="https:\/\/namnskylt\.com\/mejl\/aterforsaljare-kontor\.jpg" width="528" alt="Pär Philipson med en namnskylt från namnskylt\.com"/);
-    assert.match(visibleText(html), /Bilden är AI-genererad\. Skylten finns på riktigt\./);
+    assert.doesNotMatch(visibleText(html), /AI-genererad/);
     assert.ok(html.indexOf("<img") < html.indexOf("Hej Anna!"), "bilden står före hälsningen");
   });
 

@@ -33,9 +33,8 @@ export interface LocaleCopy {
   lead(step: EmailStep, c: CopyContext): string;
   /** Länken till sidan med filmen. */
   filmLink: string;
-  /** Toppbildens alt-text och raden under den, som säger att bilden är AI-genererad. */
+  /** Toppbildens alt-text. */
   heroAlt(contact: DemoContactText): string;
-  heroCaption: string;
   /** Stycket före knappen, om demon. */
   demo(contact: DemoContactText): string;
   /** Knappen: ring den som visar. Mejlets enda knapp. */
@@ -79,8 +78,6 @@ const sv: LocaleCopy = {
       : "Vi på Skylt & Gravyrteknik lanserar nu namnskylt.com – ett enklare sätt att designa namnskyltar med era kunders logotyper och skapa färdiga offerter med era egna priser. Vi tillverkar och skickar.",
   filmLink: "Se hur det funkar, på under en minut",
   heroAlt: (contact) => `${contact.name} med en namnskylt från namnskylt.com`,
-  // AI-förordningen och Merchins regel: en AI-bild visas aldrig som om den vore ett foto.
-  heroCaption: "Bilden är AI-genererad. Skylten finns på riktigt.",
   demo: (contact) => `${contact.name} från Merchin, som utvecklat plattformen tillsammans med oss, visar dig hur det fungerar på fem minuter.`,
   cta: (contact) => `Ring ${contact.firstName}: ${contact.phone}`,
   // Ägarens text 2026-11-25 slutar vid knappen; svar går ändå till hej@namnskylt.com.

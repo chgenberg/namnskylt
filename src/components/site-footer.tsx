@@ -13,6 +13,7 @@ export function SiteFooter() {
       <p>namnskylt.com drivs av Skylt &amp; Gravyrteknik · Leverans inom 5 arbetsdagar</p>
       {/* Länkarna står på en egen rad, så att var och en går att träffa med fingret på en telefon. */}
       <nav className={styles.links} aria-label="Om sajten">
+        <Link href="/namnskyltar">Alla namnskyltar</Link>
         <Link href="/om-oss">Om oss</Link>
         <Link href="/kontakt">Kontakta oss</Link>
         <Link href="/aterforsaljare/ansok">Bli återförsäljare</Link>

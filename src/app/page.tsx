@@ -1,9 +1,10 @@
 import { JsonLd } from "@/components/json-ld";
 import { SiteFooter } from "@/components/site-footer";
-import { HomeFaq } from "@/features/home/faq";
+import { Faq } from "@/components/faq";
 import { HomeHero } from "@/features/home/home-hero";
 import { HowItWorks } from "@/features/home/how-it-works";
 import { ResellerInvite } from "@/features/home/reseller-invite";
+import { TopicLinks } from "@/features/topics/topic-links";
 import { siteFacts } from "@/lib/seo/facts";
 import { pageMetadata, SITE_PAGES } from "@/lib/seo/page";
 import { faqItems } from "@/lib/seo/site-facts";
@@ -25,7 +26,8 @@ export default async function HomePage() {
         <HomeHero />
       </div>
       <HowItWorks />
-      <HomeFaq items={faqItems(facts)} />
+      <TopicLinks />
+      <Faq items={faqItems(facts)} />
       <ResellerInvite />
       <SiteFooter />
     </main>

@@ -1,4 +1,5 @@
 import { WORKSHOP_COMPANY } from "@/lib/company/workshop";
+import { TOPIC_HUB, TOPICS, topicPath } from "@/lib/topics/model";
 import { pageUrl, SITE_PAGES, type SitePage } from "./page";
 import { faqItems, SITE_ORIGIN, type SiteFacts } from "./site-facts";
 
@@ -22,6 +23,11 @@ export function llmsText(facts: SiteFacts): string {
     "",
     ...pages.map(link),
     `- [Bli återförsäljare](${SITE_ORIGIN}/aterforsaljare/ansok): För reklambyråer, profilföretag och tryckerier som vill sälja namnskyltar till sina kunder med egna priser.`,
+    "",
+    "## Namnskyltar efter skylt och bransch",
+    "",
+    `- [${TOPIC_HUB.title}](${SITE_ORIGIN}${TOPIC_HUB.path}): ${TOPIC_HUB.description}`,
+    ...TOPICS.map((topic) => `- [${topic.title}](${SITE_ORIGIN}${topicPath(topic)}): ${topic.description}`),
     "",
     "## Vanliga frågor",
     "",

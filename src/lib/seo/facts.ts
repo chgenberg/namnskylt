@@ -1,7 +1,7 @@
 import "server-only";
 import { OFFERED_MATERIALS } from "@/engine";
 import { endPriceTable, type PriceModel } from "@/engine/price-model";
-import { fromPriceSek, startShareSek, tierIndexFor } from "@/engine/pricing";
+import { extraDeliverySekOf, fromPriceSek, lastTierIndex, optionPriceSek, startShareSek, tierIndexFor, type PriceOptionId } from "@/engine/pricing";
 import { priceModelOrDefault } from "@/lib/orders/repository";
 import type { SiteFacts } from "./site-facts";
 
@@ -25,5 +25,19 @@ export function factsFromModel(model: PriceModel): SiteFacts {
     oneSek: priceAt(material.id, 1),
     manySek: priceAt(material.id, 500),
   }));
-  return { materials, letterSek: model.shipping.letterSek, parcelSek: model.shipping.parcelSek };
+  const last = lastTierIndex(list);
+  const option = (id: PriceOptionId) => optionPriceSek(id, list, last);
+  return {
+    materials,
+    letterSek: model.shipping.letterSek,
+    parcelSek: model.shipping.parcelSek,
+    extras: {
+      magnetSek: Math.max(0, option("magnet") - option("pin")),
+      clipSek: Math.max(0, option("clip") - option("pin")),
+      customShapeSek: option("customShape"),
+      frameSek: option("frame"),
+      logoSek: option("extraEngraving"),
+    },
+    extraDeliverySek: extraDeliverySekOf(model.shipping),
+  };
 }

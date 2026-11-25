@@ -1,5 +1,5 @@
 import { COPY, type EmailStep, type OutreachLocale } from "./copy";
-import { button, emailDocument, esc, FAINT, INK, LINE, MONO, MUTED, SANS, SERIF } from "@/lib/email/layout";
+import { button, emailDocument, esc, FAINT, INK, LINE, MUTED, SANS, SERIF } from "@/lib/email/layout";
 import { DEMO_CONTACT } from "@/lib/callback/contact";
 import { firstNameOf, type RelationSegment } from "./model";
 
@@ -78,7 +78,6 @@ export function buildResellerEmail(input: ResellerEmailInput): ResellerEmailResu
     ...(hero
       ? [
           `<tr><td class="pad" align="center" style="padding:28px 36px 0;"><a href="${esc(input.filmUrl)}" style="text-decoration:none;"><img src="${esc(hero.url)}" width="${heroWidth}" alt="${esc(copy.heroAlt(contact))}" style="display:block;width:100%;max-width:${heroWidth}px;height:auto;border:0;"></a></td></tr>`,
-          `<tr><td class="pad muted" style="padding:8px 36px 0;font-family:${MONO};font-size:11px;line-height:16px;color:${FAINT};">${esc(copy.heroCaption)}</td></tr>`,
         ]
       : []),
     `<tr><td class="pad" style="padding:${hero ? 22 : 34}px 36px 6px;"><h1 class="ink" style="margin:0 0 12px;font-family:${SERIF};font-size:26px;line-height:32px;font-weight:normal;color:${INK};">${esc(copy.greeting(first))}</h1>${paragraph(lead)}</td></tr>`,

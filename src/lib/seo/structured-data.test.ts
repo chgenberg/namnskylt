@@ -16,6 +16,8 @@ const facts: SiteFacts = {
   ],
   letterSek: 75,
   parcelSek: 159,
+  extras: { magnetSek: 10, clipSek: 7, customShapeSek: 32, frameSek: 17, logoSek: 0 },
+  extraDeliverySek: 75,
 };
 
 type Node = Record<string, unknown>;
@@ -62,7 +64,7 @@ describe("JSON-LD", () => {
       assert.equal(offers.priceCurrency, "SEK");
       assert.ok((offers.lowPrice as number) < (offers.highPrice as number));
       assert.equal((offers.priceSpecification as Node).valueAddedTaxIncluded, false);
-      assert.match(String(product.image), /^https:\/\/www\.namnskylt\.com\/.+\.jpg$/);
+      assert.match(String(product.image), /^https:\/\/www\.namnskylt\.com\/namnskyltar\/[a-z]+\/skylt\.png$/);
     }
   });
 
@@ -91,7 +93,7 @@ describe("fakta ur prismodellen", () => {
     const list = endPriceTable(DEFAULT_PRICE_MODEL);
     const pin = mountingPriceSek("pin", list, 0);
     for (const other of ["magnet", "clip"] as const) assert.ok(pin <= mountingPriceSek(other, list, 0), other);
-    assert.match(faqItems(facts)[0]?.answer ?? "", /från 463 kr.*från 116 kr.*Priset gäller med nål/s);
+    assert.match(faqItems(facts)[0]?.answer ?? "", /från 463 kr.*från 116 kr.*Alla priser exkl\. moms, med nål\./s);
   });
 });
 

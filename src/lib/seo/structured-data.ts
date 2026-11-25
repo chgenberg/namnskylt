@@ -1,6 +1,6 @@
 import { WORKSHOP_COMPANY } from "@/lib/company/workshop";
 import { pageTitle, pageUrl, type SitePage } from "./page";
-import { faqItems, SITE_ORIGIN, type SiteFacts } from "./site-facts";
+import { faqItems, SITE_ORIGIN, type FaqItem, type SiteFacts } from "./site-facts";
 
 /**
  * Strukturerad data (JSON-LD, schema.org) för namnskylt.com (2026-11-25): vem som står bakom sajten, butiken i
@@ -83,8 +83,8 @@ export function products(facts: SiteFacts): Json[] {
     metal: "Namnskylt i metall: vit matt (lackad aluminium), mässing eller nickel, med namn, titel och logga i print. Nål, magnet.",
     plastic: "Namnskylt i tvålagers gravyrplast, 1,5 mm, i 17 färgkombinationer, graverad eller printad, med egen form om du vill. Nål, magnet eller klämma.",
   };
-  // Bilder utan andra företags loggor: mässingsskylten och läkarskylten i vit plast ur inspirationsbanken.
-  const image: Record<string, string> = { metal: "/og/namnskylt.jpg", plastic: "/inspiration/lakare-form.jpg" };
+  // Exempelskyltarna på sidorna om metall och plast, ritade av motorn i format som säljs.
+  const image: Record<string, string> = { metal: "/namnskyltar/metall/skylt.png", plastic: "/namnskyltar/plast/skylt.png" };
   return facts.materials.map((m) => ({
     "@type": "Product",
     "@id": `${SITE_ORIGIN}/#namnskylt-${m.id}`,
@@ -120,10 +120,12 @@ export function breadcrumbs(items: readonly { name: string; path: string }[]): J
   };
 }
 
-export function faqPage(facts: SiteFacts): Json {
+/** Vanliga frågor som FAQPage: startsidans ur `faqItems`, eller en sidas egna. */
+export function faqPage(source: SiteFacts | readonly FaqItem[]): Json {
+  const items = Array.isArray(source) ? (source as readonly FaqItem[]) : faqItems(source as SiteFacts);
   return {
     "@type": "FAQPage",
-    mainEntity: faqItems(facts).map((item) => ({
+    mainEntity: items.map((item) => ({
       "@type": "Question",
       name: item.question,
       acceptedAnswer: { "@type": "Answer", text: item.answer },
@@ -147,11 +149,20 @@ export function webPage(page: SitePage, type = "WebPage", about?: string): Json 
   };
 }
 
-/** Sidan med brödsmulorna Start › sidan, och det som hör till sidan. */
-export function pageGraph(page: SitePage & { title: string }, options: { type?: string; about?: string; parts?: Json[] } = {}): Json {
+/**
+ * Sidan med brödsmulorna Start › (sidorna i `trail`) › sidan, och det som hör till sidan. `name` är sidans namn
+ * i brödsmulorna när det ska vara kortare än titeln.
+ */
+export function pageGraph(
+  page: SitePage & { title: string },
+  options: { type?: string; about?: string; parts?: Json[]; trail?: { name: string; path: string }[]; name?: string } = {},
+): Json {
   return graph([
     webPage(page, options.type, options.about),
-    { ...breadcrumbs([{ name: page.title, path: page.path }]), "@id": `${pageUrl(page)}#brodsmulor` },
+    {
+      ...breadcrumbs([...(options.trail ?? []), { name: options.name ?? page.title, path: page.path }]),
+      "@id": `${pageUrl(page)}#brodsmulor`,
+    },
     ...(options.parts ?? []),
   ]);
 }

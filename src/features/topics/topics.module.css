@@ -1,0 +1,237 @@
+/* Sidorna om namnskyltar under /namnskyltar: samma lugna form som Om oss, med exempelskylten bredvid rubriken. */
+
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--space-7) var(--container-pad) var(--space-9);
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.crumbs a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.crumbs [aria-current] {
+  color: var(--color-ink);
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-serif);
+  font-size: var(--text-display);
+  font-weight: 400;
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+.lead {
+  margin: 0;
+  color: var(--color-ink-2);
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  text-wrap: pretty;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+/* ── Rubriken och exempelskylten ── */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: var(--space-7);
+  align-items: center;
+}
+
+.example {
+  margin: 0;
+}
+
+.example img,
+.photo img,
+.card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-xl);
+  background: var(--color-paper-2);
+}
+
+.example figcaption,
+.photo figcaption {
+  margin-top: var(--space-2);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+/* ── Priset ── */
+
+.prices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: var(--space-3) var(--space-6);
+  margin: var(--space-7) 0 0;
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-paper-2);
+}
+
+.prices dt {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.prices dd {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-lg);
+}
+
+.prices p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+/* ── Avsnitten och närbilden ── */
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--space-7);
+  margin-top: var(--space-8);
+  align-items: start;
+}
+
+.prose section + section {
+  margin-top: var(--space-6);
+}
+
+.prose h2 {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  font-weight: 400;
+  letter-spacing: var(--tracking-tight);
+}
+
+.prose p {
+  max-width: 40rem;
+  margin: 0;
+  color: var(--color-ink-2);
+  line-height: var(--leading-body);
+}
+
+.prose p + p {
+  margin-top: var(--space-3);
+}
+
+.photo {
+  position: sticky;
+  top: calc(var(--header-height, 72px) + var(--space-5));
+  margin: 0;
+}
+
+/* ── Fler namnskyltar och översikten ── */
+
+.related,
+.group {
+  margin-top: var(--space-8);
+}
+
+.relatedTitle {
+  margin: 0 0 var(--space-5);
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  font-weight: 400;
+  letter-spacing: var(--tracking-tight);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.cardTitle {
+  font-size: var(--text-lg);
+  font-weight: 500;
+}
+
+.card:hover .cardTitle,
+.card:focus-visible .cardTitle {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cardText {
+  color: var(--color-ink-2);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+.all {
+  margin: var(--space-5) 0 0;
+}
+
+.all a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.hubHead {
+  max-width: 760px;
+}
+
+@media (max-width: 860px) {
+  .hero,
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .photo {
+    position: static;
+  }
+}

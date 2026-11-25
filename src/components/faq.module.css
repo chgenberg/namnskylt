@@ -2,6 +2,10 @@
   padding-block: var(--space-8) 0;
 }
 
+.bare {
+  margin-top: var(--space-8);
+}
+
 .title {
   margin: 0 0 var(--space-5);
   font-family: var(--font-serif);

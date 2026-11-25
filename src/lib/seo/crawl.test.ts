@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { TOPIC_EXAMPLES } from "@/lib/topics/examples";
+import { TOPICS } from "@/lib/topics/model";
 import { PUBLIC_PATHS, robotsFor, sitemapFor } from "./crawl";
 
 const ORIGIN = "https://www.namnskylt.com";
@@ -29,6 +31,8 @@ describe("sökmotorerna och sajtspärren", () => {
       "https://www.namnskylt.com/kontakt",
       "https://www.namnskylt.com/villkor",
       "https://www.namnskylt.com/integritet",
+      "https://www.namnskylt.com/namnskyltar",
+      ...TOPICS.map((topic) => `https://www.namnskylt.com/namnskyltar/${topic.slug}`),
     ]);
   });
 
@@ -44,7 +48,11 @@ describe("sökmotorerna och sajtspärren", () => {
 
   it("listar bara sidor som finns", () => {
     for (const path of PUBLIC_PATHS) {
-      assert.ok(existsSync(join(process.cwd(), "src/app", path, "page.tsx")), `src/app${path}/page.tsx saknas`);
+      // Sidorna om namnskyltar ritas av en enda sida, `namnskyltar/[slug]`, med en exempelskylt var.
+      const topic = TOPICS.find((item) => path === `/namnskyltar/${item.slug}`);
+      const file = topic ? "namnskyltar/[slug]" : path;
+      assert.ok(existsSync(join(process.cwd(), "src/app", file, "page.tsx")), `src/app${file}/page.tsx saknas`);
+      if (topic) assert.ok(TOPIC_EXAMPLES[topic.slug], `${topic.slug} saknar exempelskylt`);
     }
   });
 });

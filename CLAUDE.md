@@ -4116,9 +4116,9 @@ Alla anrop går via `openai()` i `src/lib/ai/openai.ts`. Den returnerar `null` u
 ## Sökmotorer och AI-tjänster — läge 2026-11-25
 
 Ägaren har startat Google Search Console och vill ha "världens bästa SEO organisk" och en strategi för
-AI-tjänsterna, med hela sajten i JSON-LD (2026-11-25). Steg 1, den tekniska grunden, är byggt och
-**inte pushat**. Steg 2 (sidor om material, fästen, logga och branscher) och steg 3 (länkar utifrån, Bing,
-omdömen) är föreslagna och inte påbörjade.
+AI-tjänsterna, med hela sajten i JSON-LD (2026-11-25). Steg 1, den tekniska grunden, är ute i drift
+sedan 16:54 (`6047e3a`). Steg 2, sidorna om namnskyltar, är byggt samma kväll och **inte pushat** (se nedan).
+Steg 3 (länkar utifrån, Bing, omdömen) är föreslaget och inte påbörjat.
 
 - **Sidorna står på ett ställe:** `SITE_PAGES` i `src/lib/seo/page.ts` har varje publik sidas sökväg, titel
   och beskrivning (70–160 tecken, ett test vaktar). `pageMetadata` ger titel, beskrivning, kanonisk adress
@@ -4155,6 +4155,45 @@ omdömen) är föreslagna och inte påbörjade.
 - Provat lokalt 2026-11-25 mot produktionsbygget utan sajtspärr (43 av 43): titel, kanonisk adress,
   delningskort, beskrivning och en JSON-LD på varje sida, bilden, `/llms.txt` och sitemapen. Frågorna sedda i
   Chrome på 1440, 390 och 320 px. Inte kört genom Googles test för rika resultat.
+- Kontrollerat i drift samma dag efter pushen, bara läsning: samma 43 av 43. Driftens prismodell ger
+  327 och 115 kr för metall och 295 och 86 kr för plast (1 och 500 skyltar), alltså andra belopp än kalkylen.
+- **Search Console:** ägaren har verifierat egendomen namnskylt.com och skickat in sitemapen, som lästes
+  2026-11-25 med status Lyckades och 8 upptäckta sidor. Ingen verifieringskod behövs alltså på Railway.
+
+### Sidorna om namnskyltar under /namnskyltar — läge 2026-11-25
+
+Ägarens "börja med innehållssidorna … skrapa lite och se vilka som är mest relevanta … allting som har med merch
+att göra. Alla som är intresserade av att köpa en namnskylt som bolag" (2026-11-25).
+
+- **Urvalet** kommer från en genomgång av sju konkurrenter (Skyltmax, Svenska Medalj, Fröbergs, Expertprint,
+  Gravyrbutiken, Trycktema): alla har fäste, material och logga, vård är vanligast, och ingen har egna sidor för
+  restaurang och hotell, butik eller mässa. Elva sidor och en översikt (`/namnskyltar`):
+  - efter skylt: med logga, i metall, i plast, med magnet, med nål, med klämma (militärklämma), med egen form,
+  - efter bransch: sjukvård och omsorg, restaurang/café/hotell, butik och handel, mässa/konferens/event.
+- **Texterna** står i `TOPICS` i `src/lib/topics/model.ts`: titel (som också är h1), beskrivning, ingress,
+  avsnitt, vanliga frågor och länkar vidare. Priser, fästenas och tillvalens pris, frakt och extra adress sätts in
+  ur prismodellen (`SiteFacts`, `factsFromModel`). Sidorna ritas när de efterfrågas, inte vid bygget, så att
+  priserna följer driftens modell. Ny sida: lägg den i `TOPICS` och en exempelskylt i `TOPIC_EXAMPLES`.
+- **Exempelskyltarna** (`src/lib/topics/examples.ts`) byggs med motorns funktioner och går att beställa som de
+  är (test): knappen "Gör en sådan skylt" öppnar dem i skyltmotorn (`/skapa?d=`). Bilden ritas av
+  `/namnskyltar/<sida>/skylt.png` (offertmejlets ritning, 1056 × 528), som också är produkternas bild i
+  JSON-LD. Namnen är påhittade, och loggan är ett påhittat märke (ett löv i en cirkel), ritat som polygoner
+  eftersom en loggas bana bara får ha M, L och Z. Klämman och egen form använder inspirationsbankens läkarskylt
+  och bil. Närbilderna på fästena är inspirationsbankens baksidor, utan andra företags loggor.
+- **JSON-LD:** sidan, brödsmulorna Start › Namnskyltar › sidan, produkterna för sidans material och sidans
+  frågor som `FAQPage`. Översikten är en `CollectionPage` med en `ItemList`.
+- **Länkarna in:** startsidan har "Hitta rätt namnskylt" (`TopicLinks`) före frågorna, sidfoten "Alla
+  namnskyltar", och sitemapen och `/llms.txt` listar sidorna. Sidhuvudets meny är orörd (ägarens beslut
+  2026-11-18).
+- Startsidans frågor har fått "Är namnskylt och namnbricka samma sak?". `Faq` ligger nu i `src/components/`.
+- **Granskat av marknadsagenten** samma kväll. Rättat: klämmans mått (ingen har gett det), att färgen ur
+  loggan bara föreslås och bara gäller print, att en beskriven form är ett förslag, att personalen delar upp
+  ordern per butik, metallsidans bild (en mässingsskylt i ett format som inte säljs), samt ton och sökord.
+  **Kvar att avgöra:** "korrektur innan produktion ingår" står i frågorna, som på startsidan och i villkoren,
+  fast en direktorder går till verkstaden av sig själv och korrektur bara visas när ett har skickats.
+- Provat lokalt mot produktionsbygget utan sajtspärr (100 av 100): alla elva sidor svarar med JSON-LD,
+  brödsmulor, kanonisk adress, bild och länk till skyltmotorn, okända adresser ger 404, sitemapen har 20 sidor,
+  inget sticker ut på 1440, 390 och 320 px, alla bilder laddas, och "Gör en sådan skylt" öppnar skylten.
 
 ## Besöksstatistik, kakor och klicken från utskicket — läge 2026-11-25
 
@@ -4228,8 +4267,10 @@ Samma kväll gick också ett enskilt provmejl till en tredje mottagare som ägar
   hög kvalitet) fick vår egen skylt, mässing med namnskylt.coms logga och "Pär Philipson", och ett foto av
   Pär som ägaren skickade. Sedan Merchins filmton och korn i koden och en polaroidkant. Skriptet ligger i
   `tmp/topp-bild/` (gitignorerat); verkstadsbilden valdes, kontorsbilden finns där som alternativ. Bilden
-  står överst, länkar till filmen och har raden "Bilden är AI-genererad. Skylten finns på riktigt."
-  (AI-förordningen gäller bilder som liknar en verklig person, och Merchins regel säger detsamma).
+  står överst och länkar till filmen. Raden "Bilden är AI-genererad. Skylten finns på riktigt." under den togs bort
+  på ägarens besked 2026-11-25, inför utskicket dagen efter. Jag hade lagt in den för AI-förordningens
+  krav på att märka AI-bilder av verkliga personer, och Merchins regel säger detsamma. Bara alt-texten
+  beskriver nu bilden.
   Texten på skylten är kontrollerad förstorad.
   - **Kontorsbilden gäller sedan samma eftermiddag** (ägarens "inte där han står på ett lager"):
     `public/mejl/aterforsaljare-kontor.jpg`. Den fick ett nytt filnamn, så att Gmail inte visar

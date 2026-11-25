@@ -1,3 +1,4 @@
+import { TOPIC_HUB, TOPICS, topicPath } from "@/lib/topics/model";
 import { SITE_PAGES } from "./page";
 
 /**
@@ -7,7 +8,11 @@ import { SITE_PAGES } from "./page";
  */
 
 /** Sidorna som får hittas via sökmotorer. Butiker, hemliga länkar och panelen står aldrig här. */
-export const PUBLIC_PATHS: readonly string[] = Object.values(SITE_PAGES).map((page) => page.path);
+export const PUBLIC_PATHS: readonly string[] = [
+  ...Object.values(SITE_PAGES).map((page) => page.path),
+  TOPIC_HUB.path,
+  ...TOPICS.map(topicPath),
+];
 
 /** Personliga länkar och butiksförhandsvisningar ska aldrig hamna i sökmotorer. */
 const PRIVATE_PATHS = ["/for/", "/avregistrera/", "/utskick/", "/aterforsaljare/", "/admin", "/api/"];

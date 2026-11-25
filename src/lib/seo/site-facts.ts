@@ -5,11 +5,15 @@ export interface SiteFacts {
   materials: { id: string; name: string; oneSek: number; manySek: number }[];
   letterSek: number;
   parcelSek: number;
+  /** Tillvalens lägsta pris per skylt (sista trappsteget), som skyltmotorns "Pris från". Fästena mot nålen. */
+  extras: { magnetSek: number; clipSek: number; customShapeSek: number; frameSek: number; logoSek: number };
+  /** Frakten för varje extra leveransadress, när ordern delas upp. */
+  extraDeliverySek: number;
 }
 
 export const SITE_ORIGIN = "https://www.namnskylt.com";
 
-const kr = (value: number) => `${new Intl.NumberFormat("sv-SE").format(value)} kr`;
+export const kr = (value: number) => `${new Intl.NumberFormat("sv-SE").format(value)} kr`;
 
 export interface FaqItem {
   question: string;
@@ -27,7 +31,11 @@ export function faqItems(facts: SiteFacts): FaqItem[] {
       question: "Vad kostar en namnskylt?",
       answer: `Priset per skylt sjunker med antalet. ${facts.materials
         .map((m) => `I ${m.name.toLowerCase()} kostar en enstaka skylt från ${kr(m.oneSek)} och 500 skyltar från ${kr(m.manySek)} styck`)
-        .join(". ")}, exkl. moms. Priset gäller med nål. Du ser priset direkt när du formger skylten.`,
+        .join(". ")}. Alla priser exkl. moms, med nål. Du ser priset direkt när du formger skylten.`,
+    },
+    {
+      question: "Är namnskylt och namnbricka samma sak?",
+      answer: "Ja, det är två namn på samma sak: en skylt med namn, och ofta titel och logga, som bärs på kläderna.",
     },
     {
       question: "Vilka material finns?",
@@ -62,7 +70,7 @@ export function faqItems(facts: SiteFacts): FaqItem[] {
     },
     {
       question: "Vem tillverkar skyltarna?",
-      answer: `${company.legalName} i ${company.area}, som driver namnskylt.com. Skyltarna tillverkas i Sverige.`,
+      answer: `${company.legalName}, som driver namnskylt.com. Skyltarna tillverkas i deras verkstad i ${company.area}.`,
     },
     {
       question: "Kan vi sälja namnskyltar till våra egna kunder?",
